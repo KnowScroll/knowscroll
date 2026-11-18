@@ -22,6 +22,8 @@ export interface BeatViewProps {
   readonly figureWords?: string | undefined;
   /** What the screen draws under the beat (a Quick answer card). */
   readonly footer?: ReactNode;
+  /** The footer was laid out: how far its bottom is below the beat's top. */
+  readonly onFooterLayout?: ((bottom: number) => void) | undefined;
 }
 
 /**
@@ -39,6 +41,7 @@ export function BeatView({
   quiet = false,
   figureWords,
   footer,
+  onFooterLayout,
 }: BeatViewProps) {
   const page = usePagePalette();
   const focus = useFocusRing('onLight');
@@ -98,7 +101,11 @@ export function BeatView({
           </Text>
         </Pressable>
       )}
-      {footer}
+      {footer === undefined || footer === null ? null : (
+        <View onLayout={(event) => onFooterLayout?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}>
+          {footer}
+        </View>
+      )}
     </View>
   );
 }

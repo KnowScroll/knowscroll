@@ -18,7 +18,9 @@ const playableVideo = readFileSync(join(__dirname, 'fixtures', 'blue-60s.webm'))
 const phone = { width: 390, height: 844 };
 const desktop = { width: 1440, height: 900 };
 const small = { width: 320, height: 640 };
-const first = seasons.stops[0] as { id: string; simple: string };
+const first = seasons.stops[0] as { id: string; simple: string; blocks: { type: string; text: string }[] };
+/** The stop's own words, which the plainer ones replace; its subhead stays. */
+const paragraph = first.blocks.find((block) => block.type === 'paragraph')!.text;
 
 async function shot(page: Page, name: string) {
   const folder = process.env['KS_SIMPLER_SHOTS'];
@@ -43,7 +45,9 @@ async function openScroll(page: Page, viewport: { width: number; height: number 
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   return served;
 }
@@ -77,21 +81,27 @@ for (const viewport of [phone, desktop]) {
   const size = `${String(viewport.width)} × ${String(viewport.height)}`;
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
 
-  test(`Simpler swaps the stop for its own plainer words in place, names them, and Undo brings the text back, at ${size}`, async ({
+  test(`Simpler swaps the stop for its own plainer words in place, offers Undo, and Undo brings the text back, at ${size}`, async ({
     page,
   }) => {
     await openScroll(page, viewport);
     const stop = page.locator(`[data-ks-stop="${first.id}"]`);
     await expect(stop.getByText('It leans.')).toBeVisible();
+    await expect(stop.getByText(paragraph)).toBeVisible();
     await stop.getByRole('button', { name: 'Say it simpler' }).click();
     await expect(stop.getByText(first.simple)).toBeVisible();
-    await expect(stop.getByText('It leans.')).toHaveCount(0);
-    await expect(stop.getByText('SIMPLER VERSION')).toBeVisible();
+    await expect(stop.getByText(paragraph)).toHaveCount(0);
+    await expect(stop.getByText('It leans.')).toBeVisible();
+    // Folio draws no label over the plainer words: what tells a reader they are on is the swap itself and the link,
+    // which now offers the way back.
+    await expect(stop.getByTestId('simpler-text')).toHaveText(first.simple);
+    await expect(stop.getByRole('button', { name: 'Say it simpler' })).toHaveCount(0);
     await shot(page, `simpler-${name}`);
     expect(await audit(page)).toEqual([]);
     await stop.getByRole('button', { name: 'Undo simpler version' }).click();
-    await expect(stop.getByText('It leans.')).toBeVisible();
-    await expect(stop.getByText('SIMPLER VERSION')).toHaveCount(0);
+    await expect(stop.getByText(paragraph)).toBeVisible();
+    await expect(stop.getByTestId('simpler-text')).toHaveCount(0);
+    await expect(stop.getByRole('button', { name: 'Say it simpler' })).toBeVisible();
     // The ••• menu does the same for the stop on screen.
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('button', { name: 'Simpler (this screen)' }).click();
@@ -117,8 +127,11 @@ for (const viewport of [phone, desktop]) {
 
   test(`words of a call are never offered Simpler or Ask, at ${size}`, async ({ page }) => {
     await openScroll(page, viewport);
-    await page.getByRole('button', { name: 'Call it 1 of 3', exact: true }).click();
-    await expect(page.getByRole('group', { name: 'Call it 1 of 3' })).toBeVisible();
+    // A call is drawn as text, a beat of its own; its words are not the Scroll's to simplify or ask about.
+    const call = page.locator('[data-ks-stop="call-delhi"]');
+    await expect(call).toHaveAttribute('data-ks-kind', 'call');
+    await call.scrollIntoViewIfNeeded();
+    await expect(call).toBeInViewport();
     await select(page, 'call-delhi', 'Delhi');
     await page.waitForTimeout(200);
     await expect(page.getByRole('toolbar', { name: 'Selected text' })).toHaveCount(0);

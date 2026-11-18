@@ -173,15 +173,9 @@ function ScrollSnippet({
       scope={scope}
       assetId={opening.content.assetId}
       onBack={onBack}
-      v2={(scroll, reader) => (
+      v2={(scroll) => (
         // A moment of a v2 Scroll: its passage anchor names a stop, and the reader opens there (D-292).
-        <ThreadScrollV2
-          scope={scope}
-          scroll={scroll}
-          readerKind={reader}
-          onBack={onBack}
-          initialStopId={anchor.blockId}
-        />
+        <ThreadScrollV2 scope={scope} scroll={scroll} onBack={onBack} initialStopId={anchor.blockId} />
       )}
     >
       {(scroll) => (

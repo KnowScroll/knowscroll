@@ -22,8 +22,8 @@ function playCallsOf(document: ScrollDocumentV2): readonly PlayCall[] {
 
 /**
  * Play on one opened v2 Scroll (D-063, D-180): the account scope's session for this revision, read
- * once from the server when the reader opens, with the sparks and combo for the dock and the calls
- * for the reader. Without a signed-in scope there is no play layer and the reader keeps play on the
+ * once from the server when Ask's waiting puzzle opens, with the calls it locks and the sparks and
+ * combo they earn. Without a signed-in scope there is no play layer and the puzzle keeps play on the
  * device alone. The session belongs to the scope: sign-out, an account switch, a privacy reset and
  * Clear all end it.
  */

@@ -11,11 +11,12 @@ import {
 } from '../../../packages/backend/src/modules/evidence/domain/reading-summary.js';
 
 /**
- * What the Stage + Spine reader reports, judged by the server's own rules. The reader tells the
- * recorder that the stop on screen is wholly visible, then not visible when it leaves, and that a
- * call's answer was shown. The recorder turns that into one visible interval per stop visit and one
- * `revealed` interaction per call (client-core's `ReadingTracker`; the browser test in
- * `stage-reader-smoke.spec.ts` checks the real recorder's events on the page). Here those events are
+ * What a reader of a v2 Scroll reports, judged by the server's own rules, as the Stage + Spine reader
+ * reported it (D-135): the stop on screen is visible, then not visible when it leaves, and a call's
+ * answer was shown. The recorder turns that into one visible interval per stop visit and one
+ * `revealed` interaction per call (client-core's `ReadingTracker`). Folio reports the same intervals
+ * by stop and no call interactions (D-423); `scroll-reader-smoke.spec.ts` checks its real recorder's
+ * events on the page. Here those events are
  * read as the intake stores them, summarised with the document's reading facts and qualified. The
  * document is the labelled CI fixture `seasons-stage-ci`, not product content.
  */

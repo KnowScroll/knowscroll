@@ -105,8 +105,8 @@ export const PARTY_CALL = {
 /**
  * `call`: the thread has a call before Part 2 (D-155). The places-only tests of T-D leave it off, so their layout is unchanged.
  * `nextCall`: a second call, before Part 3, that nobody has made yet (the open call a reveal of Part 2 must not hide).
- * `scrolls`: the three parts are Scrolls (the labelled v2 fixture `seasons-stage-ci`, which the thread's reader draws as the
- * Stage + Spine reader) instead of Reels.
+ * `scrolls`: the three parts are Scrolls (the labelled v2 fixture `seasons-stage-ci`, which the thread's reader draws as
+ * Folio's essay) instead of Reels.
  * `listed`: Talk's list (beside the thread on a desktop) holds this thread, started on Part 1 of 3.
  * `readThrough`: where the opening person had read to (their own stored position); omitted, they have read it all.
  */

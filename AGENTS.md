@@ -6,6 +6,7 @@
 - Read the acceptance criteria, the README of each package/module you change, and the specific rules and design screens that govern the journey. Expand when a boundary, amendment or runtime result is unclear. Look up a decision with `pnpm issue-context decision D-319`.
 - Use [status](docs/STATUS.md) for coordination, and verify Git, CI and deployed health before making runtime claims. [#661](https://github.com/KnowScroll/knowscroll/issues/661) tracks owner feedback, #462 the v3 revamp and #222 v2 history. Handoffs belong in the issue or PR: branch/commit, verified outcome and next action.
 - The [blueprint](docs/v2/architecture/02d-greenfield-blueprint.md) governs architecture and behavior, amended by [decisions](docs/v2/decisions.md) and the applicable [carried-forward rulings](docs/v2/carried-forward-facts.md). Consult the [architecture handoff](docs/v2/architecture/02e-future-session-handoff.md) for durable intent. V3 governs Universe, Scrolls, rooms and Talk; v2.1 governs other visuals. Use the [design index](docs/v2/README.md). Examples are authored, never product data. [Archived discovery](docs/archive/README.md) and `legacy/v1-final` are historical evidence.
+- Scrolls are read in Folio, an essay with figures that hold while their beats pass (D-423 to D-425, `packages/ui/src/scroll/folio/README.md`); it replaced the V3 Stage reader (D-133). "v3" means three different things here: the V3 design generation, the v3 revamp (#462), and the future `scroll-document.v3` format. Say which.
 
 ## Product and reliability
 

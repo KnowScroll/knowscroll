@@ -20,11 +20,6 @@ export interface DevicePreferences {
    * once to carry an earlier choice over and is never written again.
    */
   readonly appearance: Appearance;
-  /**
-   * Which reader draws a Scroll on this device while Folio is a trial (#732): the Stage reader, or Folio's essay. Kept
-   * here so the owner can compare the two on dev without a new build; it goes when Folio is the only reader.
-   */
-  readonly scrollReader: 'stage' | 'folio';
 }
 
 export const defaultDevicePreferences: DevicePreferences = {
@@ -33,7 +28,6 @@ export const defaultDevicePreferences: DevicePreferences = {
   reelSound: true,
   readyNotices: true,
   appearance: defaultAppearance,
-  scrollReader: 'stage',
 };
 
 /** How much each text size step multiplies the system's size. */
@@ -82,7 +76,6 @@ export function parseDevicePreferences(stored: string | null | undefined): Devic
     reelSound: typeof record.reelSound === 'boolean' ? record.reelSound : defaults.reelSound,
     readyNotices: typeof record.readyNotices === 'boolean' ? record.readyNotices : defaults.readyNotices,
     appearance: readAppearance(record),
-    scrollReader: record.scrollReader === 'folio' ? 'folio' : defaults.scrollReader,
   };
 }
 

@@ -18,7 +18,8 @@ const conversation = { conversationId: id(20), membershipId: id(21), membershipR
 const thread = { threadId: id(60), membershipId: id(61), membershipRevision: 1 };
 const scrollId = id(301);
 
-async function openScrollWithFriend(page: Page) {
+/** Opens the Scroll's own address; `anchor` is the stop a shared moment's link names. */
+async function openScrollWithFriend(page: Page, anchor?: string) {
   await page.setViewportSize(phone);
   await page.route('**/auth/session', (route) =>
     route.fulfill({
@@ -162,8 +163,8 @@ async function openScrollWithFriend(page: Page) {
         return route.fulfill({ status: 404, json: {} });
     }
   });
-  await page.goto(`/scroll/${scrollId}`);
-  await expect(page.getByTestId('stop-scroller')).toBeVisible();
+  await page.goto(anchor === undefined ? `/scroll/${scrollId}` : `/scroll/${scrollId}?anchor=${anchor}`);
+  await expect(page.getByTestId('folio-scroller')).toBeVisible();
 }
 
 async function openShareSheet(page: Page) {
@@ -172,6 +173,26 @@ async function openShareSheet(page: Page) {
   // The More sheet has stepped aside: only the Share sheet is open, so a tap lands on it.
   await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
 }
+
+test('a Scroll address that names a stop opens Folio at that beat, and one that names no stop opens at the start', async ({
+  page,
+}) => {
+  const stop = 'closest-in-january';
+  const beatTop = () =>
+    page.getByTestId('folio-scroller').evaluate((node, id) => {
+      const beat = node.querySelector(`[data-testid="beat-${id}"]`);
+      return beat === null ? Number.NaN : beat.getBoundingClientRect().top - node.getBoundingClientRect().top;
+    }, stop);
+  await openScrollWithFriend(page, stop);
+  const height = await page.getByTestId('folio-scroller').evaluate((node) => node.clientHeight);
+  // The beat lands in the reading band, in the upper part of the screen, once the page has settled around it.
+  await expect.poll(() => page.getByTestId('folio-scroller').evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(beatTop).toBeGreaterThanOrEqual(0);
+  await expect.poll(beatTop).toBeLessThanOrEqual(height * 0.6);
+  await page.goto(`/scroll/${scrollId}?anchor=no-such-stop`);
+  await expect(page.getByTestId('folio-scroller')).toBeVisible();
+  await expect.poll(() => page.getByTestId('folio-scroller').evaluate((node) => node.scrollTop)).toBe(0);
+});
 
 test('Open thread, after Explore with friends on a Scroll’s own address, reaches the thread', async ({ page }) => {
   await openScrollWithFriend(page);

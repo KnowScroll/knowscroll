@@ -5,8 +5,7 @@ import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, useDisplay, type ReaderHandle } from '@knowscroll/ui';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
 import type { OpenedScrollV2 } from '../scroll/scroll-session';
-import { EVERY_READER, readerFor, v2ReaderOf } from '../scroll/scroll-readers';
-import { useScrollReaders } from '../scroll/use-scroll-readers';
+import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
 import { EncounterStrip } from './encounter-actions';
@@ -30,8 +29,8 @@ export function isScrollV2Entry(entry: Extract<EncounterEntry, { kind: 'scroll' 
 }
 
 /**
- * A v2 Scroll in the Explore encounter (V3 A1, G1 to G3): the Stage + Spine reader in place of the
- * article. Vertical reading never navigates; the Part moves and Next are the same navigation the
+ * A v2 Scroll in the Explore encounter (V3 A1, G1 to G3): Folio's essay in place of the article
+ * (D-425). Vertical reading never navigates; the Part moves and Next are the same navigation the
  * Reel's edge tabs and the end card of a v1 Scroll make, through the same session, so a continuation
  * is only ever one the server admitted (the displayed link travels with the move).
  */
@@ -50,7 +49,6 @@ export function ScrollV2Encounter({
   readonly back: () => void;
   readonly hint: ReactNode;
 }) {
-  const readerKind = v2ReaderOf(useScrollReaders());
   const router = useRouter();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
@@ -66,7 +64,7 @@ export function ScrollV2Encounter({
   const switchToReel = () =>
     reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
   // "Next topic · as a Scroll" (V3 G4): once, for the Scroll a new topic just landed on.
-  // "Part 2 · your place in Part 1 is kept" and the slide in are for the step forward, once: not for a Back or an Undo that returns here.
+  // "Part 2 · your place in Part 1 is kept" is for the step forward, once: not for a Back or an Undo that returns here.
   const [arrival] = useState(() => arrivalToSay(state.trail, entry));
   useEffect(() => {
     markArrivalSaid(entry);
@@ -94,7 +92,6 @@ export function ScrollV2Encounter({
   return (
     <View style={styles.page}>
       <ScrollReaderSurface
-        kind={readerKind}
         scroll={entry.scroll}
         observer={entry.recorder.observer}
         paused={!playable}

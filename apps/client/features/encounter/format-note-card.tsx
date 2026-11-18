@@ -44,7 +44,7 @@ export function FormatNoteCard({
   keys = true,
 }: {
   readonly note: FormatNote;
-  /** Show the F and Esc key chips: only where the reader has those keys (the stage reader), not on an article (D-391). */
+  /** Show the F and Esc key chips: only where the reader has those keys (a v2 Scroll's essay), not on an article (D-391). */
   readonly keys?: boolean;
   readonly onSwitch: () => void;
   readonly onUndo: () => void;

@@ -27,13 +27,13 @@ export interface OpenedScroll {
   readonly degradedEssential: readonly { readonly blockId: string; readonly originalType: string }[];
 }
 
-/** A v2 Scroll, opened for the Stage + Spine reader: the same lineage, a stop-based document. */
+/** A v2 Scroll, opened for Folio's essay: the same lineage, a stop-based document. */
 export type OpenedScrollV2 = Omit<OpenedScroll, 'document'> & { readonly document: ScrollDocumentV2 };
 
 /** Either kind of opened Scroll, for the places that only need what both share (lineage, keep positions). */
 export type AnyOpenedScroll = OpenedScroll | OpenedScrollV2;
 
-/** Whether an opened Scroll is a v2 document, which the Stage + Spine reader draws (v1 keeps the article). */
+/** Whether an opened Scroll is a v2 document, which Folio's essay draws (v1 keeps the article). */
 export function isScrollV2(scroll: AnyOpenedScroll): scroll is OpenedScrollV2 {
   return scroll.document.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION;
 }

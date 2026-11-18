@@ -1,4 +1,4 @@
-import { readerKeyOf, type ReaderKey } from '../reader/reader-keys';
+import { READER_KEY_NAMES, readerKeyOf, type ReaderKey } from '../reader/reader-keys';
 
 /**
  * What a key does in the essay (folio README 5.4: every gesture has a key). The ••• rows, Ask, Part and topic keys are
@@ -26,3 +26,9 @@ export function folioKeyOf(key: string, shift = false): FolioKey | undefined {
   const shared = readerKeyOf(key, shift);
   return shared === undefined || shared.action === 'pick' || shared.action === 'lock-in' ? undefined : shared;
 }
+
+/** Every key the essay listens to, as `KeyboardEvent.key` names (Shift + Space is Space's); the keyboard map lists each one. */
+export const FOLIO_KEY_NAMES: readonly string[] = [
+  ...READER_KEY_NAMES.filter((name) => folioKeyOf(name) !== undefined),
+  ...Object.keys(SCROLL_KEYS),
+];

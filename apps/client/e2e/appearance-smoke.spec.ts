@@ -21,6 +21,8 @@ const desktop = { width: 1440, height: 900 };
 const KEY = 'ks.device.preferences';
 const SKY = 'rgb(2, 3, 8)';
 const PAPER = 'rgb(255, 251, 240)';
+/** Folio's page ground in each appearance (D-424). */
+const FOLIO_GROUND = { light: 'rgb(255, 251, 240)', dark: 'rgb(23, 21, 15)' } as const;
 
 async function shot(page: Page, name: string) {
   const folder = process.env['KS_APPEARANCE_SHOTS'];
@@ -142,7 +144,6 @@ for (const [earlier, appearance] of [
         reelSound: false,
         readyNotices: true,
         appearance,
-        scrollReader: 'stage',
       });
     await page.reload();
     await expect.poll(() => appearanceOf(page)).toBe(appearance);
@@ -210,7 +211,9 @@ for (const viewport of [phone, desktop])
         scrollDocument: seasons as unknown as Record<string, unknown>,
       });
       await page.goto('/explore');
-      await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+      await expect(
+        page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+      ).toBeVisible();
       await page.getByRole('button', { name: 'Got it' }).click();
       expect(await seriousViolations(page)).toEqual([]);
       expect(await printedFocusables(page)).toBe(0);
@@ -218,7 +221,7 @@ for (const viewport of [phone, desktop])
     });
   }
 
-test('switching halfway through a Scroll keeps the reader’s place and the play already made', async ({ page }) => {
+test('switching halfway through a Scroll repaints the reader and keeps its place', async ({ page }) => {
   await kept(page, { appearance: 'dark' });
   const served = await encounterFixture(page, 'scroll', {
     series: true,
@@ -226,16 +229,30 @@ test('switching halfway through a Scroll keeps the reader’s place and the play
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
-  // Halfway: on the first Call it, with a pick locked in and a spark in the dock.
-  await page.getByRole('button', { name: 'Call it 1 of 3', exact: true }).click();
-  await page.getByRole('radio', { name: /Delhi’s half/ }).click();
-  await page.getByRole('group', { name: 'Call it 1 of 3' }).getByRole('button', { name: 'Lock it in' }).click();
-  await expect(page.getByText('Called it!')).toBeVisible();
-  await expect(page.getByTestId('spark-chip')).toHaveAttribute('aria-label', '1 spark');
-  const here = page.getByRole('button', { name: 'Call it 1 of 3, you are here' });
-  await expect(here).toBeVisible();
+  const folio = page.getByTestId('folio-page');
+  const scroller = page.getByTestId('folio-scroller');
+  await expect(folio).toHaveCSS('background-color', FOLIO_GROUND.dark);
+  // Halfway: the essay scrolled to the middle. Where a reader is is the stop being read, which Share a moment quotes.
+  await scroller.evaluate((node) => {
+    node.scrollTop = (node.scrollHeight - node.clientHeight) / 2;
+  });
+  const stopBeingRead = async () => {
+    await page.getByRole('group', { name: 'Scroll reader' }).focus();
+    await page.keyboard.press('h');
+    const quote = await page.getByTestId('moment-quote').innerText();
+    // Its own Close: an Escape pressed before the sheet has taken focus goes to the reader instead.
+    const sheet = page.getByRole('dialog', { name: 'Share a moment' });
+    await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+    return quote;
+  };
+  const before = await stopBeingRead();
+  // Past the opening stop, so keeping the place is more than opening at the start.
+  expect(before).not.toContain('It leans.');
   await shot(page, 'reader-switch-before-dark');
   const commandsBefore = served.commands.length;
 
@@ -248,11 +265,12 @@ test('switching halfway through a Scroll keeps the reader’s place and the play
   await page.goBack();
   await expect(page).toHaveURL(/\/explore$/);
 
-  await expect(here).toBeVisible();
-  await expect(page.getByText('Called it!')).toBeVisible();
-  await expect(page.getByTestId('spark-chip')).toHaveAttribute('aria-label', '1 spark');
+  // The same page, now in Light, where it was.
+  await expect(folio).toHaveCSS('background-color', FOLIO_GROUND.light);
+  expect(await scroller.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(stopBeingRead).toBe(before);
   expect(await appearanceOf(page)).toBe('light');
-  // Nothing about the encounter was done again: no new open, activation, navigation or lock (a read may refresh).
+  // Nothing about the encounter was done again: no new open, activation or navigation (a read may refresh).
   const after = served.commands.slice(commandsBefore).map((command) => command.path);
   expect(after.filter((path) => /\/(encounter|experience|play)\//.test(path) && !path.endsWith('/read'))).toEqual([]);
   expect(await seriousViolations(page)).toEqual([]);

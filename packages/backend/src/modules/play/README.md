@@ -29,12 +29,15 @@ this cleanup makes no new live play or formation claim.
 
 ## What a person can do
 
+Since D-425 the Scroll reader draws calls as text, so a person plays a call where Ask's waiting puzzle offers one; the
+rules below are the same wherever a call is locked.
+
 - Pick an option of a Call it, **lock it in**, and see the reveal: "Called it!" with a spark for a right pick, "Plot twist!"
   with the sourced common guess for a wrong one. Two right calls in a row make a combo.
 - Lock the **Final call** the same way. A right one after a combo of two or more earns a second spark (D-187).
 - Earn the Scroll's **landmark** by locking its Final call: gold for a right answer, plain for any other (D-188). A
   Scroll with no landmark awards none.
-- Reload, and see the same calls revealed, the same sparks in the dock and the same landmark.
+- Reload, and see the same calls locked, the same sparks and the same landmark.
 - With **recording paused**, play on the device and save nothing on the server, landmark included. The screen says
   "Not saved while recording is paused." (D-083)
 - Clear, or delete the account, and play is erased. Export, and it is listed in words (D-082).
@@ -104,12 +107,12 @@ option and `newlyLocked: false`, and nothing changes. A landmark is awarded once
 Room play lives in Rooms under its own walls; it does not change this module's wall. The weekly Orbit (D-215) and the Universe's landmark overlay (D-214: the tray, the pennants on the globe and map, the lists) are implemented here and in the client and runtime-verified against authored fixtures (`e2e/universe-collection-smoke.spec.ts`), not yet on dev. Call it together in threads is built (T-E): a pick there lives in `social.thread_calls`, because it needs the thread's
 lock, standing, places and blocks, which play may not import (D-180); `social` is walled by the allow-list
 `thread-pick-wall-only-listed-modules-import-social` and `social/wall.test.ts` (D-156). It reads this module's source of truth, a
-Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now also gives a call's words. A landmark is shown on a planet when the Universe reads `readLandmarks` and Geography's place concepts and joins them on the topic (D-214); it also shows on the Scroll's own end.
+Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now also gives a call's words. A landmark is shown on a planet when the Universe reads `readLandmarks` and Geography's place concepts and joins them on the topic (D-214); the Scroll's own end no longer draws it (D-425).
 
 ## Related
 
 Decisions D-063, D-064, D-082, D-083, D-155 to D-157 (play in threads), D-180 to D-182, D-187, D-188. Contracts: `packages/contracts/src/play.ts`. Client:
-`packages/client-core/src/play-session.ts`, `packages/ui/src/scroll/stage-reader/` (the call view, sparks chip),
+`packages/client-core/src/play-session.ts`, `packages/ui/src/scroll/calls/` (the chips Ask's puzzle shows),
 `apps/client/features/scroll/use-scroll-play.ts`. Tally rule shared with the device: `packages/scroll-model/src/v2/play.ts`.
 
 ### Scrolls with no questions (D-397)

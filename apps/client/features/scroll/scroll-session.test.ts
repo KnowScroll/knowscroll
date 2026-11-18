@@ -274,8 +274,7 @@ describe('opening a Scroll for the signed-in scope', () => {
     expect(server.calls[0]?.body).toMatchObject({ capabilities: SCROLL_V2_CAPABILITIES });
     expect(SCROLL_V2_CAPABILITIES.documentSchemas).toContain('scroll-document.v2');
     expect(SCROLL_CAPABILITIES.documentSchemas).not.toContain('scroll-document.v2');
-    if (state.status !== 'ready' || state.reader !== 'stage')
-      throw new Error('expected a v2 Scroll for the Stage reader');
+    if (state.status !== 'ready' || state.reader !== 'folio') throw new Error('expected a v2 Scroll for Folio');
     expect(isScrollV2(state.scroll)).toBe(true);
     expect(positionIds(state.scroll)).toEqual(state.scroll.document.stops.map((stop) => stop.id));
   });

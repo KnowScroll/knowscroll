@@ -18,14 +18,11 @@ export interface EncounterFixtureOptions {
   /**
    * Serves a Scroll opened by its address (`/scroll/<id>`): a direct open and activation with no session, and a
    * series of `parts` Scrolls that the context counts and links (each Part has the Part before and the Part after
-   * it). `related` adds a related move on every Part. One part is no series.
+   * it). One part is no series.
    */
-  readonly direct?: { readonly parts: number; readonly related?: boolean };
-  /** Play on the served v2 Scroll: what the play routes already hold (a reload), and whether recording is paused (D-083). */
-  readonly play?: {
-    readonly kept?: readonly { readonly stopId: string; readonly option: number }[];
-    readonly recordingPaused?: boolean;
-  };
+  readonly direct?: { readonly parts: number };
+  /** Play on the served v2 Scroll: whether recording is paused (D-083). */
+  readonly play?: { readonly recordingPaused?: boolean };
   /**
    * The content-request routes (Ask from here, D1): what the status read answers for a request made on this page. The
    * answers are authored here, so this proves what the screen does with them, not what the server decides.
@@ -76,11 +73,8 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   const playable = 'stops' in served ? (served as unknown as ScrollDocumentV2) : undefined;
   const callIts = playable === undefined ? [] : callsOf(playable);
   const isFinal = (stopId: string) => callIts.find((call) => call.id === stopId)?.kind === 'final_call';
-  /** The calls the play routes hold, judged from the served document as the server judges a revision. */
-  const kept = (options.play?.kept ?? []).map((lock) => ({
-    ...lock,
-    correct: callIts.find((call) => call.id === lock.stopId)?.answer === lock.option,
-  }));
+  /** The calls the play routes hold (Ask's waiting puzzle locks them), judged as the server judges a revision. */
+  const kept: { stopId: string; option: number; correct: boolean }[] = [];
   const resultsFor = (assetId: unknown, revision: unknown): ScrollResults => {
     const final = kept.find((lock) => isFinal(lock.stopId));
     return {
@@ -214,10 +208,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
           n + 1 < direct.parts
             ? { ...link(n + 1, 700), relation: { kind: 'series_step', seriesId, seriesRevision: 1, part: n + 2 } }
             : none,
-        related:
-          direct.related === true
-            ? { ...link(n + 5, 800), relation: { kind: 'related_move', label: 'CI related angle' } }
-            : { status: 'unavailable', reason: 'no_related_ready' },
+        related: { status: 'unavailable', reason: 'no_related_ready' },
       },
     };
   };

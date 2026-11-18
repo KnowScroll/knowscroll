@@ -57,7 +57,9 @@ async function openAsha(
   });
   await routeAshaSocial(page, world);
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   return served;
 }
@@ -256,14 +258,19 @@ test('recording paused: the challenge still goes, the sender’s own call is not
   expect(await audit(page)).toEqual([]);
 });
 
-test('the end of the Scroll offers Challenge a friend beside Small print, and it opens the same sheet', async ({
-  page,
-}) => {
+test('at the end of the Scroll, the ••• sheet and the C key open the same Challenge sheet', async ({ page }) => {
   const world = challengeWorld();
   await openAsha(page, world, phone);
-  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
-  await expect(page.getByTestId('end-tray')).toBeVisible();
-  await page.getByTestId('end-tray').getByRole('button', { name: 'Challenge a friend' }).click();
+  await page.getByRole('group', { name: 'Scroll reader' }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByTestId('end-plate')).toBeInViewport();
+  // The plate has its own ways on; Challenge is a row of the ••• sheet, wherever in the Scroll it is opened from.
+  await openSheet(page);
+  await expect(page.getByTestId('challenge-sheet-prompt')).toHaveText(FINAL_CALL.prompt);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Challenge a friend' })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Scroll reader' }).focus();
+  await page.keyboard.press('c');
   await expect(page.getByRole('dialog', { name: 'Challenge a friend' })).toBeVisible();
   await expect(page.getByTestId('challenge-sheet-prompt')).toHaveText(FINAL_CALL.prompt);
 });
