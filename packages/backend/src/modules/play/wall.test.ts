@@ -117,7 +117,6 @@ describe('the picture a wrong answer turns the stage to stays on the device (D-0
     const everything = [...sourcesUnder('packages'), ...sourcesUnder('apps')];
     const found = everything.filter((path) => REVEAL_FIELD.test(read(path)));
     expect(found).toContain('packages/scroll-model/src/v2/document.ts');
-    expect(found).toContain('packages/ui/src/scroll/stage-reader/stage-reveal.ts');
     expect(REVEAL_FIELD.test('const next = call.revealStage;')).toBe(true);
     expect(REVEAL_FIELD.test('const next = call.reveal;')).toBe(false);
     // A module that ranked on it would be found by the first scan, because none of these paths may name it.

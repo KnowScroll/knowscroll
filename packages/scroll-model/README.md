@@ -21,7 +21,7 @@ serves only the consumer document. The app parses and negotiates that document, 
 it and reports actual reading through client-core. Admission does the expensive whole-document
 checks; a device must never rerun the full simulation-grid proof.
 
-For example, `scroll-document.v2` selects the Stage + Spine parser; it is not a request to convert
+For example, `scroll-document.v2` selects the v2 parser; it is not a request to convert
 an unknown document into v1. Unsupported versions require an explicit fallback or unavailable
 state. Keep compatibility exports and stored-version readers until supported clients and records
 have been traced, even when a newer producer uses a different entry point.

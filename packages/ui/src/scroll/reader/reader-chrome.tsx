@@ -147,9 +147,9 @@ const NARROW_PHONE = 400;
 
 /**
  * The dock at the bottom of a v2 Scroll: Ask, the sparks earned on this Scroll, the ••• menu and the
- * way on. The way on is the one primary action, in the continuation yellow's place: the next Part, or,
- * where there is none, the related move (D-184). It is absent when neither was admitted. The sparks are
- * this Scroll's alone, never a total (D-064).
+ * way on. The way on is the one primary action, in the continuation yellow's place: the next Part
+ * (D-184, D-425). It is absent when none was admitted. The sparks are this Scroll's alone, never a total
+ * (D-064).
  */
 export function ReaderDock({
   onAsk,
@@ -192,8 +192,7 @@ export function ReaderDock({
           accessibilityLabel={`${nextPart.label}: ${nextPart.title}`}
           icon="arrowRight"
           iconPosition="trailing"
-          variant={nextPart.related === true ? 'default' : 'primary'}
-          dashed={nextPart.related === true}
+          variant="primary"
           size="sm"
           onPress={nextPart.onPress}
         />

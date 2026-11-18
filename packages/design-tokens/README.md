@@ -59,7 +59,7 @@ How it reaches a component, without any component reading the setting:
   module-level `StyleSheet.create`, holds a reference. The client installs `appearanceStyleSheet()`
   once and names the page `data-ks-appearance="light|dark"`; switching repaints at once with no
   re-render. An element inside may name another appearance: `printedSurface()` in `ui` pins a
-  subtree to Light (the Stage reader's page, a Reel, a yellow continuation surface).
+  subtree to Light (the article's page, a Reel, a yellow continuation surface).
 - **Native and tests.** `adaptive(role)` is the Light value: native chrome is drawn Light, and Talk
   and rooms follow Appearance through `talkThemes` (sky in Dark, Paper in Light).
 - **Never compute on an adaptive value.** On the web it is a `var(...)` string. Contrast or colour

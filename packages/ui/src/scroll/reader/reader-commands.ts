@@ -32,20 +32,12 @@ export function run(command: (() => void) | undefined): boolean {
   return true;
 }
 
-/** A way on as the end tray and the dock offer it: only an admitted continuation is ever shown. */
+/** A Part as the end plate and the dock offer it: only an admitted continuation is ever shown. */
 export interface NextPartPeek {
-  /** "Part 2", or "Related" for another angle. */
+  /** "Part 2". */
   readonly label: string;
   readonly title: string;
-  /** Another angle rather than the next Part: drawn dashed. */
-  readonly related?: boolean;
   readonly onPress: () => void;
-}
-
-/** The limits aside the "Small print" chip opens: its title and its text. */
-export interface SmallPrint {
-  readonly title: string;
-  readonly text: string;
 }
 
 /** What the reader says when it was opened by a move to the next Part. */

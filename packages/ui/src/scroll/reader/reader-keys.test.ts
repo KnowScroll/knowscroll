@@ -1,7 +1,7 @@
 import { readerKeyOf } from './reader-keys';
 
 describe('the reader keys', () => {
-  it('map the keys of the design: arrows and Space read, right continues, N U A T F act, 1 to 4 pick, Enter locks in', () => {
+  it('map the keys of the design: arrows and Space read, right continues, N U A T F act, and a call has no keys', () => {
     expect(readerKeyOf('ArrowDown')).toEqual({ action: 'next-stop' });
     expect(readerKeyOf(' ')).toEqual({ action: 'next-stop' });
     expect(readerKeyOf('ArrowUp')).toEqual({ action: 'previous-stop' });
@@ -10,8 +10,8 @@ describe('the reader keys', () => {
     expect(readerKeyOf('N')).toEqual({ action: 'next-topic' });
     expect(readerKeyOf('u')).toEqual({ action: 'universe' });
     expect(readerKeyOf('?')).toEqual({ action: 'ask' });
-    expect(readerKeyOf('3')).toEqual({ action: 'pick', option: 3 });
-    expect(readerKeyOf('Enter')).toEqual({ action: 'lock-in' });
+    expect(readerKeyOf('3')).toBeUndefined();
+    expect(readerKeyOf('Enter')).toBeUndefined();
   });
 
   it('give each row of the ••• sheet its key, and Shift + S is Simpler where S alone is Save', () => {

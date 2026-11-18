@@ -1,4 +1,4 @@
-/** What a key does while the reader has focus (D-134). `pick` carries the option number, 1 to 4. */
+/** What a key does while the reader has focus (D-134, D-425). */
 export type ReaderKey =
   | { readonly action: 'next-stop' }
   | { readonly action: 'previous-stop' }
@@ -15,9 +15,7 @@ export type ReaderKey =
   | { readonly action: 'simpler' }
   | { readonly action: 'small-print' }
   | { readonly action: 'report' }
-  | { readonly action: 'undo' }
-  | { readonly action: 'lock-in' }
-  | { readonly action: 'pick'; readonly option: number };
+  | { readonly action: 'undo' };
 
 const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   ArrowDown: { action: 'next-stop' },
@@ -40,11 +38,6 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   r: { action: 'report' },
   // Undoes the move that just opened this Scroll (V3 G4); the screen offers it only while its note is showing.
   Escape: { action: 'undo' },
-  Enter: { action: 'lock-in' },
-  '1': { action: 'pick', option: 1 },
-  '2': { action: 'pick', option: 2 },
-  '3': { action: 'pick', option: 3 },
-  '4': { action: 'pick', option: 4 },
 };
 
 /** Every key the reader listens to, as `KeyboardEvent.key` names; the keyboard map lists each one. */
