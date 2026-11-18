@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   hint: { position: 'absolute', left: spacing[4], right: spacing[4] },
 });
 
-/** A Scroll in the encounter: a v2 document is read on the Stage + Spine, a v1 document in the article. */
+/** A Scroll in the encounter: a v2 document is read as Folio's essay, a v1 document in the article. */
 export function ScrollEncounter({
   scope,
   entry,

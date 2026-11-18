@@ -157,7 +157,7 @@ The stage takes no drag in this version; the swipe is read on the text only (D-0
 
 ## Folio reader (`src/scroll/folio`, D-423)
 
-Status: **implemented** behind a device switch (Account → Accessibility & playback), unit-tested and smoke-tested on the web; a hold is checked on the Android emulator. A Scroll as an essay: `readingModelOfV2` turns a `scroll-document.v2` into a reading model, `FolioReader` draws it with the same commands, handle, header and dock as `StageReader`. Figures are drawn by `stage/kit-figure.tsx` (`useKitFigure`, `FigureDrawing`), which `Stage` uses too. The folder's own README says how a document becomes a screen, where a new document version plugs in and how reading is measured.
+Status: **implemented**, the reader for every `scroll-document.v2` (D-425), unit-tested and smoke-tested on the web; a hold is checked on the Android emulator. A Scroll as an essay: `readingModelOfV2` turns a `scroll-document.v2` into a reading model, and `FolioReader` draws it with the commands, handle, header and dock of `reader/`. Figures are drawn by `stage/kit-figure.tsx` (`useKitFigure`, `FigureDrawing`), which `Stage` uses too. The folder's own README says how a document becomes a screen, where a new document version plugs in and how reading is measured.
 
 ## Platform files
 

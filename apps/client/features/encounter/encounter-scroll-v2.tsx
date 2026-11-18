@@ -29,8 +29,8 @@ export function isScrollV2Entry(entry: Extract<EncounterEntry, { kind: 'scroll' 
 }
 
 /**
- * A v2 Scroll in the Explore encounter (V3 A1, G1 to G3): the Stage + Spine reader in place of the
- * article. Vertical reading never navigates; the Part moves and Next are the same navigation the
+ * A v2 Scroll in the Explore encounter (V3 A1, G1 to G3): Folio's essay in place of the article
+ * (D-425). Vertical reading never navigates; the Part moves and Next are the same navigation the
  * Reel's edge tabs and the end card of a v1 Scroll make, through the same session, so a continuation
  * is only ever one the server admitted (the displayed link travels with the move).
  */

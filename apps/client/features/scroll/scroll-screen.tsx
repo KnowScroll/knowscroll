@@ -87,7 +87,7 @@ function KeepActions({
   readonly degraded: boolean;
   /** Opens the Share sheet; without it the strip holds Save only. */
   readonly onShare?: () => void;
-  /** False where Save is a row of its own (the Stage + Spine reader's ••• sheet): the strip holds Share alone. */
+  /** False where Save is a row of its own (a v2 Scroll's ••• sheet): the strip holds Share alone. */
   readonly saveInStrip?: boolean;
 }) {
   return (

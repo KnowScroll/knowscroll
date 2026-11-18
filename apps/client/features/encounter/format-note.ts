@@ -29,7 +29,7 @@ export function keptWords(kept: FormatNote['kept']): string {
  * The card shown after Next ↑, a pull past the end or N lands on another Scroll (V3 G4): "Next topic · as a Scroll", with a way
  * to switch to the Reel of the same topic and an Undo. It amends D-132 only in saying so: the format still stays. It is shown
  * for any Scroll that was reached from a Scroll by a new topic (a discovery after an entry in the trail), a v1 library article
- * as much as a v2 stage Scroll (D-391), never for the first open, a Part, a related move, a format switch or a Back.
+ * as much as a v2 Scroll (D-391), never for the first open, a Part, a related move, a format switch or a Back.
  * Everything on it is read from the two entries.
  */
 export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntryOf): FormatNote | undefined {
@@ -38,7 +38,7 @@ export function formatNoteOf(trail: readonly EncounterEntry[], entry: ScrollEntr
   if (before?.kind !== 'scroll') return undefined;
   const { document } = entry.scroll;
   const minutes = Math.max(1, Math.round(document.measures.readingMinutes));
-  // Only a stage Scroll has calls to play.
+  // Only a v2 Scroll has calls.
   const calls = isScrollV2(entry.scroll) ? callsOf(entry.scroll.document).length : 0;
   const facts = [
     document.kicker,
