@@ -35,6 +35,11 @@ export interface EssayCoverProps {
   readonly reducedMotion: boolean;
   /** Height the cover may use (the viewport below any app chrome); the figure shrinks or drops to fit. */
   readonly height: number;
+  /**
+   * Room at the foot kept clear for chrome that floats over the cover (a phone's tab bar): the page's ground runs on
+   * under it, so no seam shows, and the content stops above it.
+   */
+  readonly bottomInset?: number | undefined;
   readonly testID?: string | undefined;
 }
 
@@ -50,6 +55,8 @@ const BUTTON = 44;
 interface Measured {
   /** The upper block (position row, opening, figure, way in) at its own height, and the figure's plate within it. */
   readonly main: number;
+  /** Whether the plate was drawn when `main` was measured: `main` holds it only then. */
+  readonly mainHasPlate: boolean;
   readonly plate: number;
   /** The strip that names what the next move shows. */
   readonly strip: number;
@@ -79,6 +86,7 @@ export function EssayCover({
   onPrevious,
   reducedMotion,
   height,
+  bottomInset = 0,
   testID = 'essay-cover',
 }: EssayCoverProps) {
   const page = usePagePalette();
@@ -95,23 +103,34 @@ export function EssayCover({
   if (figure === undefined) {
     drawing = undefined;
   } else if (measured.main !== undefined && measured.strip !== undefined) {
-    const others = measured.main - (measured.plate === undefined || measured.plate === 0 ? 0 : measured.plate + GAP);
-    const room = height - (others + measured.strip + 2 * PAD + GAP) - GAP;
+    // The block holds the plate only while it is drawn; taking the plate off a block measured without it would count it
+    // twice, make room for the figure again, and so draw and drop it for ever.
+    const others =
+      measured.main -
+      (!measured.mainHasPlate || measured.plate === undefined || measured.plate === 0 ? 0 : measured.plate + GAP);
+    const room = height - bottomInset - (others + measured.strip + 2 * PAD + GAP) - GAP;
     drawing = room < FIGURE_LEAST ? undefined : Math.floor(Math.min(bounds.most, room - frame));
   }
 
   const column = measure === undefined ? styles.column : [styles.column, { maxWidth: measure }];
   const minutesShown = Math.max(1, Math.round(minutes));
-  const measuring = (key: keyof Measured) => (event: LayoutChangeEvent) => {
+  const plateDrawn = figure !== undefined && drawing !== undefined;
+  const measuring = (key: 'plate' | 'strip') => (event: LayoutChangeEvent) => {
     const value = Math.round(event.nativeEvent.layout.height);
     setMeasured((now) => (now[key] === value ? now : { ...now, [key]: value }));
+  };
+  const measuringMain = (event: LayoutChangeEvent) => {
+    const value = Math.round(event.nativeEvent.layout.height);
+    setMeasured((now) =>
+      now.main === value && now.mainHasPlate === plateDrawn ? now : { ...now, main: value, mainHasPlate: plateDrawn },
+    );
   };
 
   return (
     <View style={[styles.cover, { height, backgroundColor: page.ground }]} testID={testID} {...scrollPageSurface()}>
-      <ScrollView contentContainerStyle={[styles.content, { minHeight: height }]}>
+      <ScrollView contentContainerStyle={[styles.content, { minHeight: height, paddingBottom: PAD + bottomInset }]}>
         <View style={column}>
-          <View style={styles.main} onLayout={measuring('main')} testID="essay-cover-body">
+          <View style={styles.main} onLayout={measuringMain} testID="essay-cover-body">
             <View style={styles.topRow}>
               <Text variant="label" color={page.ink2}>{`${position.index} OF ${position.count}`}</Text>
               <View style={styles.moves}>

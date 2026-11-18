@@ -87,7 +87,7 @@ the screen in the document, so reading and Tab order is top bar → content → 
 the phone pill floats over the bottom, and on tablets and desktops the rail is drawn over a left
 margin the screens leave free (`sceneStyle`), with the desktop avatar last in the rail.
 
-The encounter controller advertises `scroll-document.v1`, `scroll-document.v2` and `reel-document.v1` when
+The encounter controller advertises `scroll-document.v1`, `scroll-document.v2`, `reel-document.v1` and `offer-cover.v1` when
 opening discovery or a Saved revisit. Its Scroll block/version declaration still comes from the
 actual renderer registry. A Scroll-only capability declaration would correctly make the backend
 exclude Reels, even though this controller has a working Reel player.
@@ -186,6 +186,20 @@ offer activation and current authorized exposure context. Each intent keeps its 
 through unknown-outcome retries. Stale intent refreshes current context and requires a fresh
 choice; ready offers activate only while Explore is foreground. The session belongs to the
 AccountScope, survives tab/component detours and ends when the scope ends.
+
+**Covers in Explore (trial, #745 to #747).** Behind the device switch "Show Scrolls as covers (trial)" (Account →
+Accessibility & playback, `coversInExplore`, off by default), the moves the system chooses (the first open, a move to a
+new subject, more covers) show their Scroll offers as a hand of up to three covers (`CoverHand`, drawn by
+`features/explore/cover-feed.tsx` with `EssayCover`) instead of opening the first one. Nothing in a hand is activated,
+so nothing is recorded, until Read, a tap on the cover or Enter opens the one shown. ↓ or J, a swipe up, the wheel and the
+strip turn to the next cover and ↑ or K to the one before; after the last, the next move asks for another hand (a new
+discover) and the old one is gone. Back from an essay opened from a cover returns to that cover; Back from the covers
+returns to the entry they were dealt over, and with none (the first thing dealt) it is the browser's. A hand older than
+its offers' life is replaced when a cover is opened, not refused. A Reel offer, an offer without a `cover`, a move the
+person names (a Part, a related link, the format switch, Keep, a region) and any move with the switch off open at once as
+before. The client declares `offer-cover.v1` in `capabilities.documentSchemas`, and the server sends a cover only to a
+client that does. `e2e/covers-smoke.spec.ts` proves the hand, the moves, Back, touch, the switch off, a Reel hand, axe in
+Light and Dark and 320 px at the largest text.
 
 Presentation is split by what the person sees: `encounter-reel.tsx` (E01: stage, chrome, edge tabs),
 `encounter-scroll.tsx` and `scroll-end.tsx` (E02 and the end-of-article card), `encounter-top-bar.tsx`

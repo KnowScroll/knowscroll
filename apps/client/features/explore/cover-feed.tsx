@@ -1,7 +1,8 @@
-import { useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { EssayCover, Skeleton, Text, useDisplay, type FigureState } from '@knowscroll/ui';
+import { useEncounterMetrics } from '../encounter/encounter-metrics';
 import { readResume } from '../encounter/encounter-history';
 import type { CoverHand, CoveredOffer, EncounterSession, EncounterState } from '../encounter/encounter-session';
 import { useCoverPaging } from './cover-paging';
@@ -23,16 +24,15 @@ export function CoverFeed({
   state,
   hand,
   foreground,
-  hint,
 }: {
   readonly scope: AccountScope;
   readonly session: EncounterSession;
   readonly state: EncounterState;
   readonly hand: CoverHand;
   readonly foreground: boolean;
-  readonly hint?: ReactNode;
 }) {
   const { reducedMotion } = useDisplay();
+  const metrics = useEncounterMetrics();
   const root = useRef<ComponentRef<typeof View>>(null);
   const [height, setHeight] = useState(0);
   const offer = hand.offers[hand.index]!;
@@ -40,10 +40,10 @@ export function CoverFeed({
   // While a cover opens or more covers are on their way, the cover stays where it is and takes no more moves.
   const waiting = state.phase !== 'covers';
   useCoverPaging(root, foreground && !waiting && !state.overlay, {
-    onNext: session.nextCover,
-    onPrevious: session.previousCover,
-    onOpen: session.openCover,
-    onBack: session.back,
+    onNext: () => session.nextCover(),
+    onPrevious: () => session.previousCover(),
+    onOpen: () => session.openCover(),
+    onBack: () => session.back(),
   });
   // A Scroll read part of the way before opens where it was left, so its cover says Continue.
   const continues = readResume(scope, offer.assetId, offer.assetRevision)?.kind === 'scroll';
@@ -55,7 +55,8 @@ export function CoverFeed({
       onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
       testID="cover-feed"
     >
-      {height > 0 ? (
+      {/* The cover's content ends where the floating tab bar begins, so its strip and Read button are never under it. */}
+      {height > metrics.bottom ? (
         <EssayCover
           kicker={offer.cover.kicker}
           title={offer.metadata.title}
@@ -65,11 +66,12 @@ export function CoverFeed({
           way={continues ? 'continue' : 'read'}
           position={position}
           next={following ? { kicker: following.cover.kicker, title: following.metadata.title } : 'more'}
-          onOpen={session.openCover}
-          onNext={session.nextCover}
-          {...(hand.index > 0 ? { onPrevious: session.previousCover } : {})}
+          onOpen={() => session.openCover()}
+          onNext={() => session.nextCover()}
+          {...(hand.index > 0 ? { onPrevious: () => session.previousCover() } : {})}
           reducedMotion={reducedMotion}
           height={height}
+          bottomInset={metrics.bottom}
         />
       ) : null}
       <View style={styles.announcer} accessibilityLiveRegion="polite">
@@ -80,7 +82,6 @@ export function CoverFeed({
           <Skeleton rows={1} label={state.phase === 'activating' ? 'Opening the Scroll' : 'Finding more covers'} />
         </View>
       ) : null}
-      {hint}
     </View>
   );
 }

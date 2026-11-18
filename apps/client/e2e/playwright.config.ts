@@ -80,6 +80,7 @@ export default defineConfig({
         'scroll-ending-smoke.spec.ts',
         'scroll-orbit-layout-smoke.spec.ts',
         'folio-reader-smoke.spec.ts',
+        'covers-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },
