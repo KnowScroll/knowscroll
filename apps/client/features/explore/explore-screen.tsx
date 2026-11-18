@@ -39,6 +39,9 @@ function EncounterPage({ reading, children }: { readonly reading: boolean; reado
   );
 }
 
+/** Phases a hand of covers stays on screen through: at rest, asking for more, and opening one. */
+const COVER_PHASES = new Set(['covers', 'opening', 'ready_offer', 'activating']);
+
 /** Phases that keep the current Reel or Scroll on screen: playing, or opening the next one over it. */
 const SURFACE_PHASES = new Set(['active', 'opening', 'ready_offer', 'activating']);
 
@@ -119,8 +122,9 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const entry = state.entry;
   const calm = state.phase === 'exhausted' && entry !== undefined && calmedEntry === entry;
   const choosing = state.choices !== undefined;
-  // A hand of covers stands in front of whatever was on screen until a cover opens or the person goes Back.
-  const covers = state.covers;
+  // A hand of covers stands in front of whatever was on screen until a cover opens or the person goes Back. Any other
+  // phase (a failure, a stale path, Keep blocked) has its own screen, which a cover must never hide.
+  const covers = state.covers && COVER_PHASES.has(state.phase) ? state.covers : undefined;
   const showSurface = entry !== undefined && SURFACE_PHASES.has(state.phase) && !choosing && covers === undefined;
   const opening = state.phase !== 'active';
   // The thread sits beside the encounter from 768 px up (V01, D01); the desktop Reel is a card (D01).

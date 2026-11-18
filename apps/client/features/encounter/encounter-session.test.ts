@@ -1984,13 +1984,12 @@ describe('covers in Explore (#747)', () => {
     expect(commands(h, '/activate')).toHaveLength(0);
   });
 
-  it.each(['OFFER_UNAVAILABLE', 'INTENT_REVISION_STALE'] as const)(
-    'answers an offer the server refuses with %s by dealing a fresh hand, never the stale screen',
-    async (code) => {
+  it('answers an offer the server refuses as unavailable by dealing a fresh hand, never the stale screen', async () => {
+    {
       const h = coverHarness();
       const hand = await dealt(h);
       const phases = phasesOf(h);
-      h.setActivationProblem(code);
+      h.setActivationProblem('OFFER_UNAVAILABLE');
       h.session.openCover();
       await waitFor(() => expect(commands(h, '/open')).toHaveLength(2));
       await waitForPhase(h.session, 'covers');
@@ -2003,8 +2002,18 @@ describe('covers in Explore (#747)', () => {
       h.session.openCover();
       await waitForPhase(h.session, 'active');
       expect(commands(h, '/activate')).toHaveLength(2);
-    },
-  );
+    }
+  });
+
+  it('a session another tab moved on shows the stale screen, and the covers come down so it is seen', async () => {
+    const h = coverHarness();
+    await dealt(h);
+    h.setActivationProblem('INTENT_REVISION_STALE');
+    h.session.openCover();
+    await waitForPhase(h.session, 'stale');
+    expect(h.session.getState().covers).toBeUndefined();
+    expect(commands(h, '/open')).toHaveLength(1);
+  });
 
   it('still treats a refusal that is not about the offer as a failure to open, not a new hand', async () => {
     const h = coverHarness();
@@ -2013,5 +2022,44 @@ describe('covers in Explore (#747)', () => {
     h.session.openCover();
     await waitForPhase(h.session, 'revoked');
     expect(commands(h, '/open')).toHaveLength(1);
+    // The revoked screen is what the person sees: no cover is left in front of it.
+    expect(h.session.getState().covers).toBeUndefined();
+  });
+
+  it('a failure to fetch more covers shows its own screen with a retry, not a frozen cover', async () => {
+    const h = coverHarness();
+    await dealt(h);
+    h.session.nextCover();
+    h.session.nextCover();
+    h.setOpenFailure(true);
+    h.session.nextCover();
+    await waitForPhase(h.session, 'offline');
+    expect(h.session.getState().covers).toBeUndefined();
+    h.setOpenFailure(false);
+    h.session.retry();
+    await waitForPhase(h.session, 'covers');
+  });
+
+  it('opening a kept Scroll takes the covers down at once, so its own screens show', async () => {
+    const h = coverHarness();
+    await dealt(h);
+    expect(h.session.openKept({ assetId: offer(0, 'cover').assetId, assetRevision: 1 }, 'top')).toBe(true);
+    expect(h.session.getState().covers).toBeUndefined();
+  });
+
+  it("Back is not Explore's on covers with nothing before them, even after an essay was opened from one of them", async () => {
+    const h = coverHarness();
+    await dealt(h);
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    expect(h.session.back()).toBe(true);
+    await waitForPhase(h.session, 'covers');
+    h.session.nextCover();
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    expect(h.session.back()).toBe(true);
+    await waitForPhase(h.session, 'covers');
+    expect(h.session.canBack()).toBe(false);
+    expect(h.session.back()).toBe(false);
   });
 });

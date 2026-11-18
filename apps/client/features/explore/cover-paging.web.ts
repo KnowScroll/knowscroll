@@ -50,7 +50,9 @@ export function useCoverPaging(
   moves: CoverMoves,
 ) {
   const latest = useRef(moves);
-  latest.current = moves;
+  useEffect(() => {
+    latest.current = moves;
+  });
   useEffect(() => {
     const root = rootRef.current as unknown as HTMLElement | null;
     if (!enabled || !root) return;
@@ -95,13 +97,17 @@ export function useCoverPaging(
       turn(direction);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (!ownsKey(event)) return;
+      if (!ownsKey(event) || event.defaultPrevented || event.repeat) return;
       const key = event.key;
       const target = event.target instanceof HTMLElement ? event.target : undefined;
+      // Keys are the covers' only while focus is on the page itself or inside the covers: a tab of the app's rail, a
+      // switch or a sheet keeps its own keys, so Enter there never opens a Scroll the person did not choose.
+      if (target && target !== document.body && !root.contains(target)) return;
       if (key === 'ArrowDown' || key === 'j' || key === 'J') turn(1);
       else if (key === 'ArrowUp' || key === 'k' || key === 'K') turn(-1);
       // Enter on a focused button presses that button; anywhere else it opens the cover.
-      else if (key === 'Enter' && !target?.closest('button, a, [role="button"], [role="link"]')) latest.current.onOpen();
+      else if (key === 'Enter' && !target?.closest('button, a, [role="button"], [role="link"]'))
+        latest.current.onOpen();
       else if (key === 'Escape') latest.current.onBack();
       else return;
       event.preventDefault();

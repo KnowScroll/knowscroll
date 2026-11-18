@@ -74,10 +74,12 @@ describe('a Scroll as a cover', () => {
     expect(props.onNext).toHaveBeenCalledTimes(2);
   });
 
-  it('has no Previous control on the first cover', async () => {
-    await cover({ onPrevious: undefined, position: { index: 1, count: 3 } });
-    expect(screen.queryByRole('button', { name: 'Previous cover' })).toBeNull();
-    expect(screen.queryByTestId('essay-cover-previous')).toBeNull();
+  it('keeps Previous on the first cover, disabled, so focus is not dropped there', async () => {
+    const { props } = await cover({ onPrevious: undefined, position: { index: 1, count: 3 } });
+    const previous = screen.getByRole('button', { name: 'Previous cover' });
+    expect(previous).toBeDisabled();
+    await fireEvent.press(previous);
+    expect(props.onNext).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Next cover' })).toBeOnTheScreen();
   });
 
