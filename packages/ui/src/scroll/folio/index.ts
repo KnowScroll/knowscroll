@@ -5,3 +5,6 @@ export { type ReadingModel } from './reading-model';
 export { type UnitReadingObserver } from '../reading/types';
 export { FigureView } from './figure-view';
 export { type FigureState } from '../stage/kit-figure';
+export { EssayCover, type EssayCoverProps } from './essay-cover';
+export { EssayOpening, type EssayOpeningProps } from './essay-opening';
+export { stageFigureAt } from '../stage/stage-figure';
