@@ -332,6 +332,8 @@ export { keepPlaceUseCases, keepPlaceProviders, keepStore, type KeepPorts, type 
 
 export { keepRemovalUseCase, keepRemovalProviders, type KeepRemovalPorts } from './keep-remove-providers.js';
 
+export { coverOutcomesPruneProviders } from './cover-outcomes-prune-providers.js';
+
 export { notInterestedProviders, notInterestedUseCases } from './not-interested-providers.js';
 
 export { savedPageUseCase } from './saved-page-providers.js';

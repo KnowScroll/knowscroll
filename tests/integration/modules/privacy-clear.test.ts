@@ -885,6 +885,20 @@ describe('durable selective Clear', () => {
           constraint_payload: regionConstraint,
         })
         .execute();
+      // Authored erasure-only cover outcome (#748): the opened cover of the offer just activated.
+      await database.db
+        .insertInto('experience.cover_outcomes')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          offer_id: o.offer.offerId,
+          asset_id: starter.assetId,
+          asset_revision: starter.revision,
+          outcome: 'opened',
+          cover_ms: 1800,
+          expires_at: new Date(Date.now() + 86_400_000),
+        })
+        .execute();
       await scroll.applyEncounterAction(person.authority, {
         commandId: randomUUID(),
         kind: 'like',
@@ -1306,6 +1320,7 @@ describe('durable selective Clear', () => {
       };
       expect(Object.values(before.erased).every((count) => count > 0)).toBe(true);
       expect(before.erased['identity.recording_lifecycle_witnesses']).toBe(1);
+      expect(before.erased['experience.cover_outcomes']).toBe(1);
       expect(before.erased['experience.recording_channel_certificates']).toBeGreaterThan(0);
       const command = body();
       await cases().start(authority(erased), command);

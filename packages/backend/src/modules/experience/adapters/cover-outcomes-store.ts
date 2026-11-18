@@ -88,3 +88,18 @@ export async function readSessionCovers(scope: PersonalScopeTx, sessionId: strin
     dealtNotOpened: dealt.filter((assetId) => !opened.has(assetId)),
   };
 }
+
+/**
+ * Deletes at most `limit` expired rows of the scope's universe and epoch, oldest first, by primary key. `expires_at` is
+ * the row's own bound, set at insert and capped by the table's CHECK, so this never touches a live row.
+ */
+export async function pruneCoverOutcomes(scope: PersonalScopeTx, limit: number): Promise<number> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('COVER_OUTCOMES_PRUNE_LIMIT');
+  const { universeId, privacyEpoch } = scope.authority;
+  const result = await sql`
+    delete from experience.cover_outcomes where (universe_id, offer_id) in (
+      select c.universe_id, c.offer_id from experience.cover_outcomes c
+      where c.universe_id = ${universeId}::uuid and c.privacy_epoch = ${privacyEpoch} and c.expires_at <= now()
+      order by c.expires_at, c.offer_id limit ${limit})`.execute(transactionOf(scope));
+  return Number(result.numAffectedRows ?? 0);
+}

@@ -306,6 +306,20 @@ export async function everyStoreSeeder(
         constraint_payload: regionConstraint,
       })
       .execute();
+    // Authored erasure-only cover outcome (#748): the opened cover of the offer just activated.
+    await database.db
+      .insertInto('experience.cover_outcomes')
+      .values({
+        universe_id: person.universeId,
+        privacy_epoch: 1,
+        offer_id: o.offer.offerId,
+        asset_id: starter.assetId,
+        asset_revision: starter.revision,
+        outcome: 'opened',
+        cover_ms: 1800,
+        expires_at: new Date(Date.now() + 86_400_000),
+      })
+      .execute();
     await scroll.applyEncounterAction(person.authority, {
       commandId: randomUUID(),
       kind: 'like',

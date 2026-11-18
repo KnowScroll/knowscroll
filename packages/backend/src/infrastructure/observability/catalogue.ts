@@ -257,6 +257,8 @@ export const diagnosticCatalogue = {
   },
   // The scheduled decision prune (#674): rows deleted, and `partial` when a universe was left for the next pass. Counts only.
   'composer.decisions_pruned': { severity: 'info', module: 'composer', fields: ['outcome', 'count'] },
+  // The scheduled cover-outcome prune (#748): rows deleted, and `partial` when a universe was left for the next pass. Counts only.
+  'experience.cover_outcomes_pruned': { severity: 'info', module: 'experience', fields: ['outcome', 'count'] },
   'composer.buffer_prepared': {
     severity: 'info',
     module: 'composer',

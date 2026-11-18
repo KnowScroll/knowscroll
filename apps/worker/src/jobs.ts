@@ -168,9 +168,15 @@ import {
   activityProviders,
 } from '@knowscroll/backend/modules/evidence/nest-providers';
 import {
+  coverOutcomesPruneProviders,
   experienceBufferSourceProviders,
   experienceEvidenceReadProviders,
 } from '@knowscroll/backend/modules/experience/nest-providers';
+import {
+  PRUNE_COVER_OUTCOMES,
+  pruneCoverOutcomesQueue,
+  type PruneCoverOutcomes,
+} from '@knowscroll/backend/modules/experience';
 import {
   PREPARE_COMPOSER_BUFFER,
   PRUNE_COMPOSER_DECISIONS,
@@ -295,6 +301,8 @@ export const jobWiring: Provider[] = [
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   // Expired decisions nothing holds are physically deleted on a schedule, in bounded batches (#674).
   ...composerPruneProviders({ database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE }),
+  // Cover outcomes past their 30-day life are physically deleted on a schedule, in bounded batches (#748).
+  ...coverOutcomesPruneProviders({ database: DATABASE, withPersonalScope: WITH_PERSONAL_SCOPE }),
   // Jev runs on the recording-aware harness; its owner check asks Experience whether the exposure was activated (D-270).
   ...composerRecordingOwnerProviders(),
   ...contentProviders(),
@@ -349,6 +357,7 @@ export const jobWiring: Provider[] = [
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
       PRUNE_COMPOSER_DECISIONS,
+      PRUNE_COVER_OUTCOMES,
       CONTRIBUTE_AS_INHABITANT,
       DECIDE_CAST,
       SETTLE_LAUNCH,
@@ -391,6 +400,7 @@ export const jobWiring: Provider[] = [
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
       pruneDecisions: PruneDecisions,
+      pruneCoverOutcomes: PruneCoverOutcomes,
       contributeAsInhabitant: ContributeAsInhabitant,
       decideCast: DecideCast,
       settleLaunch: SettleLaunch,
@@ -526,6 +536,15 @@ export const jobWiring: Provider[] = [
         const { deleted, failed } = await pruneDecisions();
         if (deleted > 0 || failed > 0)
           logEvent('composer.decisions_pruned', { outcome: failed > 0 ? 'partial' : 'complete', count: deleted });
+      }),
+      // Every thirty minutes: cover outcomes past their 30-day life are deleted, a bounded batch per universe.
+      jobConsumer(pruneCoverOutcomesQueue, async () => {
+        const { deleted, failed } = await pruneCoverOutcomes();
+        if (deleted > 0 || failed > 0)
+          logEvent('experience.cover_outcomes_pruned', {
+            outcome: failed > 0 ? 'partial' : 'complete',
+            count: deleted,
+          });
       }),
       jobConsumer(contributeQueue, async (payload, delivery) => {
         await contributeAsInhabitant(payload, delivery.signal);

@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   ActivateExposureRequestSchema,
   ActivateExposureResponseSchema,
+  ActivateOfferRequestSchema,
   ApplyActionRequestSchema,
   ApplyActionResponseSchema,
+  CoverPassSchema,
   EncounterOfferSchema,
   ExposureContextRequestSchema,
   ExposureContextResponseSchema,
   ListSavedResponseSchema,
   NavigateExperienceRequestSchema,
   NavigationOutcomeSchema,
+  OpenDiscoveryRequestSchema,
   OpenExposureRequestSchema,
   OpenExposureResponseSchema,
 } from './index.js';
@@ -421,5 +424,66 @@ describe('Explore prerequisite wire contracts', () => {
         ListSavedResponseSchema.safeParse({ revision: 0, items: [{ ...item, metadata: { ...metadata, ...extra } }] })
           .success,
       ).toBe(false);
+  });
+});
+
+describe('cover passes and more covers on the wire (#748)', () => {
+  const pass = (n: number, extra: object = {}) => ({
+    offerId: `0199f0a0-0000-7000-8000-${String(n).padStart(12, '0')}`,
+    onScreen: 'under_1_5s',
+    way: 'next_cover',
+    ...extra,
+  });
+  const session = { sessionId: id, expectedIntentRevision: 3 };
+  const moreCovers = { ...discover, session, after: { decisionId: id, format: 'scroll' } };
+  const activate = { commandId: id, target: offerTarget };
+
+  it('takes one pass with a coarse band and a way, and nothing else', () => {
+    expect(CoverPassSchema.parse(pass(1))).toEqual(pass(1));
+    for (const onScreen of ['under_1_5s', '1_5s_to_5s', 'over_5s'])
+      expect(CoverPassSchema.safeParse(pass(1, { onScreen })).success).toBe(true);
+    for (const way of ['next_cover', 'more_covers', 'left'])
+      expect(CoverPassSchema.safeParse(pass(1, { way })).success).toBe(true);
+    for (const bad of [{ onScreen: '2s' }, { onScreen: 1500 }, { way: 'back' }, { way: undefined }, { ms: 1500 }])
+      expect(CoverPassSchema.safeParse(pass(1, bad)).success).toBe(false);
+  });
+
+  it('asks for more covers only inside a session, naming a decision and a format', () => {
+    expect(OpenDiscoveryRequestSchema.parse(moreCovers)).toEqual(moreCovers);
+    expect(OpenDiscoveryRequestSchema.safeParse({ ...discover, after: moreCovers.after }).success).toBe(false);
+    expect(OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: id } }).success).toBe(false);
+    expect(OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: 'x', format: 'scroll' } }).success).toBe(
+      false,
+    );
+    expect(
+      OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, after: { decisionId: id, format: 'video' } }).success,
+    ).toBe(false);
+    // Without `after` a discovery is what it was, with or without a session.
+    expect(OpenDiscoveryRequestSchema.parse({ ...discover, session })).toEqual({ ...discover, session });
+  });
+
+  it('takes one to nine passes, each offer once, on an open and on an activation', () => {
+    for (const request of [
+      (passes: object[]) => OpenDiscoveryRequestSchema.safeParse({ ...moreCovers, passes }),
+      (passes: object[]) => ActivateOfferRequestSchema.safeParse({ ...activate, passes }),
+    ]) {
+      const many = (count: number) => Array.from({ length: count }, (_, index) => pass(index + 1));
+      expect(request(many(1)).success).toBe(true);
+      expect(request(many(9)).success).toBe(true);
+      expect(request([]).success).toBe(false);
+      expect(request(many(10)).success).toBe(false);
+      expect(request([pass(1), pass(1, { onScreen: 'over_5s' })]).success).toBe(false);
+      expect(request([pass(1), { ...pass(2), onScreen: 'a while' }]).success).toBe(false);
+    }
+  });
+
+  it('takes a cover time of 0 to 900000 whole milliseconds on an activation only', () => {
+    for (const coverMs of [0, 1, 2000, 900_000])
+      expect(ActivateOfferRequestSchema.parse({ ...activate, coverMs }).coverMs).toBe(coverMs);
+    for (const coverMs of [-1, 900_001, 1.5, '2000', null, Number.NaN])
+      expect(ActivateOfferRequestSchema.safeParse({ ...activate, coverMs }).success).toBe(false);
+    // The field is optional, and the open request has no such field.
+    expect(ActivateOfferRequestSchema.parse(activate)).toEqual(activate);
+    expect(OpenDiscoveryRequestSchema.safeParse({ ...discover, coverMs: 10 }).success).toBe(false);
   });
 });

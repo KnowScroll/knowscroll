@@ -90,6 +90,7 @@ revision and explicitly reports corrected/withdrawn availability.
 | `encounter_activity_inputs` | Current independent action/navigation flags and revisions, exact exposure key | One per actual exposure; baseline false never invents a measurement |
 | `action_state`, `action_links` | Current asset preferences/original credit pointers and immutable action audit | One state/asset + one link/action; only explicit commands; full erasure deletes before actions/exposures |
 | `navigation_transitions` | Actual activated destination/source and typed mode, source index | One per activated offer; H only deliberate series/related source, R only separated explicit return |
+| `cover_outcomes` | One passed or opened cover per offer (see Cover outcomes) | At most one per offer shown as a cover; 30-day life, swept by `experience.prune-cover-outcomes`; erased before offers |
 
 Migration 18 backfills only real retained activated metadata. Existing unknown measurements remain
 unknown. Full AccountScope erasure deletes evidence first, offer references before decisions, then
@@ -129,6 +130,35 @@ cover comes from the same exact row as the recheck, so the offer shows the revis
 frozen in the stored offer descriptor, so a replay returns it unchanged. Other sessions and Reels get offers
 without the key. The Composer snapshot and buffers never hold a cover. Implemented, CI-tested against real
 PostgreSQL; not runtime-verified.
+
+### Cover outcomes (#745, #748)
+
+`experience.cover_outcomes` (migration 0123, owner: Experience) holds what happened to an offer shown as a cover: one row per
+offer, `passed` (a coarse `on_screen` band and the `way` it was left) or `opened` (`cover_ms`). It is routing state for the next
+step's policy and measures. Nothing in ranking, evidence, activity, formation or the Universe reads it, and it is never evidence
+that anything was read: a pass creates no exposure, no recording segment, no evidence session and no job.
+
+- Writes. Only in the command's own transaction (`cover-outcomes-store.ts`, called from `writeOutcome` and the activation), and
+  only while recording is on and the offer was made at that same recording generation (`recording_offer_origins`). Paused, or at
+  another generation, a report is dropped and the command still succeeds. A pass is also dropped for an offer already activated
+  and for an offer that is not the caller's in this epoch. A pass never overwrites an open; an open replaces an earlier pass.
+- Retention. 30 days: `expires_at` is set at insert and the table's CHECK caps it. `experience.prune-cover-outcomes` (cron
+  `22,52 * * * *`, payload `{ v: 1 }`, names no person) deletes expired rows in batches of 500 for at most 25 universes per pass,
+  each in its own transaction as a system actor under the personal root, which rechecks the account and epoch. A refused
+  universe is skipped; a busy one is left for the next pass. Safe to run late or twice.
+- Erasure. Account erasure and Clear delete every row before the offers they reference (`erasure.ts`, default disposition).
+  The export lists them in words under `experience.covers` ("Passed a cover of T (on screen 1.5–5 s, then moved to the next
+  cover), 18 Nov 2026"; "Opened T from its cover after 4 s, 18 Nov 2026"), titles as for the other sections.
+
+More covers is `POST /v1/experience/open` with `target: discover`, a `session`, and `after: { decisionId, format }`. `after` must
+name the decision of the session's latest hand, or the request is `INTENT_REVISION_STALE`. The server deals another hand with no
+source, in that format, and leaves out every asset this session dealt and the person did not open (the session's
+`hiddenAssetIds` in the Composer snapshot, for this request only); an opened asset is not left out. `passes` (one to nine) report
+the covers moved past since the last report. `POST /v1/experience/activate` takes `passes` and `coverMs`. `coverMs` is kept only
+as `min(max(coverMs, 0), now − offer.created_at)` on the database clock, written once with a fresh activation: a replay or a
+second command on an already bound offer writes nothing.
+
+Implemented, CI-tested against real PostgreSQL (`tests/integration/modules/cover-outcomes.test.ts`); not runtime-verified.
 
 A vertical move from an activated offer first looks for a Composer buffer prepared for exactly that
 session, intent revision and source offer and exposure. A valid buffer is used instead of retrieving and
