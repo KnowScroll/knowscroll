@@ -2088,8 +2088,7 @@ describe('cover passes and cover time (#748)', () => {
     await waitForPhase(h.session, 'covers');
     return { h, hand: h.session.getState().covers! };
   }
-  const bodyOf = (h: ReturnType<typeof harness>, suffix: string, index = 0) =>
-    commands(h, suffix)[index]!.body;
+  const bodyOf = (h: ReturnType<typeof harness>, suffix: string, index = 0) => commands(h, suffix)[index]!.body;
 
   it('opening a cover sends how long it was on screen and the covers passed before it', async () => {
     const { h, hand } = await dealtAt(3);
