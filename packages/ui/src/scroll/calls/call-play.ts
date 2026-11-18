@@ -32,10 +32,10 @@ export interface CallLandmark {
 }
 
 /**
- * Play on one Scroll as the reader shows it (D-063, D-064): the calls locked, the sparks and combo
- * they earned, and a way to lock another. The app supplies one backed by its play session; without
- * one the reader keeps this on the device. None of it is evidence: the reader still reports only the
- * value-free "revealed" to the recorder.
+ * Play on one Scroll as Ask's waiting puzzle shows it (D-063, D-064): the calls locked, the sparks and
+ * combo they earned, and a way to lock another, backed by the app's play session. Folio draws calls as
+ * text and plays none (D-425). None of it is evidence: a call reports only the value-free "revealed"
+ * to the recorder.
  */
 export interface CallPlay {
   /** In the order locked, those kept earlier first. */

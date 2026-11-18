@@ -158,7 +158,7 @@ export function ReaderDock({
   readonly onMore?: (() => void) | undefined;
   readonly nextPart?: NextPartPeek | undefined;
 }) {
-  // At 320 to 359 px the four controls do not fit in a row with the full wording, so Ask drops to its first word; its name does not change.
+  // At 320 to 359 px the three controls do not fit in a row with the full wording, so Ask drops to its first word; its name does not change.
   // At 361 to 399 px (a 390 phone) the controls fit only once the gaps close up; the wording stays.
   const { breakpoint, width } = useDisplay();
   const compact = breakpoint === 'compact';
