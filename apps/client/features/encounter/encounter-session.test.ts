@@ -17,7 +17,7 @@ import type { SetKeepPlace } from '@knowscroll/contracts';
 import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import { parseDocument, computeIntegrity } from '@knowscroll/scroll-model';
 import { retainReelMuted } from './encounter-history';
-import { harness, id, offer } from './encounter-session.fixture';
+import { harness, id, offer, type OfferSpec } from './encounter-session.fixture';
 
 function waitForPhase(
   session: EncounterSession,
@@ -1364,11 +1364,13 @@ describe('checkpoint ownership across retained history transitions', () => {
   );
 });
 
-function regionEncounter() {
+function regionEncounter(spec: OfferSpec = 'reel') {
   const h = harness(),
     calls: RegionEncounterOpenRequest[] = [];
   let failure: 'unknown' | 'authority' | undefined,
     wrong: 'asset' | 'target' | 'scope' | 'capabilities' | 'session' | undefined;
+  // The region's offer is served through the harness so activation answers for its kind.
+  const first = h.serve(0, spec);
   const card: AvailableRegionPreview = {
     version: 'region-encounter-preview.v1',
     readId: id(700),
@@ -1378,7 +1380,7 @@ function regionEncounter() {
     recordedAt: '2026-10-22T00:00:00.000Z',
     geographyRevision: 3,
     status: 'available',
-    encounter: { assetId: offer(0).assetId, assetRevision: 2, metadata: offer(0).metadata },
+    encounter: { assetId: first.assetId, assetRevision: first.assetRevision, metadata: first.metadata },
   };
   const regionApi = createApiClient({
     baseUrl: 'https://region.fixture.test',
@@ -1405,10 +1407,10 @@ function regionEncounter() {
             sessionId: wrong === 'session' ? id(999) : id(1),
             intentRevision: 1,
             revision: 1,
-            decisionId: offer(0).decisionId,
+            decisionId: first.decisionId,
             replayed: false,
             status: 'ready',
-            offer: wrong === 'asset' ? offer(1) : offer(0),
+            offer: wrong === 'asset' ? offer(1) : first,
             bufferedOffers: [],
           },
         }),
@@ -1660,5 +1662,356 @@ describe('A move to a new subject names the format the person is in (D-132)', ()
     } finally {
       f.scope.end();
     }
+  });
+});
+
+describe('covers in Explore (#747)', () => {
+  const COVERS: OfferSpec[] = ['cover', 'cover', 'cover'];
+  const live: ReturnType<typeof harness>[] = [];
+  afterEach(() => {
+    jest.restoreAllMocks();
+    for (const h of live.splice(0)) h.scope.end();
+  });
+  /** A fresh session over the fixture, with the device switch on and every outcome carrying three Scroll covers. */
+  function coverHarness(specs: OfferSpec[] = COVERS) {
+    const h = harness();
+    live.push(h);
+    h.setOffers(specs);
+    h.session.setCoverFeed(true);
+    h.session.setForeground(true);
+    return h;
+  }
+  /** The first open of a session with nothing before it: the hand of covers it deals. */
+  async function dealt(h: ReturnType<typeof harness>) {
+    h.session.open({ kind: 'discover' });
+    await waitForPhase(h.session, 'covers');
+    return h.session.getState().covers!;
+  }
+  /** An entry on screen (a Reel by default) to deal covers over; the hand after it is of `COVERS`. */
+  async function activeThenCovers(first: OfferSpec = 'reel') {
+    const h = coverHarness([first]);
+    h.session.setCoverFeed(false);
+    const entry = await ready(h);
+    h.setOffers(COVERS);
+    h.session.setCoverFeed(true);
+    return { h, entry };
+  }
+  const phasesOf = (h: ReturnType<typeof harness>) => {
+    const phases: string[] = [];
+    h.session.subscribe(() => phases.push(h.session.getState().phase));
+    return phases;
+  };
+  const fifteenMinutesLater = () => {
+    const real = Date.now;
+    jest.spyOn(Date, 'now').mockImplementation(() => real() + 15 * 60_000);
+  };
+
+  it('deals the Scroll offers as covers and activates nothing until one is opened', async () => {
+    const h = coverHarness();
+    const hand = await dealt(h);
+    expect(hand.offers.map((cover) => cover.offerId)).toEqual([
+      offer(0, 'cover').offerId,
+      offer(10, 'cover').offerId,
+      offer(11, 'cover').offerId,
+    ]);
+    expect(hand.index).toBe(0);
+    expect(hand.origin).toBeUndefined();
+    expect(hand.offers[0]!.cover).toEqual({ version: 'offer-cover.v1', kicker: 'Fixture kicker 0', readingMinutes: 4 });
+    expect(h.session.getState().entry).toBeUndefined();
+    expect(commands(h, '/open')).toHaveLength(1);
+    expect(commands(h, '/activate')).toHaveLength(0);
+    // Leaving the app and coming back with the hand fresh deals nothing new.
+    h.session.setForeground(false);
+    h.session.setForeground(true);
+    expect(commands(h, '/open')).toHaveLength(1);
+    expect(h.session.getState().covers).toBe(hand);
+  });
+
+  it('opens exactly the cover on screen and records it under the generation the hand was dealt with', async () => {
+    const h = coverHarness();
+    h.setRecordingGeneration(3);
+    await h.scope.recording!.refresh();
+    const hand = await dealt(h);
+    expect(commands(h, '/open')[0]!.body.recordingGeneration).toBe(3);
+    expect(h.session.nextCover()).toBe(true);
+    expect(commands(h, '/activate')).toHaveLength(0);
+    expect(h.session.openCover()).toBe(true);
+    await waitForPhase(h.session, 'active');
+    expect(commands(h, '/activate')).toHaveLength(1);
+    const activation = commands(h, '/activate')[0]!.body;
+    expect((activation.target as { offerId: string }).offerId).toBe(hand.offers[1]!.offerId);
+    expect(activation.recordingGeneration).toBe(3);
+    const entry = h.session.getState().entry!;
+    if (entry.kind !== 'scroll') throw new Error('Scroll fixture expected');
+    expect(entry.offer.offerId).toBe(hand.offers[1]!.offerId);
+    expect(entry.fromCover).toEqual({ handId: hand.id, index: 1 });
+    expect(entry.scroll.recordingGeneration).toBe(3);
+    expect(entry.scroll.recordingSessionId).toBe(activation.commandId);
+    expect(h.session.getState().covers).toBeUndefined();
+    expect(commands(h, '/open')).toHaveLength(1);
+  });
+
+  it('opens a cover playback-only when the recording policy moved after the hand was dealt', async () => {
+    const h = coverHarness();
+    h.setRecordingGeneration(3);
+    await h.scope.recording!.refresh();
+    await dealt(h);
+    h.setRecordingGeneration(5);
+    await h.scope.recording!.refresh();
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    const entry = h.session.getState().entry!;
+    if (entry.kind !== 'scroll') throw new Error('Scroll fixture expected');
+    expect(commands(h, '/activate')[0]!.body.recordingGeneration).toBe(5);
+    expect(entry.scroll.recordingGeneration).toBeUndefined();
+  });
+
+  it('keeps only the Scroll offers that carry a cover in the hand, in the server order', async () => {
+    const h = coverHarness(['cover', 'reel', 'cover']);
+    const hand = await dealt(h);
+    expect(hand.offers.map((cover) => cover.offerId)).toEqual([offer(0, 'cover').offerId, offer(11, 'cover').offerId]);
+    h.session.nextCover();
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    expect((commands(h, '/activate')[0]!.body.target as { offerId: string }).offerId).toBe(offer(11, 'cover').offerId);
+  });
+
+  it('moves within the hand without a request, and asks for another hand only after the last cover', async () => {
+    const h = coverHarness();
+    const hand = await dealt(h);
+    expect(h.session.previousCover()).toBe(false);
+    expect(h.session.getState().covers!.index).toBe(0);
+    expect(h.session.nextCover()).toBe(true);
+    expect(h.session.nextCover()).toBe(true);
+    expect(h.session.getState().covers!.index).toBe(2);
+    expect(h.session.previousCover()).toBe(true);
+    expect(h.session.getState().covers!.index).toBe(1);
+    expect(h.session.nextCover()).toBe(true);
+    expect(h.calls.map((call) => call.path)).toEqual(['/v1/experience/open']);
+    // Past the last cover: one new discover, a new hand, still nothing activated.
+    expect(h.session.nextCover()).toBe(true);
+    await waitFor(() => expect(commands(h, '/open')).toHaveLength(2));
+    await waitFor(() => expect(h.session.getState().phase).toBe('covers'));
+    const next = h.session.getState().covers!;
+    expect(next.id).not.toBe(hand.id);
+    expect(next.index).toBe(0);
+    expect(commands(h, '/open')[1]!.body.target).toEqual({ kind: 'discover' });
+    expect(commands(h, '/activate')).toHaveLength(0);
+  });
+
+  it('with the switch off opens a Scroll as it arrives, as before', async () => {
+    const h = coverHarness();
+    h.session.setCoverFeed(false);
+    h.session.open({ kind: 'discover' });
+    await waitForPhase(h.session, 'active');
+    expect(h.session.getState().covers).toBeUndefined();
+    expect(commands(h, '/activate')).toHaveLength(1);
+    expect(h.session.getState().entry!.kind).toBe('scroll');
+  });
+
+  it('opens a Reel first offer and a Scroll without a cover as they arrive', async () => {
+    for (const first of ['reel', 'scroll'] as const) {
+      const h = coverHarness([first, 'cover']);
+      h.session.open({ kind: 'discover' });
+      await waitForPhase(h.session, 'active');
+      expect(h.session.getState().covers).toBeUndefined();
+      expect(commands(h, '/activate')).toHaveLength(1);
+      expect(h.session.getState().entry!.kind).toBe(first);
+    }
+  });
+
+  it('never deals covers for a move the person names: a Keep return, a requested Scroll, a Part, a related link or a format switch', async () => {
+    const target = { assetId: offer(0, 'cover').assetId, assetRevision: offer(0, 'cover').assetRevision };
+    const named: Record<string, (h: ReturnType<typeof harness>) => unknown> = {
+      'Keep return': (h) => h.session.openKept(target, 'top'),
+      'requested Scroll': (h) => h.session.open({ kind: 'return', ...target }),
+    };
+    for (const [label, move] of Object.entries(named)) {
+      const h = coverHarness();
+      expect([label, move(h)]).toEqual([label, true]);
+      await waitForPhase(h.session, 'active');
+      expect([label, h.session.getState().covers]).toEqual([label, undefined]);
+      expect([label, commands(h, '/activate')]).toHaveLength(2);
+    }
+    for (const intent of [
+      { mode: 'series', direction: 'next' },
+      { mode: 'related' },
+      { mode: 'variant', to: 'scroll' },
+    ] as const) {
+      const { h, entry } = await activeThenCovers();
+      h.session.navigate(intent);
+      await waitForPhase(h.session, 'ready_offer');
+      await waitFor(() => expect(h.session.getState().entry).not.toBe(entry));
+      expect([intent.mode, h.session.getState().phase]).toEqual([intent.mode, 'active']);
+      expect([intent.mode, h.session.getState().covers]).toEqual([intent.mode, undefined]);
+      expect([intent.mode, commands(h, '/activate')]).toHaveLength(2);
+    }
+  });
+
+  it('opens a region at once and never as covers', async () => {
+    const r = regionEncounter('cover');
+    live.push(r);
+    r.session.setCoverFeed(true);
+    r.session.setForeground(true);
+    expect(r.session.openRegion(r.card, 'Deployment · Inference', () => undefined)).toBe(true);
+    await waitFor(() => expect(r.session.getState().phase).toBe('active'));
+    expect(r.session.getState().covers).toBeUndefined();
+    expect(commands(r, '/activate')).toHaveLength(1);
+    expect(r.session.getState().entry!.kind).toBe('scroll');
+  });
+
+  it('shows the picker for Something different, never covers, and opens only the one picked', async () => {
+    const { h } = await activeThenCovers();
+    expect(h.session.chooseDirection()).toBe(true);
+    await waitForPhase(h.session, 'ready_offer');
+    const choices = h.session.getState().choices!;
+    expect(choices).toHaveLength(3);
+    expect(h.session.getState().covers).toBeUndefined();
+    expect(commands(h, '/activate')).toHaveLength(1);
+    h.session.pickDirection(choices[1]!.offerId);
+    await waitForPhase(h.session, 'active');
+    expect(commands(h, '/activate')).toHaveLength(2);
+    expect(h.session.getState().covers).toBeUndefined();
+  });
+
+  it('deals the hand over the entry on screen when Next idea moves on, and Back returns to that entry with no request', async () => {
+    const { h, entry } = await activeThenCovers('scroll');
+    expect(entry.kind).toBe('scroll');
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitForPhase(h.session, 'covers');
+    const hand = h.session.getState().covers!;
+    expect(hand.origin).toBe(entry.exposureId);
+    expect(hand.offers).toHaveLength(3);
+    expect(commands(h, '/navigate')).toHaveLength(1);
+    expect(commands(h, '/activate')).toHaveLength(1);
+    expect(h.session.canBack()).toBe(true);
+    const before = h.calls.length;
+    expect(h.session.back()).toBe(true);
+    expect(h.calls).toHaveLength(before);
+    expect(h.session.getState().phase).toBe('active');
+    expect(h.session.getState().covers).toBeUndefined();
+    expect(h.session.getState().entry).toBe(entry);
+  });
+
+  it('deals a hand for Not interested too, since it is the system that chooses what comes next', async () => {
+    const { h, entry } = await activeThenCovers();
+    expect(await h.session.notInterested()).toBe(true);
+    await waitForPhase(h.session, 'covers');
+    expect(h.session.getState().covers!.origin).toBe(entry.exposureId);
+    expect(commands(h, '/activate')).toHaveLength(1);
+  });
+
+  it('has nothing to go Back to from the first hand: Back is not taken and canBack is false', async () => {
+    const h = coverHarness();
+    await dealt(h);
+    const before = h.calls.length;
+    expect(h.session.canBack()).toBe(false);
+    expect(h.session.back()).toBe(false);
+    expect(h.calls).toHaveLength(before);
+    expect(h.session.getState().phase).toBe('covers');
+  });
+
+  it('returns from an essay opened from a cover to that cover, then to the entry the covers were dealt over', async () => {
+    const { h, entry } = await activeThenCovers();
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitForPhase(h.session, 'covers');
+    const hand = h.session.getState().covers!;
+    h.session.nextCover();
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    const essay = h.session.getState().entry!;
+    expect(essay.fromCover).toEqual({ handId: hand.id, index: 1 });
+    expect(h.session.canBack()).toBe(true);
+    const before = h.calls.length;
+    expect(h.session.back()).toBe(true);
+    expect(h.session.getState().phase).toBe('covers');
+    expect(h.session.getState().covers!.id).toBe(hand.id);
+    expect(h.session.getState().covers!.index).toBe(1);
+    expect(h.session.getState().covers!.offers).toBe(hand.offers);
+    expect(h.calls).toHaveLength(before);
+    // The cover can be opened again from there: the hand is still the one dealt.
+    expect(h.session.canBack()).toBe(true);
+    expect(h.session.back()).toBe(true);
+    expect(h.session.getState().phase).toBe('active');
+    expect(h.session.getState().entry).toBe(entry);
+    expect(h.calls).toHaveLength(before);
+  });
+
+  it('goes back from an essay to the entry before it, not to a spent hand', async () => {
+    const { h, entry } = await activeThenCovers();
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitForPhase(h.session, 'covers');
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    fifteenMinutesLater();
+    expect(h.session.canBack()).toBe(true);
+    expect(h.session.back()).toBe(true);
+    expect(h.session.getState().phase).toBe('active');
+    expect(h.session.getState().entry).toBe(entry);
+  });
+
+  it('replaces a hand past its life when a cover is opened, instead of activating a spent offer', async () => {
+    const h = coverHarness();
+    const hand = await dealt(h);
+    fifteenMinutesLater();
+    expect(h.session.openCover()).toBe(true);
+    await waitFor(() => expect(commands(h, '/open')).toHaveLength(2));
+    await waitForPhase(h.session, 'covers');
+    expect(commands(h, '/activate')).toHaveLength(0);
+    expect(h.session.getState().covers!.id).not.toBe(hand.id);
+  });
+
+  it('opens a cover just inside the hand’s life', async () => {
+    const h = coverHarness();
+    await dealt(h);
+    const real = Date.now;
+    jest.spyOn(Date, 'now').mockImplementation(() => real() + 13 * 60_000);
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    expect(commands(h, '/activate')).toHaveLength(1);
+    expect(commands(h, '/open')).toHaveLength(1);
+  });
+
+  it('replaces a spent hand on screen when the person comes back to the app', async () => {
+    const h = coverHarness();
+    const hand = await dealt(h);
+    h.session.setForeground(false);
+    fifteenMinutesLater();
+    h.session.setForeground(true);
+    await waitFor(() => expect(commands(h, '/open')).toHaveLength(2));
+    await waitForPhase(h.session, 'covers');
+    expect(h.session.getState().covers!.id).not.toBe(hand.id);
+    expect(commands(h, '/activate')).toHaveLength(0);
+  });
+
+  it.each(['OFFER_UNAVAILABLE', 'INTENT_REVISION_STALE'] as const)(
+    'answers an offer the server refuses with %s by dealing a fresh hand, never the stale screen',
+    async (code) => {
+      const h = coverHarness();
+      const hand = await dealt(h);
+      const phases = phasesOf(h);
+      h.setActivationProblem(code);
+      h.session.openCover();
+      await waitFor(() => expect(commands(h, '/open')).toHaveLength(2));
+      await waitForPhase(h.session, 'covers');
+      await waitFor(() => expect(h.session.getState().covers!.id).not.toBe(hand.id));
+      expect(commands(h, '/activate')).toHaveLength(1);
+      expect(phases).not.toContain('stale');
+      expect(h.session.getState().entry).toBeUndefined();
+      // The new hand opens normally once the server accepts.
+      h.setActivationProblem(undefined);
+      h.session.openCover();
+      await waitForPhase(h.session, 'active');
+      expect(commands(h, '/activate')).toHaveLength(2);
+    },
+  );
+
+  it('still treats a refusal that is not about the offer as a failure to open, not a new hand', async () => {
+    const h = coverHarness();
+    await dealt(h);
+    h.setActivationProblem('UNAUTHENTICATED');
+    h.session.openCover();
+    await waitForPhase(h.session, 'revoked');
+    expect(commands(h, '/open')).toHaveLength(1);
   });
 });
