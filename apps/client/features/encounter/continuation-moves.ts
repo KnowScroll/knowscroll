@@ -24,7 +24,6 @@ export function readerContinuations(
   const peek = (state: ReadyContinuation, direction: 'next' | 'previous' = 'next'): NextPartPeek => ({
     label: continuationLabel(state),
     title: state.metadata.title,
-    related: state.relation.kind === 'related_move',
     onPress: () => go(state, direction),
   });
   const before = seriesPrevious.status === 'ready' ? peek(seriesPrevious, 'previous') : undefined;

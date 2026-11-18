@@ -78,7 +78,7 @@ const nominalMs = (stopId: string): number => {
 };
 const calls = document.stops.filter((stop) => stop.kind !== 'read').map((stop) => stop.id);
 
-describe('what the stage reader reports, qualified by the server', () => {
+describe('what a v2 reader reports, qualified by the server', () => {
   it('qualifies a reader who stays on each read stop for half its words’ time plus 0.3 s and sees every answer', () => {
     const result = qualify({
       visits: document.stops.map((stop) => ({

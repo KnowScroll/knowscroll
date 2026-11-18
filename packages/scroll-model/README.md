@@ -21,7 +21,7 @@ serves only the consumer document. The app parses and negotiates that document, 
 it and reports actual reading through client-core. Admission does the expensive whole-document
 checks; a device must never rerun the full simulation-grid proof.
 
-For example, `scroll-document.v2` selects the Stage + Spine parser; it is not a request to convert
+For example, `scroll-document.v2` selects the v2 parser; it is not a request to convert
 an unknown document into v1. Unsupported versions require an explicit fallback or unavailable
 state. Keep compatibility exports and stored-version readers until supported clients and records
 have been traced, even when a newer producer uses a different entry point.
@@ -586,7 +586,7 @@ A stage names one drawing kit (`stage.kit`), and every state of it holds that ki
 | `starlight.v1` (D-204) | five kinds of star over the spectrum, one star beside a star like the Sun by size, heat and output, light thinning with distance, the chart of temperature against output, the habitable zones of three stars and a planet's orbit | view, kind of star, distance, orbit, focus | colour and where the glow is strongest (Wien and Planck), output from size and temperature (R squared times T to the fourth), one over distance squared, the place on the chart, the zone's distances (square root of the output) and which zone holds the planet |
 | `black-hole.v1` (D-204) | a massive star's end beside a Sun-like star's, two black holes to scale with the light near the horizon, a star and a black hole of equal mass pulling alike, stars orbiting a hidden mass, a glowing disc, a merger's ripples, a shadow | view, star and stage, hole, merger, focus | the horizon from the mass (2GM over c squared), how the star ends, Kepler orbits, the heat of the disc by radius, the shadow's size against the horizon, the chirp of a merger |
 
-Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`): the nerve kit against a forward-Euler run of the same equations twenty times finer, the circulation kit against Severinghaus' oxygen curve and Poiseuille's law written out again. Status: **implemented** (unit tests, and the stage reader draws each in the web export); none has run on real MiniMax yet (the D-204 kits are measured by `space-kits-v19`). The Final call's `binding: tilt` is Earth & sky's alone. The D-204 kits are measured by the spike `space-kits-v19`.
+Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`): the nerve kit against a forward-Euler run of the same equations twenty times finer, the circulation kit against Severinghaus' oxygen curve and Poiseuille's law written out again. Status: **implemented** (unit tests, and Folio's figures draw each in the web export); none has run on real MiniMax yet (the D-204 kits are measured by `space-kits-v19`). The Final call's `binding: tilt` is Earth & sky's alone. The D-204 kits are measured by the spike `space-kits-v19`.
 
 #### Earth & sky
 

@@ -96,13 +96,8 @@ describe('the renderer on the device', () => {
       'parseDocument',
       'walkBlocks',
       // The v2 reader's own: pure lookups over a parsed document, nothing that proves it.
-      'callsOf',
       'stageParts',
       'stagePhysics',
-      // The tally of a Scroll's calls (sparks and combo) and the finish of a landmark: arithmetic over locks, no admission.
-      'talliesAfterEach',
-      'finalBonusReady',
-      'landmarkTier',
       // The tilt a reader turns at the Final call: the kit's physics at one angle, no grid and no admission.
       'AXIAL_TILT_DEGREES',
       'TILT_RANGE',

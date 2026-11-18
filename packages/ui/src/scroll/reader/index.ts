@@ -4,7 +4,6 @@ export {
   type ReaderCommands,
   type ReaderHandle,
   type ReaderView,
-  type SmallPrint,
 } from './reader-commands';
 export { ReaderDock, ReaderTopBar } from './reader-chrome';
 export { READER_KEY_NAMES, readerKeyOf, type ReaderKey } from './reader-keys';

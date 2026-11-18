@@ -339,7 +339,7 @@ node dist/operator.js content readmit-coverage                                 #
 
 What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a recipe refused with `plan_refused` / `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`): it is `stopped` in `production-status`, no job was reserved and no request was sent. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim, and `review-list` then shows `coverage: unmapped`.
 
-A client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Explore and `/scroll/<id>` of this app declare v2 and draw it with the Stage + Spine reader (D-135).
+A client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Explore and `/scroll/<id>` of this app declare v2 and draw it with Folio's essay (D-425).
 
 ## The review gate for v2 library Scrolls (S-1e, D-138)
 

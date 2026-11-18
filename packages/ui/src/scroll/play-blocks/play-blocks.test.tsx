@@ -3,8 +3,9 @@ import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import type { Guide, Interactive, ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
-import { StageReader } from '../stage-reader/stage-reader';
-import type { StageReadingObserver } from '../stage-reader/use-stop-reading';
+import { FolioReader } from '../folio/folio-reader';
+import { readingModelOfV2 } from '../folio/from-v2';
+import type { ScrollReadingObserver } from '../observer';
 import { GuideView, PlayBlockView } from '.';
 import { openingZoom, scaleView, zoomStops } from './scale-geometry';
 import { moved, shownOrder } from './sort-state';
@@ -187,45 +188,39 @@ describe('the text version', () => {
   });
 });
 
-type Spy = { [Method in keyof StageReadingObserver]: jest.Mock<void, Parameters<StageReadingObserver[Method]>> };
+/** A recorder's observer, with the interaction method a reader could call if it ever reported play. */
+const observerSpy = () => ({
+  onBlockVisibility: jest.fn<void, Parameters<ScrollReadingObserver['onBlockVisibility']>>(),
+  onBlockInteraction: jest.fn<void, Parameters<ScrollReadingObserver['onBlockInteraction']>>(),
+  onActivity: jest.fn<void, Parameters<ScrollReadingObserver['onActivity']>>(),
+});
+
+const read = (document: unknown, observer: ReturnType<typeof observerSpy>) =>
+  render(
+    <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+      <FolioReader model={readingModelOfV2(document as ScrollDocumentV2)} observer={observer} commands={{}} />
+    </DisplayProvider>,
+  );
 
 describe('playing a block in the reader', () => {
-  const observerSpy = (): Spy => ({
-    onBlockVisibility: jest.fn<void, Parameters<StageReadingObserver['onBlockVisibility']>>(),
-    onBlockInteraction: jest.fn<void, Parameters<StageReadingObserver['onBlockInteraction']>>(),
-    onActivity: jest.fn<void, Parameters<StageReadingObserver['onActivity']>>(),
-  });
-
   it('reports nothing about a scale zoom, a chart step or a text version either', async () => {
     const observer = observerSpy();
-    await render(
-      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <StageReader document={scaleChart as unknown as ScrollDocumentV2} observer={observer} commands={{}} />
-      </DisplayProvider>,
-    );
+    await read(scaleChart, observer);
     await fireEvent.press(screen.getByRole('button', { name: 'Zoom out to Sarn' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Show every point' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Start again' }));
     await fireEvent.press(screen.getByRole('togglebutton', { name: 'Text version of the scale' }));
     expect(screen.getByTestId('scale-text')).toBeOnTheScreen();
     expect(observer.onBlockInteraction).not.toHaveBeenCalled();
-    // Only the stop on screen is ever reported, and only as visible.
+    // What is reported is how much of a stop is visible, never what was done with its block.
     expect(
       observer.onBlockVisibility.mock.calls.every(([event]) => event.blockId === 'hook' || event.visibleFraction >= 0),
     ).toBe(true);
   });
 
   it('reports nothing about the play: no interaction, whatever is sorted, chosen, zoomed or revealed', async () => {
-    const observer: Spy = {
-      onBlockVisibility: jest.fn<void, Parameters<StageReadingObserver['onBlockVisibility']>>(),
-      onBlockInteraction: jest.fn<void, Parameters<StageReadingObserver['onBlockInteraction']>>(),
-      onActivity: jest.fn<void, Parameters<StageReadingObserver['onActivity']>>(),
-    };
-    await render(
-      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <StageReader document={sortFork as unknown as ScrollDocumentV2} observer={observer} commands={{}} />
-      </DisplayProvider>,
-    );
+    const observer = observerSpy();
+    await read(sortFork, observer);
     await fireEvent.press(screen.getAllByRole('button', { name: /^Move ".*" down/ })[0] as never);
     await fireEvent.press(screen.getByRole('button', { name: 'Check order' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Path: The north' }));

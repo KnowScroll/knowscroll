@@ -19,7 +19,7 @@ const KITS = STAGE_KIT_IDS.filter((id): id is Exclude<StageKitId, 'earth-sky.v1'
 const fixture = (kit: keyof typeof NAMES): unknown =>
   JSON.parse(readFileSync(new URL(`../../fixtures/documents/${NAMES[kit]}-stage-ci.json`, import.meta.url), 'utf8'));
 
-/** The labelled CI fixtures the stage reader's end-to-end checks and the kit screenshots read. Not product content. */
+/** The labelled CI fixtures the reader's end-to-end checks and the kit screenshots read. Not product content. */
 describe.each(KITS)('the CI fixture of the kit %s', (kit) => {
   it('is a valid scroll-document.v2 that names its kit, and is short: the reading time is the one thing it fails', () => {
     const outcome = validateDocumentV2(fixture(kit), { verify: false });
