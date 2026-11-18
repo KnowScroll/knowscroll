@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import {
   describeStageState,
@@ -13,10 +13,11 @@ import {
 import { encounterFixture } from './encounter-fixture';
 
 /**
- * The orbit pictures of the Earth & sky kit, drawn, in the production export over the labelled `seasons-stage-ci` fixture (not
- * product content) with distances added to its orbit stops, as a cited passage would state them (D-382): the months' names, the
- * pale Earths, the Earth of the month, the Sun, its words and the numbered Earths of the recap stand clear of each other at a phone,
- * a tablet and a desktop (D-393). `earth-sky-orbit-layout.test.ts` proves it for every month; this proves the drawing follows it.
+ * The orbit pictures of the Earth & sky kit, drawn as figures of the Folio essay in the production export over the labelled
+ * `seasons-stage-ci` fixture (not product content) with distances added to its orbit stops, as a cited passage would state
+ * them (D-382): the months' names, the pale Earths, the Earth of the month, the Sun, its words and the numbered Earths of the
+ * recap stand clear of each other at a phone, a tablet and a desktop (D-393), and the tilt slider under the Final call's
+ * figure sits clear of it. `earth-sky-orbit-layout.test.ts` proves it for every month; this proves the drawing follows it.
  * Screenshots are written only when `KS_FIDELITY_SHOTS` names a folder (outside the repository).
  */
 const FIGURES: StageFigure[] = [
@@ -62,11 +63,17 @@ async function open(page: Page, document: ScrollDocumentV2, viewport: { width: n
     scrollDocument: document as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  // The offer's own title heads the Scroll in the bar and again in the essay.
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
 }
 
-const stage = (page: Page) => page.getByTestId('stage');
+const scroller = (page: Page) => page.getByTestId('folio-scroller');
+
+/** The figure that draws the state a stop sets: a figure's key is the stop that set its state. */
+const figureOf = (page: Page, stopId: string) => page.locator(`[data-ks-figure="${stopId}"]`);
 
 interface Rect {
   readonly name: string;
@@ -77,19 +84,17 @@ interface Rect {
 }
 
 /** The box on the page of every drawn thing the selector finds. */
-async function boxes(page: Page, selector: string): Promise<Rect[]> {
-  return stage(page)
-    .locator(selector)
-    .evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const box = node.getBoundingClientRect();
-        const name = node.getAttribute('data-testid') ?? node.textContent ?? '';
-        // A line of text is boxed by its font's line height, which is taller than its letters: two stacked lines that
-        // do not touch would still share a pixel row, so a line is measured by the body of its letters.
-        const trim = node instanceof SVGTextElement ? box.height * 0.2 : 0;
-        return { name, left: box.left, right: box.right, top: box.top + trim, bottom: box.bottom - trim };
-      }),
-    );
+async function boxes(figure: Locator, selector: string): Promise<Rect[]> {
+  return figure.locator(selector).evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      const name = node.getAttribute('data-testid') ?? node.textContent ?? '';
+      // A line of text is boxed by its font's line height, which is taller than its letters: two stacked lines that
+      // do not touch would still share a pixel row, so a line is measured by the body of its letters.
+      const trim = node instanceof SVGTextElement ? box.height * 0.2 : 0;
+      return { name, left: box.left, right: box.right, top: box.top + trim, bottom: box.bottom - trim };
+    }),
+  );
 }
 
 const overlap = (first: Rect, second: Rect): boolean =>
@@ -114,36 +119,36 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-/** Jumps to a stop and waits until the stage shows it. */
-async function showStop(page: Page, document: ScrollDocumentV2, stopId: string) {
-  const index = document.stops.findIndex((stop) => stop.id === stopId);
-  const stop = document.stops[index];
-  if (stop === undefined) throw new Error(`no stop ${stopId}`);
-  const calls = document.stops.filter((candidate) => candidate.kind !== 'read');
-  const label =
-    stop.kind === 'read'
-      ? `Stop ${String(index + 1)} of ${String(document.stops.length)}`
-      : stop.kind === 'final_call'
-        ? 'Final call'
-        : `Call it ${String(calls.indexOf(stop) + 1)} of ${String(calls.length)}`;
-  await page.getByRole('button', { name: new RegExp(`^${label}(, you are here)?$`, 'u') }).click();
-  await expect(stage(page)).toHaveAttribute('data-ks-stage-state', stopId);
+/**
+ * Scrolls the essay until the beat of a stop is the one being read, its top at the top of the reading band (42 % down the
+ * screen), where a held figure has taken the beat's state; the figure of the stop is then drawn.
+ */
+async function showStop(page: Page, stopId: string): Promise<Locator> {
+  await scroller(page).evaluate((node, id) => {
+    const beat = node.querySelector(`[data-testid="beat-${id}"]`);
+    if (beat === null) throw new Error(`no beat ${id}`);
+    const band = Math.round(node.clientHeight * 0.42);
+    node.scrollTop += beat.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
+  }, stopId);
+  const figure = figureOf(page, stopId);
+  await expect(figure).toHaveCount(1);
   // The picture has settled once no move is under way: the motion token's 320 ms, with room to spare.
   await page.waitForTimeout(500);
+  return figure;
 }
 
 /** Everything the orbit view draws that must not overlap another thing, measured on the page. */
-async function expectOrbitClear(page: Page, where: string) {
-  const words = await boxes(page, '[data-testid^="orbit-month-"], [data-testid="stage-distances"] text');
-  const earths = await boxes(page, '[data-testid^="orbit-pale-earth-"], [data-testid="orbit-earth-now"]');
-  const sun = await boxes(page, '[data-testid="orbit-sun"]');
+async function expectOrbitClear(figure: Locator, where: string) {
+  const words = await boxes(figure, '[data-testid^="orbit-month-"], [data-testid="stage-distances"] text');
+  const earths = await boxes(figure, '[data-testid^="orbit-pale-earth-"], [data-testid="orbit-earth-now"]');
+  const sun = await boxes(figure, '[data-testid="orbit-sun"]');
   expect(words.length, `${where}: the names and the words are drawn`).toBeGreaterThanOrEqual(5);
   expect(earths.length).toBeGreaterThanOrEqual(2);
   expect(collisions(words), `${where}: words`).toEqual([]);
   expect(collisions(words, earths), `${where}: words over Earths`).toEqual([]);
   expect(collisions(words, sun), `${where}: words over the Sun`).toEqual([]);
   expect(collisions(earths), `${where}: Earths`).toEqual([]);
-  const frame = (await stage(page).boundingBox())!;
+  const frame = (await figure.boundingBox())!;
   for (const word of words) {
     expect(word.left, `${where}: "${word.name}"`).toBeGreaterThanOrEqual(frame.x);
     expect(word.right, `${where}: "${word.name}"`).toBeLessThanOrEqual(frame.x + frame.width);
@@ -157,13 +162,13 @@ for (const viewport of viewports) {
     const document = withDistances('jan');
     await open(page, document, viewport);
     // The plain orbit in June, then the stretched orbit in January with its distances.
-    await showStop(page, document, 'same-direction');
-    await expectOrbitClear(page, `${size} plain orbit, June`);
+    const plain = await showStop(page, 'same-direction');
+    await expectOrbitClear(plain, `${size} plain orbit, June`);
     await shot(page, `orbit-plain-${size}`);
-    await showStop(page, document, 'closest-in-january');
-    await expect(stage(page).getByText('SUN NOT TO SCALE')).toBeVisible();
-    await expect(stage(page).getByText('YOU ARE HERE · JAN')).toBeVisible();
-    await expectOrbitClear(page, `${size} stretched orbit, January`);
+    const stretched = await showStop(page, 'closest-in-january');
+    await expect(stretched.getByText('SUN NOT TO SCALE')).toBeVisible();
+    await expect(stretched.getByText('YOU ARE HERE · JAN')).toBeVisible();
+    await expectOrbitClear(stretched, `${size} stretched orbit, January`);
     await shot(page, `orbit-stretched-${size}`);
     expect(await audit(page)).toEqual([]);
   });
@@ -173,21 +178,17 @@ for (const viewport of viewports) {
   }) => {
     const document = withDistances('jan');
     await open(page, document, viewport);
-    await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
-    await expect(stage(page)).toHaveAttribute('data-ks-stage-state', 'recap');
-    const bodies = await boxes(page, '[data-testid^="recap-earth-body-"]');
-    const badges = await boxes(page, '[data-testid^="recap-badge-"]');
+    await page.getByRole('group', { name: 'Scroll reader' }).focus();
+    await page.keyboard.press('End');
+    const recap = page.getByTestId('end-figure');
+    await expect(recap).toBeInViewport();
+    const bodies = await boxes(recap, '[data-testid^="recap-earth-body-"]');
+    const badges = await boxes(recap, '[data-testid^="recap-badge-"]');
     expect(bodies).toHaveLength(3);
     expect(badges).toHaveLength(3);
     expect(collisions(bodies), `${size}: Earths`).toEqual([]);
     expect(collisions(badges), `${size}: badges`).toEqual([]);
     expect(collisions(badges, bodies), `${size}: badges over Earths`).toEqual([]);
-    const tab = (await page.getByTestId('part-edge-peek').boundingBox())!;
-    for (const part of [...bodies, ...badges])
-      expect(
-        part.right <= tab.x || part.left >= tab.x + tab.width || part.bottom <= tab.y || part.top >= tab.y + tab.height,
-        part.name,
-      ).toBe(true);
     await shot(page, `recap-orbit-${size}`);
   });
 }
@@ -196,7 +197,39 @@ for (const month of ['feb', 'apr', 'jul', 'aug', 'oct', 'nov', 'dec', 'sep'] as 
   test(`the stretched orbit in ${month} lays out as clear as in January, at 390`, async ({ page }) => {
     const document = withDistances(month);
     await open(page, document, viewports[1]);
-    await showStop(page, document, 'closest-in-january');
-    await expectOrbitClear(page, `stretched orbit, ${month}`);
+    const stretched = await showStop(page, 'closest-in-january');
+    await expectOrbitClear(stretched, `stretched orbit, ${month}`);
+  });
+}
+
+for (const viewport of viewports) {
+  const size = `${String(viewport.width)}x${String(viewport.height)}`;
+
+  test(`under the Final call's figure the tilt slider sits clear of it, and the orbit stays clear at every tilt, at ${size}`, async ({
+    page,
+  }) => {
+    await open(page, withDistances('jan'), viewport);
+    const plate = page.getByTestId('figure-figure-final-tilt');
+    await plate.scrollIntoViewIfNeeded();
+    const figure = plate.locator('[data-ks-figure]');
+    const slider = page.getByRole('slider', { name: 'Earth’s tilt' });
+    await expect(slider).toBeVisible();
+    const drawn = (await figure.boundingBox())!;
+    const control = (await slider.boundingBox())!;
+    expect(control.y, `${size}: the slider is under the figure`).toBeGreaterThanOrEqual(drawn.y + drawn.height - 1);
+    expect(control.x, `${size}: the slider is inside the screen`).toBeGreaterThanOrEqual(0);
+    expect(control.x + control.width, `${size}: the slider is inside the screen`).toBeLessThanOrEqual(viewport.width);
+    await expectOrbitClear(figure, `${size} orbit at today's tilt`);
+    // Turned flat and then right over, the picture is redrawn at once, and its words still stand clear.
+    await slider.focus();
+    for (const [key, degrees] of [
+      ['Home', '0°'],
+      ['End', '90°'],
+    ] as const) {
+      await page.keyboard.press(key);
+      await expect(page.getByTestId('tilt-value')).toHaveText(degrees);
+      await expectOrbitClear(figure, `${size} orbit at ${degrees}`);
+    }
+    expect(await audit(page)).toEqual([]);
   });
 }

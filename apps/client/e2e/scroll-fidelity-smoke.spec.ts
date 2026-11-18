@@ -7,8 +7,8 @@ import { encounterFixture } from './encounter-fixture';
 
 /**
  * The Scroll reader's small fidelity fixes against the V3 frames (#497, part A) in the production export over labelled HTTP
- * fixtures: the Ask pill, the Final call's star on the spine, the tilt tag on the picture, Next with its word, the "next
- * time" line on Done for today, the seven rows of the ••• sheet and the Share a moment preview. The document is the
+ * fixtures: the Ask pill, Next with its word, the seven rows of the ••• sheet and what they do, their keys and the Share
+ * a moment preview. The document is the
  * labelled CI fixture `seasons-stage-ci` (not product content). Screenshots are written only when `KS_FIDELITY_SHOTS`
  * names a folder (outside the repository).
  */
@@ -40,52 +40,25 @@ async function open(page: Page, viewport = phone) {
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   return served;
 }
 
-const dot = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const rowsOf = (page: Page) => page.getByTestId('more-list').getByRole('listitem');
 
 for (const viewport of [phone, desktop]) {
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
 
-  test(`the dock's Ask is a blue sparkle on a tinted pill, and the Final call is a star on the spine, at ${name}`, async ({
-    page,
-  }) => {
+  test(`the dock's Ask is a blue sparkle on a tinted pill, at ${name}`, async ({ page }) => {
     await open(page, viewport);
     const ask = page.getByRole('button', { name: 'Ask about this' });
     // The dock is reader chrome, so its tinted pill follows Appearance: sunken paper on the sky in Dark (D-400).
     await expect(ask).toHaveCSS('background-color', 'rgb(18, 23, 34)');
     await expect(ask.locator('svg path')).toHaveCSS('fill', 'rgb(44, 70, 232)');
-    await expect(dot(page, 'Final call').getByTestId('spine-final-star')).toBeVisible();
-    await expect(page.getByTestId('spine-final-star')).toHaveCount(1);
-    await shot(page, `dock-spine-${name}`);
-    expect(await audit(page)).toEqual([]);
-  });
-
-  test(`the tilt tag follows the slider on the picture at the Final call, at ${name}`, async ({ page }) => {
-    await open(page, viewport);
-    await expect(page.getByTestId('stage-tilt-tag')).toHaveCount(0);
-    await dot(page, 'Final call').click();
-    await expect(page.getByTestId('stage-tilt-tag')).toHaveText('TILT 23.4°');
-    await page.getByRole('slider', { name: 'Earth’s tilt' }).focus();
-    await page.keyboard.press('Home');
-    await expect(page.getByTestId('stage-tilt-tag')).toHaveText('TILT 0°');
-    await shot(page, `tilt-tag-${name}`);
-    await page.getByRole('button', { name: 'Text version' }).click();
-    await expect(page.getByTestId('stage-tilt-tag')).toHaveCount(0);
-    await dot(page, 'Stop 1 of 12').click();
-    await expect(page.getByTestId('stage-tilt-tag')).toHaveCount(0);
-  });
-
-  test(`Done for today says where the next time starts, at ${name}`, async ({ page }) => {
-    await open(page, viewport);
-    await dot(page, 'The end of this Scroll').click();
-    await page.getByRole('button', { name: 'Done for today' }).click();
-    await expect(page.getByTestId('done-next-time')).toHaveText('Part 2 is next.');
-    await shot(page, `done-next-time-${name}`);
+    await shot(page, `dock-${name}`);
     expect(await audit(page)).toEqual([]);
   });
 
@@ -129,11 +102,14 @@ for (const viewport of [phone, desktop]) {
     await more();
     await page.getByTestId('more-text-version').click();
     await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
-    await expect(page.getByTestId('stage').getByText(/The Sun is on the left and Earth is on the right/)).toBeVisible();
+    const figure = page.locator('[data-ks-figure]').first();
+    await expect(figure).toContainText(/The Sun is on the left and Earth is on the right/);
+    await expect(figure.getByRole('img')).toHaveCount(0);
     await more();
     await expect(page.getByTestId('more-text-version-detail')).toHaveText('Showing the picture as words');
     await page.getByTestId('more-text-version').click();
-    await expect(page.getByTestId('stage').getByRole('img')).toBeVisible();
+    await expect(figure.getByRole('img')).toBeVisible();
+    await expect(figure).not.toContainText(/The Sun is on the left and Earth is on the right/);
     // Simpler swaps the stop on screen for its plainer words.
     await more();
     await page.getByTestId('more-simpler').click();
@@ -207,7 +183,7 @@ async function openTitled(page: Page, title: string, viewport = phone) {
     firstTitle: title,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+  await expect(page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: title })).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
 }
 

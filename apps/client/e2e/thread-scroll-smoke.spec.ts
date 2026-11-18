@@ -8,7 +8,7 @@ import { PARTY_CALL, openParty, partyWorld, type PartyWorld, type Who } from './
 /**
  * The thread's own reader of a v2 Scroll (v3 T-D, T-E; D-153, D-155) in the production export: two people in one
  * thread of a series of three Scrolls, each in their own browser context, over labelled HTTP fixtures that keep the
- * real server's rules for places and the call (no backend). The Scrolls are the labelled v2 fixture `seasons-stage-ci`.
+ * real server's rules for places and the call (no backend). The Scrolls are the labelled v2 fixture `seasons-stage-ci`, read in Folio.
  * Screenshots are written only when `KS_THREAD_SCROLL_SHOTS` names a folder.
  */
 const phone = { width: 390, height: 844 };
@@ -77,14 +77,20 @@ async function read(page: Page, viewport = phone) {
       ? page.getByRole('button', { name: 'Read', exact: true })
       : page.getByRole('button', { name: 'Read this Scroll' })
   ).click();
-  await expect(page.getByTestId('stop-scroller')).toBeVisible();
+  await expect(page.getByTestId('folio-scroller')).toBeVisible();
   await expect(page.getByText('This needs an app update')).toHaveCount(0);
+}
+
+/** Goes to the end of the Scroll by the End key, where the end plate is. */
+async function toTheEnd(page: Page) {
+  await page.getByRole('group', { name: 'Scroll reader' }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByTestId('end-plate')).toBeInViewport();
 }
 
 /** Goes to the end of the Scroll and presses the finish the thread's reader offers there. */
 async function finishPart(page: Page, part: number) {
-  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
-  await expect(page.getByTestId('end-tray')).toBeVisible();
+  await toTheEnd(page);
   await page.getByRole('button', { name: 'I’ve finished this part' }).click();
   await expect(page.getByTestId('finished-part')).toContainText(
     `The thread can see you finished Part ${String(part)}.`,
@@ -157,7 +163,7 @@ test('on a desktop the player reads the Scroll in place of the thread, and the f
   await expect.poll(() => world.placeOf('asha')).toMatchObject({ part: 1, state: 'on' });
   await shot(page, 'thread-scroll-1440-reader');
   expect(await seriousViolations(page)).toEqual([]);
-  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await toTheEnd(page);
   await page.getByRole('button', { name: 'I’ve finished this part' }).click();
   await expect.poll(() => world.placeOf('asha')).toMatchObject({ part: 1, state: 'finished' });
   await shot(page, 'thread-scroll-1440-finished');
@@ -173,7 +179,7 @@ test('a Read that does not open the Scroll tells the thread nothing', async ({ b
   await choosePart(ravi.page, 2);
   await ravi.page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(ravi.page.getByRole('heading', { name: "You're offline" })).toBeVisible();
-  await expect(ravi.page.getByTestId('stop-scroller')).toHaveCount(0);
+  await expect(ravi.page.getByTestId('folio-scroller')).toHaveCount(0);
   // Give a wrongly sent report time to arrive.
   await ravi.page.waitForTimeout(1000);
   expect(world.placeCalls('ravi', 'places/set')).toHaveLength(0);
@@ -192,7 +198,7 @@ test('while recording is paused opening a part tells nothing, and the button sti
   await read(ravi.page);
   await ravi.page.waitForTimeout(1000);
   expect(world.placeCalls('ravi', 'places/set')).toHaveLength(0);
-  await ravi.page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await toTheEnd(ravi.page);
   await ravi.page.getByRole('button', { name: 'I’ve finished this part' }).click();
   await expect.poll(() => world.placeOf('ravi')).toMatchObject({ part: 1, state: 'finished' });
   await closeAll(ravi.context);
@@ -211,7 +217,7 @@ async function readerPage(browser: Browser, world: PartyWorld, who: Who) {
 /** Reads the open Scroll the way a person does: some time on its first stop, then on to its end, then the report is due. */
 async function readAndReport(page: Page) {
   await page.clock.fastForward(4_000);
-  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await toTheEnd(page);
   await page.clock.fastForward(3_000);
   // The recorder reports every 15 s while it has something to say.
   await page.clock.fastForward(16_000);
@@ -251,7 +257,7 @@ test('the thread’s reader reports its reading to the recorder exactly as /scro
   await read(asha.page);
   await readAndReport(asha.page);
   await ravi.page.goto(`/scroll/${id(301)}`);
-  await expect(ravi.page.getByTestId('stop-scroller')).toBeVisible();
+  await expect(ravi.page.getByTestId('folio-scroller')).toBeVisible();
   await readAndReport(ravi.page);
   await expect.poll(() => batchesOf(world, 'asha').length, { timeout: 15_000 }).toBeGreaterThan(0);
   await expect.poll(() => batchesOf(world, 'ravi').length, { timeout: 15_000 }).toBeGreaterThan(0);

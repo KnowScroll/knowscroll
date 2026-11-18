@@ -23,10 +23,12 @@ export function usePersonInput(scroller: RefObject<unknown>, onInput: () => void
 }
 
 /**
- * Web: stops a smooth scroll the reader started (Home, End, an arrow key) where it has got to. Chrome lets such a scroll
- * run on through the person's wheel, so without this a wheel turned in the first second after End is undone.
+ * Web: stops a smooth scroll the reader started (Home, End, an arrow key) where it has got to, so the person's wheel
+ * takes over from there; without it a wheel turned in the first second after End is undone. It calls the element's own
+ * `scroll`: React Native Web puts its own `scrollTo` on the node, which reads `{ y, animated }` and would start another
+ * smooth scroll to the top.
  */
 export function stopScrolling(scroller: RefObject<unknown>): void {
   const node = scrollableNodeOf(scroller);
-  node?.scrollTo({ top: node.scrollTop, behavior: 'instant' });
+  node?.scroll({ top: node.scrollTop, behavior: 'instant' });
 }

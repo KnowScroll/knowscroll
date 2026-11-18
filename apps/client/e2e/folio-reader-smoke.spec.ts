@@ -8,10 +8,9 @@ import { encounterFixture } from './encounter-fixture';
 import { exportCarries } from './export-files';
 
 /**
- * Folio, the essay reader of a v2 Scroll, in the production export (#732). It is opt-in by a device preference, so these
- * open a Scroll with that preference set and prove that Folio draws instead of the Stage reader, what it reports to the
- * recorder, the ••• sheet and Next idea, the page's own palette in each appearance, and that nothing changes
- * for a device that has not chosen it. The document is the labelled CI fixture `seasons-stage-ci` served by authored
+ * Folio, the essay reader of a v2 Scroll, in the production export (#732). These open a Scroll and prove that Folio
+ * draws it, with a device that has chosen nothing included, what it reports to the recorder, the ••• sheet and Next
+ * idea, and the page's own palette in each appearance. The document is the labelled CI fixture `seasons-stage-ci` served by authored
  * HTTP fixtures, so this proves the reader and what it reports, not the backend. Screenshots are written only when
  * `KS_FOLIO_SHOTS` names a folder (outside the repository).
  */
@@ -41,7 +40,7 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-/** What this device has chosen, before the app reads it. `null` leaves the device as a fresh install. */
+/** What this device has chosen, before the app reads it (Light, where a test reads the page's colours: a fresh install is Dark). `null` leaves the device as a fresh install. */
 async function choose(page: Page, preferences: Record<string, unknown> | null) {
   if (preferences === null) return;
   await page.addInitScript(
@@ -52,11 +51,11 @@ async function choose(page: Page, preferences: Record<string, unknown> | null) {
   );
 }
 
-/** Opens Explore on the seasons Scroll as a person who chose Folio (or, with `null`, who chose nothing). */
+/** Opens Explore on the seasons Scroll as a person who chose Light (or, with `null`, who chose nothing). */
 async function open(
   page: Page,
   viewport: Viewport = phone,
-  preferences: Record<string, unknown> | null = { scrollReader: 'folio', appearance: 'light' },
+  preferences: Record<string, unknown> | null = { appearance: 'light' },
 ) {
   await choose(page, preferences);
   const served = await encounterFixture(page, 'scroll', {
@@ -90,9 +89,7 @@ for (const [label, viewport] of [
   ['phone', phone],
   ['desktop', desktop],
 ] as const) {
-  test(`with Folio chosen, the essay draws instead of the Stage reader, with its bar and dock, at ${label}`, async ({
-    page,
-  }) => {
+  test(`the essay draws instead of the Stage reader, with its bar and dock, at ${label}`, async ({ page }) => {
     await open(page, viewport);
     await expect(folio(page)).toBeVisible();
     await expect(page.getByTestId('stage')).toHaveCount(0);
@@ -225,7 +222,7 @@ for (const appearance of ['dark', 'light'] as const) {
   test(`in ${appearance} the page takes its own palette and the reader has no serious accessibility violation`, async ({
     page,
   }) => {
-    await open(page, phone, { scrollReader: 'folio', appearance });
+    await open(page, phone, { appearance });
     await expect(folio(page)).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-ks-appearance')))
@@ -243,12 +240,12 @@ for (const appearance of ['dark', 'light'] as const) {
   });
 }
 
-test('a device that has not chosen Folio gets the Stage reader: Folio is only a trial', async ({ page }) => {
+test('a device that has chosen nothing gets Folio, on the dark page', async ({ page }) => {
   await open(page, phone, null);
-  await expect(page.getByTestId('stage')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Stop 1 of 12, you are here' })).toBeVisible();
-  await expect(page.getByTestId('folio-page')).toHaveCount(0);
-  await expect(page.getByTestId('folio-scroller')).toHaveCount(0);
+  await expect(folio(page)).toBeVisible();
+  await expect(scroller(page)).toBeVisible();
+  await expect(page.getByTestId('stage')).toHaveCount(0);
+  await expect(folio(page)).toHaveCSS('background-color', GROUND.dark);
 });
 
 test('the production export carries no Folio gallery, and its address is not a page', async ({ page }) => {
@@ -259,7 +256,7 @@ test('the production export carries no Folio gallery, and its address is not a p
 });
 
 test('switching appearance in the middle of the essay repaints the page and keeps the place', async ({ page }) => {
-  await open(page, phone, { scrollReader: 'folio', appearance: 'dark' });
+  await open(page, phone, { appearance: 'dark' });
   await expect(folio(page)).toHaveCSS('background-color', GROUND.dark);
   const scroller = page.getByTestId('folio-scroller');
   await scroller.evaluate((node) => {

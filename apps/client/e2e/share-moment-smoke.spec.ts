@@ -106,7 +106,10 @@ async function openExploreWithThreads(
     });
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  // The offer's own title heads the Scroll in the bar and again in the essay.
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
 }
 
@@ -160,7 +163,7 @@ for (const viewport of viewports) {
         .click();
       await page.getByRole('button', { name: 'Read this Scroll' }).click();
     }
-    await expect(page.getByTestId('stop-scroller')).toBeVisible();
+    await expect(page.getByTestId('folio-scroller')).toBeVisible();
     await page.getByRole('button', { name: 'More', exact: true }).click();
     const share = page.getByTestId('more-share-moment');
     await expect(share).toBeEnabled();
@@ -223,8 +226,19 @@ for (const viewport of viewports) {
     page,
   }) => {
     await openExploreWithThreads(page, viewport, { holding: [] });
-    // The third stop of the fixture is its first Call it.
-    await page.getByRole('button', { name: 'Call it 1 of 3', exact: true }).click();
+    // The third stop of the fixture is its first Call it: read once its top has reached the reading band (42 % down the
+    // scroller), which is where Folio brings a stop that is jumped to.
+    await page.getByTestId('folio-scroller').evaluate((node) => {
+      const call = node.querySelector('[data-ks-stop="call-delhi"]');
+      if (call === null) throw new Error('the fixture has its first call');
+      const band = Math.round(node.clientHeight * 0.42);
+      node.scrollTop += call.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
+    });
+    // The reader has taken the scroll in once its progress has moved: the same measure sets the stop being read.
+    await expect(page.getByRole('progressbar', { name: 'How far you have read' })).not.toHaveAttribute(
+      'aria-valuenow',
+      '0',
+    );
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(page.getByTestId('more-share-moment')).toBeDisabled();
     await expect(page.getByTestId('more-share-moment-detail')).toContainText('A call would give its answer away');

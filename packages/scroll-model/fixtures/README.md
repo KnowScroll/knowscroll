@@ -39,7 +39,7 @@ pnpm format
 ## Stage fixtures of the drawing kits (v2)
 
 `documents/{tides,greenhouse,star,transit,starlight,black-hole}-stage-ci.json` are labelled CI fixtures of `scroll-document.v2` Scrolls,
-one for each drawing kit of D-194 and D-204, for the stage reader's end-to-end check (`kit-stage-smoke.spec.ts`) and the kit
+one for each drawing kit of D-194 and D-204, for the reader's end-to-end check of each kit (`kit-figures-smoke.spec.ts`) and the kit
 screenshots. They are shorter than a Scroll may be, so only the reading time is outside the limits; the rest is
 validated, and the file carries correct measures and hash. Regenerate after a change to a kit's words or text:
 

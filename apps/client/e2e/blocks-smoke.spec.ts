@@ -7,7 +7,7 @@ import { encounterFixture } from './encounter-fixture';
 
 /**
  * The play blocks of D-207 (a sort, a fork, a scale, a growing chart, a guide) in the production export:
- * each played in the Stage + Spine reader over the labelled CI fixtures `*-blocks-ci` (not product
+ * each played in the Folio essay over the labelled CI fixtures `*-blocks-ci` (not product
  * content). It proves what the client does, not the backend: every block works by keyboard-reachable
  * controls, has a text version, nothing is sent while it is played (the recorder gets no interaction),
  * and axe finds nothing serious at phone and desktop widths, under reduced motion too. With
@@ -26,16 +26,24 @@ async function open(page: Page, document: unknown, viewport: { width: number; he
     scrollDocument: document as Record<string, unknown>,
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  // The offer's own title heads the Scroll in the bar and again in the essay.
+  await expect(
+    page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
 }
 
-/** Goes to a stop by its dot, and waits until the reader has settled there. */
-async function goTo(page: Page, document: ScrollDocumentV2, stopId: string) {
-  const index = document.stops.findIndex((stop) => stop.id === stopId);
-  const name = new RegExp(`^Stop ${String(index + 1)} of ${String(document.stops.length)}(, you are here)?$`, 'u');
-  await page.getByRole('button', { name }).click();
-  await page.waitForTimeout(400);
+/**
+ * Brings a stop to the top of the reading band (42 % down the scroller), where it is the stop being read. Folio draws
+ * every block inside the essay, so a block is reached by scrolling to the beat it belongs to.
+ */
+async function goTo(page: Page, stopId: string) {
+  await page.getByTestId('folio-scroller').evaluate((node, id) => {
+    const beat = node.querySelector(`[data-ks-stop="${id}"]`);
+    if (beat === null) throw new Error(`no stop ${id}`);
+    const band = Math.round(node.clientHeight * 0.42);
+    node.scrollTop += beat.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
+  }, stopId);
 }
 
 async function audit(page: Page) {
@@ -78,9 +86,6 @@ function watchPlay(page: Page) {
   };
 }
 
-const sorted = sortFork as unknown as ScrollDocumentV2;
-const scaled = scaleChart as unknown as ScrollDocumentV2;
-
 for (const [size, viewport] of sizes) {
   for (const reduced of [false, true]) {
     const mode = reduced ? `${size}, reduced motion` : size;
@@ -94,7 +99,7 @@ for (const [size, viewport] of sizes) {
       if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
       await open(page, sortFork, viewport);
 
-      await goTo(page, sorted, 'chain');
+      await goTo(page, 'chain');
       await expect(page.getByTestId('play-sort')).toBeVisible();
       await shot(page, mode, 'sort');
       expect(await audit(page), 'sort').toEqual([]);
@@ -126,12 +131,12 @@ for (const [size, viewport] of sizes) {
         await expect(page.getByTestId('sort-answer').first()).toBeVisible();
       });
 
-      await goTo(page, sorted, 'ray');
+      await goTo(page, 'ray');
       await expect(page.getByTestId('guide').first()).toBeVisible();
       await shot(page, mode, 'guide');
       expect(await audit(page), 'guide').toEqual([]);
 
-      await goTo(page, sorted, 'paths');
+      await goTo(page, 'paths');
       await expect(page.getByTestId('play-fork')).toBeVisible();
       await shot(page, mode, 'fork');
       await watch.during(async () => {
@@ -158,7 +163,7 @@ for (const [size, viewport] of sizes) {
       if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
       await open(page, scaleChart, viewport);
 
-      await goTo(page, scaled, 'where');
+      await goTo(page, 'where');
       await expect(page.getByTestId('play-scale')).toBeVisible();
       await shot(page, mode, 'scale');
       expect(await audit(page), 'scale').toEqual([]);
@@ -171,10 +176,10 @@ for (const [size, viewport] of sizes) {
         await page.getByRole('button', { name: 'Text version of the scale' }).click();
       });
 
-      await goTo(page, scaled, 'ray');
+      await goTo(page, 'ray');
       await shot(page, mode, 'guide-point');
 
-      await goTo(page, scaled, 'count');
+      await goTo(page, 'count');
       await expect(page.getByTestId('play-chart')).toBeVisible();
       await shot(page, mode, 'chart');
       await watch.during(async () => {
@@ -197,7 +202,7 @@ for (const [size, viewport] of sizes) {
 
 test('the T key swaps every block for its text version', async ({ page }) => {
   await open(page, sortFork, sizes[0][1]);
-  await goTo(page, sorted, 'paths');
+  await goTo(page, 'paths');
   await page.getByRole('group', { name: 'Scroll reader' }).focus();
   await page.keyboard.press('t');
   await expect(page.getByTestId('fork-text')).toBeVisible();
@@ -210,7 +215,7 @@ test('Simpler swaps only the stop’s own text: the play block and the guide sta
     ['chain', 'play-sort'],
     ['ray', 'guide'],
   ] as const) {
-    await goTo(page, doc, stopId);
+    await goTo(page, stopId);
     const stop = page.locator(`[data-ks-stop="${stopId}"]`);
     const simple = (doc.stops.find((candidate) => candidate.id === stopId) as { simple: string }).simple;
     await stop.getByRole('button', { name: 'Say it simpler' }).click();
