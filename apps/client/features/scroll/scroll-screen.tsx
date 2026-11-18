@@ -35,8 +35,7 @@ import { ScrollReaderSurface } from './scroll-reader-surface';
 import { forgetPartLeft, partLeftFor } from './part-left';
 import { useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
-import type { ScrollV2Reader } from './scroll-readers';
-import { useScrollReaders } from './use-scroll-readers';
+import { EVERY_READER } from './scroll-readers';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
 import { readResume, writeResume } from '../encounter/encounter-history';
@@ -253,21 +252,13 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
 }
 
 /**
- * A v2 Scroll on its own address: the Stage + Spine reader with the same recorder and the same
- * remembered place as the article, by stop (a stop id is the position's block id). The Parts and the
- * related move are the ones the server admitted for this Scroll, opened by address (D-184). Ask from
+ * A v2 Scroll on its own address: Folio's essay with the same recorder and the same remembered place
+ * as the article, by stop (a stop id is the position's block id). The Parts are the ones the server
+ * admitted for this Scroll, opened by address (D-184). Ask from
  * here is the same as in Explore (D1): there is no encounter, so its source is this Scroll's own
  * exposure. Next ↑ goes to Explore for a new topic.
  */
-function ReadyScrollV2({
-  scope,
-  scroll,
-  readerKind,
-}: {
-  readonly scope: AccountScope;
-  readonly scroll: OpenedScrollV2;
-  readonly readerKind: ScrollV2Reader;
-}) {
+function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScrollV2 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const back = useBack();
@@ -341,7 +332,6 @@ function ReadyScrollV2({
   return (
     <>
       <ScrollReaderSurface
-        kind={readerKind}
         scroll={scroll}
         observer={recorder.observer}
         paused={!focused || sharing || ask.open}
@@ -365,7 +355,6 @@ function ReadyScrollV2({
           },
           nextTopic: () => router.navigate('/explore'),
           nextPart: moves.nextPart,
-          related: moves.related,
           previousPart: moves.previousPart,
           previous: moves.previous,
           formatSwitch: (
@@ -425,7 +414,7 @@ function ReadyScrollV2({
 
 function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; readonly assetId: string }) {
   const router = useRouter();
-  const { session, state } = useScrollSession(scope, assetId, useScrollReaders());
+  const { session, state } = useScrollSession(scope, assetId, EVERY_READER);
   useEffect(() => {
     session.start();
     return () => session.dispose();
@@ -436,7 +425,7 @@ function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; read
       return state.reader === 'article' ? (
         <ReadyScroll scope={scope} scroll={state.scroll} />
       ) : (
-        <ReadyScrollV2 key={state.scroll.exposureId} scope={scope} scroll={state.scroll} readerKind={state.reader} />
+        <ReadyScrollV2 key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />
       );
     case 'opening':
     case 'loading':

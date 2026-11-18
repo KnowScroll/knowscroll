@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { DisplayProvider, READER_KEY_NAMES } from '@knowscroll/ui';
+import { DisplayProvider, FOLIO_KEY_NAMES } from '@knowscroll/ui';
 import { KEYBOARD_MAP, KeyboardMapSheet } from './keyboard-map';
 import { UNIVERSE_MAP_KEY_NAMES } from '../universe/universe-stage';
 
@@ -28,16 +28,14 @@ describe('the keyboard map', () => {
     expect(screen.getByLabelText('Slash: Search places')).toBeOnTheScreen();
   });
 
-  it('says what right and left arrow mean along a thread: the way on may be another angle', async () => {
+  it('says what right and left arrow mean: along a Reel’s thread the way on may be another angle, in a Scroll it is a Part', async () => {
     await show();
     expect(
       screen.getByLabelText(
         'Left and right arrow: Along the thread: the part before, and the next part or another angle when there is none',
       ),
     ).toBeOnTheScreen();
-    expect(
-      screen.getByLabelText('Right arrow: Continue: the next Part, or another angle when there is no next Part'),
-    ).toBeOnTheScreen();
+    expect(screen.getByLabelText('Right arrow: The next Part')).toBeOnTheScreen();
     expect(screen.getByLabelText('Left arrow: Back to the Part before')).toBeOnTheScreen();
   });
 
@@ -50,11 +48,14 @@ describe('the keyboard map', () => {
       ArrowRight: '→',
       ArrowLeft: '←',
       ' ': 'Space',
-      Enter: 'Enter',
+      PageDown: 'PgDn',
+      PageUp: 'PgUp',
+      Home: 'Home',
+      End: 'End',
       'Shift+S': '⇧S',
       Escape: 'Esc',
     };
-    for (const name of READER_KEY_NAMES) expect(listed).toContain(drawn[name] ?? name.toUpperCase());
+    for (const name of FOLIO_KEY_NAMES) expect(listed).toContain(drawn[name] ?? name.toUpperCase());
   });
 
   it('lists every key the Universe map listens to, and Escape, so a new key cannot go unlisted', () => {

@@ -5,8 +5,7 @@ import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, useDisplay, type ReaderHandle } from '@knowscroll/ui';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
 import type { OpenedScrollV2 } from '../scroll/scroll-session';
-import { EVERY_READER, readerFor, v2ReaderOf } from '../scroll/scroll-readers';
-import { useScrollReaders } from '../scroll/use-scroll-readers';
+import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
 import { EncounterStrip } from './encounter-actions';
@@ -50,7 +49,6 @@ export function ScrollV2Encounter({
   readonly back: () => void;
   readonly hint: ReactNode;
 }) {
-  const readerKind = v2ReaderOf(useScrollReaders());
   const router = useRouter();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
@@ -94,7 +92,6 @@ export function ScrollV2Encounter({
   return (
     <View style={styles.page}>
       <ScrollReaderSurface
-        kind={readerKind}
         scroll={entry.scroll}
         observer={entry.recorder.observer}
         paused={!playable}

@@ -9,11 +9,10 @@ describe('device preferences', () => {
       reelSound: true,
       readyNotices: true,
       appearance: 'dark',
-      scrollReader: 'stage',
     });
   });
 
-  it('read what was stored, field by field', () => {
+  it('read what was stored, field by field, and drop a choice that no longer exists', () => {
     expect(
       parseDevicePreferences(
         JSON.stringify({
@@ -22,6 +21,7 @@ describe('device preferences', () => {
           reelSound: false,
           readyNotices: false,
           appearance: 'light',
+          // Folio's trial switch (#732), stored on devices that tried it before Folio became the reader.
           scrollReader: 'folio',
         }),
       ),
@@ -31,7 +31,6 @@ describe('device preferences', () => {
       reelSound: false,
       readyNotices: false,
       appearance: 'light',
-      scrollReader: 'folio',
     });
   });
 
@@ -39,9 +38,7 @@ describe('device preferences', () => {
     expect(parseDevicePreferences('not json')).toEqual(defaultDevicePreferences);
     expect(parseDevicePreferences('7')).toEqual(defaultDevicePreferences);
     expect(
-      parseDevicePreferences(
-        JSON.stringify({ motion: 'always', textSize: 3, reelSound: 'no', appearance: 'neon', scrollReader: 'scroll' }),
-      ),
+      parseDevicePreferences(JSON.stringify({ motion: 'always', textSize: 3, reelSound: 'no', appearance: 'neon' })),
     ).toEqual(defaultDevicePreferences);
     expect(parseDevicePreferences(JSON.stringify({ reelSound: false }))).toEqual({
       ...defaultDevicePreferences,
@@ -56,7 +53,6 @@ describe('device preferences', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'paper' }))).toEqual({
         ...before,
         appearance: 'light',
-        scrollReader: 'stage',
       });
     });
 
@@ -64,7 +60,6 @@ describe('device preferences', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'sky' }))).toEqual({
         ...before,
         appearance: 'dark',
-        scrollReader: 'stage',
       });
     });
 

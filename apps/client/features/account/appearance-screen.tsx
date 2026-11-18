@@ -53,8 +53,8 @@ function Preview({ appearance }: { readonly appearance: Appearance }) {
 /**
  * `/account/appearance`: Light or Dark for the whole app (#666). The choice applies at once and is
  * kept on this device with the other device choices (D-057, D-151): it survives signing out,
- * switching account and a privacy clear, and nothing is sent to the server. The Universe's sky,
- * a Scroll's page and Reels keep their own colours in both.
+ * switching account and a privacy clear, and nothing is sent to the server. The Universe's sky
+ * and Reels keep their own colours in both; a Scroll's page has a Light and a Dark of its own (D-424).
  */
 export function AppearanceScreen() {
   const { preferences, update } = useDevicePreferences();
@@ -77,7 +77,7 @@ export function AppearanceScreen() {
         ))}
       </View>
       <Text variant="meta" color={content.ink2} style={styles.note}>
-        Your universe, Reels and the pages of a Scroll keep their own colours. Your choice is kept on this device.
+        Your universe and Reels keep their own colours. Your choice is kept on this device.
       </Text>
       {Platform.OS === 'web' ? null : (
         <Text variant="meta" color={content.ink2}>

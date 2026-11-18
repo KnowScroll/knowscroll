@@ -29,33 +29,30 @@ const pending = { status: 'pending', requestId: '0199a000-0000-7000-8000-0000000
 const none = { status: 'unavailable', reason: 'series_boundary' } satisfies ContinuationState;
 
 describe('the moves a reader offers from what the server admitted', () => {
-  it('has a move for each ready continuation, named for where it goes', () => {
+  it('has a move for each Part either side, named for where it goes, and none for a related Scroll', () => {
     const go = jest.fn<void, [ReadyContinuation, 'next' | 'previous']>();
     const moves = readerContinuations({ seriesPrevious: partZero, seriesNext: partTwo, related }, go);
     expect(moves.nextPart).toMatchObject({ label: 'Part 2', title: 'The second Part' });
-    expect(moves.related).toMatchObject({ label: 'Related', title: 'Another angle' });
     moves.nextPart?.onPress();
-    moves.related?.onPress();
     moves.previousPart?.();
     expect(moves.previous).toMatchObject({ label: 'Part 1', title: 'The first Part' });
     expect(go.mock.calls.map(([state, direction]) => [state.linkId, direction])).toEqual([
       [partTwo.linkId, 'next'],
-      [related.linkId, 'next'],
       [partZero.linkId, 'previous'],
     ]);
+    expect(Object.keys(moves)).not.toContain('related');
   });
 
-  it('has no move for a continuation that was not admitted, so no button, key or swipe reaches it', () => {
+  it('has no move for a continuation that was not admitted, so no button or key reaches it', () => {
     const moves = readerContinuations(
       { seriesPrevious: none, seriesNext: none, related: { status: 'unavailable', reason: 'no_related_ready' } },
       jest.fn(),
     );
-    expect(moves).toEqual({ nextPart: undefined, related: undefined, previousPart: undefined, previous: undefined });
+    expect(moves).toEqual({ nextPart: undefined, previousPart: undefined, previous: undefined });
   });
 
   it('has no move while a continuation is still being prepared', () => {
     const moves = readerContinuations({ seriesPrevious: none, seriesNext: pending, related: pending }, jest.fn());
     expect(moves.nextPart).toBeUndefined();
-    expect(moves.related).toBeUndefined();
   });
 });

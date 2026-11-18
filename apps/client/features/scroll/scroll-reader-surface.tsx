@@ -7,16 +7,14 @@ import {
   ReaderDock,
   ReaderTopBar,
   FolioReader,
-  StageReader,
   readingModelOfV2,
   Text,
   useDisplay,
   type NextPartPeek,
   type PartArrival,
   type ReaderHandle,
-  type StageReaderProps,
   type ReaderView,
-  type StageReadingObserver,
+  type UnitReadingObserver,
 } from '@knowscroll/ui';
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
@@ -28,10 +26,8 @@ import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import type { SaveMove } from './more-rows';
 import { MoreSheetBody } from './more-sheet';
 import type { OpenedScrollV2 } from './scroll-session';
-import type { ScrollV2Reader } from './scroll-readers';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
-import { useScrollPlay } from './use-scroll-play';
 
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
 export interface ReaderMoves {
@@ -41,11 +37,10 @@ export interface ReaderMoves {
   /** Save, as the ••• sheet and the S key offer it; absent where the screen keeps nothing (a thread's reader). */
   readonly save?: SaveMove | undefined;
   readonly nextTopic?: (() => void) | undefined;
+  /** The next Part: the dock, the end of the essay and the → key (D-425). */
   readonly nextPart?: NextPartPeek | undefined;
-  /** Another angle on the idea. With no next Part it is the way on (the dock, the → key, a swipe left) (D-184). */
-  readonly related?: NextPartPeek | undefined;
   readonly previousPart?: (() => void) | undefined;
-  /** The Part before as it is named and titled: the tab at the picture's left edge and what a swipe right brings in. */
+  /** The Part before as it is named and titled: the link above the essay's title and the ← key. */
   readonly previous?: NextPartPeek | undefined;
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
@@ -69,15 +64,12 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
 }
 
 /**
- * One Stage + Spine reader for a v2 Scroll, wherever it is shown (the Explore encounter and the
- * direct `/scroll/<id>` route): its top bar, the reader, its dock and the ••• sheet, with the room a
- * screen keeps for the status bar and the tab bar. The screen supplies the moves and what the sheet
- * holds (Save, Share), because those differ by screen. Play (the calls, the sparks in the dock) belongs
- * to the Scroll, so it is the same on both. On a tablet or desktop the reader is a
- * centred column with the stage pinned at its top (D-133).
+ * Folio's reader for a v2 Scroll, wherever it is shown (the Explore encounter, the direct `/scroll/<id>` route and a
+ * thread): its top bar, the essay, its dock and the ••• sheet, with the room a screen keeps for the status bar and the
+ * tab bar. The screen supplies the moves and what the sheet holds (Save, Share), because those differ by screen. On a
+ * tablet or desktop the essay is a centred column wide enough to set a held figure beside the text (D-425).
  */
 export function ScrollReaderSurface({
-  kind,
   scroll,
   observer,
   paused,
@@ -95,10 +87,8 @@ export function ScrollReaderSurface({
   topInset,
   bottomInset,
 }: {
-  /** Which reader draws the Scroll: the Stage reader, or Folio's essay while it is a trial (#732). */
-  readonly kind: ScrollV2Reader;
   readonly scroll: OpenedScrollV2;
-  readonly observer?: StageReadingObserver | undefined;
+  readonly observer?: UnitReadingObserver | undefined;
   readonly paused?: boolean | undefined;
   readonly initialStopId?: string | undefined;
   readonly handleRef?: Ref<ReaderHandle> | undefined;
@@ -149,10 +139,7 @@ export function ScrollReaderSurface({
   const { document } = scroll;
   const noMoment = whyNoMoment(document, momentStop);
   const limits = document.asides.find((aside) => aside.id === document.recap.smallPrintAside);
-  // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
-  const play = useScrollPlay(scroll);
-  // Folio offers no related move (#732: no Related control); the Stage reader keeps it as the way on.
-  const wayOn = kind === 'folio' ? moves.nextPart : (moves.nextPart ?? moves.related);
+  const model = useMemo(() => readingModelOfV2(document), [document]);
   const openMoment = () => {
     setMomentStop(reader.current?.capture()?.stopId);
     setSharingMoment(true);
@@ -175,12 +162,9 @@ export function ScrollReaderSurface({
   };
   return (
     <View style={styles.page}>
-      <View
-        style={[styles.column, breakpoint === 'compact' ? null : kind === 'folio' ? styles.wideEssay : styles.wide]}
-      >
-        <V2Reader
-          kind={kind}
-          document={document}
+      <View style={[styles.column, breakpoint === 'compact' ? null : styles.wide]}>
+        <FolioReader
+          model={model}
           observer={observer}
           paused={
             paused === true || moreOpen || challenging || sharingMoment || smallPrintOpen || reporting !== undefined
@@ -189,18 +173,16 @@ export function ScrollReaderSurface({
           handleRef={readerRef}
           onStopChange={onStopChange}
           nextPart={moves.nextPart}
-          related={moves.related}
           previousPart={moves.previous}
           arrival={arrival}
           topNote={topNote}
           onDone={moves.done}
           endSlot={endSlot}
-          play={play}
           commands={{
             universe: moves.universe,
             ask: moves.ask,
             format: moves.format,
-            wayOn: wayOn?.onPress,
+            wayOn: moves.nextPart?.onPress,
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
             challenge: canChallenge ? () => setChallenging(true) : undefined,
@@ -256,14 +238,7 @@ export function ScrollReaderSurface({
           }
           dock={
             <View style={{ paddingBottom: bottomInset }}>
-              <ReaderDock
-                onAsk={moves.ask}
-                sparks={
-                  kind === 'stage' && document.stops.some((stop) => stop.kind !== 'read') ? play?.sparks : undefined
-                }
-                onMore={openMore}
-                nextPart={wayOn}
-              />
+              <ReaderDock onAsk={moves.ask} onMore={openMore} nextPart={moves.nextPart} />
             </View>
           }
         />
@@ -320,21 +295,10 @@ export function ScrollReaderSurface({
   );
 }
 
-/**
- * The reader the surface draws. Both take the same commands, handle, header and dock; Folio draws the document as an
- * essay (`readingModelOfV2`) and has no related move and no played calls (#732).
- */
-function V2Reader({ kind, document, related, play, ...shared }: StageReaderProps & { readonly kind: ScrollV2Reader }) {
-  const model = useMemo(() => (kind === 'folio' ? readingModelOfV2(document) : undefined), [kind, document]);
-  if (model !== undefined) return <FolioReader model={model} {...shared} />;
-  return <StageReader document={document} related={related} play={play} {...shared} />;
-}
-
 const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, backgroundColor: content.paper, alignItems: 'center' },
   column: { flex: 1, minHeight: 0, width: '100%' },
-  wide: { maxWidth: layout.measureDesktop + 2 * layout.gutter + spacing[8] },
-  // Folio keeps its text at the reading measure and sets a held figure beside it, so it needs room for both.
-  wideEssay: { maxWidth: Math.round(layout.measureDesktop * 1.7) + 2 * layout.gutter + spacing[8] },
+  // The text keeps the reading measure and a held figure sits beside it, so the column needs room for both.
+  wide: { maxWidth: Math.round(layout.measureDesktop * 1.7) + 2 * layout.gutter + spacing[8] },
   smallPrint: { gap: spacing[2] },
 });

@@ -55,18 +55,18 @@ const HINTS = {
     ],
     footnote: 'Prefer buttons? The ⋯ menu has every move.',
   },
-  stage: {
+  essay: {
     lines: [
-      { icon: 'arrowDown', text: 'Read down: the picture changes' },
-      { icon: 'arrowLeft', text: 'Swipe left for the next Part' },
+      { icon: 'arrowDown', text: 'Read down: figures change as you read' },
+      { icon: 'arrowRight', text: 'Part 2 waits at the end' },
     ],
     footnote: 'Prefer buttons? Every move has one, and a key.',
   },
 } as const;
 
-/** What the first-arrival note says for the encounter on screen: a Stage + Spine Scroll moves differently from an article. */
+/** What the first-arrival note says for the encounter on screen: a v2 Scroll's essay has figures and Parts, an article neither. */
 function hintsFor(entry: EncounterEntry) {
-  return entry.kind === 'scroll' && isScrollV2(entry.scroll) ? HINTS.stage : HINTS[entry.kind];
+  return entry.kind === 'scroll' && isScrollV2(entry.scroll) ? HINTS.essay : HINTS[entry.kind];
 }
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
