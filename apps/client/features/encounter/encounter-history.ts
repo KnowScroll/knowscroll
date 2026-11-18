@@ -21,6 +21,8 @@ export type EncounterEntry = {
   started: boolean;
   suspended: boolean;
   disposed: boolean;
+  /** Opened from a cover of this hand (#745): Back returns to that cover while the hand can still be opened. */
+  fromCover?: { readonly handId: string; readonly index: number };
   /** Bound only while the actual renderer is mounted. Capture happens before pause/unmount. */
   surface?: { capture(): PrivatePosition | undefined; pause(): void };
 } & (

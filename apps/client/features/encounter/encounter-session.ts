@@ -28,6 +28,7 @@ import type {
   KeepEntryRef,
   NavigateExperienceRequest,
   NavigationOutcome,
+  OfferCover,
 } from '@knowscroll/contracts';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import type { AnyOpenedScroll } from '../scroll/scroll-session';
@@ -48,6 +49,7 @@ import {
 export type EncounterPhase =
   | 'keep_blocked'
   | 'idle'
+  | 'covers'
   | 'opening'
   | 'ready_offer'
   | 'activating'
@@ -68,6 +70,8 @@ export interface EncounterState {
    * is activated until they do, so looking at the choices records nothing.
    */
   readonly choices?: readonly EncounterOffer[];
+  /** The hand of Scroll covers on screen (#745), or none. Nothing in it is opened until the person taps a cover. */
+  readonly covers?: CoverHand;
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   /** The ready Reel or Scroll the person asked for and opened from its notice; the encounter says so (E07). */
@@ -82,6 +86,40 @@ export interface EncounterState {
   readonly removal?: SavedRemovalState;
 }
 type Intent = NavigateExperienceRequest['intent'];
+type ReadyOutcome = Extract<NavigationOutcome, { status: 'ready' }>;
+/** A Scroll offer the server sent with its cover (`offer-cover.v1`). */
+export type CoveredOffer = EncounterOffer & { readonly cover: OfferCover };
+/**
+ * Covers in Explore (#745): the Scroll offers of one outcome, shown one at a time and opened only on a tap. A hand is
+ * dealt by the moves the system chooses (a first open, a move to a new subject, more covers); a move the person names
+ * (a Part, a related link, a format switch, Keep, a region) opens at once as before.
+ */
+export interface CoverHand {
+  readonly id: string;
+  readonly outcome: ReadyOutcome;
+  /** The Scroll offers of the outcome that carry a cover, in the server's order. */
+  readonly offers: readonly CoveredOffer[];
+  /** Which cover is up. */
+  readonly index: number;
+  /** The entry that was current when the hand was dealt: Back from the covers returns to it. */
+  readonly origin?: string;
+  /** When the hand arrived, on this device's clock: its offers can be opened for fifteen minutes. */
+  readonly dealtAt: number;
+  /** The recording fields the hand's command was sent with; an opened cover records only if they still hold. */
+  readonly commandFields?: { recordingGeneration?: number };
+}
+/**
+ * Offers expire fifteen minutes after the server makes them. A hand is treated as spent a little earlier, so a tap near
+ * the end does not race the server's clock; a spent hand is replaced by a fresh one rather than refused.
+ */
+const HAND_LIFE_MS = 14 * 60_000;
+const isCovered = (offer: EncounterOffer): offer is CoveredOffer =>
+  offer.metadata.kind === 'scroll' && offer.cover !== undefined;
+/** The covers an outcome deals: only when its first offer is a Scroll with a cover. A Reel first plays as before. */
+function coveredOffers(outcome: ReadyOutcome): readonly CoveredOffer[] | undefined {
+  if (!isCovered(outcome.offer)) return undefined;
+  return [outcome.offer, ...outcome.bufferedOffers].filter(isCovered);
+}
 /**
  * A move to a new subject names the format the person is in, so "next" stays a Reel after a Reel and a
  * Scroll after a Scroll; the other moves are not about format. The server falls back to the other
@@ -100,6 +138,10 @@ interface Work {
    * what to show again if they leave without picking; `picked` is set once they have.
    */
   choose?: { readonly back: Pick<EncounterState, 'phase' | 'outcome'>; picked?: true };
+  /** A move the system chooses: with covers on, its Scroll offers become a hand instead of opening. */
+  deal?: true;
+  /** Opening this cover of a hand. */
+  fromCover?: { readonly handId: string; readonly index: number };
   uncertain?: boolean;
   keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; selected?: KeepEntryRef; handle?: KeepPlaceHandle };
   command: (fields: { recordingGeneration?: number }) => Promise<NavigationOutcome>;
@@ -145,6 +187,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let work: Work | undefined;
   let regionOrigin: { returnToMap: () => void; label: string; entry?: string; returned: boolean } | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
+  /** The device's choice to see covers in Explore (a trial switch while covers are tried, #745). */
+  let coverFeed = false;
+  /** The last hand dealt; it outlives its screen so Back from a cover's essay can return to it. */
+  let hand: CoverHand | undefined;
+  /** A cover's offer turned out spent: once the failed open has unwound, a fresh hand is dealt. */
+  let redealAfterRun = false;
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
   let contextSerial = 0;
@@ -323,6 +371,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       context: response,
       position: work?.keep ? undefined : readResume(scope, offer.assetId, offer.assetRevision),
       ...(work?.keep ? { keepOrigin: true } : {}),
+      ...(work?.fromCover ? { fromCover: work.fromCover } : {}),
       restored: offer.relation.kind === 'return',
       started: false,
       suspended: false,
@@ -410,12 +459,17 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (outcome.status !== 'ready') {
         current.keep?.handle?.release();
         work = undefined;
-        publish({ phase: outcome.status, outcome });
+        publish({ phase: outcome.status, outcome, covers: undefined });
         return;
       }
       publish({ phase: 'ready_offer', outcome });
       if (current.choose && !current.choose.picked && outcome.bufferedOffers.length > 0) {
         publish({ choices: [outcome.offer, ...outcome.bufferedOffers] });
+        return;
+      }
+      const covered = current.deal && coverFeed ? coveredOffers(outcome) : undefined;
+      if (covered) {
+        dealHand(outcome, covered, current.commandFields);
         return;
       }
       // Prepared offers cannot activate while the tab/app is backgrounded.
@@ -494,7 +548,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       history.push(current.entry);
       if (current.region && regionOrigin) regionOrigin.entry = current.entry.exposureId;
       work = undefined;
-      publish({ phase: 'active', outcome: undefined });
+      publish({ phase: 'active', outcome: undefined, covers: undefined });
     } catch (error) {
       if (current.region && valid() && work === current) {
         const problem = apiProblem(error);
@@ -507,12 +561,90 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         }
       }
       if (current.keep && valid() && work === current) publish({ phase: 'keep_blocked' });
-      else fail(error);
+      else if (current.fromCover && valid() && work === current && spentOffer(error)) {
+        // The cover outlived its offer (or the session moved on in another tab): deal a fresh hand, never "path changed".
+        work = undefined;
+        redealAfterRun = true;
+      } else fail(error);
     } finally {
       busy = false;
+      if (redealAfterRun) {
+        redealAfterRun = false;
+        moreCovers();
+      }
     }
   }
-  const begin = (command: Work['command'], keep?: Work['keep'], region = false, choose?: Work['choose']) => {
+  /** A refusal that means the offer itself can no longer be opened, as opposed to the network or the account. */
+  function spentOffer(error: unknown) {
+    const code = apiProblem(error)?.code;
+    return code === 'OFFER_UNAVAILABLE' || code === 'INTENT_REVISION_STALE';
+  }
+  /** Shows the Scroll offers of a system-chosen move as a hand of covers; the entry on screen is put down, not left. */
+  function dealHand(outcome: ReadyOutcome, offers: readonly CoveredOffer[], commandFields?: Work['commandFields']) {
+    work = undefined;
+    history.park();
+    hand = {
+      id: newId(),
+      outcome,
+      offers,
+      index: 0,
+      ...(history.current() ? { origin: history.current()!.exposureId } : {}),
+      dealtAt: Date.now(),
+      ...(commandFields ? { commandFields } : {}),
+    };
+    publish({ phase: 'covers', outcome: undefined, covers: hand });
+  }
+  /** Whether the hand is still the session's latest and its offers have life left, so one of them can still open. */
+  function handOpen(candidate: CoverHand | undefined): candidate is CoverHand {
+    return (
+      candidate !== undefined &&
+      candidate === hand &&
+      latestSession?.sessionId === candidate.outcome.sessionId &&
+      latestSession.intentRevision === candidate.outcome.intentRevision &&
+      Date.now() - candidate.dealtAt < HAND_LIFE_MS
+    );
+  }
+  /** Moves the hand on screen to another of its covers. */
+  function showCover(index: number) {
+    if (!hand || state.covers !== hand || index < 0 || index >= hand.offers.length || work || busy) return false;
+    hand = { ...hand, index };
+    publish({ covers: hand });
+    return true;
+  }
+  /** Back from the covers: to the entry the hand was dealt over, at its place. With none, Back is not Explore's to take. */
+  function leaveCovers() {
+    const shown = state.covers;
+    if (!shown?.origin) return false;
+    if (history.current()?.exposureId !== shown.origin && !history.restore(shown.origin)) return false;
+    releaseCheckpoint();
+    contextSerial += 1;
+    publish({ phase: 'active', outcome: undefined, covers: undefined });
+    return true;
+  }
+  /** Back from an essay opened from a cover: to that cover, with the rest of its hand, while the hand can still open. */
+  function backToCover(index: number) {
+    if (!hand) return false;
+    // Step back over the essay to the entry the hand was dealt over, so leaving the covers later lands there.
+    if (hand.origin !== undefined && history.list().at(-2)?.exposureId === hand.origin) history.back();
+    else history.park();
+    releaseCheckpoint();
+    contextSerial += 1;
+    hand = { ...hand, index };
+    publish({ phase: 'covers', outcome: undefined, covers: hand });
+    return true;
+  }
+  /** Another hand after this one, without opening any of it. */
+  function moreCovers() {
+    if (!valid() || work || busy || actionRunning || action !== undefined) return false;
+    return open({ kind: 'discover' });
+  }
+  const begin = (
+    command: Work['command'],
+    keep?: Work['keep'],
+    region = false,
+    choose?: Work['choose'],
+    deal = false,
+  ) => {
     if (!valid() || work || busy || actionRunning) return;
     work = {
       command,
@@ -520,6 +652,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       ...(keep ? { keep } : {}),
       ...(region ? { region: true } : {}),
       ...(choose ? { choose } : {}),
+      ...(deal ? { deal: true } : {}),
     };
     void run();
   };
@@ -553,6 +686,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       keep,
       false,
       choose,
+      target.kind === 'discover' && !choose && !keep,
     );
     return true;
   };
@@ -619,7 +753,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     releaseCheckpoint();
     contextSerial += 1;
     requests.visible(false);
-    publish({ phase: 'active', outcome: undefined, overlay: false, overlayOwner: undefined });
+    publish({ phase: 'active', outcome: undefined, overlay: false, overlayOwner: undefined, covers: undefined });
   };
   /**
    * "Not interested" on the encounter in front: saved first, then on to the next subject. A failed save
@@ -674,7 +808,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       from: { offerId: entry.offer.offerId, exposureId: entry.exposureId },
       intent: inFormat(intent, entry.offer.metadata.kind),
     });
-    begin((fields) => scope.api.experience.navigate({ ...input, ...fields }));
+    begin(
+      (fields) => scope.api.experience.navigate({ ...input, ...fields }),
+      undefined,
+      false,
+      undefined,
+      intent.mode === 'vertical',
+    );
   };
   /** Leaves the E08 picker without choosing: back to the ending it came from. */
   function leaveChoices() {
@@ -741,6 +881,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     work?.keep?.handle?.release();
     work?.entry?.recorder.end();
     work = undefined;
+    hand = undefined;
     regionOrigin = undefined;
     action = undefined;
     history.end();
@@ -921,6 +1062,44 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       void run();
     },
     leaveChoices,
+    /** Turns covers in Explore on or off for this device (the trial switch, #745). Takes effect at the next move. */
+    setCoverFeed(on: boolean) {
+      coverFeed = on;
+    },
+    /**
+     * Opens the cover on screen: the only thing that activates an offer of a hand. A hand past its offers' life is
+     * replaced by a fresh one instead, so a tap is never answered with "Your path changed".
+     */
+    openCover() {
+      const shown = state.covers;
+      if (!valid() || !shown || shown !== hand || work || busy || actionRunning || action !== undefined) return false;
+      if (!handOpen(shown)) return moreCovers();
+      const picked = shown.offers[shown.index]!;
+      const others = [shown.outcome.offer, ...shown.outcome.bufferedOffers].filter(
+        (offer) => offer.offerId !== picked.offerId,
+      );
+      work = {
+        command: () => Promise.resolve(shown.outcome),
+        activateId: newId(),
+        outcome: { ...shown.outcome, offer: picked, bufferedOffers: others },
+        ...(shown.commandFields ? { commandFields: shown.commandFields } : {}),
+        fromCover: { handId: shown.id, index: shown.index },
+      };
+      void run();
+      return true;
+    },
+    /** The next cover of the hand; after the last, another hand. */
+    nextCover() {
+      const shown = state.covers;
+      if (!shown || shown !== hand) return false;
+      return shown.index < shown.offers.length - 1 ? showCover(shown.index + 1) : moreCovers();
+    },
+    /** The cover before this one in the same hand. An earlier hand is gone once more covers were asked for. */
+    previousCover() {
+      const shown = state.covers;
+      return shown !== undefined && shown === hand && showCover(shown.index - 1);
+    },
+    moreCovers,
     requests,
     openRequest(mode: RequestMode = 'topic', anchor?: AskAnchor) {
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
@@ -1037,6 +1216,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
       // Re-entering the route resumes a prepared offer, never an uncertain command automatically.
       if (value && work && !busy && state.phase === 'ready_offer') void run();
+      // Covers left on screen past their offers' life are replaced when the person comes back to them.
+      if (returning && state.covers && !work && !busy && !handOpen(state.covers)) moreCovers();
     },
     bindSurface(entry: EncounterEntry, surface: NonNullable<EncounterEntry['surface']>) {
       if (valid() && !entry.disposed && foreground && history.current() === entry) {
@@ -1069,7 +1250,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     done() {
       requests.visible(false);
       history.park();
-      publish({ phase: 'exhausted', outcome: undefined, overlay: false, overlayOwner: undefined });
+      publish({ phase: 'exhausted', outcome: undefined, overlay: false, overlayOwner: undefined, covers: undefined });
     },
     back() {
       if (!valid()) return false;
@@ -1100,6 +1281,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         return true;
       }
       if (work || busy) return false;
+      if (state.covers) return leaveCovers();
+      const entry = history.current();
+      if (entry?.fromCover && handOpen(hand) && entry.fromCover.handId === hand.id) return backToCover(entry.fromCover.index);
       if (!history.back()) return false;
       releaseCheckpoint();
       contextSerial += 1;
@@ -1177,7 +1361,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         : undefined;
     },
     canBack: () =>
-      valid() && (state.choices !== undefined || (regionOrigin ? !regionOrigin.returned : history.canBack())),
+      valid() &&
+      (state.choices !== undefined ||
+        (state.covers !== undefined
+          ? state.covers.origin !== undefined
+          : history.current()?.fromCover?.handId === hand?.id && handOpen(hand)) ||
+        (regionOrigin ? !regionOrigin.returned : history.canBack())),
     end,
   };
 }
