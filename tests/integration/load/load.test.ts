@@ -330,6 +330,55 @@ describe('load test: the design target (#674, slice 4.4)', () => {
   });
 
   // ----------------------------------------------------------------------------------------------------------------
+  // Covers (#745): every hand is ranked on the request, since the worker prepares a buffer only after an activation
+  // ----------------------------------------------------------------------------------------------------------------
+  it('covers: one hand after another for the heavy reader, none of them opened', async () => {
+    const covers = { ...CAPABILITIES, documentSchemas: [...CAPABILITIES.documentSchemas, 'offer-cover.v1'] };
+    const opened = await direct.navigate(heavy.authority, {
+      commandId: randomUUID(),
+      target: { kind: 'discover' },
+      capabilities: covers,
+    });
+    if (opened.kind !== 'accepted' || opened.outcome.status !== 'ready') throw new Error('LOAD_COVERS_NOT_READY');
+    let hand: Ready = opened.outcome;
+    const ms: number[] = [];
+    const queries: Captured[] = [];
+    const status: Record<string, number> = {};
+    for (let i = 0; i < size.heavyDecisions; i++) {
+      const run = await capturing(() =>
+        timed(() =>
+          direct.navigate(heavy.authority, {
+            commandId: randomUUID(),
+            target: { kind: 'discover' },
+            session: { sessionId: hand.sessionId, expectedIntentRevision: hand.intentRevision },
+            capabilities: covers,
+            after: { decisionId: hand.decisionId, format: 'scroll' },
+          }),
+        ),
+      );
+      const { value } = run;
+      queries.push(...run.queries);
+      ms.push(value.ms);
+      const answer = value.value.kind === 'accepted' ? value.value.outcome.status : value.value.kind;
+      status[answer] = (status[answer] ?? 0) + 1;
+      if (value.value.kind !== 'accepted' || value.value.outcome.status !== 'ready') break;
+      hand = value.value.outcome;
+    }
+    const slow = slowest(queries);
+    results.push({
+      name: 'More covers (a hand with no opened Scroll), heavy reader',
+      summary: summarise(ms),
+      budget: { label: 'navigation', limitMs: 300, statistic: 'p95' },
+      notes: [
+        `Each request names the last hand's decision; the hand leaves out what the session dealt and nobody opened (read from the session's own offers, up to 600), so the session grows by up to three offers a request.`,
+        `Answers: ${JSON.stringify(status)}. Statements per hand: ${(queries.length / Math.max(1, ms.length)).toFixed(0)} on average.`,
+      ],
+      ...(slow ? { explain: await explain(world.database.name, slow, queries) } : {}),
+    });
+    log(`more covers: ${JSON.stringify(summarise(ms))}`);
+  });
+
+  // ----------------------------------------------------------------------------------------------------------------
   // Buffer preparation: the worker's job after each activation
   // ----------------------------------------------------------------------------------------------------------------
   it('buffer preparation: the worker job queued by an activation', async () => {
