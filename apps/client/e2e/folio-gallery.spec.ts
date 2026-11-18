@@ -616,14 +616,15 @@ for (const appearance of ['light', 'dark'] as const) {
   });
 }
 
-test('a cover offers Previous (except the first), Next, Read and the strip, and the opening is no control of its own', async ({
+test('a cover offers Previous (disabled on the first), Next, Read and the strip, and the opening is no control of its own', async ({
   page,
 }) => {
   await openCovers(page, phone, 'light');
   const names = async (id: (typeof coverIds)[number]) =>
     (await coverFrame(page, id).getByRole('button').allInnerTexts()).length;
-  // First: no Previous. Others: Previous and Next above, Read and the strip below.
-  expect(await names('first')).toBe(3);
+  // Every cover: Previous and Next above, Read and the strip below. On the first, Previous is there but disabled, so a
+  // keyboard user who goes back to it keeps their focus.
+  expect(await names('first')).toBe(4);
   expect(await names('no-stage')).toBe(4);
   await expect(coverFrame(page, 'first').getByRole('button', { name: 'Previous cover' })).toHaveAttribute(
     'aria-disabled',
