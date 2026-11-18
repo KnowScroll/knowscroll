@@ -1,6 +1,5 @@
 import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, dimension, radius, spacing } from '@knowscroll/design-tokens';
-import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
 import { printedSurface } from '../../display/printed';
 
@@ -45,28 +44,6 @@ export function PlayChip({
   );
 }
 
-/**
- * The dock's sparks: a star and the count of sparks earned on this Scroll. It belongs to the Scroll
- * in front of the person and is never a total or a level (D-064).
- */
-export function SparkChip({ sparks }: { readonly sparks: number }) {
-  return (
-    <View
-      testID="spark-chip"
-      {...printedSurface()}
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={sparks === 1 ? '1 spark' : `${String(sparks)} sparks`}
-      style={[styles.chip, styles.spark, { backgroundColor: content.continue, borderColor: content.ink }]}
-    >
-      <Icon name="star" size={14} color={content.onContinue} />
-      <Text variant="uiS" color={content.onContinue}>
-        {String(sparks)}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
@@ -78,5 +55,4 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: borderWidth.light,
   },
-  spark: { minHeight: 36, paddingHorizontal: spacing[3] },
 });

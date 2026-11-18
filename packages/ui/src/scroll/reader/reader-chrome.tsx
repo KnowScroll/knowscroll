@@ -6,7 +6,6 @@ import { IconButton } from '../../actions/icon-button';
 import { useDisplay } from '../../display/display';
 import { Text, useTypeStyle } from '../../text/text';
 import type { NextPartPeek } from './reader-commands';
-import { SparkChip } from '../calls/play-chips';
 
 /**
  * The top bar of a v2 Scroll (D-133, D-185): Back for a standalone reader, otherwise Your Universe at the left, the title with its
@@ -142,24 +141,20 @@ function TitleProbe({ title, onHeight }: { readonly title: string; readonly onHe
   );
 }
 
-/** Below this width the dock closes its gaps so that Ask, the sparks, ••• and the way on fit in a row. */
+/** Below this width the dock closes its gaps so that Ask, ••• and the way on fit in a row. */
 const NARROW_PHONE = 400;
 
 /**
- * The dock at the bottom of a v2 Scroll: Ask, the sparks earned on this Scroll, the ••• menu and the
+ * The dock at the bottom of a v2 Scroll: Ask, the ••• menu and the
  * way on. The way on is the one primary action, in the continuation yellow's place: the next Part
- * (D-184, D-425). It is absent when none was admitted. The sparks are this Scroll's alone, never a total
- * (D-064).
+ * (D-184, D-425). It is absent when none was admitted.
  */
 export function ReaderDock({
   onAsk,
-  sparks,
   onMore,
   nextPart,
 }: {
   readonly onAsk?: (() => void) | undefined;
-  /** Sparks earned on this Scroll; the chip is absent when play is not on this screen. */
-  readonly sparks?: number | undefined;
   readonly onMore?: (() => void) | undefined;
   readonly nextPart?: NextPartPeek | undefined;
 }) {
@@ -183,7 +178,6 @@ export function ReaderDock({
           onPress={onAsk}
         />
       )}
-      {sparks === undefined ? null : <SparkChip sparks={sparks} />}
       {onMore === undefined ? null : <IconButton icon="more" label="More" variant="paper" size={44} onPress={onMore} />}
       <View style={styles.spacer} />
       {nextPart === undefined ? null : (
