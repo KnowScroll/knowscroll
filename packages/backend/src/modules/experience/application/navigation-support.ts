@@ -1,3 +1,4 @@
+import { ClientCapabilities, OFFER_COVER_SCHEMA } from '@knowscroll/contracts';
 import type { ProblemCode, RegionEncounterOpenRequest } from '@knowscroll/contracts';
 import type { EncounterRef } from '../../content/public.js';
 import type { GeographyRegionConstraint } from '../../geography/public.js';
@@ -19,6 +20,15 @@ export const isRegionOpen = (command: NavigationCommand): command is RegionEncou
   !('intent' in command) && command.target.kind === 'region';
 export const sameRegion = (p: NavigationPorts, a: GeographyRegionConstraint, b: GeographyRegionConstraint) =>
   p.hashRequest('region-constraint', json(a)) === p.hashRequest('region-constraint', json(b));
+
+/**
+ * Whether a session's stored capabilities say its client draws Scroll offers as covers (`offer-cover.v1`). A
+ * client that did not say so is sent offers exactly as before, so an older app never meets the field.
+ */
+export function declaresCover(capabilities: unknown): boolean {
+  const parsed = ClientCapabilities.safeParse(capabilities);
+  return parsed.success && parsed.data.documentSchemas.includes(OFFER_COVER_SCHEMA);
+}
 
 /**
  * What a move leaves out: Hide always, and "Not interested" (D-055) unless the person named the target

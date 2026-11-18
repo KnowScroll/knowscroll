@@ -1,6 +1,7 @@
 import {
   ActivateOfferResponseSchema,
   type EncounterOffer,
+  type OfferCover,
   type ExposureContextResponse,
   type NavigationOutcome,
 } from '@knowscroll/contracts';
@@ -28,6 +29,7 @@ import { keyOf, receipt } from './navigation-receipt.js';
 import { namesTarget, prepare, type Prepared } from './navigation-prepare.js';
 import {
   currentRegionOffers,
+  declaresCover,
   isRegionOpen,
   json,
   readWithheld,
@@ -237,6 +239,25 @@ async function lockRegionSelection(
   return locked ? undefined : { kind: 'drift' };
 }
 
+/** A candidate that will be offered, with the cover its offer carries when the session can draw one. */
+interface Selected {
+  readonly encounter: EncounterSnapshot;
+  readonly cover?: OfferCover;
+}
+
+/** The exact read of one ranked candidate; it brings the cover from the same row when the session declared it. */
+async function readSelected(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  target: BufferedSelection,
+  capabilities: unknown,
+): Promise<Selected | undefined> {
+  const request = { ...ref(target), capabilities };
+  if (declaresCover(capabilities)) return p.readOfferEncounter(scope, request);
+  const encounter = await p.readExactEncounter(scope, request);
+  return encounter ? { encounter } : undefined;
+}
+
 /**
  * Rereads each ranked candidate: still admitted, same content, not hidden, not marked "Not interested" (unless the
  * person named it), link still current, and (under policy v2) still not met. `undefined` is drift.
@@ -245,11 +266,13 @@ async function selectStillEligible(
   p: NavigationPorts,
   scope: PersonalScopeTx,
   { prepared, ranked }: CommitContext,
-): Promise<EncounterSnapshot[] | undefined> {
-  const selected: EncounterSnapshot[] = [];
+): Promise<Selected[] | undefined> {
+  const selected: Selected[] = [];
   for (const target of ranked.selection) {
-    const exact = await p.readExactEncounter(scope, { ...ref(target), capabilities: prepared.session.capabilities });
+    const read = await readSelected(p, scope, target, prepared.session.capabilities);
+    const exact = read?.encounter;
     if (
+      !read ||
       !exact ||
       exact.catalogWatermark !== target.catalogWatermark ||
       (await readWithheld(p, scope, [target.assetId], namesTarget(prepared))).length
@@ -266,11 +289,19 @@ async function selectStillEligible(
       }))
     )
       return undefined;
-    selected.push(exact);
+    selected.push(read);
   }
   // Under the lock the history is authoritative: an explanation met since it was ranked (another device or tab, a slow Jev
   // call, an activation between the two transactions) is never offered again. Drift reranks, and a buffer is discarded.
-  if (ranked.unseen && (await metSinceRanking(p, scope, selected))) return undefined;
+  if (
+    ranked.unseen &&
+    (await metSinceRanking(
+      p,
+      scope,
+      selected.map((s) => s.encounter),
+    ))
+  )
+    return undefined;
   return selected;
 }
 
@@ -294,10 +325,10 @@ async function buildOffers(
   p: NavigationPorts,
   scope: PersonalScopeTx,
   { prepared }: CommitContext,
-  selected: readonly EncounterSnapshot[],
+  selected: readonly Selected[],
 ): Promise<StoredOffer[]> {
   const offers: StoredOffer[] = [];
-  for (const target of selected) {
+  for (const { encounter: target, cover } of selected) {
     const id = p.newId();
     const link = prepared.links.find((l) => same(l.target, target));
     const relation: EncounterOffer['relation'] = link
@@ -320,6 +351,7 @@ async function buildOffers(
         ...ref(target),
         explanationUnitId: target.explanationUnitId,
         metadata: { ...target.metadata },
+        ...(cover ? { cover } : {}),
         relation,
         variants: await variants(p, scope, target, prepared.session.capabilities),
       },

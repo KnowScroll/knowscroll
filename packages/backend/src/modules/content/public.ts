@@ -8,7 +8,7 @@
  * an operator-owned admission capability and never record who consumed content.
  */
 import type { z } from 'zod';
-import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
+import type { ConversationContentProjectionSchema, OfferCover } from '@knowscroll/contracts';
 import {
   canonicalSha256,
   INTERACTION_KINDS,
@@ -532,6 +532,16 @@ export type ReadExactEncounter = (
   scope: PersonalScopeTx,
   request: EncounterRef & { readonly capabilities: unknown },
 ) => Promise<EncounterSnapshot | undefined>;
+/**
+ * The exact read of an offer about to be made: the same single row as {@link ReadExactEncounter}, with the
+ * cover a client draws before it opens a Scroll (`offer-cover.v1`). The cover is returned beside the snapshot
+ * and never inside it, because snapshots are frozen into Composer decisions under a strict schema. A Reel, or
+ * a Scroll whose stored document gives no valid cover, comes back with none.
+ */
+export type ReadOfferEncounter = (
+  scope: PersonalScopeTx,
+  request: EncounterRef & { readonly capabilities: unknown },
+) => Promise<{ readonly encounter: EncounterSnapshot; readonly cover?: OfferCover } | undefined>;
 export type ReadContinuations = (scope: PersonalScopeTx, source: EncounterRef) => Promise<readonly ContinuityLink[]>;
 export type ResolveContinuityLink = (
   scope: PersonalScopeTx,
@@ -565,6 +575,7 @@ export const READ_SAVED_PAGE_METADATA = Symbol('content.readSavedPageMetadata');
 export type AdmitContinuity = (tx: AdmissionTx, admission: ContinuityAdmission) => Promise<void>;
 export const READ_DISCOVERY_CANDIDATES = Symbol('content.readDiscoveryCandidates');
 export const READ_EXACT_ENCOUNTER = Symbol('content.readExactEncounter');
+export const READ_OFFER_ENCOUNTER = Symbol('content.readOfferEncounter');
 export const READ_CONTINUATIONS = Symbol('content.readContinuations');
 /**
  * How many units the admitted series revision holds (`content.series_units`), or `undefined` when it

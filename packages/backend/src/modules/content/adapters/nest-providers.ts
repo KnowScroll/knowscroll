@@ -12,6 +12,7 @@ import { makeEnqueueScrollProduction } from './enqueue-production.js';
 import {
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
+  READ_OFFER_ENCOUNTER,
   READ_CONTINUATIONS,
   READ_SERIES_TOTAL,
   RESOLVE_CONTINUITY_LINK,
@@ -65,6 +66,7 @@ import {
 import {
   readDiscoveryCandidates,
   readExactEncounter,
+  readOfferEncounter,
   readContinuations,
   resolveContinuityLink,
   readEncounterTopics,
@@ -111,6 +113,7 @@ export function contentProviders() {
     { provide: LOCK_CURRENT_ENCOUNTERS, useValue: lockCurrentEncounters },
     { provide: READ_DISCOVERY_CANDIDATES, useValue: readDiscoveryCandidates },
     { provide: READ_EXACT_ENCOUNTER, useValue: readExactEncounter },
+    { provide: READ_OFFER_ENCOUNTER, useValue: readOfferEncounter },
     { provide: READ_CONTINUATIONS, useValue: readContinuations },
     { provide: READ_SERIES_TOTAL, useValue: readSeriesTotal },
     { provide: RESOLVE_CONTINUITY_LINK, useValue: resolveContinuityLink },

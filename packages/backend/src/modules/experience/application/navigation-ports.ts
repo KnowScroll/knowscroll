@@ -18,6 +18,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import type {
   ReadDiscoveryCandidates,
   ReadExactEncounter,
+  ReadOfferEncounter,
   ReadContinuations,
   ReadSeriesTotal,
   ResolveContinuityLink,
@@ -143,6 +144,8 @@ export interface NavigationPorts extends CommandPorts {
   /** The person's top interest topics, planned units and roll-ups; read only when the policy reads lanes (v3, D-420). */
   readonly readInterestContext?: ReadInterestContext;
   readonly readExactEncounter: ReadExactEncounter;
+  /** The exact read that commits an offer, with the cover a declaring client draws (`offer-cover.v1`). */
+  readonly readOfferEncounter: ReadOfferEncounter;
   readonly readContinuations: ReadContinuations;
   readonly readSeriesTotal: ReadSeriesTotal;
   readonly resolveContinuityLink: ResolveContinuityLink;
