@@ -29,6 +29,7 @@ import type {
   NavigateExperienceRequest,
   NavigationOutcome,
   OfferCover,
+  CoverPass,
 } from '@knowscroll/contracts';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import type { AnyOpenedScroll } from '../scroll/scroll-session';
@@ -115,6 +116,15 @@ export interface CoverHand {
 const HAND_LIFE_MS = 14 * 60_000;
 const isCovered = (offer: EncounterOffer): offer is CoveredOffer =>
   offer.metadata.kind === 'scroll' && offer.cover !== undefined;
+/** The most passes one request carries (the contract's bound); any more wait for the next request. */
+const PASSES_PER_REQUEST = 9;
+/** How long a cover was on screen, in the coarse bands a pass is reported in. Under 1.5 s is a glance, not a reading. */
+function onScreenBand(ms: number): CoverPass['onScreen'] {
+  return ms < 1500 ? 'under_1_5s' : ms <= 5000 ? '1_5s_to_5s' : 'over_5s';
+}
+/** Passes and cover time are personal: they are sent only with a command made while recording is on (an odd generation). */
+const recordingOn = (fields: { recordingGeneration?: number } | undefined) =>
+  fields?.recordingGeneration !== undefined && fields.recordingGeneration % 2 === 1;
 /** The covers an outcome deals: only when its first offer is a Scroll with a cover. A Reel first plays as before. */
 function coveredOffers(outcome: ReadyOutcome): readonly CoveredOffer[] | undefined {
   if (!isCovered(outcome.offer)) return undefined;
@@ -142,6 +152,8 @@ interface Work {
   deal?: true;
   /** Opening this cover of a hand. */
   fromCover?: { readonly handId: string; readonly index: number };
+  /** What opening it reports: how long its cover was on screen, and covers passed before it. */
+  coverReport?: { readonly coverMs: number; readonly passes: readonly CoverPass[] };
   uncertain?: boolean;
   keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; selected?: KeepEntryRef; handle?: KeepPlaceHandle };
   command: (fields: { recordingGeneration?: number }) => Promise<NavigationOutcome>;
@@ -193,6 +205,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let hand: CoverHand | undefined;
   /** A cover's offer turned out spent: once the failed open has unwound, a fresh hand is dealt. */
   let redealAfterRun = false;
+  /** How long each cover of the session has been on screen, by offer, and since when the one showing now has been. */
+  const coverTime = new Map<string, number>();
+  let coverShownSince: { readonly offerId: string; readonly at: number } | undefined;
+  /** Covers moved past and not yet reported; they go with the next open of a cover or request for more (#748). */
+  const pendingPasses = new Map<string, CoverPass>();
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
   let contextSerial = 0;
@@ -477,20 +494,10 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       history.park();
       publish({ phase: 'activating', choices: undefined });
       if (!current.activation) {
-        current.activationBody ??= freezeRecordingCommand({
-          ...(await recordingCommandFields(scope)),
-          commandId: current.activateId,
-          target: {
-            kind: 'offer',
-            sessionId: outcome.sessionId,
-            offerId: outcome.offer.offerId,
-            expectedIntentRevision: outcome.intentRevision,
-          },
-        });
+        const body = current.activationBody ?? (await activationBodyOf(current, outcome));
+        current.activationBody = body;
         if (!valid() || work !== current) return;
-        const activated = ActivateOfferResponseSchema.parse(
-          await scope.api.experience.activateExposure(current.activationBody),
-        );
+        const activated = ActivateOfferResponseSchema.parse(await scope.api.experience.activateExposure(body));
         if (!valid() || work !== current) return;
         if (
           activated.commandId !== current.activateId ||
@@ -574,6 +581,26 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       }
     }
   }
+  /**
+   * The activation of an offer, made once and reused unchanged on a retry. A cover's report rides on its own activation,
+   * and only while recording is on: paused, nothing personal is sent.
+   */
+  async function activationBodyOf(current: Work, outcome: ReadyOutcome): Promise<ActivateExposureRequest> {
+    const fields = await recordingCommandFields(scope);
+    const report = current.coverReport && recordingOn(fields) ? current.coverReport : undefined;
+    return freezeRecordingCommand({
+      ...fields,
+      ...(report ? { coverMs: report.coverMs } : {}),
+      ...(report && report.passes.length > 0 ? { passes: [...report.passes] } : {}),
+      commandId: current.activateId,
+      target: {
+        kind: 'offer',
+        sessionId: outcome.sessionId,
+        offerId: outcome.offer.offerId,
+        expectedIntentRevision: outcome.intentRevision,
+      },
+    });
+  }
   /** A refusal that means the offer itself can no longer be opened, as opposed to the network or the account. */
   function spentOffer(error: unknown) {
     const code = apiProblem(error)?.code;
@@ -592,7 +619,38 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       dealtAt: Date.now(),
       ...(commandFields ? { commandFields } : {}),
     };
+    // Time kept for covers of earlier hands is no longer needed once nothing waits to report it.
+    for (const offerId of [...coverTime.keys()]) if (!pendingPasses.has(offerId)) coverTime.delete(offerId);
     publish({ phase: 'covers', outcome: undefined, covers: hand });
+    clockCover();
+  }
+  /** Starts the clock of the cover on screen now; the one before it stops. A cover counts only while Explore is in front. */
+  function clockCover() {
+    stopCoverClock();
+    const shown = state.covers;
+    if (shown && foreground && state.phase === 'covers')
+      coverShownSince = { offerId: shown.offers[shown.index]!.offerId, at: Date.now() };
+  }
+  function stopCoverClock() {
+    if (!coverShownSince) return;
+    const { offerId, at } = coverShownSince;
+    coverTime.set(offerId, (coverTime.get(offerId) ?? 0) + Math.max(0, Date.now() - at));
+    coverShownSince = undefined;
+  }
+  /** The cover on screen was moved past without being opened: a pass, reported with the next open or request for more. */
+  function passShown(way: CoverPass['way']) {
+    const shown = state.covers;
+    if (!shown) return;
+    stopCoverClock();
+    const offerId = shown.offers[shown.index]!.offerId;
+    pendingPasses.set(offerId, { offerId, onScreen: onScreenBand(coverTime.get(offerId) ?? 0), way });
+  }
+  /** The passes one request carries, taken from the pending ones; a cover being opened is not a pass. */
+  function takePasses(opening?: string): CoverPass[] {
+    if (opening !== undefined) pendingPasses.delete(opening);
+    const taken = [...pendingPasses.values()].slice(0, PASSES_PER_REQUEST);
+    for (const pass of taken) pendingPasses.delete(pass.offerId);
+    return taken;
   }
   /** Whether the hand is still the session's latest and its offers have life left, so one of them can still open. */
   function handOpen(candidate: CoverHand | undefined): candidate is CoverHand {
@@ -607,8 +665,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   /** Moves the hand on screen to another of its covers. */
   function showCover(index: number) {
     if (!hand || state.covers !== hand || index < 0 || index >= hand.offers.length || work || busy) return false;
+    // Moving down past a cover passes it; moving back up to an earlier one passes nothing.
+    if (index > hand.index) passShown('next_cover');
     hand = { ...hand, index };
     publish({ covers: hand });
+    clockCover();
     return true;
   }
   /** Back from the covers: to the entry the hand was dealt over, at its place. With none, Back is not Explore's to take. */
@@ -616,6 +677,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     const shown = state.covers;
     if (!shown?.origin) return false;
     if (history.current()?.exposureId !== shown.origin && !history.restore(shown.origin)) return false;
+    passShown('left');
     releaseCheckpoint();
     contextSerial += 1;
     publish({ phase: 'active', outcome: undefined, covers: undefined });
@@ -631,12 +693,22 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     contextSerial += 1;
     hand = { ...hand, index };
     publish({ phase: 'covers', outcome: undefined, covers: hand });
+    clockCover();
     return true;
   }
-  /** Another hand after this one, without opening any of it. */
-  function moreCovers() {
+  /**
+   * Another hand after the one on screen, without opening any of it (#748): the request names that hand's decision, so the
+   * server deals Scrolls this session has not dealt, and carries the covers passed since the last report. `way` is how
+   * the cover on screen was left, when moving on passes it.
+   */
+  function moreCovers(way?: CoverPass['way']) {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
-    return open({ kind: 'discover' });
+    const shown = state.covers;
+    if (way) passShown(way);
+    else stopCoverClock();
+    const after =
+      shown && latestSession ? { decisionId: shown.outcome.decisionId, format: 'scroll' as const } : undefined;
+    return open({ kind: 'discover' }, undefined, undefined, after && { after, passes: takePasses() });
   }
   const begin = (
     command: Work['command'],
@@ -646,6 +718,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     deal = false,
   ) => {
     if (!valid() || work || busy || actionRunning) return;
+    // Opening something else (Keep, a region, a requested Scroll) leaves the cover on screen behind: a pass.
+    if (state.covers && !deal) passShown('left');
     work = {
       command,
       activateId: newId(),
@@ -660,6 +734,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     target: { kind: 'discover' } | { kind: 'return'; assetId: string; assetRevision: number },
     keep?: Work['keep'],
     choose?: Work['choose'],
+    more?: { readonly after: { decisionId: string; format: 'reel' | 'scroll' }; readonly passes: readonly CoverPass[] },
   ) => {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
     target = freezeRecordingCommand(target);
@@ -675,6 +750,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           commandId,
           ...(session ? { session } : {}),
           capabilities: ENCOUNTER_CAPABILITIES,
+          ...(more && session ? { after: more.after } : {}),
+          // Passes are personal: sent only with a command made while recording is on.
+          ...(more && more.passes.length > 0 && recordingOn(fields) ? { passes: [...more.passes] } : {}),
         });
         const result =
           target.kind === 'discover'
@@ -882,6 +960,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     work?.entry?.recorder.end();
     work = undefined;
     hand = undefined;
+    coverShownSince = undefined;
+    coverTime.clear();
+    pendingPasses.clear();
     regionOrigin = undefined;
     action = undefined;
     history.end();
@@ -1078,12 +1159,16 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       const others = [shown.outcome.offer, ...shown.outcome.bufferedOffers].filter(
         (offer) => offer.offerId !== picked.offerId,
       );
+      stopCoverClock();
+      // The contract's bound; the server clamps it again to the time since the offer was made, on its own clock.
+      const coverMs = Math.min(900_000, Math.round(coverTime.get(picked.offerId) ?? 0));
       work = {
         command: () => Promise.resolve(shown.outcome),
         activateId: newId(),
         outcome: { ...shown.outcome, offer: picked, bufferedOffers: others },
         ...(shown.commandFields ? { commandFields: shown.commandFields } : {}),
         fromCover: { handId: shown.id, index: shown.index },
+        coverReport: { coverMs, passes: takePasses(picked.offerId) },
       };
       void run();
       return true;
@@ -1092,14 +1177,15 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     nextCover() {
       const shown = state.covers;
       if (!shown || shown !== hand) return false;
-      return shown.index < shown.offers.length - 1 ? showCover(shown.index + 1) : moreCovers();
+      return shown.index < shown.offers.length - 1 ? showCover(shown.index + 1) : moreCovers('more_covers');
     },
     /** The cover before this one in the same hand. An earlier hand is gone once more covers were asked for. */
     previousCover() {
       const shown = state.covers;
       return shown !== undefined && shown === hand && showCover(shown.index - 1);
     },
-    moreCovers,
+    /** Another hand after the last cover, the cover on screen passed by asking. */
+    moreCovers: () => moreCovers('more_covers'),
     requests,
     openRequest(mode: RequestMode = 'topic', anchor?: AskAnchor) {
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
@@ -1213,11 +1299,12 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (!value) {
         history.park();
         releaseCheckpoint();
-      }
+        stopCoverClock();
+      } else if (returning && state.covers && handOpen(state.covers)) clockCover();
       // Re-entering the route resumes a prepared offer, never an uncertain command automatically.
       if (value && work && !busy && state.phase === 'ready_offer') void run();
       // Covers left on screen past their offers' life are replaced when the person comes back to them.
-      if (returning && state.covers && !work && !busy && !handOpen(state.covers)) moreCovers();
+      if (returning && state.covers && !work && !busy && !handOpen(state.covers)) moreCovers('left');
     },
     bindSurface(entry: EncounterEntry, surface: NonNullable<EncounterEntry['surface']>) {
       if (valid() && !entry.disposed && foreground && history.current() === entry) {
@@ -1283,7 +1370,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (work || busy) return false;
       if (state.covers) return leaveCovers();
       const entry = history.current();
-      if (entry?.fromCover && handOpen(hand) && entry.fromCover.handId === hand.id) return backToCover(entry.fromCover.index);
+      if (entry?.fromCover && handOpen(hand) && entry.fromCover.handId === hand.id)
+        return backToCover(entry.fromCover.index);
       if (!history.back()) return false;
       releaseCheckpoint();
       contextSerial += 1;
