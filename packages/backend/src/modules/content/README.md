@@ -550,6 +550,13 @@ Implemented backend capabilities, without navigation/API consumers: `ReadDiscove
 shared admission only; they create no personal activity. Existing Scroll/media ports are preserved.
 The present access model is shared admitted assets; no private-content access policy is invented.
 
+`ReadOfferEncounter` (`readOfferEncounter` in `adapters/discovery-store.ts`) is `ReadExactEncounter` plus the
+offer's cover, taken from the document of the row it already read (no second query). `coverOfDocument`
+(`adapters/offer-cover.ts`) reads the kicker and reading minutes from a Scroll document of either version and,
+for a v2 Scroll, the number of read stops and the first stage frame (`firstFrameOf`). It checks the result
+against `OfferCoverSchema`; a Reel, an unexpected stored shape or an over-long kicker gives no cover, never an
+error. Implemented, CI-tested; not runtime-verified.
+
 | Table (`0016`)                | Purpose, query, indexes                                                                                                                                                                                                            | Growth, retention, erasure                                                                                                                                                           |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `content.discovery_revisions` | Admission-derived summary/facets, attribution version, indexed text and (0109) the stable random key `serve_rand`; keyed exact asset/revision. GIN text/facet indexes, the `serve_rand` index plus language/current-status/kind and explanation indexes on existing tables support bounded retrieval. | One bounded metadata row/revision; summary<=2000 characters, <=16 facets. Shared retained projection, no personal erasure.                                                           |

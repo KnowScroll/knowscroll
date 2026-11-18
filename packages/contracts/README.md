@@ -93,6 +93,12 @@ interim ID-only adapter and allowlists only kind/title/summary/language and avai
 No internal source, provenance, model or ranking data is a consumer field. Decision IDs are opaque
 ops correlation only.
 
+A Scroll offer may carry a `cover` (`OfferCoverSchema`, `version: 'offer-cover.v1'`): the kicker, the reading
+minutes and, for a v2 Scroll, `readStops` and a `figure` (a `StageFrame`, the first state of its stage). The
+title and dek stay in `metadata`. The server sends it only to a session whose `capabilities.documentSchemas`
+declare `offer-cover.v1` (`OFFER_COVER_SCHEMA`); other sessions and every Reel get offers without the key. An
+offer stored without a cover still parses. Implemented, CI-tested; not runtime-verified.
+
 `GET /v1/experience/exposures/{exposureId}/context` declares a current, authorised read for an
 owned activated exposure at its exact asset revision and epoch, with current content eligibility
 rechecked. It creates no exposure. Its strict public response contains current `actions`
