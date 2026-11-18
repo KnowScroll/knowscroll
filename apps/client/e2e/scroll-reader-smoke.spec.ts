@@ -308,6 +308,55 @@ test.describe('a pull up past the end, by finger', () => {
   });
 });
 
+test.describe('a pull that starts at the end, by finger, when the reader has not yet heard of the scroll', () => {
+  test.use({ hasTouch: true });
+
+  test('is still the next topic: whether the page is at its end is read from the page as the finger goes down', async ({
+    page,
+  }) => {
+    const { commands } = await open(page);
+    // Holds back the first scroll report for 2 s: the page is at the end, the reader has not been told.
+    await scroller(page).evaluate((node) => {
+      let held = true;
+      node.addEventListener(
+        'scroll',
+        (event) => {
+          if (!held) return;
+          held = false;
+          event.stopImmediatePropagation();
+          window.setTimeout(() => node.dispatchEvent(new Event('scroll')), 2000);
+        },
+        true,
+      );
+    });
+    await toTheVeryEnd(page);
+    const { x, y, height } = await middle(page);
+    const pull = await fingerDown(page, { x, y: y + height * 0.3 });
+    await pull.to({ x, y: y - height * 0.3 });
+    await pull.up();
+    await expect.poll(() => navigations(commands).length).toBe(1);
+    expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
+  });
+});
+
+test('a mouse drag up the text at the end selects words and moves on nowhere', async ({ page }) => {
+  const { commands } = await open(page, phone);
+  await toTheVeryEnd(page);
+  const words = page.getByTestId('end-plate').getByText('The short version');
+  const box = await words.boundingBox();
+  if (box === null) throw new Error('the end plate is on the page');
+  const { y: middleY, height } = await middle(page);
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 2, middleY - height * 0.3, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString().length ?? 0)).toBeGreaterThan(0);
+  // A pull is decided as the press lifts; there is nothing more to wait for if none was made.
+  await page.waitForTimeout(300);
+  expect(navigations(commands)).toEqual([]);
+  await expect(essayTitle(page, 1)).toBeAttached();
+});
+
 test('a screen without touch shows no pull meter: Next idea and N are the ways on there', async ({ page }) => {
   await open(page, desktop);
   await toTheVeryEnd(page);

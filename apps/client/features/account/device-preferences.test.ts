@@ -21,7 +21,7 @@ describe('device preferences', () => {
           reelSound: false,
           readyNotices: false,
           appearance: 'light',
-          // Folio's trial switch (#732), stored on devices that tried it before Folio became the reader.
+          // A choice this version no longer has (a reader switch) is read past.
           scrollReader: 'folio',
         }),
       ),

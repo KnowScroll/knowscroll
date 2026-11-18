@@ -105,7 +105,7 @@ export function ScrollReaderSurface({
   readonly headerNote?: ReactNode;
   /** Drawn at the end of the Scroll, before the ways on (a thread's "I've finished this part"). */
   readonly endSlot?: ReactNode;
-  /** Set when this Scroll was opened by a move from the Part before: it comes in from the right and says the place there is kept. */
+  /** Set when this Scroll was opened by a move from the Part before: a note says the place there is kept. */
   readonly arrival?: PartArrival | undefined;
   /** A note over the top of the reader, below its header (Explore's "Next topic" note). */
   readonly topNote?: ReactNode;

@@ -64,7 +64,7 @@ export function ScrollV2Encounter({
   const switchToReel = () =>
     reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
   // "Next topic · as a Scroll" (V3 G4): once, for the Scroll a new topic just landed on.
-  // "Part 2 · your place in Part 1 is kept" and the slide in are for the step forward, once: not for a Back or an Undo that returns here.
+  // "Part 2 · your place in Part 1 is kept" is for the step forward, once: not for a Back or an Undo that returns here.
   const [arrival] = useState(() => arrivalToSay(state.trail, entry));
   useEffect(() => {
     markArrivalSaid(entry);

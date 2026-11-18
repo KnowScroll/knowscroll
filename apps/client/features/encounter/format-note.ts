@@ -2,7 +2,7 @@ import { callsOf } from '@knowscroll/scroll-model';
 import type { EncounterEntry } from './encounter-history';
 import { isScrollV2 } from '../scroll/scroll-session';
 
-/** A Scroll entry of either kind: a v2 document on the stage, or a v1 article of the library. */
+/** A Scroll entry of either kind: a v2 document read as an essay, or a v1 article of the library. */
 type ScrollEntryOf = Extract<EncounterEntry, { kind: 'scroll' }>;
 
 /** What the "Next topic" card says: where the person has landed and what they left. */

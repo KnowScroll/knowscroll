@@ -89,11 +89,11 @@ for (const [label, viewport] of [
   ['phone', phone],
   ['desktop', desktop],
 ] as const) {
-  test(`the essay draws instead of the Stage reader, with its bar and dock, at ${label}`, async ({ page }) => {
+  test(`the essay draws a v2 Scroll, with the reader's bar and dock, at ${label}`, async ({ page }) => {
     await open(page, viewport);
     await expect(folio(page)).toBeVisible();
     await expect(page.getByTestId('stage')).toHaveCount(0);
-    // No spine: its dots are the Stage reader's.
+    // No spine of dots: the progress rail shows how far the reader is.
     await expect(page.getByRole('button', { name: /^(Stop \d+ of|Call it \d+ of|Final call)/ })).toHaveCount(0);
     await expect(scroller(page).getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
     // The top bar and the dock are the app's own.

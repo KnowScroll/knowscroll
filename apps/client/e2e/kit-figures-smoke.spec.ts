@@ -161,8 +161,9 @@ for (const [name, fixture] of KITS) {
       expect(transition, `held figure at ${stop}`).not.toBe('tween');
       crossfaded ||= transition === 'crossfade';
     }
-    // A kit whose beats never share a hold has no held figure to move: it draws every state once, and nothing glides.
-    if (held.length > 0) expect(crossfaded, 'the held figure fades from state to state').toBe(true);
+    // Every kit fixture has at least one hold, so there is always a held figure that moves.
+    expect(held.length, 'a hold in the kit').toBeGreaterThan(0);
+    expect(crossfaded, 'the held figure fades from state to state').toBe(true);
     await expect(page.locator('[data-ks-figure-transition="tween"]')).toHaveCount(0);
   });
 }
