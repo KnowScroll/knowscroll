@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { captureBlockPosition, restoreBlockPosition, type PositionBinding } from './local-position';
-import type { ScrollReadingObserver } from '../observer';
-import type { BlockReadingProps, ReadingInsets, ReadingViewport } from './types';
+import type { BlockReadingProps, ReadingInsets, ReadingViewport, VisibilityObserver } from './types';
 import { createVisibilityTracker, monotonicNow, visibleFractionOf, type VisibilityTracker } from './visibility';
 
 interface BlockBox {
@@ -45,7 +44,7 @@ class NativeReadingViewport implements ReadingViewport {
     this.binding?.scrollTo(this.scrollTop);
   }
 
-  private observer: ScrollReadingObserver | undefined;
+  private observer: VisibilityObserver | undefined;
   private insets: ReadingInsets = { top: 0, bottom: 0 };
 
   constructor() {
@@ -80,7 +79,7 @@ class NativeReadingViewport implements ReadingViewport {
   }
 
   /** The latest observer and insets (set after every render, read when events arrive). */
-  configure(observer: ScrollReadingObserver | undefined, insets: ReadingInsets): void {
+  configure(observer: VisibilityObserver | undefined, insets: ReadingInsets): void {
     const replaced = this.observer !== observer;
     this.observer = observer;
     this.insets = insets;
@@ -115,10 +114,7 @@ class NativeReadingViewport implements ReadingViewport {
 }
 
 /** One reading viewport per article; it reports to the latest `observer` and `insets`. */
-export function useReadingViewport(
-  observer: ScrollReadingObserver | undefined,
-  insets: ReadingInsets,
-): ReadingViewport {
+export function useReadingViewport(observer: VisibilityObserver | undefined, insets: ReadingInsets): ReadingViewport {
   const [viewport] = useState(() => {
     // Configured at creation, so blocks that mount before this component's effect runs (children's
     // effects run first) already report to the observer; later changes arrive through the effect.

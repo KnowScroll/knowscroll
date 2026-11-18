@@ -9,6 +9,7 @@ describe('device preferences', () => {
       reelSound: true,
       readyNotices: true,
       appearance: 'dark',
+      scrollReader: 'stage',
     });
   });
 
@@ -21,16 +22,26 @@ describe('device preferences', () => {
           reelSound: false,
           readyNotices: false,
           appearance: 'light',
+          scrollReader: 'folio',
         }),
       ),
-    ).toEqual({ motion: 'reduce', textSize: 'largest', reelSound: false, readyNotices: false, appearance: 'light' });
+    ).toEqual({
+      motion: 'reduce',
+      textSize: 'largest',
+      reelSound: false,
+      readyNotices: false,
+      appearance: 'light',
+      scrollReader: 'folio',
+    });
   });
 
   it('fall back to the default for anything missing, misspelt or damaged', () => {
     expect(parseDevicePreferences('not json')).toEqual(defaultDevicePreferences);
     expect(parseDevicePreferences('7')).toEqual(defaultDevicePreferences);
     expect(
-      parseDevicePreferences(JSON.stringify({ motion: 'always', textSize: 3, reelSound: 'no', appearance: 'neon' })),
+      parseDevicePreferences(
+        JSON.stringify({ motion: 'always', textSize: 3, reelSound: 'no', appearance: 'neon', scrollReader: 'scroll' }),
+      ),
     ).toEqual(defaultDevicePreferences);
     expect(parseDevicePreferences(JSON.stringify({ reelSound: false }))).toEqual({
       ...defaultDevicePreferences,
@@ -45,6 +56,7 @@ describe('device preferences', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'paper' }))).toEqual({
         ...before,
         appearance: 'light',
+        scrollReader: 'stage',
       });
     });
 
@@ -52,6 +64,7 @@ describe('device preferences', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'sky' }))).toEqual({
         ...before,
         appearance: 'dark',
+        scrollReader: 'stage',
       });
     });
 

@@ -218,8 +218,19 @@ describe('P01 Accessibility & playback', () => {
       reelSound: false,
       readyNotices: true,
       appearance: 'dark',
+      scrollReader: 'stage',
     });
     expect(screen.getByRole('radio', { name: 'Always reduce motion', checked: true })).toBeOnTheScreen();
+    await f.app.unmount();
+  });
+
+  it('turns the Folio trial on and off for this device (#732)', async () => {
+    const f = await mount('/account/accessibility');
+    const trial = await screen.findByRole('switch', { name: 'Read Scrolls as an essay (trial)' });
+    await fireEvent.press(trial);
+    expect(JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({ scrollReader: 'folio' });
+    await fireEvent.press(screen.getByRole('switch', { name: 'Read Scrolls as an essay (trial)' }));
+    expect(JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({ scrollReader: 'stage' });
     await f.app.unmount();
   });
 

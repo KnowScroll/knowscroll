@@ -1,5 +1,6 @@
 import type { PositionBinding, ScrollLocalPosition } from './local-position';
 import type { LayoutChangeEvent, ScrollViewProps, ViewInstance } from 'react-native';
+import type { ScrollReadingObserver } from '../observer';
 
 /** Space the article's own chrome covers at the top and bottom of the scrolling area. */
 export interface ReadingInsets {
@@ -34,3 +35,9 @@ export interface BlockReadingProps {
   readonly onLayout?: (event: LayoutChangeEvent) => void;
   readonly ref?: (node: ViewInstance | null) => void;
 }
+
+/** What measuring visibility reports to: the observer's visibility method alone. */
+export type VisibilityObserver = Pick<ScrollReadingObserver, 'onBlockVisibility'>;
+
+/** What any reader that measures units reports to: visibility and activity, never a block's own interactions. */
+export type UnitReadingObserver = Pick<ScrollReadingObserver, 'onBlockVisibility' | 'onActivity'>;

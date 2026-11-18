@@ -116,10 +116,11 @@ run_flow universe "$here/universe.yaml"
 if [ "$gallery" = "true" ]; then
   run_flow gallery "$here/gallery.yaml"
   run_flow scroll-blocks "$here/scroll-blocks.yaml"
+  run_flow folio "$here/folio.yaml"
   run_flow space "$here/space.yaml"
 else
-  echo "KS-LANE-SKIP gallery.yaml and scroll-blocks.yaml: this APK was built without EXPO_PUBLIC_KS_GALLERY=1"
-  results+=("| gallery | skipped (APK built without the gallery) | - |" "| scroll-blocks | skipped (APK built without the gallery) | - |" "| space | skipped (APK built without the gallery) | - |")
+  echo "KS-LANE-SKIP gallery.yaml, scroll-blocks.yaml and folio.yaml: this APK was built without EXPO_PUBLIC_KS_GALLERY=1"
+  results+=("| gallery | skipped (APK built without the gallery) | - |" "| scroll-blocks | skipped (APK built without the gallery) | - |" "| folio | skipped (APK built without the gallery) | - |" "| space | skipped (APK built without the gallery) | - |")
   run_flow no-gallery "$here/no-gallery.yaml"
 fi
 

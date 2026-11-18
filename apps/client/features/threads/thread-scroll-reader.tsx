@@ -97,11 +97,12 @@ function ReaderBody({
       scope={scope}
       assetId={assetId}
       onBack={leave}
-      v2={(scroll) => (
+      v2={(scroll, reader) => (
         <>
           {started}
           <ThreadScrollV2
             scope={scope}
+            readerKind={reader}
             scroll={scroll}
             onBack={leave}
             endSlot={finish}

@@ -136,7 +136,14 @@ for (const [earlier, appearance] of [
     // Rewritten once in today's shape: the other choices are kept and no Talk-only theme is left behind.
     await expect
       .poll(() => stored(page))
-      .toEqual({ motion: 'reduce', textSize: 'larger', reelSound: false, readyNotices: true, appearance });
+      .toEqual({
+        motion: 'reduce',
+        textSize: 'larger',
+        reelSound: false,
+        readyNotices: true,
+        appearance,
+        scrollReader: 'stage',
+      });
     await page.reload();
     await expect.poll(() => appearanceOf(page)).toBe(appearance);
   });

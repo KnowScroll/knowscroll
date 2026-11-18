@@ -28,7 +28,7 @@ import { printedSurface } from '../../display/printed';
 import { Text } from '../../text/text';
 import { Stage } from '../stage';
 import type { FinalCallPlay } from './call-view';
-import type { NextPartPeek, PartArrival, ReaderCommands, SmallPrint } from '../reader/reader-commands';
+import type { NextPartPeek, PartArrival, ReaderCommands, ReaderHandle, SmallPrint } from '../reader/reader-commands';
 import { PartArrivalBar, PartBackTab, PartBackTabRow } from './part-arrival';
 import { PartEdgePeek } from './part-edge-peek';
 import type { PartDrag, PartMove } from './part-gesture';
@@ -42,7 +42,7 @@ import { SelectionMenu } from '../reader/selection-menu';
 import { actOnKey } from './reader-actions';
 import { run } from '../reader/reader-commands';
 import { ReaderFocus } from '../reader/reader-focus';
-import type { ReaderKey } from '../reader/reader-keys';
+import { readerKeyOf, type ReaderKey } from '../reader/reader-keys';
 import { Spine, type SpineDot } from './spine';
 import { lockOf, useLocalCallPlay, type CallPlay } from '../calls/call-play';
 import { pictureStopOf } from './stage-reveal';
@@ -51,37 +51,13 @@ import { useCallPlay } from './use-call-play';
 import { useReaderScroll } from './use-reader-scroll';
 import { useStopReading, type StageReadingObserver } from './use-stop-reading';
 
-export interface StageReaderHandle {
-  /** The stop the reader is on, or `undefined` at the end tray. */
-  readonly capture: () => { readonly stopId: string } | undefined;
-  readonly jumpToStop: (stopId: string) => void;
-  /**
-   * Switches the stop the reader is on between its full text and its plainer words ("Simpler (this screen)" in the ••• menu).
-   * False when that stop has none to show: a call, or the end.
-   */
-  readonly toggleSimpler: () => boolean;
-  /** Shows or hides the picture's text version; false when the Scroll has none to show. */
-  readonly toggleTextVersion: () => boolean;
-  /** What the ••• sheet needs to draw its rows for the stop the reader is on now. */
-  readonly view: () => StageReaderView;
-}
-
-/** The reader's state as the ••• sheet draws it. */
-export interface StageReaderView {
-  /** The read stop on screen, or `undefined` on a call or at the end. */
-  readonly simplerStopId: string | undefined;
-  readonly simplerOn: boolean;
-  readonly hasTextVersion: boolean;
-  readonly textVersionOn: boolean;
-}
-
 export interface StageReaderProps {
   readonly document: ScrollDocumentV2;
   readonly observer?: StageReadingObserver | undefined;
   /** An overlay holds the reader: reading time stops counting. */
   readonly paused?: boolean | undefined;
   readonly initialStopId?: string | undefined;
-  readonly handleRef?: Ref<StageReaderHandle> | undefined;
+  readonly handleRef?: Ref<ReaderHandle> | undefined;
   readonly onStopChange?: ((stopId: string | undefined) => void) | undefined;
   readonly header?: ReactNode;
   readonly dock?: ReactNode;
@@ -328,7 +304,7 @@ export function StageReader({
   // A Call it that was answered wrongly turns the picture to the true one, on this device only (D-383).
   const stopId = pictureStopOf(shownStop, shownStop === undefined ? undefined : played.stateOf(shownStop.id)) ?? '';
   return (
-    <ReaderFocus onKey={onKey}>
+    <ReaderFocus keyOf={readerKeyOf} onKey={onKey}>
       {header}
       {/* The picture and the stops are the printed page: Light in both appearances, so the authored picture,
           kits and play keep their colours; the header and dock around it follow Appearance (#666). */}

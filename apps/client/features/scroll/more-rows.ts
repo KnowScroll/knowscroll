@@ -1,4 +1,4 @@
-import type { MoreRow, StageReaderView } from '@knowscroll/ui';
+import type { MoreRow, ReaderView } from '@knowscroll/ui';
 import type { NoMoment } from '@knowscroll/scroll-model';
 import { noMomentWords } from '../threads/share-stop-sheet';
 
@@ -18,7 +18,7 @@ export interface MoreRowInput {
   readonly canChallenge: boolean;
   /** Whether the document names a limits aside. */
   readonly hasSmallPrint: boolean;
-  readonly view: StageReaderView | undefined;
+  readonly view: ReaderView | undefined;
   readonly act: {
     readonly shareMoment: () => void;
     readonly challenge: () => void;

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
@@ -6,13 +6,16 @@ import {
   QuickAnswerCard,
   ReaderDock,
   ReaderTopBar,
+  FolioReader,
   StageReader,
+  readingModelOfV2,
   Text,
   useDisplay,
   type NextPartPeek,
   type PartArrival,
-  type StageReaderHandle,
-  type StageReaderView,
+  type ReaderHandle,
+  type StageReaderProps,
+  type ReaderView,
   type StageReadingObserver,
 } from '@knowscroll/ui';
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
@@ -25,6 +28,7 @@ import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import type { SaveMove } from './more-rows';
 import { MoreSheetBody } from './more-sheet';
 import type { OpenedScrollV2 } from './scroll-session';
+import type { ScrollV2Reader } from './scroll-readers';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
 import { useScrollPlay } from './use-scroll-play';
@@ -73,6 +77,7 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
  * centred column with the stage pinned at its top (D-133).
  */
 export function ScrollReaderSurface({
+  kind,
   scroll,
   observer,
   paused,
@@ -90,11 +95,13 @@ export function ScrollReaderSurface({
   topInset,
   bottomInset,
 }: {
+  /** Which reader draws the Scroll: the Stage reader, or Folio's essay while it is a trial (#732). */
+  readonly kind: ScrollV2Reader;
   readonly scroll: OpenedScrollV2;
   readonly observer?: StageReadingObserver | undefined;
   readonly paused?: boolean | undefined;
   readonly initialStopId?: string | undefined;
-  readonly handleRef?: Ref<StageReaderHandle> | undefined;
+  readonly handleRef?: Ref<ReaderHandle> | undefined;
   readonly onStopChange?: ((stopId: string | undefined) => void) | undefined;
   readonly moves: ReaderMoves;
   /** "Part 1 of 3": a count only when the server counted it. */
@@ -125,13 +132,13 @@ export function ScrollReaderSurface({
   const [reporting, setReporting] = useState<FeedbackTarget>();
   const [smallPrintOpen, setSmallPrintOpen] = useState(false);
   // What the reader showed when ••• opened, so the rows can say which words and pictures they would switch.
-  const [readerView, setReaderView] = useState<StageReaderView | undefined>();
+  const [readerView, setReaderView] = useState<ReaderView | undefined>();
   // Quick answers on this Scroll: asked from the selection menu, drawn under the stop, never part of the Scroll (D-253).
   const quick = useQuickAnswers(scroll);
   // The reader's own handle is kept here too, because the ••• menu switches the stop on screen to its plainer words.
-  const reader = useRef<StageReaderHandle | null>(null);
+  const reader = useRef<ReaderHandle | null>(null);
   const readerRef = useCallback(
-    (instance: StageReaderHandle | null) => {
+    (instance: ReaderHandle | null) => {
       reader.current = instance;
       assign(handleRef, instance);
     },
@@ -144,7 +151,8 @@ export function ScrollReaderSurface({
   const limits = document.asides.find((aside) => aside.id === document.recap.smallPrintAside);
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
   const play = useScrollPlay(scroll);
-  const wayOn = moves.nextPart ?? moves.related;
+  // Folio offers no related move (#732: no Related control); the Stage reader keeps it as the way on.
+  const wayOn = kind === 'folio' ? moves.nextPart : (moves.nextPart ?? moves.related);
   const openMoment = () => {
     setMomentStop(reader.current?.capture()?.stopId);
     setSharingMoment(true);
@@ -167,8 +175,11 @@ export function ScrollReaderSurface({
   };
   return (
     <View style={styles.page}>
-      <View style={[styles.column, breakpoint === 'compact' ? null : styles.wide]}>
-        <StageReader
+      <View
+        style={[styles.column, breakpoint === 'compact' ? null : kind === 'folio' ? styles.wideEssay : styles.wide]}
+      >
+        <V2Reader
+          kind={kind}
           document={document}
           observer={observer}
           paused={
@@ -247,7 +258,9 @@ export function ScrollReaderSurface({
             <View style={{ paddingBottom: bottomInset }}>
               <ReaderDock
                 onAsk={moves.ask}
-                sparks={document.stops.some((stop) => stop.kind !== 'read') ? play?.sparks : undefined}
+                sparks={
+                  kind === 'stage' && document.stops.some((stop) => stop.kind !== 'read') ? play?.sparks : undefined
+                }
                 onMore={openMore}
                 nextPart={wayOn}
               />
@@ -307,9 +320,21 @@ export function ScrollReaderSurface({
   );
 }
 
+/**
+ * The reader the surface draws. Both take the same commands, handle, header and dock; Folio draws the document as an
+ * essay (`readingModelOfV2`) and has no related move and no played calls (#732).
+ */
+function V2Reader({ kind, document, related, play, ...shared }: StageReaderProps & { readonly kind: ScrollV2Reader }) {
+  const model = useMemo(() => (kind === 'folio' ? readingModelOfV2(document) : undefined), [kind, document]);
+  if (model !== undefined) return <FolioReader model={model} {...shared} />;
+  return <StageReader document={document} related={related} play={play} {...shared} />;
+}
+
 const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, backgroundColor: content.paper, alignItems: 'center' },
   column: { flex: 1, minHeight: 0, width: '100%' },
   wide: { maxWidth: layout.measureDesktop + 2 * layout.gutter + spacing[8] },
+  // Folio keeps its text at the reading measure and sets a held figure beside it, so it needs room for both.
+  wideEssay: { maxWidth: Math.round(layout.measureDesktop * 1.7) + 2 * layout.gutter + spacing[8] },
   smallPrint: { gap: spacing[2] },
 });

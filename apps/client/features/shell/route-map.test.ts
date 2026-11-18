@@ -57,6 +57,7 @@ describe('route map', () => {
         '/friends',
         '/friends/invite',
         '/gallery',
+        '/gallery-folio',
         '/gallery-scroll',
         '/gallery-space',
         '/operator',

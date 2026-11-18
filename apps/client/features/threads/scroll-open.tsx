@@ -9,7 +9,8 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { recorderFor } from '../scroll/reading-recorder';
 import type { OpenedScroll, OpenedScrollV2 } from '../scroll/scroll-session';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
-import { ARTICLE_ONLY, EVERY_READER } from '../scroll/scroll-readers';
+import { ARTICLE_ONLY, type ScrollV2Reader } from '../scroll/scroll-readers';
+import { useScrollReaders } from '../scroll/use-scroll-readers';
 import { useScrollSession } from '../scroll/use-scroll-session';
 import type { MomentThread } from './share-stop-sheet';
 
@@ -43,16 +44,17 @@ export function OpenScroll({
   readonly assetId: string;
   readonly onBack: () => void;
   readonly children: (scroll: OpenedScroll) => ReactNode;
-  readonly v2?: ((scroll: OpenedScrollV2) => ReactNode) | undefined;
+  readonly v2?: ((scroll: OpenedScrollV2, reader: ScrollV2Reader) => ReactNode) | undefined;
 }) {
-  const { session, state } = useScrollSession(scope, assetId, v2 === undefined ? ARTICLE_ONLY : EVERY_READER);
+  const readers = useScrollReaders();
+  const { session, state } = useScrollSession(scope, assetId, v2 === undefined ? ARTICLE_ONLY : readers);
   useEffect(() => {
     session.start();
     return () => session.dispose();
   }, [session]);
   switch (state.status) {
     case 'ready':
-      return <>{state.reader === 'article' ? children(state.scroll) : v2?.(state.scroll)}</>;
+      return <>{state.reader === 'article' ? children(state.scroll) : v2?.(state.scroll, state.reader)}</>;
     case 'opening':
     case 'loading':
     case 'activating':
@@ -176,9 +178,11 @@ export function ThreadScrollV2({
   endSlot,
   thread,
   initialStopId,
+  readerKind,
 }: {
   readonly scope: AccountScope;
   readonly scroll: OpenedScrollV2;
+  readonly readerKind: ScrollV2Reader;
   readonly onBack: () => void;
   readonly endSlot?: ReactNode;
   /** The thread this is read in: "Share a moment" sends into it. */
@@ -198,6 +202,7 @@ export function ThreadScrollV2({
   }, [recorder]);
   return (
     <ScrollReaderSurface
+      kind={readerKind}
       scroll={scroll}
       observer={recorder.observer}
       paused={!focused}

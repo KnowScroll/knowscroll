@@ -16,7 +16,7 @@ import {
   StateBlock,
   useDisplay,
   type ScrollPositionHandle,
-  type StageReaderHandle,
+  type ReaderHandle,
 } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useFormatSiblings } from '../encounter/use-format-siblings';
@@ -35,7 +35,8 @@ import { ScrollReaderSurface } from './scroll-reader-surface';
 import { forgetPartLeft, partLeftFor } from './part-left';
 import { useAddressMoves } from './use-address-moves';
 import { useDirectAsk } from './use-direct-ask';
-import { EVERY_READER } from './scroll-readers';
+import type { ScrollV2Reader } from './scroll-readers';
+import { useScrollReaders } from './use-scroll-readers';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
 import { readResume, writeResume } from '../encounter/encounter-history';
@@ -258,7 +259,15 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
  * here is the same as in Explore (D1): there is no encounter, so its source is this Scroll's own
  * exposure. Next ↑ goes to Explore for a new topic.
  */
-function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScrollV2 }) {
+function ReadyScrollV2({
+  scope,
+  scroll,
+  readerKind,
+}: {
+  readonly scope: AccountScope;
+  readonly scroll: OpenedScrollV2;
+  readonly readerKind: ScrollV2Reader;
+}) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const back = useBack();
@@ -282,7 +291,7 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
   );
   // A Scroll that another screen covers (a Part, the Reel) is not being read: its time stops until it is back.
   const focused = useIsFocused();
-  const reader = useRef<StageReaderHandle>(null);
+  const reader = useRef<ReaderHandle>(null);
   const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
   const remember = useCallback(
     (stopId: string) => {
@@ -332,6 +341,7 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
   return (
     <>
       <ScrollReaderSurface
+        kind={readerKind}
         scroll={scroll}
         observer={recorder.observer}
         paused={!focused || sharing || ask.open}
@@ -415,7 +425,7 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
 
 function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; readonly assetId: string }) {
   const router = useRouter();
-  const { session, state } = useScrollSession(scope, assetId, EVERY_READER);
+  const { session, state } = useScrollSession(scope, assetId, useScrollReaders());
   useEffect(() => {
     session.start();
     return () => session.dispose();
@@ -426,7 +436,7 @@ function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; read
       return state.reader === 'article' ? (
         <ReadyScroll scope={scope} scroll={state.scroll} />
       ) : (
-        <ReadyScrollV2 key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />
+        <ReadyScrollV2 key={state.scroll.exposureId} scope={scope} scroll={state.scroll} readerKind={state.reader} />
       );
     case 'opening':
     case 'loading':

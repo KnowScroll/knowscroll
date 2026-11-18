@@ -1,7 +1,7 @@
-import type { StageReaderView } from '@knowscroll/ui';
+import type { ReaderView } from '@knowscroll/ui';
 import { moreRowsOf, type MoreRowInput } from './more-rows';
 
-const view: StageReaderView = {
+const view: ReaderView = {
   simplerStopId: 'stop-1',
   simplerOn: false,
   hasTextVersion: true,

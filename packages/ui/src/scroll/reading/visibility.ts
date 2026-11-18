@@ -60,7 +60,7 @@ export interface VisibilityTracker {
  * clock (`performance.now()`).
  */
 export function createVisibilityTracker(
-  observer: () => ScrollReadingObserver | undefined,
+  observer: () => Pick<ScrollReadingObserver, 'onBlockVisibility'> | undefined,
   clock: () => number,
 ): VisibilityTracker {
   const reported = new Map<string, number>();

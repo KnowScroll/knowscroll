@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { ReaderKey } from './reader-keys';
 
 /** Native: no keyboard layer (a keyboard attached to a phone uses the buttons); the group is just the reader's frame. */
-export function ReaderFocus({
+export function ReaderFocus<Key>({
   children,
 }: {
   readonly children: ReactNode;
-  readonly onKey: (key: ReaderKey) => boolean;
+  readonly keyOf: (key: string, shift: boolean) => Key | undefined;
+  readonly onKey: (key: Key) => boolean;
 }) {
   return <View style={styles.fill}>{children}</View>;
 }
