@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseDocumentV3 } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV3 } from '@knowscroll/scroll-model/internal';
@@ -8,6 +9,12 @@ import { compileEditorialSourceFile, parseEditorialSourceFile } from './editoria
 import { compileEditorialSourceV3, EDITORIAL_SOURCE_V3_VERSION } from './scroll-compiler-v3.js';
 
 const FIXTURES = { fence, seasons, 'broad-street': broadStreet } as const;
+
+/** A committed reader fixture of scroll-model (`fixtures/regenerate-v3.mjs`), read as the package ships it. */
+const committed = (name: string): unknown =>
+  JSON.parse(
+    readFileSync(new URL(`../../../../../scroll-model/fixtures/documents/${name}-v3-ci.json`, import.meta.url), 'utf8'),
+  );
 
 describe('the hand-written document v3 fixtures', () => {
   it.each(Object.entries(FIXTURES))('%s compiles, validates and derives facts v4', (_name, source) => {
@@ -21,6 +28,14 @@ describe('the hand-written document v3 fixtures', () => {
     expect(compiled.readingFacts.v).toBe(4);
     expect(compiled.readingFacts.blocks.every((block) => block.type === 'beat')).toBe(true);
   });
+
+  it.each(Object.entries(FIXTURES))(
+    '%s at revision 1 equals the committed reader fixture (regenerate-v3.mjs)',
+    (name, source) => {
+      const compiled = compileEditorialSourceV3(source, 1);
+      expect(compiled.kind === 'compiled' ? compiled.document : compiled).toEqual(committed(name));
+    },
+  );
 
   it('compiles the same source to the same bytes, so a repeated import is a no-op', () => {
     const first = compileEditorialSourceV3(seasons, 3);
