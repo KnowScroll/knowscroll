@@ -29,5 +29,5 @@ for (const name of ['fence', 'seasons', 'broad-street']) {
   });
   if (compiled.kind !== 'compiled') throw new Error(`${name}: ${compiled.stage} ${JSON.stringify(compiled.issues)}`);
   writeFileSync(join(directory, 'documents', `${name}-v3-ci.json`), `${JSON.stringify(compiled.document, null, 2)}\n`);
-  console.log(`${name}-v3-ci.json`, compiled.document.integrity.sha256);
+  process.stdout.write(`${name}-v3-ci.json: ${compiled.document.integrity.sha256}\n`);
 }
