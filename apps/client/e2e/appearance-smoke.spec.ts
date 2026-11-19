@@ -143,6 +143,7 @@ for (const [earlier, appearance] of [
         textSize: 'larger',
         reelSound: false,
         readyNotices: true,
+        coversInExplore: false,
         appearance,
       });
     await page.reload();
