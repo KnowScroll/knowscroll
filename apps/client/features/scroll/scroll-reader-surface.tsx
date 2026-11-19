@@ -46,8 +46,6 @@ export interface ReaderMoves {
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
   readonly formatSwitch?: ReactNode;
   readonly format?: (() => void) | undefined;
-  /** Goes back to the Scroll a new topic left; given only while the note that offers it is on screen (V3 G4). */
-  readonly undo?: (() => void) | undefined;
   readonly done?: (() => void) | undefined;
   /**
    * "Make it a full Scroll" under a Quick answer: opens Ask from here anchored to a stop, with the words the reader selected as
@@ -82,7 +80,6 @@ export function ScrollReaderSurface({
   headerNote,
   endSlot,
   arrival,
-  topNote,
   momentThread,
   topInset,
   bottomInset,
@@ -107,8 +104,6 @@ export function ScrollReaderSurface({
   readonly endSlot?: ReactNode;
   /** Set when this Scroll was opened by a move from the Part before: a note says the place there is kept. */
   readonly arrival?: PartArrival | undefined;
-  /** A note over the top of the reader, below its header (Explore's "Next topic" note). */
-  readonly topNote?: ReactNode;
   /** The thread this Scroll is read in, so "Share a moment" sends into it; elsewhere the person chooses one of theirs. */
   readonly momentThread?: MomentThread | undefined;
   readonly topInset: number;
@@ -175,7 +170,6 @@ export function ScrollReaderSurface({
           nextPart={moves.nextPart}
           previousPart={moves.previous}
           arrival={arrival}
-          topNote={topNote}
           onDone={moves.done}
           endSlot={endSlot}
           commands={{
@@ -190,7 +184,6 @@ export function ScrollReaderSurface({
             shareMoment: openMoment,
             smallPrint: limits === undefined ? undefined : () => setSmallPrintOpen(true),
             report: openReport,
-            undo: moves.undo,
             askAbout:
               quick === undefined ? undefined : (stopId, passage) => void quick.session.ask({ stopId, passage }),
           }}

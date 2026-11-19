@@ -17,8 +17,6 @@ import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterFormatSwitch } from './encounter-top-bar';
 import { arrivalToSay, markArrivalSaid } from './part-arrival';
-import { FormatNoteCard } from './format-note-card';
-import { useFormatNote } from './use-format-note';
 
 export type ScrollV2Entry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedScrollV2 };
 
@@ -63,13 +61,11 @@ export function ScrollV2Encounter({
   const reel = entry.context.variants.find((variant) => variant.kind === 'reel');
   const switchToReel = () =>
     reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
-  // "Next topic · as a Scroll" (V3 G4): once, for the Scroll a new topic just landed on.
   // "Part 2 · your place in Part 1 is kept" is for the step forward, once: not for a Back or an Undo that returns here.
   const [arrival] = useState(() => arrivalToSay(state.trail, entry));
   useEffect(() => {
     markArrivalSaid(entry);
   }, [entry]);
-  const { note, putAway: putNoteAway } = useFormatNote(state.trail, entry);
   useLayoutEffect(() => {
     if (!playable) return;
     session.bindSurface(entry, {
@@ -98,22 +94,6 @@ export function ScrollV2Encounter({
         initialStopId={entry.position?.kind === 'scroll' ? entry.position.value.blockId : undefined}
         handleRef={reader}
         arrival={arrival}
-        topNote={
-          note === undefined ? undefined : (
-            <FormatNoteCard
-              note={note}
-              onSwitch={() => {
-                putNoteAway();
-                switchToReel();
-              }}
-              onUndo={() => {
-                putNoteAway();
-                back();
-              }}
-              onExpire={putNoteAway}
-            />
-          )
-        }
         partLabel={series === undefined ? undefined : `Part ${String(series.part)} of ${String(series.total)}`}
         moves={{
           universe: () => router.navigate('/universe'),
@@ -141,7 +121,6 @@ export function ScrollV2Encounter({
           },
           formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
           format: switchToReel,
-          undo: note === undefined ? undefined : back,
           done: back,
         }}
         moreBody={(close) => (

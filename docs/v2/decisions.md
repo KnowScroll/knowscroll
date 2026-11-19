@@ -4252,6 +4252,8 @@ Confirmed by: `rooms/flair-wall.test.ts` (both walls, each shown to be able to f
 
 ## D-364 · 2026-11-02 · After a new topic lands on a Scroll, a note offers the Reel and Undo; the format still stays (v3 Scrolls fidelity, #497)
 
+_Superseded by D-428 (#755): the "Next topic" card, its Undo and its Esc key are gone, because a new topic now arrives as covers._
+
 **Amends** D-132 only in showing it: the format still stays the one the person is in, and now the card says so (V3 G4).
 
 - **When.** For a Scroll that a new topic (Next ↑, a pull past the end, N) landed on from another Scroll. Not for the first open, a Part, a related move, a format switch, a Back, or after a Reel.
@@ -4418,6 +4420,8 @@ Confirmed by: `part-peek.test.tsx` (the row, the tab's position and the bar's of
 
 ## D-379 · 2026-11-03 · The "Next topic" note takes no focus; the reader keeps F and Esc (v3 fidelity, #648)
 
+_Superseded by D-428 (#755): the "Next topic" card, its Undo and its Esc key are gone, because a new topic now arrives as covers._
+
 **Amends** D-364, its "Keys" and "It goes by itself" lines.
 
 - **The gap.** Focus was moved into the note when it appeared, and the note waits while it has focus (WCAG 2.2.1). The code's own move therefore held the note for good: it was still up 14 s later, not 9.
@@ -4537,6 +4541,8 @@ Confirmed by: `e2e/thread-calls-smoke.spec.ts` (while one member still shares Pa
 Confirmed by: `scenario-sheet.test.tsx` (the refusal shows these words and no Try again; shown failing when they change).
 
 ## D-391 · 2026-11-03 · The "Next topic" note shows on a library article too (v3 fidelity, #656)
+
+_Superseded by D-428 (#755): the "Next topic" card, its Undo and its Esc key are gone, because a new topic now arrives as covers._
 
 **Amends** D-364, its "When" line.
 
@@ -5106,7 +5112,8 @@ Confirmed by: `cover-outcomes.test.ts` (the recording rule, a generation that mo
 - **Why.** D-426 made covers a trial so they could be tried on dev before they became how Explore works. This is that step (#745, Phase 4), merged only after the owner's go (#752).
 - **No switch.** The row leaves Account → Accessibility & playback, and `coversInExplore` leaves device preferences. A value a device stored during the trial is read past and is gone the next time preferences are written. Explore asks for covers on every platform; Folio is already the reader on both.
 - **The same moves deal covers.** A move the system chooses deals a hand of covers, and a move the person names opens at once, as D-426 says. A Reel, and an offer with no `cover`, still open at once.
-- **Not removed here.** The open-on-arrival path stays in the session for those offers, and the server still sends a cover only to a client that declares `offer-cover.v1`. The old path's removal is its own deletion-only pull request (PR 5, #745).
+- **Kept.** The server still sends a cover only to a client that declares `offer-cover.v1`, and an offer without a cover opens at once.
+- **Removed in PR 5 (#755).** The session's cover-feed switch (`setCoverFeed`), the "Next topic · as a Scroll" card with its Undo and its Esc key, and the specs that existed only for them are gone: a move that deals always asks for covers, and an offer with no `cover` still opens at once.
 - **Android.** Android checks are #740.
 - **The browser fixture serves covers as the server does.** A Scroll offer carries a cover for a client that declares `offer-cover.v1`, as the server sends one for any document that can make it; a spec that wants the essay arrives on the cover and opens it with Read, as a person does. `covers: { absent: true }` serves a Scroll offer with no cover, for the fallback.
 

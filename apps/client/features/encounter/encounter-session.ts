@@ -199,8 +199,6 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let work: Work | undefined;
   let regionOrigin: { returnToMap: () => void; label: string; entry?: string; returned: boolean } | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
-  /** Whether Explore deals a hand of covers: the screen turns it on whenever it is in front. */
-  let coverFeed = false;
   /** The last hand dealt; it outlives its screen so Back from a cover's essay can return to it. */
   let hand: CoverHand | undefined;
   /** A cover's offer turned out spent: once the failed open has unwound, a fresh hand is dealt. */
@@ -485,7 +483,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         publish({ choices: [outcome.offer, ...outcome.bufferedOffers] });
         return;
       }
-      const covered = current.deal && coverFeed ? coveredOffers(outcome) : undefined;
+      const covered = current.deal ? coveredOffers(outcome) : undefined;
       if (covered) {
         dealHand(outcome, covered, current.commandFields);
         return;
@@ -1150,10 +1148,6 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       void run();
     },
     leaveChoices,
-    /** Turns covers in Explore on or off. Takes effect at the next move. */
-    setCoverFeed(on: boolean) {
-      coverFeed = on;
-    },
     /**
      * Opens the cover on screen: the only thing that activates an offer of a hand. A hand past its offers' life is
      * replaced by a fresh one instead, so a tap is never answered with "Your path changed".
