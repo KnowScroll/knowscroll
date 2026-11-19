@@ -100,7 +100,11 @@ for (const viewport of [phone, desktop]) {
     await expect(stop.getByText(first.simple)).toBeVisible();
     await expect(stop.getByText(paragraph)).toHaveCount(0);
     await expect(stop.getByText('It leans.')).toBeVisible();
-    await expect(stop.getByTestId('simpler-text')).toHaveText(first.simple);
+    await expect(stop.getByTestId('simpler-text')).toContainText(first.simple);
+    // With the link gone, the stop says that it is in plainer words: a small label above them, and a polite announcement.
+    await expect(stop.getByTestId('simpler-label')).toHaveText('Plainer words');
+    await expect(stop.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+    await expect(stop.getByRole('status')).toHaveText('Showing this part in plainer words.');
     await expect(stop.getByRole('button')).toHaveCount(0);
     await shot(page, `simpler-${name}`);
     expect(await audit(page)).toEqual([]);
@@ -110,10 +114,12 @@ for (const viewport of [phone, desktop]) {
     await page.getByRole('button', { name: 'Simpler (this screen)' }).click();
     await expect(stop.getByText(paragraph)).toBeVisible();
     await expect(stop.getByTestId('simpler-text')).toHaveCount(0);
+    await expect(stop.getByTestId('simpler-label')).toHaveCount(0);
+    await expect(stop.getByRole('status')).toHaveText('Showing the writer’s own words again.');
     // Shift + S does the same from the keyboard.
     await stop.click({ position: { x: 4, y: 4 } });
     await page.keyboard.press('Shift+S');
-    await expect(stop.getByTestId('simpler-text')).toHaveText(first.simple);
+    await expect(stop.getByTestId('simpler-text')).toContainText(first.simple);
     await page.keyboard.press('Shift+S');
     await expect(stop.getByTestId('simpler-text')).toHaveCount(0);
   });
