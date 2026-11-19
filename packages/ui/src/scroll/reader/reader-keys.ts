@@ -14,8 +14,7 @@ export type ReaderKey =
   | { readonly action: 'challenge' }
   | { readonly action: 'simpler' }
   | { readonly action: 'small-print' }
-  | { readonly action: 'report' }
-  | { readonly action: 'undo' };
+  | { readonly action: 'report' };
 
 const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   ArrowDown: { action: 'next-stop' },
@@ -36,8 +35,6 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   'Shift+S': { action: 'simpler' },
   p: { action: 'small-print' },
   r: { action: 'report' },
-  // Undoes the move that just opened this Scroll (V3 G4); the screen offers it only while its note is showing.
-  Escape: { action: 'undo' },
 };
 
 /** Every key the reader listens to, as `KeyboardEvent.key` names; the keyboard map lists each one. */

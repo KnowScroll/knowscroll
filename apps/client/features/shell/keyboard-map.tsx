@@ -68,7 +68,6 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
       { keys: ['⇧S'], spoken: 'Shift and S', action: 'Say the paragraph being read in plainer words, or undo it' },
       { keys: ['P'], spoken: 'P', action: 'Small print: where this stops working' },
       { keys: ['R'], spoken: 'R', action: 'Report something wrong here' },
-      { keys: ['Esc'], spoken: 'Escape', action: 'Undo the new topic, while its note says so' },
     ],
   },
   {

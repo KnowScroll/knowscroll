@@ -53,7 +53,6 @@ describe('the keyboard map', () => {
       Home: 'Home',
       End: 'End',
       'Shift+S': '⇧S',
-      Escape: 'Esc',
     };
     for (const name of FOLIO_KEY_NAMES) expect(listed).toContain(drawn[name] ?? name.toUpperCase());
   });

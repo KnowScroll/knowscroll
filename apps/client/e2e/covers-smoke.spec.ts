@@ -160,7 +160,7 @@ test('Read opens the shown cover with one activation, in Folio; Back returns to 
   expect(activations(commands)).toHaveLength(1);
 });
 
-test('Next idea from an essay opened from a cover deals a new hand; its Scroll opens from its cover with no Next-topic note', async ({
+test('Next idea from an essay opened from a cover deals a new hand; its Scroll opens from its cover', async ({
   page,
 }) => {
   const { commands } = await openCovers(page);
@@ -174,8 +174,7 @@ test('Next idea from an essay opened from a cover deals a new hand; its Scroll o
   await page.getByTestId('essay-cover-read').click();
   await expect(readerTitle(page, 4)).toBeVisible();
   expect(activations(commands)).toHaveLength(2);
-  // The cover said what it is, so the Scroll arrives with no note about the new topic, and Back is the Undo.
-  await expect(page.getByTestId('format-note')).toHaveCount(0);
+  // Back returns to the cover.
   await page.goBack();
   await expect(coverTitle(page, 4)).toBeVisible();
 });
