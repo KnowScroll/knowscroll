@@ -5,6 +5,7 @@ import { GeographyRegionConstraintSchema } from '../../geography/public.js';
 import type { ReadOwnRegionConstraint } from '../../geography/public.js';
 import type {
   ActivateOfferRequest,
+  CoverPass,
   EncounterOffer,
   ExposureContextResponse,
   NavigateExperienceRequest,
@@ -146,6 +147,22 @@ export interface NavigationPorts extends CommandPorts {
   readonly readExactEncounter: ReadExactEncounter;
   /** The exact read that commits an offer, with the cover a declaring client draws (`offer-cover.v1`). */
   readonly readOfferEncounter: ReadOfferEncounter;
+  /**
+   * Cover outcomes (#745), routing state and never evidence. Each write is dropped unless recording is on at
+   * `generation` and the offer was made at that same generation; a pass is dropped for an offer already opened.
+   */
+  readonly recordCoverPasses: (
+    scope: PersonalScopeTx,
+    passes: readonly CoverPass[],
+    generation: number,
+  ) => Promise<void>;
+  readonly recordCoverOpened: (
+    scope: PersonalScopeTx,
+    offerId: string,
+    coverMs: number,
+    generation: number,
+  ) => Promise<void>;
+  readonly readSessionCovers: (scope: PersonalScopeTx, sessionId: string) => Promise<SessionCovers>;
   readonly readContinuations: ReadContinuations;
   readonly readSeriesTotal: ReadSeriesTotal;
   readonly resolveContinuityLink: ResolveContinuityLink;
@@ -190,6 +207,11 @@ export interface NavigationPorts extends CommandPorts {
       }
     | undefined
   >;
+}
+/** For "more covers" (#745): the decision of the session's latest hand, and what its hands dealt and nobody opened. */
+export interface SessionCovers {
+  readonly latest?: { readonly decisionId: string; readonly intentRevision: number };
+  readonly dealtNotOpened: readonly string[];
 }
 export type NavigationCommand =
   OpenDiscoveryRequest | OpenRevisitRequest | NavigateExperienceRequest | RegionEncounterOpenRequest;

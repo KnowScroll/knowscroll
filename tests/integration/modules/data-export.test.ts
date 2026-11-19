@@ -197,6 +197,10 @@ describe('personal data export (real database)', () => {
     };
     expect(experience.encounters.items.length).toBeGreaterThan(0);
     expect(experience.reactions.items.length).toBeGreaterThan(0);
+    // The cover outcome the fixture holds is listed as a sentence, never as a band, a way or an id.
+    const covers = (experience as unknown as { covers: { items: { line: string }[] } }).covers.items;
+    expect(covers).toHaveLength(1);
+    expect(covers[0]!.line).toMatch(/^Opened .+ from its cover after 1\.8 s, \d{1,2} \w{3} \d{4}$/);
     // Where they left off, in words: the stored position (block id, offsets) never leaves.
     expect((experience as unknown as { saved: { items: unknown[] } }).saved.items).toEqual(
       expect.arrayContaining([
@@ -259,6 +263,7 @@ describe('personal data export (real database)', () => {
       'connections',
       'conversations',
       'count',
+      'covers',
       'createdAt',
       'day',
       'device',
@@ -281,6 +286,7 @@ describe('personal data export (real database)', () => {
       'label',
       'landmarks',
       'lastUsedAt',
+      'line',
       'lockedAt',
       'messagesWritten',
       'name',

@@ -207,3 +207,19 @@ formation run ≤ 2 s, sky read ≤ 500 ms, gap scan ≤ 5 s) are met where the 
 
 Re-run the test after slices 2.1, 4.3 and 4.2 land, and copy the new tables here with the date and the environment. The raw output of a run
 (`measurements.md`, `results.json`, with every plan) is written to `tests/integration/load/output/` and is not committed.
+
+## Covers in the feed (#745), 19 November 2026
+
+A cover feed ranks every hand on the request: the worker prepares a buffer only after an activation, and a hand of covers is
+dealt with nothing opened. `load.test.ts` times it as "More covers": the heavy reader asks for 250 hands in a row, each naming
+the last hand's decision, and none is opened, so each request also reads the session's dealt, unopened offers (up to 600) to
+leave them out. Same design target (102,001 assets), Apple M4, PostgreSQL 16 with `TimeZone=UTC`, a quiet machine:
+
+| Path | n | p50 ms | p95 ms | max ms | Budget | Result |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| Composer v2 vertical decision, heavy reader | 250 | 83 | 87 | 99 | navigation: p95 ≤ 300 ms | pass |
+| Composer v2 vertical decision, light readers | 250 | 75 | 83 | 90 | navigation: p95 ≤ 300 ms | pass |
+| More covers (a hand with no opened Scroll), heavy reader | 250 | 74 | 78 | 108 | navigation: p95 ≤ 300 ms | pass |
+
+Every one of the 250 hands was `ready`; 88 statements per hand on average. A hand of covers costs what a vertical decision
+costs, so the shortfalls above (round trips to a remote database) apply to it unchanged.

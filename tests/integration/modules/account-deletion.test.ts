@@ -703,6 +703,9 @@ describe('account deletion (real database)', () => {
         expect(rows + (clearedBefore[store] ?? 0), `${store} was never filled by this test`).toBeGreaterThan(0);
       }
 
+      // Cover outcomes (#748) are the person's own rows: filled before, and the registry-driven check below finds them gone.
+      expect(before['experience.cover_outcomes']).toBe(1);
+
       // The fence.
       const receiptId = randomUUID();
       const use = deleting();

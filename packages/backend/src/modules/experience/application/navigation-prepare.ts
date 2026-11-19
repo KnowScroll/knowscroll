@@ -36,7 +36,16 @@ import type {
   StoredOffer,
 } from './navigation-ports.js';
 import { receipt } from './navigation-receipt.js';
-import { commandRegion, isRegionOpen, json, readWithheld, ref, refuse, same } from './navigation-support.js';
+import {
+  commandRegion,
+  isDiscover,
+  isRegionOpen,
+  json,
+  readWithheld,
+  ref,
+  refuse,
+  same,
+} from './navigation-support.js';
 
 type Intent = NavigateExperienceRequest['intent'];
 type ExhaustedReason = Extract<NavigationOutcome, { status: 'exhausted' }>['reason'];
@@ -83,6 +92,11 @@ interface Start {
   readonly now: Date;
   readonly source?: { readonly offerId: string; readonly exposureId: string };
   readonly sourceContent?: EncounterSnapshot;
+  /**
+   * "More covers" (#745): a new hand after the session's latest one, in this format, leaving out what this session dealt
+   * and nobody opened, so the next hand is not the last one again. Lasts for this one request.
+   */
+  readonly moreCovers?: { readonly format: 'reel' | 'scroll'; readonly dealt: readonly string[] };
 }
 
 /** What a mode's retrieval found, before ranking. */
@@ -207,12 +221,30 @@ async function startOf(
         : ('vertical' as const),
     now: p.now(),
   };
-  if (!isNavigation) return start;
+  if (!isNavigation) return isDiscover(command) && command.after ? moreCoversOf(p, scope, command.after, start) : start;
   const member = await p.readMember(scope, command.sessionId, command.from.offerId, command.from.exposureId);
   if (!member) return refuse('OFFER_UNAVAILABLE');
   const sourceContent = await p.readExactEncounter(scope, { ...ref(member.offer.descriptor), capabilities });
   if (!sourceContent) return refuse('OFFER_UNAVAILABLE');
   return { ...start, source: { ...command.from }, sourceContent };
+}
+
+/**
+ * A "more covers" request names the decision of the hand it follows: it must be the session's latest, or the person is
+ * asking to move on from a hand another tab or device has already moved past.
+ */
+async function moreCoversOf(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  after: { readonly decisionId: string; readonly format: 'reel' | 'scroll' },
+  start: Start,
+): Promise<Start | NavigationResult> {
+  const existing = start.existing;
+  if (!existing) return refuse('NOT_FOUND');
+  const covers = await p.readSessionCovers(scope, existing.id);
+  if (covers.latest?.decisionId !== after.decisionId || covers.latest.intentRevision !== existing.intentRevision)
+    return refuse('INTENT_REVISION_STALE');
+  return { ...start, moreCovers: { format: after.format, dealt: covers.dealtNotOpened } };
 }
 
 /**
@@ -258,7 +290,8 @@ interface SubjectMoveRules {
  */
 function subjectMoveRules(command: NavigationCommand, start: Start, region: CommandRegion): SubjectMoveRules {
   if (start.mode !== 'vertical' || region.kind === 'region') return {};
-  const format = 'intent' in command && command.intent.mode === 'vertical' ? command.intent.format : undefined;
+  const format =
+    'intent' in command && command.intent.mode === 'vertical' ? command.intent.format : start.moreCovers?.format;
   return { excludeSourceSeries: true, ...(format ? { stickyFormat: format } : {}) };
 }
 
@@ -486,7 +519,11 @@ async function rankingInput(
   catalogue: CatalogueSnapshot,
 ): Promise<{ snapshot: ComposerSnapshot; truncated: boolean }> {
   const query = evidenceQueryFor(found.candidates, start.now.toISOString());
-  const hiddenAssetIds = await readWithheld(p, scope, query.candidateAssetIds ?? [], found.exact !== undefined);
+  const candidateAssetIds = query.candidateAssetIds ?? [];
+  const withheld = await readWithheld(p, scope, candidateAssetIds, found.exact !== undefined);
+  // More covers leaves out this session's dealt, unopened covers as Hide leaves out a hidden one: frozen into the snapshot.
+  const dealt = new Set(start.moreCovers?.dealt ?? []);
+  const hiddenAssetIds = [...new Set([...withheld, ...candidateAssetIds.filter((assetId) => dealt.has(assetId))])];
   const evidence = await p.readPrepared(scope, query);
   // Policy v3 shrinks interest and format toward the candidates' systems and the person's overall level (D-420).
   const interest =

@@ -37,6 +37,39 @@ export function readablePlace(row: Pick<SavedRow, 'place_kind' | 'position_ms' |
   return null;
 }
 
+const BANDS: Readonly<Record<string, string>> = {
+  under_1_5s: 'under 1.5 s',
+  '1_5s_to_5s': '1.5–5 s',
+  over_5s: 'over 5 s',
+};
+const WAYS: Readonly<Record<string, string>> = {
+  next_cover: 'then moved to the next cover',
+  more_covers: 'then asked for more covers',
+  left: 'then left the covers',
+};
+const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** "4 s" or "1.5 s": a cover time to a tenth of a second, without a trailing ".0". */
+const seconds = (milliseconds: number) => `${String(Math.round(milliseconds / 100) / 10)} s`;
+
+/** One cover outcome as a sentence, with the day (UTC) it was recorded. */
+export function coverLine(
+  row: {
+    readonly outcome: string;
+    readonly on_screen: string | null;
+    readonly way: string | null;
+    readonly cover_ms: number | null;
+    readonly recorded_at: Date;
+  },
+  title: string,
+): string {
+  const day = DAY.format(row.recorded_at);
+  if (row.outcome === 'opened') return `Opened ${title} from its cover after ${seconds(row.cover_ms ?? 0)}, ${day}`;
+  const band = BANDS[row.on_screen ?? ''] ?? 'a moment';
+  const way = WAYS[row.way ?? ''];
+  return `Passed a cover of ${title} (on screen ${band}${way === undefined ? '' : `, ${way}`}), ${day}`;
+}
+
 /**
  * What the person did with content, in words they know: titles and times, never IDs or revisions. The encounter list
  * leaves out what was opened while recording was paused (D-284), as every other read of the person's own History does.
@@ -94,10 +127,30 @@ export const experienceExportRead: ModuleExport['read'] = async (scope, person) 
     where marked.universe_id = ${universeId}::uuid and marked.expires_at > now()
     order by marked.marked_at desc, marked.asset_id
     limit ${limit}`.execute(trx);
+  // Covers the person saw in the feed and passed or opened, still within their 30 days. Written only while recording was on.
+  const covers = await sql<{
+    asset_id: string;
+    title: string;
+    outcome: string;
+    on_screen: string | null;
+    way: string | null;
+    cover_ms: number | null;
+    recorded_at: Date;
+  }>`
+    select outcome.asset_id, revision.title, outcome.outcome, outcome.on_screen, outcome.way, outcome.cover_ms,
+      outcome.recorded_at
+    from experience.cover_outcomes outcome
+    join content.asset_revisions revision
+      on revision.asset_id = outcome.asset_id and revision.revision = outcome.asset_revision
+    where outcome.universe_id = ${universeId}::uuid and outcome.expires_at > now()
+    order by outcome.recorded_at desc, outcome.offer_id
+    limit ${limit}`.execute(trx);
   // A Scroll made for a thread the person has left (or never was in) keeps no title, place or part in their file.
   const reachable = await person.reach([
     ...new Set(
-      [...saved.rows, ...encounters.rows, ...reactions.rows, ...notInterested.rows].map((row) => row.asset_id),
+      [...saved.rows, ...encounters.rows, ...reactions.rows, ...notInterested.rows, ...covers.rows].map(
+        (row) => row.asset_id,
+      ),
     ),
   ]);
   const titleOf = (row: { readonly asset_id: string; readonly title: string }) =>
@@ -121,6 +174,9 @@ export const experienceExportRead: ModuleExport['read'] = async (scope, person) 
     ),
     reactions: boundedSection(
       reactions.rows.map((row) => ({ title: titleOf(row), action: row.action, at: row.created_at.toISOString() })),
+    ),
+    covers: boundedSection(
+      covers.rows.map((row) => ({ line: coverLine(row, titleOf(row)), at: row.recorded_at.toISOString() })),
     ),
     notInterested: boundedSection(
       notInterested.rows.map((row) => ({

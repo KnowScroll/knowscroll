@@ -637,6 +637,20 @@ export interface ExperienceActionState {
   universe_id: string;
 }
 
+export interface ExperienceCoverOutcomes {
+  asset_id: string;
+  asset_revision: number;
+  cover_ms: number | null;
+  expires_at: Timestamp;
+  offer_id: string;
+  on_screen: string | null;
+  outcome: string;
+  privacy_epoch: number;
+  recorded_at: Generated<Timestamp>;
+  universe_id: string;
+  way: string | null;
+}
+
 export interface ExperienceEncounterActivityInputs {
   action_revision: Generated<number>;
   exposure_id: string;
@@ -2682,6 +2696,7 @@ export interface DB {
   "experience.action_links": ExperienceActionLinks;
   "experience.action_state": ExperienceActionState;
   "experience.actions": ExperienceActions;
+  "experience.cover_outcomes": ExperienceCoverOutcomes;
   "experience.encounter_activity_inputs": ExperienceEncounterActivityInputs;
   "experience.encounter_lineage": ExperienceEncounterLineage;
   "experience.exposures": ExperienceExposures;

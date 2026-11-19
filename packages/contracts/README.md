@@ -99,6 +99,13 @@ title and dek stay in `metadata`. The server sends it only to a session whose `c
 declare `offer-cover.v1` (`OFFER_COVER_SCHEMA`); other sessions and every Reel get offers without the key. An
 offer stored without a cover still parses. Implemented, CI-tested; not runtime-verified.
 
+Cover outcomes (#745, #748). `OpenDiscoveryRequestSchema` takes optional `after: { decisionId, format }` (more covers: another hand
+after the one that decision dealt, in that format; it needs `session`) and optional `passes`. `ActivateOfferRequestSchema` takes
+optional `passes` and `coverMs` (an integer from 0 to 900000, how long the offer's cover was on screen before the tap; the server
+keeps it only clamped to the time since the offer was made). A pass (`CoverPassSchema`) is `{ offerId, onScreen, way }`: `onScreen`
+is `under_1_5s`, `1_5s_to_5s` or `over_5s`; `way` is `next_cover`, `more_covers` or `left`. `passes` holds one to nine, each offer
+once. Routing state only, stored while recording is on and never evidence. Implemented, CI-tested; not runtime-verified.
+
 `GET /v1/experience/exposures/{exposureId}/context` declares a current, authorised read for an
 owned activated exposure at its exact asset revision and epoch, with current content eligibility
 rechecked. It creates no exposure. Its strict public response contains current `actions`

@@ -304,6 +304,12 @@ universe the root refuses is skipped; a busy one is left for the next pass. Logs
 `partial` when a universe was left). Decisions an offer holds are not reclaimed (offers have no retention yet). Status: implemented,
 covered by `tests/integration/modules/composer-prune.test.ts`; not yet runtime-verified on dev.
 
+It also holds `experience.prune-cover-outcomes` (cron `22,52 * * * *`, #748): it finds the universes with a cover outcome past its
+30-day life and, for each of at most 25, deletes a batch of 500 in its own short transaction under the personal root as a system
+actor. Rules and SQL only. A universe the root refuses is skipped; a busy one is left for the next pass. Logs
+`experience.cover_outcomes_pruned` (rows deleted, outcome `partial` when a universe was left). Status: implemented, covered by
+`tests/integration/modules/cover-outcomes.test.ts`; not runtime-verified.
+
 U05 (#363) normally registers the fixed `scenes.expire-formation` consumer and five-minute UTC
 `scenes.recover-formation` scheduled consumer. They finalize only the exact current due claim as
 skipped, never create formation, grant animation, consume content or invoke a model/provider.

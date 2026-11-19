@@ -2063,3 +2063,142 @@ describe('covers in Explore (#747)', () => {
     expect(h.session.back()).toBe(false);
   });
 });
+
+describe('cover passes and cover time (#748)', () => {
+  const live: ReturnType<typeof harness>[] = [];
+  let now = 1_000_000;
+  beforeEach(() => {
+    now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    for (const h of live.splice(0)) h.scope.end();
+  });
+  /** A session with covers on, recording at `generation` (odd is on), dealt its first hand of three covers. */
+  async function dealtAt(generation: number) {
+    const h = harness();
+    live.push(h);
+    h.setOffers(['cover', 'cover', 'cover']);
+    h.session.setCoverFeed(true);
+    h.session.setForeground(true);
+    h.setRecordingGeneration(generation);
+    await h.scope.recording!.refresh();
+    h.session.open({ kind: 'discover' });
+    await waitForPhase(h.session, 'covers');
+    return { h, hand: h.session.getState().covers! };
+  }
+  const bodyOf = (h: ReturnType<typeof harness>, suffix: string, index = 0) => commands(h, suffix)[index]!.body;
+
+  it('opening a cover sends how long it was on screen and the covers passed before it', async () => {
+    const { h, hand } = await dealtAt(3);
+    now += 2_000;
+    h.session.nextCover();
+    now += 800;
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    const activation = bodyOf(h, '/activate');
+    expect(activation.coverMs).toBe(800);
+    expect(activation.passes).toEqual([
+      { offerId: hand.offers[0]!.offerId, onScreen: '1_5s_to_5s', way: 'next_cover' },
+    ]);
+  });
+
+  it('a cover opened after going back up to it is not a pass, and its time adds up over both visits', async () => {
+    const { h, hand } = await dealtAt(3);
+    now += 1_000;
+    h.session.nextCover();
+    now += 300;
+    h.session.previousCover();
+    now += 700;
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    const activation = bodyOf(h, '/activate');
+    expect((activation.target as { offerId: string }).offerId).toBe(hand.offers[0]!.offerId);
+    expect(activation.coverMs).toBe(1_700);
+    // Moving back up passes nothing, so the second cover is not reported either.
+    expect(activation.passes).toBeUndefined();
+  });
+
+  it('asking for more covers names the hand it follows and reports every cover of it as passed', async () => {
+    const { h, hand } = await dealtAt(3);
+    now += 6_000;
+    h.session.nextCover();
+    now += 500;
+    h.session.nextCover();
+    now += 1_500;
+    h.session.nextCover();
+    await waitForPhase(h.session, 'covers');
+    expect(commands(h, '/open')).toHaveLength(2);
+    const more = bodyOf(h, '/open', 1);
+    expect(more.after).toEqual({ decisionId: hand.outcome.decisionId, format: 'scroll' });
+    expect(more.session).toEqual({
+      sessionId: hand.outcome.sessionId,
+      expectedIntentRevision: hand.outcome.intentRevision,
+    });
+    expect(more.passes).toEqual([
+      { offerId: hand.offers[0]!.offerId, onScreen: 'over_5s', way: 'next_cover' },
+      { offerId: hand.offers[1]!.offerId, onScreen: 'under_1_5s', way: 'next_cover' },
+      { offerId: hand.offers[2]!.offerId, onScreen: '1_5s_to_5s', way: 'more_covers' },
+    ]);
+    expect(commands(h, '/activate')).toHaveLength(0);
+  });
+
+  it('a cover on screen while the app is in the background does not count', async () => {
+    const { h } = await dealtAt(3);
+    now += 1_000;
+    h.session.setForeground(false);
+    now += 60_000;
+    h.session.setForeground(true);
+    now += 500;
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    expect(bodyOf(h, '/activate').coverMs).toBe(1_500);
+  });
+
+  it('while recording is paused nothing personal is sent: no cover time and no passes', async () => {
+    const { h, hand } = await dealtAt(4);
+    now += 2_000;
+    h.session.nextCover();
+    now += 2_000;
+    h.session.nextCover();
+    now += 2_000;
+    h.session.nextCover();
+    await waitForPhase(h.session, 'covers');
+    const more = bodyOf(h, '/open', 1);
+    expect(more.after).toEqual({ decisionId: hand.outcome.decisionId, format: 'scroll' });
+    expect(more.passes).toBeUndefined();
+    now += 2_000;
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    const activation = bodyOf(h, '/activate');
+    expect(activation.coverMs).toBeUndefined();
+    expect(activation.passes).toBeUndefined();
+  });
+
+  it('Back from the covers is a pass, reported with the next cover opened', async () => {
+    const h = harness();
+    live.push(h);
+    h.setOffers(['reel']);
+    h.session.setForeground(true);
+    h.setRecordingGeneration(3);
+    await h.scope.recording!.refresh();
+    h.session.open({ kind: 'discover' });
+    await waitForPhase(h.session, 'active');
+    h.setOffers(['cover', 'cover', 'cover']);
+    h.session.setCoverFeed(true);
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitForPhase(h.session, 'covers');
+    const left = h.session.getState().covers!;
+    now += 3_000;
+    expect(h.session.back()).toBe(true);
+    expect(h.session.getState().covers).toBeUndefined();
+    h.session.navigate({ mode: 'vertical', direction: 'next' });
+    await waitForPhase(h.session, 'covers');
+    h.session.openCover();
+    await waitForPhase(h.session, 'active');
+    expect(bodyOf(h, '/activate', 1).passes).toEqual([
+      { offerId: left.offers[0]!.offerId, onScreen: '1_5s_to_5s', way: 'left' },
+    ]);
+  });
+});

@@ -289,3 +289,8 @@ export interface NotInterestedUseCases {
   readonly undo: UndoNotInterested;
 }
 export const NOT_INTERESTED_USE_CASES = Symbol('experience.notInterestedUseCases');
+
+export { pruneCoverOutcomesQueue, PruneCoverOutcomesJobSchema } from './events.js';
+export type { PruneCoverOutcomes } from './application/prune-cover-outcomes.js';
+/** The scheduled sweep that deletes expired cover outcomes (`experience.prune-cover-outcomes`). */
+export const PRUNE_COVER_OUTCOMES = Symbol('experience.pruneCoverOutcomes');

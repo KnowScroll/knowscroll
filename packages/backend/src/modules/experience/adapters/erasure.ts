@@ -14,6 +14,8 @@ const tables = [
   'action_state',
   'not_interested',
   'navigation_transitions',
+  // Before the offers it references.
+  'cover_outcomes',
   'offer_activations',
   'offer_region_constraints',
   'offers',
@@ -66,6 +68,7 @@ export const experienceErasure = declareErasure({
         'experience.exposures',
         'experience.actions',
         'experience.not_interested',
+        'experience.cover_outcomes',
       ],
       'Navigation, offers, recorder certificates and activity inputs are internal bookkeeping behind the encounters and reactions listed; suggestions are not activity.',
       experienceExportRead,

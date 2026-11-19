@@ -55,6 +55,8 @@ export const NOT_DRAINED: Readonly<Record<string, string>> = {
   'rooms.feed-heartbeat': 'scheduled room work',
   'rooms.scout-heartbeat': 'scheduled room work',
   'composer.prune-decisions': 'maintenance sweep on a timer (every 30 minutes): stored decisions past their expiry',
+  'experience.prune-cover-outcomes':
+    'maintenance sweep on a timer (every 30 minutes): cover outcomes past their 30-day life',
   'operator.watchdog': "hourly read-only health check (D-411): reads ops views, writes nothing, on no reader's path",
   'content.sweep-release-policy':
     'sweep that applies the release policy to held library Scrolls (D-418); the lab runs no production or review',

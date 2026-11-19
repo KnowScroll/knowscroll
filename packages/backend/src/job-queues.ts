@@ -30,6 +30,7 @@ import {
   summariseQueue,
 } from './modules/rooms/public.js';
 import { prepareBufferQueue, pruneDecisionsQueue } from './modules/composer/public.js';
+import { pruneCoverOutcomesQueue } from './modules/experience/public.js';
 import { resolveBranchesQueue, suggestDraftQueue, writeAnswerQueue } from './modules/scenarios/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import {
@@ -83,6 +84,7 @@ export const releaseQueues = queueRegistry([
   plannerQueue,
   prepareBufferQueue,
   pruneDecisionsQueue,
+  pruneCoverOutcomesQueue,
   contributeQueue,
   castDueQueue,
   castPassQueue,
