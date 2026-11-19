@@ -20,11 +20,6 @@ export interface DevicePreferences {
    * once to carry an earlier choice over and is never written again.
    */
   readonly appearance: Appearance;
-  /**
-   * Explore offers a Scroll as a cover that opens on tap, instead of opening it on arrival (#745). A trial switch, off
-   * by default, so covers can be tried on dev before they become how Explore works; it goes when they do.
-   */
-  readonly coversInExplore: boolean;
 }
 
 export const defaultDevicePreferences: DevicePreferences = {
@@ -33,7 +28,6 @@ export const defaultDevicePreferences: DevicePreferences = {
   reelSound: true,
   readyNotices: true,
   appearance: defaultAppearance,
-  coversInExplore: false,
 };
 
 /** How much each text size step multiplies the system's size. */
@@ -63,7 +57,8 @@ function readAppearance(record: Record<string, unknown>): Appearance {
  * Reads stored preferences. Anything missing, misspelt or of the wrong kind falls back to its
  * default, so an older or damaged value never blocks the app. A value stored before Appearance
  * existed keeps its Talk choice: Paper becomes Light and the dark sky becomes Dark; a stored
- * `appearance` always wins over a leftover `talkTheme`.
+ * `appearance` always wins over a leftover `talkTheme`. The result is rebuilt field by field, so a
+ * choice this version no longer has (a trial switch) is read past and gone at the next write.
  */
 export function parseDevicePreferences(stored: string | null | undefined): DevicePreferences {
   if (stored === null || stored === undefined) return defaultDevicePreferences;
@@ -82,7 +77,6 @@ export function parseDevicePreferences(stored: string | null | undefined): Devic
     reelSound: typeof record.reelSound === 'boolean' ? record.reelSound : defaults.reelSound,
     readyNotices: typeof record.readyNotices === 'boolean' ? record.readyNotices : defaults.readyNotices,
     appearance: readAppearance(record),
-    coversInExplore: typeof record.coversInExplore === 'boolean' ? record.coversInExplore : defaults.coversInExplore,
   };
 }
 

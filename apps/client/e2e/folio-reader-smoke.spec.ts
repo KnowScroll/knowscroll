@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { answerActions, type ActionsState } from './actions-fixture';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 import { exportCarries } from './export-files';
 
 /**
@@ -67,6 +67,7 @@ async function open(
     ...(actions === undefined ? {} : { actions }),
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar, whichever reader draws it.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
@@ -296,6 +297,8 @@ test('the ••• button opens the More sheet with its rows, and Next idea on 
   await plate.getByRole('button', { name: 'Next idea', exact: true }).click();
   await expect.poll(() => navigations(commands).length).toBe(1);
   expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
+  // The next topic is offered as a cover, and opens when it is read.
+  await readCover(page);
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 2' }),
   ).toBeVisible();

@@ -1672,12 +1672,11 @@ describe('covers in Explore (#747)', () => {
     jest.restoreAllMocks();
     for (const h of live.splice(0)) h.scope.end();
   });
-  /** A fresh session over the fixture, with the device switch on and every outcome carrying three Scroll covers. */
+  /** A fresh session over the fixture, every outcome carrying three Scroll covers. */
   function coverHarness(specs: OfferSpec[] = COVERS) {
     const h = harness();
     live.push(h);
     h.setOffers(specs);
-    h.session.setCoverFeed(true);
     h.session.setForeground(true);
     return h;
   }
@@ -1690,10 +1689,8 @@ describe('covers in Explore (#747)', () => {
   /** An entry on screen (a Reel by default) to deal covers over; the hand after it is of `COVERS`. */
   async function activeThenCovers(first: OfferSpec = 'reel') {
     const h = coverHarness([first]);
-    h.session.setCoverFeed(false);
     const entry = await ready(h);
     h.setOffers(COVERS);
-    h.session.setCoverFeed(true);
     return { h, entry };
   }
   const phasesOf = (h: ReturnType<typeof harness>) => {
@@ -1799,16 +1796,6 @@ describe('covers in Explore (#747)', () => {
     expect(commands(h, '/activate')).toHaveLength(0);
   });
 
-  it('with the switch off opens a Scroll as it arrives, as before', async () => {
-    const h = coverHarness();
-    h.session.setCoverFeed(false);
-    h.session.open({ kind: 'discover' });
-    await waitForPhase(h.session, 'active');
-    expect(h.session.getState().covers).toBeUndefined();
-    expect(commands(h, '/activate')).toHaveLength(1);
-    expect(h.session.getState().entry!.kind).toBe('scroll');
-  });
-
   it('opens a Reel first offer and a Scroll without a cover as they arrive', async () => {
     for (const first of ['reel', 'scroll'] as const) {
       const h = coverHarness([first, 'cover']);
@@ -1851,7 +1838,6 @@ describe('covers in Explore (#747)', () => {
   it('opens a region at once and never as covers', async () => {
     const r = regionEncounter('cover');
     live.push(r);
-    r.session.setCoverFeed(true);
     r.session.setForeground(true);
     expect(r.session.openRegion(r.card, 'Deployment · Inference', () => undefined)).toBe(true);
     await waitFor(() => expect(r.session.getState().phase).toBe('active'));
@@ -2080,7 +2066,6 @@ describe('cover passes and cover time (#748)', () => {
     const h = harness();
     live.push(h);
     h.setOffers(['cover', 'cover', 'cover']);
-    h.session.setCoverFeed(true);
     h.session.setForeground(true);
     h.setRecordingGeneration(generation);
     await h.scope.recording!.refresh();
@@ -2186,7 +2171,6 @@ describe('cover passes and cover time (#748)', () => {
     h.session.open({ kind: 'discover' });
     await waitForPhase(h.session, 'active');
     h.setOffers(['cover', 'cover', 'cover']);
-    h.session.setCoverFeed(true);
     h.session.navigate({ mode: 'vertical', direction: 'next' });
     await waitForPhase(h.session, 'covers');
     const left = h.session.getState().covers!;

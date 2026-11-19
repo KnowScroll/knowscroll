@@ -70,8 +70,6 @@ export interface FolioReaderProps {
   readonly previousPart?: NextPartPeek | undefined;
   /** Set when this Scroll was opened by a move to the next Part: says the place in the one left is kept. */
   readonly arrival?: PartArrival | undefined;
-  /** A note over the top of the page, below the header (Explore's "Next topic" note). */
-  readonly topNote?: ReactNode;
   readonly onDone?: (() => void) | undefined;
   readonly endSlot?: ReactNode;
   /** What the screen draws under a beat (a Quick answer card). */
@@ -128,7 +126,6 @@ export function FolioReader({
   nextPart,
   previousPart,
   arrival,
-  topNote,
   onDone,
   endSlot,
   stopFooter,
@@ -338,8 +335,6 @@ export function FolioReader({
         return run(commands.smallPrint);
       case 'report':
         return run(commands.report);
-      case 'undo':
-        return run(commands.undo);
       case 'simpler':
         if (readBeat?.simple === undefined) return false;
         toggleSimpler(readBeat.id);
@@ -543,11 +538,6 @@ export function FolioReader({
           </View>
         </Animated.ScrollView>
         {arrival === undefined ? null : <ArrivalNote arrival={arrival} />}
-        {topNote === undefined ? null : (
-          <View style={styles.topNote} pointerEvents="box-none">
-            {topNote}
-          </View>
-        )}
       </View>
       <SelectionMenu onSimpler={toggleSimpler} onAsk={commands.askAbout === undefined ? undefined : askAbout} />
       {dock}
@@ -691,5 +681,4 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
     borderRadius: 999,
   },
-  topNote: { position: 'absolute', top: spacing[2], left: spacing[4], right: spacing[4] },
 });

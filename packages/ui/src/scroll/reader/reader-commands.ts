@@ -21,8 +21,6 @@ export interface ReaderCommands {
   readonly shareMoment?: (() => void) | undefined;
   readonly smallPrint?: (() => void) | undefined;
   readonly report?: (() => void) | undefined;
-  /** Goes back to the Scroll a new topic left (V3 G4), while the note that offers it is showing. */
-  readonly undo?: (() => void) | undefined;
   /** Opens Ask from here anchored to a stop, with the passage the reader selected as the draft question (D-244). */
   readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }

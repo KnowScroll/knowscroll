@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { InteractionEventSchema } from '@knowscroll/contracts';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { stopWords, WORDS_PER_MINUTE_V2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * The Folio reader of a v2 Scroll in the production export, from Explore: the ways between Parts and topics, and what
@@ -28,6 +28,7 @@ async function open(page: Page, viewport = phone) {
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar, and the essay repeats it in its opening.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
@@ -58,6 +59,7 @@ test('Part 2 is a button and a key, and the Part that follows opens at its own s
 
   // The key.
   await page.reload();
+  await readCover(page);
   await expect(scroller(page)).toBeVisible();
   const before = navigations(commands).length;
   await reader(page).focus();
@@ -71,12 +73,14 @@ test('a new topic is Next and the N key', async ({ page }) => {
   await page.getByRole('button', { name: 'Next topic', exact: true }).click();
   await expect.poll(() => navigations(commands).length).toBe(1);
   expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
+  await readCover(page);
   await expect(essayTitle(page, 2)).toBeVisible();
 
   await reader(page).focus();
   await page.keyboard.press('n');
   await expect.poll(() => navigations(commands).length).toBe(2);
   expect(navigations(commands)[1]).toMatchObject({ mode: 'vertical', direction: 'next' });
+  await readCover(page);
   await expect(essayTitle(page, 3)).toBeVisible();
 });
 
@@ -283,6 +287,7 @@ test.describe('a pull up past the end, by finger', () => {
     await pull.up();
     await expect.poll(() => navigations(commands).length).toBe(1);
     expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
+    await readCover(page);
     await expect(essayTitle(page, 2)).toBeVisible();
   });
 

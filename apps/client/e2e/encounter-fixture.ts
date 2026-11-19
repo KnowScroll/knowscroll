@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import type { EncounterOffer, ExposureContextResponse, ScrollResults } from '@knowscroll/contracts';
 import { callsOf, firstFrameOf, tallyOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
@@ -27,15 +27,17 @@ export interface EncounterFixtureOptions {
    */
   readonly direct?: { readonly parts: number };
   /**
-   * Scroll offers that carry a cover (`offer-cover.v1`), the way the server sends them to a client that declared the
-   * capability; a client that did not declare it is sent none. With `hand`, every open of discovery (and every move to a
-   * new subject) deals a new hand: that many distinct Scrolls, the first as the offer and the rest as buffered offers.
-   * Each Scroll activates and serves its own document. Without `hand` an offer is dealt alone, as it always was.
+   * Covers, as the server sends them: a Scroll offer carries one (`offer-cover.v1`) to a client that declared the
+   * capability, and none to a client that did not (the server also sends none when a document cannot make one). Alone, an offer is dealt as a hand of one cover. With `hand`, every
+   * open of discovery (and every move to a new subject) deals a new hand: that many distinct Scrolls, the first as the
+   * offer and the rest as buffered offers; each Scroll activates and serves its own document. `absent` sends Scroll
+   * offers with no cover, as a server that predates covers does, so the page's fallback (a Scroll with no cover opens
+   * at once) can be proven.
    */
-  readonly covers?: { readonly hand?: number };
+  readonly covers?: { readonly hand?: number; readonly absent?: true };
   /**
    * What this device has chosen in Account, written before the page loads and only where nothing is stored yet, so
-   * the app's own later writes survive a reload (`{ coversInExplore: true }` is the trial switch for covers).
+   * the app's own later writes survive a reload (`{ textSize: 'largest' }`, for instance).
    */
   readonly devicePreferences?: Record<string, unknown>;
   /** Play on the served v2 Scroll: whether recording is paused (D-083). */
@@ -65,6 +67,16 @@ export interface EncounterFixtureOptions {
     /** The status read ends as unavailable instead of answered. */
     readonly fails?: boolean;
   };
+}
+
+/**
+ * Opens the cover Explore is showing, as a person does: Read (or Continue, for a Scroll read part of the way). Explore
+ * offers every Scroll as a cover, so a spec that wants the reader arrives on a cover first.
+ */
+export async function readCover(page: Page) {
+  const read = page.getByTestId('essay-cover-read');
+  await expect(read).toBeVisible();
+  await read.click();
 }
 
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
@@ -207,7 +219,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       summary: 'HTTP fixture only',
       language: 'en',
     },
-    ...(options.covers !== undefined && declaresCover && kind === 'scroll' ? { cover: coverOf(n) } : {}),
+    ...(options.covers?.absent !== true && declaresCover && kind === 'scroll' ? { cover: coverOf(n) } : {}),
     relation:
       partAt(n) > 1
         ? { kind: 'series_step', seriesId: 'ci-series', seriesRevision: 1, part: partAt(n) }
@@ -268,7 +280,8 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
-    if (path === '/v1/experience/open' || path === '/v1/experience/navigate')
+    // A session declares what it can draw when it opens; a move within it carries no declaration and keeps that one.
+    if (path === '/v1/experience/open')
       declaresCover =
         (body.capabilities as { documentSchemas?: string[] } | undefined)?.documentSchemas?.includes(
           'offer-cover.v1',

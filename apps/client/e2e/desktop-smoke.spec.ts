@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * D01 and V01 in the production export over labelled HTTP fixtures: the desktop Reel as a card with
@@ -106,6 +106,7 @@ test('crossing 1024 px keeps the playing Reel: no second exposure, the same vide
 test('the thread beside the encounter opens the next part', async ({ page }) => {
   const { commands } = await encounterFixture(page, 'scroll', { viewport: { width: 1440, height: 900 }, series: true });
   await page.goto('/explore');
+  await readCover(page);
   const thread = page.getByRole('complementary', { name: 'This thread' });
   await thread.getByRole('button', { name: 'Continue: Part 2, CI series part 2' }).click();
   await expect.poll(() => intents(commands)).toMatchObject([{ mode: 'series', direction: 'next' }]);
@@ -114,6 +115,7 @@ test('the thread beside the encounter opens the next part', async ({ page }) => 
 test('a tablet keeps the thread beside a Scroll and a phone keeps it out of the way', async ({ page }) => {
   await encounterFixture(page, 'scroll', { viewport: { width: 834, height: 1112 }, series: true });
   await page.goto('/explore');
+  await readCover(page);
   await expect(page.getByRole('complementary', { name: 'This thread' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('complementary', { name: 'This thread' })).toHaveCount(0);

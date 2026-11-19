@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * The play blocks of D-207 (a sort, a fork, a scale, a growing chart, a guide) in the production export:
@@ -26,6 +26,7 @@ async function open(page: Page, document: unknown, viewport: { width: number; he
     scrollDocument: document as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar and again in the essay.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),

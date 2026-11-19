@@ -4,7 +4,7 @@ import { fixtureAccount, sceneFixture } from '../features/universe/universe.fixt
 import { conversation, talkFixture, thread } from './talk-fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { signedInAccount } from './account-fixture';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * Automated accessibility checks (axe-core) over the main routes of the production export, at a
@@ -145,6 +145,8 @@ test.describe('an encounter', () => {
           route.fulfill({ status: 404, body: 'CI gesture fixture only' }),
         );
         await page.goto('/explore');
+        // A Scroll is offered as a cover; the essay it opens is checked after it.
+        if (kind === 'scroll') await readCover(page);
         await expectAccessible(page, () =>
           expect(page.getByTestId(kind === 'reel' ? 'encounter-reel-caption' : 'encounter-page')).toContainText(
             'CI encounter fixture 1',

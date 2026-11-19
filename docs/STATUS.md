@@ -1,6 +1,6 @@
 # Status
 
-**Updated:** 2026-11-06 · **Tracker:** [#661](https://github.com/KnowScroll/knowscroll/issues/661) (owner feedback), [#462](https://github.com/KnowScroll/knowscroll/issues/462) (v3 revamp; [#222](https://github.com/KnowScroll/knowscroll/issues/222) is the v2 history) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover:** [`docs/v2/v3-revamp/handover.md`](v2/v3-revamp/handover.md) (v2: [`docs/v2/handover.md`](v2/handover.md))
+**Updated:** 2026-11-19 · **Tracker:** [#661](https://github.com/KnowScroll/knowscroll/issues/661) (owner feedback), [#462](https://github.com/KnowScroll/knowscroll/issues/462) (v3 revamp; [#222](https://github.com/KnowScroll/knowscroll/issues/222) is the v2 history) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover:** [`docs/v2/v3-revamp/handover.md`](v2/v3-revamp/handover.md) (v2: [`docs/v2/handover.md`](v2/handover.md))
 
 **Current phase:** the v3 revamp is built and on dev: the new Universe, V3 Scrolls, R3 rooms and T3 Talk, with the backend and algorithm change behind each screen. The fidelity sweep, the journeys and the handover are done. Stage, live and the `main` PR are out of scope for this run.
 
@@ -17,7 +17,7 @@ Room conversation follow-up ([#668](https://github.com/KnowScroll/knowscroll/iss
 
 Dev settings beyond the defaults (`/etc/knowscroll/dev.v2.env`, edited by hand; backups in `/root/dev.v2.env.bak-*`): `KS_PLANNER_ENABLED=1`, `KS_CARTOGRAPHER_ENABLED=1`, `KS_JEV_ENABLED=1`, `KS_REASONING_PRODUCTION_ENABLED=1`, `KS_SUPPLY_CREATE_DAILY_CAP=10`, `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5`, `KS_SUPPLY_SCENARIO_DAILY_CAP=6`, `KS_MINIMAX_REQUEST_TIMEOUT_MS=300000`, `KS_REASONING_GLOBAL_REQUESTS_PER_DAY=1000`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY=10000000`. Room AI: `KS_REASONING_ROOM_ENABLED=1`, `KS_REASONING_ROOM_GENERATION=1`, `KS_REASONING_ROOM_REQUESTS_PER_DAY=150`, `KS_REASONING_ROOM_TOKENS_PER_DAY=1500000`, `KS_REASONING_AMBIENT_SHARE_PERCENT=30`, `KS_ROOMS_FEED_ENABLED=1`, `KS_ROOMS_STARS_PER_DAY=10`. Recommendation: `KS_COMPOSER_POLICY=v2` (since 2026-11-11, #674). Asks: `KS_SUPPLY_ASK_DAILY_CAP=20`, `KS_SUPPLY_ASK_PERSON_DAILY_CAP=5`, `KS_SUPPLY_QUICK_ANSWER_DAILY_CAP=20`. Scouts are off (`KS_ROOMS_SCOUTS_ENABLED` unset). How to turn each off: the handover, "Recovery and rollback".
 
-**Decision numbers** run to D-399 (v3 from D-060). **Migration numbers** are assigned in merge order: dev refuses a migration whose name sorts before one it has applied, so an open PR renumbers to the next free number just before it merges.
+**Decision numbers** run to D-428 (v3 from D-060). **Migration numbers** are assigned in merge order: dev refuses a migration whose name sorts before one it has applied, so an open PR renumbers to the next free number just before it merges.
 
 ## What works on dev (v3)
 
@@ -25,6 +25,7 @@ Every item below was used on dev at 390 × 844 in this run, and at 1440 × 900 w
 
 - **Universe:** the three.js map with planet looks, the globe and landed map, region cards, search, the orbit dial, Simple views, friend visits, first-open and fly-in animations, landmarks as one folding card. Browsing writes no evidence.
 - **Scrolls** are read as an essay (Folio, #732, D-423 to D-425): figures from the drawing kits set in the text, a figure that holds while its paragraphs pass, calls drawn as text, Part 2 and Next idea at the end, a pull up past the end on a touch screen, "your place is kept" between Parts, the seven-row ••• sheet, and a page that follows Light and Dark with a palette of its own. Web only for now; Android is #740. Seasons Part 1 has the plot twist and cited distances (revision 4).
+- **Covers** (#745, D-426 to D-428): Explore offers a Scroll as a cover (kicker, title, dek, its first figure and "Read · N min") that opens on a tap, Read or Enter, and Back returns to it. Next idea, N, the pull past the end and Not interested deal a new hand. Passes and cover time are routing state only (D-427): kept 30 days while recording is on, removed by Clear, listed in the export. On dev behind a device switch from `439aa203` (deployed commit, migration 0123 and the shipped bundle checked); on for everyone from #752.
 - **Ask:** ask orders (5 of 5 Ready on dev, each checked sentence by sentence against the library's sources) and Quick answers. Limits say which cap is full.
 - **Recommendation:** Composer policy v1, format learned per topic, `jev.2`. Play results never feed ranking, planning, evidence or formation.
 - **Talk:** the T3 thread on phone and desktop, places, Call it together and its reveal, What-if cards and branches, the new-since line, "In this chat".

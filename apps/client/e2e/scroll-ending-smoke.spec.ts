@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture, id } from './encounter-fixture';
+import { encounterFixture, id, readCover } from './encounter-fixture';
 
 /**
  * The end of a Scroll in the reader (#497, part C) in the production export over labelled HTTP fixtures: the end plate draws
@@ -38,6 +38,7 @@ async function open(page: Page, viewport = phone) {
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar, and the essay repeats it in its opening.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),

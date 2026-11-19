@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { signedInAccount } from './account-fixture';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * Reflow and text size on the production export (WCAG 1.4.4, 1.4.10, V01): at the narrowest phone,
@@ -101,6 +101,7 @@ test('signed-in routes keep their text inside the window with every text doubled
 test('an encounter reflows on a landscape phone and with doubled text', async ({ page }) => {
   await encounterFixture(page, 'scroll', { viewport: { width: 844, height: 390 } });
   await page.goto('/explore');
+  await readCover(page);
   await expect(page.getByTestId('encounter-page')).toContainText('CI encounter fixture 1');
   // The first-arrival hint floats over the article by design: put it away first.
   await page.getByRole('button', { name: 'Got it' }).click();

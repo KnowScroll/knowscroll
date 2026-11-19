@@ -1,6 +1,6 @@
 # Journey, step 2 of 3: the link opens the app, the person confirms whose account it is, then
-# Explore offers the fixture Reel, Next subject reaches the starter Scroll, Save and Keep this place
-# hold it, and Keep and Universe open. Content is the labelled fixture world of test-api/serve.mjs.
+# Explore offers the fixture Reel, Next subject offers the starter Scroll as a cover, Read opens it, Save
+# and Keep this place hold it, and Keep and Universe open. Content is the labelled fixture world of test-api/serve.mjs.
 # The app keeps its state from step 1 (no clearState): the sign-in binding's verifier lives in
 # the platform secure store, and only the device that asked can redeem the link.
 # Env: LINK, the sign-in link (knowscroll://redeem#token=...).
@@ -47,9 +47,20 @@ tags:
 # Next subject is a row of the More sheet on a phone (a swipe up on the video is the same move).
 - tapOn: More options
 - tapOn: Next subject
+# A Scroll is offered as a cover: nothing is opened until the person taps Read.
 - extendedWaitUntil:
-    visible: Why the sky is blue
+    visible:
+      id: essay-cover-read
     timeout: 90000
+- assertVisible: Why the sky is blue
+- takeScreenshot: journey-2-03-cover
+- tapOn:
+    id: essay-cover-read
+- extendedWaitUntil:
+    notVisible:
+      id: essay-cover-read
+    timeout: 90000
+- assertVisible: Why the sky is blue
 - takeScreenshot: journey-2-03-scroll
 # Save puts the Scroll in Keep; Keep this place (in the More sheet, once the Scroll is saved) then
 # holds where the person is in it. Keep reads its list when it opens.

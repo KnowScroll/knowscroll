@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture, type EncounterFixtureOptions } from './encounter-fixture';
+import { encounterFixture, type EncounterFixtureOptions, readCover } from './encounter-fixture';
 
 /**
  * The end of a v2 Scroll in the production export: the summary, the limits one tap away as "Small print", the ways
@@ -31,6 +31,7 @@ async function open(page: Page, viewport = phone, play: EncounterFixtureOptions[
     play,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar, and the essay repeats it in its opening.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
@@ -198,6 +199,7 @@ for (const viewport of [phone, desktop]) {
     };
     const served = await encounterFixture(page, 'scroll', { series: true, viewport, scrollDocument: document });
     await page.goto('/explore');
+    await readCover(page);
     await expect(
       page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
     ).toBeVisible();

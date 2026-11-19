@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 const playableVideo = readFileSync(join(__dirname, 'fixtures', 'blue-60s.webm'));
 
@@ -45,6 +45,7 @@ async function openScroll(page: Page, viewport: { width: number; height: number 
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
   ).toBeVisible();

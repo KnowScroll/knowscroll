@@ -11,7 +11,7 @@ import {
   routeAshaSocial,
   type ChallengeWorld,
 } from './challenge-fixture';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * Challenge a friend (v3 S-9, D-244, D-245) in the production export, with two people in two browser contexts over
@@ -57,6 +57,7 @@ async function openAsha(
   });
   await routeAshaSocial(page, world);
   await page.goto('/explore');
+  await readCover(page);
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
   ).toBeVisible();
