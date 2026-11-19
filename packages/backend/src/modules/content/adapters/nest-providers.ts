@@ -80,7 +80,7 @@ import { readScrollPlayFacts } from './scroll-play-facts.js';
 import { readScrollAskFacts } from './scroll-ask-facts.js';
 import { readScrollQuickAnswerFacts } from './scroll-quick-answer-facts.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
-import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
+import { compileEditorialSourceFile, parseEditorialSourceFile } from './editorial-sources.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import {
   makeCheckAssetAudience,
@@ -280,8 +280,8 @@ export function contentRenderProviders(tokens: { readonly database: symbol }) {
  */
 export function importEditorialScrollUseCase(db: Kysely<Database>) {
   return makeImportEditorialScroll({
-    parseSource: parseEditorialSource,
-    compile: compileEditorialSource,
+    parseSource: parseEditorialSourceFile,
+    compile: compileEditorialSourceFile,
     ...makeAdmissionStore(db),
   });
 }

@@ -5,7 +5,7 @@ import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { admitDocument } from '@knowscroll/scroll-model';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset } from '../support/fixtures.js';
-import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { documentV3Source, scrollUseCases, starterSource } from '../support/scroll.js';
 
 describe('content admission of the authored starter Scroll (real database)', () => {
   let database: TestDatabase<Database>;
@@ -175,6 +175,15 @@ describe('content admission of the authored starter Scroll (real database)', () 
     );
     expect(result).toMatchObject({ kind: 'refused', reason: 'compile_refused', stage: 'evidence' });
     if (result.kind === 'refused') expect(result.issues.map((issue) => issue.code)).toContain('number_unbound');
+    expect((await rows(assetId)).asset).toBeUndefined();
+    expect((await rows(assetId)).revisions).toEqual([]);
+  });
+
+  it('compiles a document v3 source and refuses it as coverage_missing, writing nothing, until beats can be covered', async () => {
+    const source = documentV3Source('seasons');
+    const assetId = source['assetId'] as string;
+    const result = await useCases.importScroll(source);
+    expect(result).toEqual({ kind: 'refused', reason: 'coverage_missing', issues: [] });
     expect((await rows(assetId)).asset).toBeUndefined();
     expect((await rows(assetId)).revisions).toEqual([]);
   });

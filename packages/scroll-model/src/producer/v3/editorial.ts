@@ -1,0 +1,392 @@
+import { z } from '../../zod.js';
+import { Framing, INTEGRITY_METHOD, THEME_FAMILIES, type SeriesRef } from '../../document.js';
+import { OpaqueId, plainText } from '../../primitives.js';
+import { copiedRuns } from '../../text.js';
+import { issueFromSchema } from '../../issues.js';
+import type { Claim, ProductionRecord, Source } from '../../internal/provenance.js';
+import {
+  SCROLL_PROVENANCE_V3_SCHEMA_VERSION,
+  TAKEAWAY_PART_ID,
+  type ScrollProvenanceV3,
+} from '../../internal/provenance-v3.js';
+import { ASIDE_KINDS, Misconception } from '../../v2/document.js';
+import {
+  PlainBeat,
+  QuoteBeat,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+  SCROLL_SHAPES,
+  type Beat,
+  type ScrollDocumentV3,
+} from '../../v3/document.js';
+import { uniqueIssuesV3, type IssueV3 } from '../../v3/issues.js';
+import { FIELD_LIMITS_V3 as F, LIMITS_V3 as L, SCROLL_LIMITS_V3_VERSION } from '../../v3/limits.js';
+import { computeMeasuresV3 } from '../../v3/measures.js';
+import { Picture } from '../../v3/pictures.js';
+import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
+import { COPY_RUN_WORDS } from '../compile.js';
+import { digitFiguresIn, readingsOf, unitInPassages } from '../v2/figures.js';
+
+/**
+ * `scroll-authoring.v3`: a document v3 as a person writes it by hand, before code sets what is code's (ids, measures,
+ * the hash). Every beat, aside, picture and the takeaway names the claims it rests on (`cites`), as the v2 writer's
+ * items do. The future document v3 writer will have its own shape; this one is the editorial form (#759).
+ */
+export const SCROLL_AUTHORING_V3_VERSION = 'scroll-authoring.v3';
+
+const Cites = z.array(OpaqueId).min(1).max(8);
+
+export const AuthoredBeatV3 = z.discriminatedUnion('kind', [
+  PlainBeat.omit({ id: true }).extend({ cites: Cites }),
+  QuoteBeat.omit({ id: true }).extend({ cites: Cites }),
+]);
+export type AuthoredBeatV3 = z.infer<typeof AuthoredBeatV3>;
+
+export const AuthoredScrollV3 = z.strictObject({
+  schemaVersion: z.literal(SCROLL_AUTHORING_V3_VERSION),
+  theme: z.strictObject({ family: z.enum(THEME_FAMILIES) }),
+  kicker: plainText(1, 40),
+  title: plainText(4, 90),
+  dek: plainText(10, 200),
+  shape: z.enum(SCROLL_SHAPES),
+  framing: Framing,
+  misconception: Misconception,
+  pictures: z
+    .array(z.strictObject({ picture: Picture, cites: Cites }))
+    .min(L.pictures.min)
+    .max(L.pictures.max),
+  sections: z
+    .array(
+      z.strictObject({
+        title: plainText(1, F.sectionTitleChars),
+        beats: z.array(AuthoredBeatV3).min(L.beatsPerSection.min).max(L.beatsPerSection.max),
+      }),
+    )
+    .min(L.sections.min)
+    .max(L.sections.max),
+  asides: z
+    .array(
+      z.strictObject({
+        kind: z.enum(ASIDE_KINDS),
+        title: plainText(1, F.asideTitleChars),
+        text: plainText(1, F.asideChars),
+        /** The beat it sits beside, counted from 1 in reading order across sections. */
+        beat: z.number().int().min(1).max(L.beats.max),
+        collapsed: z.boolean(),
+        cites: Cites,
+      }),
+    )
+    .min(L.asides.min)
+    .max(L.asides.max),
+  takeaway: z.strictObject({ text: plainText(F.takeawayChars.min, F.takeawayChars.max), cites: Cites }),
+  askSuggestions: z.array(plainText(8, F.suggestionChars)).min(1).max(L.askSuggestions),
+});
+export type AuthoredScrollV3 = z.infer<typeof AuthoredScrollV3>;
+
+/** The facts of a publication that are not the writer's: who the asset is, which revision, which language. */
+export interface PublicationV3 {
+  readonly assetId: string;
+  readonly revision: number;
+  readonly language: string;
+  readonly explanationUnitId: string;
+  readonly series?: z.infer<typeof SeriesRef> | undefined;
+}
+
+export interface EditorialV3Input {
+  readonly authored: unknown;
+  readonly publication: PublicationV3;
+  readonly claims: readonly Claim[];
+  readonly sources: readonly Source[];
+  readonly production: ProductionRecord;
+}
+
+/** Where a compile stopped: the authored shape, the evidence it cites, or the document it made. */
+export type EditorialV3Stage = 'authoring' | 'evidence' | 'document';
+
+export type EditorialV3Outcome =
+  | { readonly kind: 'compiled'; readonly document: ScrollDocumentV3; readonly provenance: ScrollProvenanceV3 }
+  | { readonly kind: 'refused'; readonly stage: EditorialV3Stage; readonly issues: readonly IssueV3[] };
+
+/** One cited part of the authored Scroll, by where it is, what a reader reads of it, and the claims it names. */
+interface CitedPart {
+  readonly path: string;
+  readonly texts: readonly string[];
+  readonly cites: readonly string[];
+  /** A quotation, which must match a passage it cites word for word and is the one text exempt from the copy rule. */
+  readonly quotation?: string | undefined;
+}
+
+/** Every reader-facing string of a picture: its title, caption, labels, notes, values and cells. */
+function pictureTexts(picture: Picture): string[] {
+  const head = [picture.title, ...(picture.caption === undefined ? [] : [picture.caption])];
+  const item = (entry: { readonly label: string; readonly note?: string | undefined }) => [
+    entry.label,
+    ...(entry.note === undefined ? [] : [entry.note]),
+  ];
+  switch (picture.kind) {
+    case 'statement': {
+      const body = picture.statement;
+      if (body.form === 'number') return [...head, body.value, body.label];
+      if (body.form === 'list') return [...head, ...body.items.flatMap(item)];
+      return [
+        ...head,
+        body.who,
+        ...(body.work === undefined ? [] : [body.work]),
+        ...(body.year === undefined ? [] : [body.year]),
+      ];
+    }
+    case 'flow':
+      return [...head, ...picture.steps.flatMap(item)];
+    case 'cycle':
+      return [...head, ...(picture.centre === undefined ? [] : item(picture.centre)), ...picture.items.flatMap(item)];
+    case 'grid':
+      return [
+        ...head,
+        ...picture.rows.map((row) => row.label),
+        ...picture.columns.map((column) => column.label),
+        ...picture.cells.flatMap((cell) => [cell.text, ...(cell.note === undefined ? [] : [cell.note])]),
+      ];
+    case 'chart':
+      return [
+        ...head,
+        ...(picture.unit === undefined ? [] : [picture.unit]),
+        ...picture.points.flatMap((point) => [point.value, ...item(point)]),
+        ...picture.marks.map((mark) => mark.label),
+      ];
+    case 'plan':
+      return [
+        ...head,
+        ...picture.ways.flatMap((way) => (way.label === undefined ? [] : [way.label])),
+        ...picture.places.flatMap(item),
+        ...(picture.steps ?? []),
+        ...picture.regions.map((region) => region.label),
+        ...picture.routes.flatMap((route) => (route.label === undefined ? [] : [route.label])),
+      ];
+  }
+}
+
+function beatTexts(beat: AuthoredBeatV3): string[] {
+  const control = beat.kind === 'plain' && beat.control !== undefined ? [beat.control.label] : [];
+  const cite =
+    beat.kind === 'quote'
+      ? [
+          beat.cite.who,
+          ...(beat.cite.work === undefined ? [] : [beat.cite.work]),
+          ...(beat.cite.year === undefined ? [] : [beat.cite.year]),
+        ]
+      : [];
+  return [beat.text, beat.simple, ...control, ...cite];
+}
+
+/** The quotation a picture sets large, which is cited like a quote beat. */
+const quotationOf = (picture: Picture): string | undefined =>
+  picture.kind === 'statement' && picture.statement.form === 'quote' ? picture.statement.text : undefined;
+
+function citedParts(authored: AuthoredScrollV3): CitedPart[] {
+  const beats = authored.sections.flatMap((section) => section.beats);
+  return [
+    ...authored.pictures.map(({ picture, cites }, index): CitedPart => ({
+      path: `pictures.${index}`,
+      texts: pictureTexts(picture),
+      cites,
+      quotation: quotationOf(picture),
+    })),
+    ...beats.map((beat, index): CitedPart => ({
+      path: `beats.${index}`,
+      texts: beatTexts(beat),
+      cites: beat.cites,
+      quotation: beat.kind === 'quote' ? beat.text : undefined,
+    })),
+    ...authored.asides.map((aside, index): CitedPart => ({
+      path: `asides.${index}`,
+      texts: [aside.title, aside.text],
+      cites: aside.cites,
+    })),
+    { path: 'takeaway', texts: [authored.takeaway.text], cites: authored.takeaway.cites },
+  ];
+}
+
+/**
+ * The figures in digits of `text` that no passage writes the same way (D-208): the same number, the same magnitude word
+ * after it ("147.1 million", never "147.1 billion"), the same sign, and no notation a figure cannot state ("8.3bn",
+ * "1.5×10⁻⁷"). Unlike the writer's rule, a figure a passage gives as one end of a range ("147.1 to 152.1 million km")
+ * is accepted on its own: a person wrote and reads every hand-written Scroll. Figures in words (D-302) are the writer's
+ * rule and come with it.
+ */
+function unstatedDigitFigures(text: string, passages: readonly string[]): string[] {
+  return digitFiguresIn(text).filter((figure) => {
+    const stated = readingsOf(figure, passages);
+    return readingsOf(figure, [text]).some(
+      (way) =>
+        way.reading === 'unknown' ||
+        !stated.some((entry) => entry.reading === way.reading && entry.negative === way.negative),
+    );
+  });
+}
+
+/** Text compared as a reader sees it: curly and straight quotes alike, dashes alike, runs of space as one. */
+const comparable = (text: string): string =>
+  text
+    .replace(/[‘’‛′]/gu, "'")
+    .replace(/[“”‟″]/gu, '"')
+    .replace(/[–—]/gu, '-')
+    .replace(/\s+/gu, ' ')
+    .trim();
+
+/**
+ * What the authored Scroll says against what it cites: every cited claim exists; every figure a part shows is in a
+ * passage that part cites (D-208), and a figure in the kicker, title, dek, a section title or an ask suggestion is in
+ * some passage the Scroll cites; a quotation matches a passage it cites word for word; and no other text copies nine
+ * words in a row from a cited passage.
+ */
+function evidenceIssues(authored: AuthoredScrollV3, claims: ReadonlyMap<string, string>): IssueV3[] {
+  const issues: IssueV3[] = [];
+  const parts = citedParts(authored);
+  const quoteOf = (claimId: string): string => claims.get(claimId) ?? '';
+  const supported = (texts: readonly string[], cites: readonly string[]) => {
+    const passages = cites.map(quoteOf);
+    return texts.every((text) => unstatedDigitFigures(text, passages).length === 0);
+  };
+  const everyCite = [...new Set(parts.flatMap((part) => part.cites))];
+  for (const part of parts) {
+    if (part.cites.some((claimId) => !claims.has(claimId)))
+      issues.push({ code: 'authoring_cite_unknown', path: part.path });
+    if (!supported(part.texts, part.cites)) issues.push({ code: 'authoring_number_not_in_evidence', path: part.path });
+    const passages = part.cites.map(quoteOf);
+    if (
+      part.quotation !== undefined &&
+      !passages.some((passage) => comparable(passage).includes(comparable(part.quotation ?? '')))
+    )
+      issues.push({ code: 'quote_not_in_evidence', path: part.path });
+    const ownWords = part.texts.filter((text) => text !== part.quotation);
+    if (ownWords.some((text) => copiedRuns(text, passages, COPY_RUN_WORDS).length > 0))
+      issues.push({ code: 'copied_passage', path: part.path });
+  }
+  const headings = [
+    authored.kicker,
+    authored.title,
+    authored.dek,
+    ...authored.sections.map((section) => section.title),
+    ...authored.askSuggestions,
+    ...(authored.misconception.kind === 'myth' ? [authored.misconception.claim] : []),
+    ...(authored.framing.kind === 'hypothetical' ? [...authored.framing.assumptions, ...authored.framing.kept] : []),
+    ...(authored.framing.kind === 'perspective' ? [authored.framing.lens] : []),
+  ];
+  if (!supported(headings, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
+  // A chart's unit is words of its passages, as D-208 asks of a v2 chart: "light years" over a passage in kilometres is refused.
+  authored.pictures.forEach(({ picture, cites }, index) => {
+    if (picture.kind === 'chart' && picture.unit !== undefined && !unitInPassages(picture.unit, cites.map(quoteOf)))
+      issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.picture.unit` });
+  });
+  return issues;
+}
+
+/** Assigns what is code's: section ids `s1…`, beat ids `b1…` in reading order, aside ids `a1…` next to their beat. */
+function assemble(authored: AuthoredScrollV3, publication: PublicationV3): Omit<ScrollDocumentV3, 'integrity'> {
+  let beatNumber = 0;
+  const sections = authored.sections.map((section, sectionIndex) => ({
+    id: `s${sectionIndex + 1}`,
+    title: section.title,
+    beats: section.beats.map((beat): Beat => {
+      beatNumber += 1;
+      const { cites: _cites, ...stored } = beat;
+      return { ...stored, id: `b${beatNumber}` };
+    }),
+  }));
+  const asides = authored.asides.map((aside, index) => ({
+    id: `a${index + 1}`,
+    kind: aside.kind,
+    title: aside.title,
+    text: aside.text,
+    anchorBeat: `b${aside.beat}`,
+    collapsed: aside.collapsed,
+  }));
+  const parts = { sections, asides, takeaway: authored.takeaway.text };
+  return {
+    schemaVersion: SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+    assetId: publication.assetId,
+    revision: publication.revision,
+    language: publication.language,
+    explanationUnitId: publication.explanationUnitId,
+    ...(publication.series === undefined ? {} : { series: publication.series }),
+    theme: authored.theme,
+    kicker: authored.kicker,
+    title: authored.title,
+    dek: authored.dek,
+    shape: authored.shape,
+    framing: authored.framing,
+    misconception: authored.misconception,
+    pictures: authored.pictures.map(({ picture }) => picture),
+    ...parts,
+    askSuggestions: authored.askSuggestions,
+    limitsVersion: SCROLL_LIMITS_V3_VERSION,
+    measures: computeMeasuresV3(parts),
+  };
+}
+
+function citationsOf(authored: AuthoredScrollV3, document: ScrollDocumentV3): ScrollProvenanceV3['citations'] {
+  const beats = authored.sections.flatMap((section) => section.beats);
+  const beatIds = document.sections.flatMap((section) => section.beats.map((beat) => beat.id));
+  return [
+    ...beats.map((beat, index) => ({ partId: beatIds[index] ?? `b${index + 1}`, claimIds: [...new Set(beat.cites)] })),
+    ...authored.asides.map((aside, index) => ({ partId: `a${index + 1}`, claimIds: [...new Set(aside.cites)] })),
+    ...authored.pictures.map(({ picture, cites }) => ({ partId: picture.id, claimIds: [...new Set(cites)] })),
+    { partId: TAKEAWAY_PART_ID, claimIds: [...new Set(authored.takeaway.cites)] },
+  ];
+}
+
+/**
+ * Compiles a hand-written document v3 into the stored document and its internal provenance. Code sets the ids, the
+ * measures and the integrity hash; the evidence rules run on the authored form (every figure and quotation in a passage
+ * its part cites, no copying), then the whole document is validated as it will be stored (`validateDocumentV3`).
+ *
+ * Pure and deterministic: the same input compiles to the same bytes, which is what makes a repeated import a no-op.
+ * Findings carry codes and paths, never text. A picture may not be called `takeaway`, the part id of the end summary.
+ */
+export function compileEditorialV3(input: EditorialV3Input): EditorialV3Outcome {
+  const parsed = AuthoredScrollV3.safeParse(input.authored);
+  if (!parsed.success)
+    return {
+      kind: 'refused',
+      stage: 'authoring',
+      issues: uniqueIssuesV3(parsed.error.issues.map(issueFromSchema)),
+    };
+  const authored = parsed.data;
+  const sourceIds = new Set(input.sources.map((source) => source.sourceId));
+  const claims = new Map(input.claims.map((claim) => [claim.claimId, claim.quote]));
+  const evidence = uniqueIssuesV3([
+    ...evidenceIssues(authored, claims),
+    ...input.claims.flatMap((claim, index): IssueV3[] =>
+      sourceIds.has(claim.sourceId) ? [] : [{ code: 'authoring_reference_unknown', path: `claims.${index}.sourceId` }],
+    ),
+    ...authored.pictures.flatMap(({ picture }, index): IssueV3[] =>
+      picture.id === TAKEAWAY_PART_ID ? [{ code: 'id_duplicate', path: `pictures.${index}.picture.id` }] : [],
+    ),
+  ]);
+  if (evidence.length > 0) return { kind: 'refused', stage: 'evidence', issues: evidence };
+  const unsealed = assemble(authored, input.publication);
+  const sealed = {
+    ...unsealed,
+    integrity: { method: INTEGRITY_METHOD, sha256: computeIntegrityV3(unsealed) },
+  } as ScrollDocumentV3;
+  const validated = validateDocumentV3(JSON.parse(JSON.stringify(sealed)) as unknown);
+  if (validated.kind === 'invalid') return { kind: 'refused', stage: 'document', issues: validated.issues };
+  const document = validated.document;
+  const cited = new Set(citationsOf(authored, document).flatMap((entry) => entry.claimIds));
+  const claimsUsed = input.claims.filter((claim) => cited.has(claim.claimId));
+  const sourcesUsed = input.sources.filter((source) => claimsUsed.some((claim) => claim.sourceId === source.sourceId));
+  return {
+    kind: 'compiled',
+    document,
+    provenance: {
+      schemaVersion: SCROLL_PROVENANCE_V3_SCHEMA_VERSION,
+      assetId: input.publication.assetId,
+      revision: input.publication.revision,
+      documentSha256: document.integrity.sha256,
+      claims: claimsUsed,
+      sources: sourcesUsed,
+      citations: citationsOf(authored, document),
+      checks: [{ name: 'evidence', version: 'scroll-checks-v3.v1', verdict: 'pass', reasonCodes: [] }],
+      production: input.production,
+    },
+  };
+}

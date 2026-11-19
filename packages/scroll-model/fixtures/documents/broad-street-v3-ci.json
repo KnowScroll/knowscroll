@@ -1,0 +1,921 @@
+{
+  "schemaVersion": "scroll-document.v3",
+  "assetId": "5c05c923-2c2f-4da7-b473-9b0b16e24852",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "fixture-v3-broad-street",
+  "theme": {
+    "family": "past"
+  },
+  "kicker": "Fixture",
+  "title": "The pump on Broad Street",
+  "dek": "London, 1854. Five hundred dead in ten days, and one doctor who didn't trust his nose.",
+  "shape": "story",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "pictures": [
+    {
+      "id": "soho",
+      "title": "Soho, 31 August to 9 September 1854",
+      "caption": "Schematic, after John Snow's 1855 map",
+      "kind": "plan",
+      "size": {
+        "columns": 10,
+        "rows": 8
+      },
+      "ways": [
+        {
+          "id": "broad",
+          "label": "Broad Street",
+          "from": {
+            "column": 0,
+            "row": 4
+          },
+          "to": {
+            "column": 9,
+            "row": 4
+          }
+        },
+        {
+          "id": "marlborough",
+          "label": "Marlborough Street",
+          "from": {
+            "column": 0,
+            "row": 1
+          },
+          "to": {
+            "column": 9,
+            "row": 1
+          }
+        },
+        {
+          "id": "poland",
+          "label": "Poland Street",
+          "from": {
+            "column": 2,
+            "row": 0
+          },
+          "to": {
+            "column": 2,
+            "row": 7
+          }
+        },
+        {
+          "id": "cambridge",
+          "label": "Cambridge Street",
+          "from": {
+            "column": 7,
+            "row": 2
+          },
+          "to": {
+            "column": 7,
+            "row": 7
+          }
+        }
+      ],
+      "places": [
+        {
+          "id": "pump-broad",
+          "label": "Broad Street pump",
+          "at": {
+            "column": 5,
+            "row": 4
+          },
+          "mark": "ring",
+          "tone": "warm",
+          "note": "Nearly all the deaths were a short walk from this pump."
+        },
+        {
+          "id": "pump-marlborough",
+          "label": "Marlborough Street pump",
+          "at": {
+            "column": 1,
+            "row": 1
+          },
+          "mark": "ring"
+        },
+        {
+          "id": "pump-rupert",
+          "label": "Rupert Street pump",
+          "at": {
+            "column": 9,
+            "row": 7
+          },
+          "mark": "ring"
+        },
+        {
+          "id": "pump-north",
+          "label": "Another street pump",
+          "at": {
+            "column": 5,
+            "row": 0
+          },
+          "mark": "ring"
+        },
+        {
+          "id": "pump-south",
+          "label": "Another street pump",
+          "at": {
+            "column": 4,
+            "row": 7
+          },
+          "mark": "ring"
+        },
+        {
+          "id": "brewery",
+          "label": "Brewery",
+          "at": {
+            "column": 6,
+            "row": 4
+          },
+          "mark": "block",
+          "note": "Above seventy workmen, and none died. They drank beer, not pump water."
+        },
+        {
+          "id": "workhouse",
+          "label": "Workhouse",
+          "at": {
+            "column": 2,
+            "row": 6
+          },
+          "mark": "block",
+          "note": "It had its own well. Of five hundred and thirty-five inmates, five died."
+        },
+        {
+          "id": "hampstead",
+          "label": "West End, Hampstead",
+          "at": {
+            "column": 9,
+            "row": 0
+          },
+          "mark": "dot",
+          "note": "Miles away. A cart brought her Broad Street water every day."
+        }
+      ],
+      "tallies": [
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 1,
+          "step": 0
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 1
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 1
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 5
+          },
+          "count": 3,
+          "step": 1
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 3
+          },
+          "count": 3,
+          "step": 1
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 3
+          },
+          "count": 2,
+          "step": 1
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 4,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 5
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 3
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 3
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 5
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 3
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 3,
+            "row": 4
+          },
+          "count": 3,
+          "step": 2
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 3
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 3
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 5
+          },
+          "count": 3,
+          "step": 3
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 3
+          },
+          "count": 3,
+          "step": 3
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 3
+          },
+          "count": 3,
+          "step": 3
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 4
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 4
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 5
+          },
+          "count": 3,
+          "step": 4
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 3
+          },
+          "count": 3,
+          "step": 4
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 3
+          },
+          "count": 2,
+          "step": 4
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 5
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 5
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 5
+          },
+          "count": 3,
+          "step": 5
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 6
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 2,
+          "step": 6
+        },
+        {
+          "at": {
+            "column": 6,
+            "row": 5
+          },
+          "count": 2,
+          "step": 6
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 7
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 7
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 8
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 3,
+          "step": 8
+        },
+        {
+          "at": {
+            "column": 5,
+            "row": 5
+          },
+          "count": 3,
+          "step": 9
+        },
+        {
+          "at": {
+            "column": 4,
+            "row": 4
+          },
+          "count": 2,
+          "step": 9
+        },
+        {
+          "at": {
+            "column": 1,
+            "row": 2
+          },
+          "count": 1,
+          "step": 3
+        },
+        {
+          "at": {
+            "column": 8,
+            "row": 6
+          },
+          "count": 1,
+          "step": 5
+        },
+        {
+          "at": {
+            "column": 2,
+            "row": 6
+          },
+          "count": 1,
+          "step": 4
+        },
+        {
+          "at": {
+            "column": 9,
+            "row": 0
+          },
+          "count": 1,
+          "step": 2
+        }
+      ],
+      "steps": ["31 Aug", "1 Sep", "2 Sep", "3 Sep", "4 Sep", "5 Sep", "6 Sep", "7 Sep", "8 Sep", "9 Sep"],
+      "regions": [
+        {
+          "id": "near-broad",
+          "label": "Nearer the Broad Street pump",
+          "nearest": "pump-broad",
+          "among": ["pump-broad", "pump-marlborough", "pump-rupert", "pump-north", "pump-south"]
+        }
+      ],
+      "routes": [
+        {
+          "id": "cart",
+          "label": "The daily cart",
+          "from": "pump-broad",
+          "to": "hampstead"
+        }
+      ]
+    },
+    {
+      "id": "attacks",
+      "title": "Fatal attacks a day, by Snow's count",
+      "kind": "chart",
+      "form": "line",
+      "values": "hidden",
+      "points": [
+        {
+          "id": "aug-30",
+          "label": "30 Aug",
+          "value": "8"
+        },
+        {
+          "id": "aug-31",
+          "label": "31 Aug",
+          "value": "56"
+        },
+        {
+          "id": "sep-1",
+          "label": "1 Sep",
+          "value": "143"
+        },
+        {
+          "id": "sep-2",
+          "label": "2 Sep",
+          "value": "116"
+        },
+        {
+          "id": "sep-3",
+          "label": "3 Sep",
+          "value": "54"
+        },
+        {
+          "id": "sep-4",
+          "label": "4 Sep",
+          "value": "46"
+        },
+        {
+          "id": "sep-5",
+          "label": "5 Sep",
+          "value": "36"
+        },
+        {
+          "id": "sep-6",
+          "label": "6 Sep",
+          "value": "20"
+        },
+        {
+          "id": "sep-7",
+          "label": "7 Sep",
+          "value": "28"
+        },
+        {
+          "id": "sep-8",
+          "label": "8 Sep",
+          "value": "12"
+        },
+        {
+          "id": "sep-9",
+          "label": "9 Sep",
+          "value": "11"
+        },
+        {
+          "id": "sep-10",
+          "label": "10 Sep",
+          "value": "5"
+        },
+        {
+          "id": "sep-11",
+          "label": "11 Sep",
+          "value": "5"
+        },
+        {
+          "id": "sep-12",
+          "label": "12 Sep",
+          "value": "1"
+        },
+        {
+          "id": "sep-13",
+          "label": "13 Sep",
+          "value": "3"
+        },
+        {
+          "id": "sep-14",
+          "label": "14 Sep",
+          "value": "0"
+        }
+      ],
+      "marks": [
+        {
+          "point": "sep-8",
+          "label": "Handle removed"
+        }
+      ]
+    },
+    {
+      "id": "well",
+      "title": "Under Broad Street",
+      "kind": "flow",
+      "steps": [
+        {
+          "id": "house",
+          "label": "40 Broad Street",
+          "note": "A sick baby's nappies were rinsed here."
+        },
+        {
+          "id": "cesspit",
+          "label": "The cesspit",
+          "note": "It had begun to leak."
+        },
+        {
+          "id": "well",
+          "label": "The pump's well",
+          "note": "Dug 3 feet from the cesspit.",
+          "tone": "warm"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "id": "s1",
+      "title": "Ten days in Soho",
+      "beats": [
+        {
+          "kind": "plain",
+          "id": "b1",
+          "text": "On the last night of August 1854, people in Soho began to die. It started with cramps, then a thirst nothing could reach. Many who felt fine at breakfast were dead by dark.",
+          "simple": "In late August 1854, people in Soho, in London, began dying very fast of a sudden illness.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "step": 0
+            }
+          },
+          "links": []
+        },
+        {
+          "kind": "plain",
+          "id": "b2",
+          "text": "In ten days, five hundred people died, nearly all within a short walk of one street corner. Three-quarters of the neighbourhood fled.",
+          "simple": "Hundreds died in ten days, close to one street corner, and most people left.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "step": 9
+            }
+          },
+          "links": [
+            {
+              "phrase": "one street corner",
+              "part": "broad"
+            }
+          ]
+        },
+        {
+          "kind": "plain",
+          "id": "b3",
+          "text": "Everyone knew the cause. Disease travelled as miasma, the bad air that rose from sewers and graves. You could smell it, and Soho stank. The theory fit what noses reported.",
+          "simple": "People believed that disease spread through bad-smelling air.",
+          "links": []
+        },
+        {
+          "kind": "plain",
+          "id": "b4",
+          "text": "A doctor who lived nearby didn't believe it. John Snow had noticed that cholera attacks the gut, not the lungs. He thought the victims weren't breathing the poison. They were swallowing it.",
+          "simple": "A local doctor, John Snow, thought people were drinking the poison, not breathing it.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "lit": ["pump-broad"],
+              "step": 9
+            }
+          },
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "title": "The pattern",
+      "beats": [
+        {
+          "kind": "plain",
+          "id": "b5",
+          "text": "Snow got the list of the dead and walked their streets. For each death he drew a short black bar at the house where it happened.",
+          "simple": "Snow marked each death on a map of the streets.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "step": 0
+            }
+          },
+          "links": [],
+          "control": {
+            "kind": "scrub",
+            "label": "Drag through the ten days",
+            "along": "steps"
+          }
+        },
+        {
+          "kind": "plain",
+          "id": "b6",
+          "text": "The bars pile up around a single point: the public pump on Broad Street. In houses that stood nearer to some other pump, he counted only ten deaths.",
+          "simple": "The deaths gathered around the Broad Street pump. Few were near the other pumps.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "step": 9
+            }
+          },
+          "links": [
+            {
+              "phrase": "the public pump on Broad Street",
+              "part": "pump-broad"
+            }
+          ],
+          "control": {
+            "kind": "switch",
+            "label": "Whose pump is nearest?",
+            "to": {
+              "step": 9,
+              "region": "near-broad"
+            }
+          }
+        },
+        {
+          "kind": "plain",
+          "id": "b7",
+          "text": "The exceptions persuaded him most. The brewery on Broad Street employed seventy men, and none died. They were paid partly in beer and never touched the pump. The workhouse round the corner had five hundred and thirty-five inmates and its own well. Five died.",
+          "simple": "Brewery workers drank beer and stayed well. The workhouse had its own well, and few there died.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "lit": ["brewery", "workhouse"],
+              "step": 9
+            }
+          },
+          "links": [
+            {
+              "phrase": "The brewery on Broad Street",
+              "part": "brewery"
+            },
+            {
+              "phrase": "The workhouse round the corner",
+              "part": "workhouse"
+            }
+          ]
+        },
+        {
+          "kind": "plain",
+          "id": "b8",
+          "text": "And a widow in Hampstead, miles away in clean air, died of cholera that week. She had liked the taste of the Broad Street water. A cart carried a bottle of it to her every day.",
+          "simple": "A woman far away died too. She had Broad Street water brought to her every day.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "lit": ["hampstead", "cart"],
+              "step": 9
+            }
+          },
+          "links": [
+            {
+              "phrase": "A cart carried a bottle of it to her every day",
+              "part": "cart"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "title": "The handle",
+      "beats": [
+        {
+          "kind": "plain",
+          "id": "b9",
+          "text": "On the evening of 7 September, Snow took his findings to the parish board. They didn't believe his theory. They took the handle off the pump anyway, the next day.",
+          "simple": "Snow showed the parish board his evidence, and the next day they took the handle off the pump.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "lit": ["pump-broad"],
+              "step": 9
+            }
+          },
+          "links": []
+        },
+        {
+          "kind": "plain",
+          "id": "b10",
+          "text": "The legend says the dying stopped. Snow was more honest than the legend. The outbreak was already fading, he wrote, and it was impossible to tell whether the well was still poisonous.",
+          "simple": "Snow said the outbreak was already ending when the handle came off.",
+          "show": {
+            "picture": "attacks",
+            "state": {
+              "lit": ["sep-8"]
+            }
+          },
+          "links": []
+        },
+        {
+          "kind": "plain",
+          "id": "b11",
+          "text": "The source turned up later. A baby at 40 Broad Street had fallen ill first, and her mother had rinsed the nappies into a cesspit. It lay three feet from the well, and its bricks had rotted through.",
+          "simple": "The water was poisoned by a leaking cesspit right next to the well.",
+          "show": {
+            "picture": "well",
+            "state": {}
+          },
+          "links": [
+            {
+              "phrase": "three feet from the well",
+              "part": "well"
+            }
+          ]
+        },
+        {
+          "kind": "plain",
+          "id": "b12",
+          "text": "When the outbreak ended, the city put the handle back. Officials found no reason to adopt Snow's belief. He died four years later, his theory still unaccepted.",
+          "simple": "Afterwards the handle went back, and Snow's idea was still not accepted when he died.",
+          "links": []
+        },
+        {
+          "kind": "plain",
+          "id": "b13",
+          "text": "The famous map was drawn after the handle came off. It never found the pump. It did something harder: it made people see a cause they couldn't smell.",
+          "simple": "Snow's map came later. It did not find the pump, but it made people see the cause.",
+          "show": {
+            "picture": "soho",
+            "state": {
+              "step": 9
+            }
+          },
+          "links": []
+        }
+      ]
+    }
+  ],
+  "asides": [
+    {
+      "id": "a1",
+      "kind": "limits",
+      "title": "A drawn plan, not the map",
+      "text": "The plan is a sketch after Snow's map. Each mark stands for about five deaths, and the streets are simplified. Snow counted 616 deaths from 19 August to 30 September.",
+      "anchorBeat": "b5",
+      "collapsed": true
+    }
+  ],
+  "takeaway": "The map didn't find the answer. It won the argument.",
+  "askSuggestions": [
+    "How did John Snow know the water was to blame?",
+    "Why did people believe disease came from bad air?",
+    "What happened to the Broad Street pump afterwards?"
+  ],
+  "limitsVersion": "scroll-limits.v3",
+  "measures": {
+    "version": "scroll-measures.v3",
+    "readingSeconds": 182,
+    "readingMinutes": 3,
+    "mainWords": 406,
+    "totalWeight": 442,
+    "beats": [
+      {
+        "beatId": "b1",
+        "weight": 33
+      },
+      {
+        "beatId": "b2",
+        "weight": 22
+      },
+      {
+        "beatId": "b3",
+        "weight": 30
+      },
+      {
+        "beatId": "b4",
+        "weight": 32
+      },
+      {
+        "beatId": "b5",
+        "weight": 62
+      },
+      {
+        "beatId": "b6",
+        "weight": 28
+      },
+      {
+        "beatId": "b7",
+        "weight": 44
+      },
+      {
+        "beatId": "b8",
+        "weight": 36
+      },
+      {
+        "beatId": "b9",
+        "weight": 30
+      },
+      {
+        "beatId": "b10",
+        "weight": 32
+      },
+      {
+        "beatId": "b11",
+        "weight": 38
+      },
+      {
+        "beatId": "b12",
+        "weight": 27
+      },
+      {
+        "beatId": "b13",
+        "weight": 28
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "98a0f4d1ac4b4b8130f12c9193fcef57e3350f0358dc5348597b16e6e59b25e6"
+  }
+}

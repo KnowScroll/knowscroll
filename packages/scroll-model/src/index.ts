@@ -21,6 +21,7 @@ export { FIELD_LIMITS, LIMITS, SCROLL_LIMITS_VERSION } from './limits.js';
 export {
   BlockTypeName,
   BlockVersionNumber,
+  LanguageTag,
   LocalId,
   MediaRef,
   OpaqueId,
@@ -209,3 +210,6 @@ export { sha256Hex } from './sha256.js';
 
 /** `scroll-document.v2`, beside v1 (D-120). */
 export * from './v2/index.js';
+
+/** `scroll-document.v3`, beside v1 and v2 (#759). */
+export * from './v3/index.js';

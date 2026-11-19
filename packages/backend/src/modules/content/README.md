@@ -254,7 +254,7 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `importEditorialScroll(source)`                              | Operator command `dist/operator.js content import-editorial --file <path>` | Allow-listed worlds only (`dev`, `stage`, `ci`, `local`; the command refuses elsewhere before touching the database). One transaction serialised per asset (advisory lock): compile the source at the current revision and compare the integrity hash (equal → refresh derived reading facts if needed (`facts_refreshed`), otherwise `unchanged`); otherwise compile at the next revision number and store the revision, its provenance and the asset's new current revision together (`created` / `revised`). Compilation is scroll-model's **admission** path (staged draft checks, honesty rules, copy check, code-set measures, integrity hash) followed by `admitDocument` on exactly the stored bytes. Refusals (`source_invalid`, `compile_refused` with `stage` and issue codes and paths, `asset_is_not_a_scroll`, `asset_withdrawn`) write nothing and never echo source text. |
 | `FindOpenableAsset` (token `FIND_OPENABLE_ASSET`)            | experience                                                                 | The asset's kind, current revision, status and the document hash, inside the caller's personal transaction, no lock                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `ReadScrollPlayFacts` (token `READ_SCROLL_PLAY_FACTS`) | play | The calls of one stored `scroll-document.v2` revision (stop id, kind, number of options, the right option) and the landmark its Final call awards (key and name, or none), read from the immutable document (not cached; a person locks at most four calls a Scroll). `undefined` for a revision that does not exist, is not v2, that the review gate holds or rejected (D-138), or whose asset is withdrawn (D-418). Only play uses it, to judge a locked pick on the server (D-181) and to award the landmark (D-188) |
-| `ReadScrollReadingFacts` (token `READ_SCROLL_READING_FACTS`) | experience, evidence                                                       | The block weights and types, the owner of each nested block and the reading estimate of one stored Scroll revision, derived at admission from the document's code-set measures and validated on read. Old facts versions are derived from the immutable admitted document on read until re-import persists the current view; unsupported stored documents raise `READING_FACTS_REQUIRES_REFRESH` rather than masquerading as a lineage mismatch                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `ReadScrollReadingFacts` (token `READ_SCROLL_READING_FACTS`) | experience, evidence                                                       | The block weights and types, the owner of each nested block and the reading estimate of one stored Scroll revision (facts v2 for a v1 Scroll or a Reel, v3 for a v2 Scroll, v4 for a document v3 Scroll, whose units are beats), derived at admission from the document's code-set measures and validated on read. Old facts versions are derived from the immutable admitted document on read until re-import persists the current view; unsupported stored documents raise `READING_FACTS_REQUIRES_REFRESH` rather than masquerading as a lineage mismatch                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `RenderScroll` (token `RENDER_SCROLL`)                       | experience                                                                 | Reads the stored consumer document (never provenance), parses it on the client path, and **negotiates** it for the capabilities the client declared (D-012): unsupported blocks become readable fallbacks, essential ones are reported. Parsed documents are cached (immutable, 32 entries)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `FindAssetForAction` (token `FIND_ASSET_FOR_ACTION`)         | experience actions                                                         | Does the asset exist, is it admitted, at which revision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `admitRecipeCoverage(ports, tx, recipe, ref)`                | The production publication hook only                                       | Inside the production transaction: lock the revision's coverage, read the stored document and provenance, derive the bindings from the recipe (`scroll-recipe-coverage.v1`) and append the next head, or return `not_admitted` with a code. Idempotent for an identical decision. No model call, no network, no personal root                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -284,7 +284,45 @@ next to the compiled code: in a release tree it is at
 Jobs: none. Lock order: an advisory lock on the asset ID, then the asset row; admission holds no personal
 root and never takes one. Erasure: none (shared content; stated above).
 
-`reading_facts.v2` is a refreshable derived view, separate from immutable document/provenance bytes. Re-importing an unchanged source repairs it under the asset admission lock without creating a revision.
+`reading_facts` (v2, v3 or v4, by the document's schema) is a refreshable derived view, separate from immutable document/provenance bytes. Re-importing an unchanged source repairs it under the asset admission lock without creating a revision.
+
+## Document v3 editorial import and reading facts v4 (#759)
+
+Status: **implemented**, CI-tested (`adapters/scroll-compiler-v3.test.ts`; the integration test
+`tests/integration/modules/content-admission.test.ts` for the refusal below); not runtime-verified, because no
+document v3 is admitted yet. **Planned**: beat coverage and the admission it allows (#761).
+
+- **The source (`editorial-scroll-v3.v1`, `adapters/scroll-compiler-v3.ts`).** A hand-written `scroll-document.v3` as a
+  file, apart from `editorial-scroll.v1`, which carries a v1 draft. `parseEditorialSourceFile` and
+  `compileEditorialSourceFile` (`adapters/editorial-sources.ts`) choose the parser by the file's `schemaVersion`, so the
+  same operator command, `content import-editorial --file <path>`, takes either. A v3 source carries:
+  - `assetId` (a UUID, the asset's identity) and `reference` (a stable name, kept in the production record: code sets
+    `authored-editorial` from it, so an authored Scroll can never claim to be model-written);
+  - `recipe`, the library recipe whose topic and facets the Scroll covers;
+  - `explanationUnitId` and `language`;
+  - `claims` and `sources`, the passages the Scroll cites, as in `editorial-scroll.v1`;
+  - `scroll`, the authored Scroll (`scroll-authoring.v3`), which scroll-model's `compileEditorialV3` checks in stages
+    (shape, evidence, the stored document) and turns into the document and its `scroll-provenance.v3`.
+  The revision number is not in the file: admission assigns it. The compile is pure, so the same source and revision give
+  byte-identical output.
+- **Refused as `coverage_missing`.** A document v3 Scroll would form nothing in the Universe without the coverage of its
+  beats, so none is admitted without it (decision G1). Until beat coverage lands (#761), `importEditorialScroll`
+  compiles a v3 source and then refuses it as `coverage_missing`: nothing is written, no asset, revision or provenance.
+  A v3 source that does not compile is refused as `compile_refused`, with the stage and the codes, as before.
+- **Fixtures (`fixtures/document-v3/`).** Three sources, one for each topic of the design's `CONTENT.md`: the seasons
+  (`seasons`: a cycle, a grid and a chart), the pump on Broad Street (`broad-street`: a plan, a chart and a flow) and
+  Chesterton's fence (`fence`: a flow, a grid and a flow). Their kicker is "Fixture" and their reference is
+  `fixture-v3-<name>`: they are for dev and CI only, never product content. The test compiles each, validates it on the
+  client path with the checks on, and derives its facts.
+- **Reading facts v4 (`adapters/reading-facts-v3.ts`, stored as `reading_facts` with `v: 4`).** `readingFactsOfV3` gives
+  one unit per beat, in reading order, with unit type `beat`. Its weight is the one the document's own measures give the
+  beat (its words and the asides beside it). A beat counts as read after 40 % of the time its words take at 230 words a
+  minute, and never under half a second (`minVisibleMsOfBeat`, the bar of a v2 read stop). The reading estimate is the
+  measures' reading time, so the seconds for figures and controls are in it. Sections and the takeaway are not units.
+  `readingFactsOfV2` is unchanged, because a coverage head pins the hash of the facts it was decided for.
+  `ReadingFactsSchema` validates v2, v3 and v4 on read.
+  The evidence module does not accept facts v4 yet; it learns the beat unit with the shared clock and beat coverage
+  (#761).
 
 ## Approved Cutroom reuse and Reel media
 
@@ -526,7 +564,8 @@ Status: **implemented**; runtime-verified on real PostgreSQL with labelled fixtu
   (never under the policy's half second). A call is seen when reported `locked` or `revealed`, never by
   being on screen and never by the option picked, and is stored as engagement only; its ten seconds stay
   in the reading estimate. The recap is not a unit. v1 facts (`v: 2`) and Reels are unchanged;
-  `ReadingFactsSchema` validates either on read.
+  `ReadingFactsSchema` validates either on read. A document v3 Scroll has its own facts, version 4 (units are beats; see
+  *Document v3 editorial import and reading facts v4*).
 - **Provenance** (`scroll-provenance.v2`, `asset_provenance`): the claims a Scroll cites, their sources,
   the production record and, for every stop, aside and the recap, the claims it cites. No new table.
 - **Delivery.** `renderScroll` parses a stored revision on the client path by its schema and serves a

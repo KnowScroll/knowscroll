@@ -16,3 +16,9 @@ export {
 } from './provenance.js';
 export { PROVENANCE_V2_LIMITS, SCROLL_PROVENANCE_V2_SCHEMA_VERSION, ScrollProvenanceV2 } from './provenance-v2.js';
 export { bindingIssues, honestyIssues, STRUCTURAL_LITERALS, type HonestyDocument } from './honesty.js';
+export {
+  PROVENANCE_V3_LIMITS,
+  SCROLL_PROVENANCE_V3_SCHEMA_VERSION,
+  ScrollProvenanceV3,
+  TAKEAWAY_PART_ID,
+} from './provenance-v3.js';

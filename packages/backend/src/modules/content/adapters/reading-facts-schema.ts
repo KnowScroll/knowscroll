@@ -1,7 +1,13 @@
 import { BLOCK_TYPES } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import { READING_UNIT_TYPES } from './reading-facts-v2.js';
-import { READING_FACTS_V3_VERSION, READING_FACTS_VERSION, type ReadingFacts } from '../domain/reading-facts.js';
+import { BEAT_UNIT_TYPE } from './reading-facts-v3.js';
+import {
+  READING_FACTS_V3_VERSION,
+  READING_FACTS_V4_VERSION,
+  READING_FACTS_VERSION,
+  type ReadingFacts,
+} from '../domain/reading-facts.js';
 
 const measuresVersion = z.string().regex(/^[a-z][a-z0-9.-]{1,39}$/);
 
@@ -41,8 +47,28 @@ const ReadingFactsV3Schema = z.object({
   nested: z.tuple([]),
 });
 
+/** Reading facts of a `scroll-document.v3`: its beats, each counted when visible long enough, nothing nested. */
+const ReadingFactsV4Schema = z.object({
+  v: z.literal(READING_FACTS_V4_VERSION),
+  measuresVersion,
+  totalWeight: z.number().int().min(0),
+  estimatedReadingMs: z.number().int().min(0),
+  blocks: z
+    .array(
+      z.object({
+        id: z.string(),
+        weight: z.number().int().min(0),
+        type: z.literal(BEAT_UNIT_TYPE),
+        seen: SeenRuleSchema,
+      }),
+    )
+    .max(64),
+  nested: z.tuple([]),
+});
+
 /** Validates stored derived facts at content's adapter boundary, against the canonical block registry. */
 export const ReadingFactsSchema = z.discriminatedUnion('v', [
   ReadingFactsV2Schema,
   ReadingFactsV3Schema,
+  ReadingFactsV4Schema,
 ]) satisfies z.ZodType<ReadingFacts>;
