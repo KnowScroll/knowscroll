@@ -106,6 +106,17 @@ mapping keeps the policy `scroll-static-coverage.v1` so region bindings still re
 chosen by the revision's facts version, so v1 revisions are decided exactly as before, including by
 `content readmit-coverage`.
 
+**Coverage v3 (#761, D-431), implemented, runtime-verified on real PostgreSQL with the labelled fixtures.** A
+`scroll-document.v3` is read by the beat (reading facts v4), so its rule is `scroll-recipe-coverage.v3`: the eligible
+units are the **beats** that cite at least one documented or synthesis claim (quote beats included), first-middle-last for
+the main facet, the last two for a supporting one, at least three. Sections are not units, so one essay still covers its
+main facet and at most one supporting facet. The target (`adapters/coverage-target-v3.ts`) admits an authored editorial
+Scroll as well as a model's. **No document v3 is served without its coverage** (decision G1): the editorial import stores
+the revision, attributes its recipe's planet as its topic (`adapters/topic-attribution.ts`, shared with publication) and
+admits its coverage in one transaction, or rolls back and refuses `coverage_missing`; the release command refuses a
+document v3 revision that has no active head (`coverage_missing`). The policy release holds a document v3 as unreadable
+until the writer step teaches it the format.
+
 `lockCurrentCoverageAuthorities` is the recheck every apply path makes: each named authority must still be the current mapping
 head, held under a `SHARE` lock until the transaction ends. `readCurrentCoverageAuthorities` (D-411) is the same recheck without
 the locks, for the read-only dry runs: PostgreSQL refuses a row lock in a READ ONLY transaction, and a dry run applies nothing

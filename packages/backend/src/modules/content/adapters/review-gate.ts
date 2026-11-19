@@ -327,7 +327,9 @@ async function coveredIfDocumentV3(
       exists(select 1 from content.coverage_heads h join content.coverage_revisions c
         on c.asset_id = h.asset_id and c.asset_revision = h.asset_revision and c.revision = h.revision
         where h.asset_id = r.asset_id and h.asset_revision = r.revision and c.status = 'active') as covered
-    from content.asset_revisions r where r.asset_id = ${target.assetId}::uuid and r.revision = ${target.revision}`.execute(trx);
+    from content.asset_revisions r where r.asset_id = ${target.assetId}::uuid and r.revision = ${target.revision}`.execute(
+    trx,
+  );
   const found = row.rows[0];
   return found === undefined || !found.document_v3 || found.covered;
 }

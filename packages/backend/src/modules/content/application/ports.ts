@@ -110,5 +110,4 @@ export interface ImportEditorialScrollPorts {
 
 /** Whether a hand-written document v3 got its topic and coverage, and if not, why (a stable code). */
 export type EditorialCoverage =
-  | { readonly kind: 'admitted' }
-  | { readonly kind: 'not_admitted'; readonly code: string };
+  { readonly kind: 'admitted' } | { readonly kind: 'not_admitted'; readonly code: string };

@@ -236,7 +236,11 @@ export function makeReadDiagnostics(db: Kysely<Database>): ReadEvidenceDiagnosti
       .where('universe_id', '=', authority.universeId)
       .where('privacy_epoch', '=', authority.privacyEpoch)
       .where('exposure_id', '=', exposureId)
-      .where('policy_version', 'in', ['scroll-qualification.v0', 'scroll-qualification.shared.v1', 'reel-qualification.v0'])
+      .where('policy_version', 'in', [
+        'scroll-qualification.v0',
+        'scroll-qualification.shared.v1',
+        'reel-qualification.v0',
+      ])
       .orderBy('revision', 'desc')
       .limit(1)
       .executeTakeFirst();
