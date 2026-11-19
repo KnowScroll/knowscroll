@@ -287,6 +287,20 @@ describe('linked phrases', () => {
     expectOnly(twice, { code: 'link_phrase_not_once', path: 'sections.0.beats.1.links.0.phrase' });
   });
 
+  it('refuses two links over the same words', () => {
+    const document = withV3(valid, (draft) => {
+      const beat = plainAt(draft, 0, 1);
+      const words = beat.text.split(' ').slice(0, 3).join(' ');
+      const inner = words.split(' ').slice(1, 3).join(' ');
+      beat.links = [
+        { phrase: words, part: 'heat' },
+        { phrase: inner, part: 'heat' },
+      ];
+    });
+    const result = validateDocumentV3(document);
+    expect(result.kind === 'invalid' ? result.issues.map((issue) => issue.code) : []).toContain('link_phrases_overlap');
+  });
+
   it('treats a phrase that overlaps itself as more than once', () => {
     const document = withV3(valid, (draft) => {
       const beat = plainAt(draft, 0, 1);
@@ -398,6 +412,9 @@ describe('the takeaway', () => {
     expect(takeawaySentenceCount('One. Two! Three? Four…')).toBe(4);
     expect(takeawaySentenceCount('It boils at 100.5 degrees at sea level.')).toBe(1);
     expect(takeawaySentenceCount('Wait... what?! Yes.')).toBe(3);
+    // A closing quote or bracket after the ender still ends the sentence.
+    expect(takeawaySentenceCount('He said “Stop.” Then he left. Then he came back. And left again.')).toBe(4);
+    expect(takeawaySentenceCount('It rose (as the passage says.) Then it fell.')).toBe(2);
     expect(takeawaySentenceCount('One. Two. And a tail without an ender')).toBe(3);
     expect(takeawaySentenceCount('One.   Two.')).toBe(2);
   });

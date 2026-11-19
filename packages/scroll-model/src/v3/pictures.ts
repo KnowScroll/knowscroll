@@ -39,7 +39,10 @@ export type PictureItem = z.infer<typeof PictureItem>;
  * `"93.6"`, `"1,000"`, `"-12"`). Its words and unit are other fields, so a value can be found in a cited passage
  * exactly as written.
  */
-export const FigureText = z.string().regex(/^-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/u, { message: 'figure_format' });
+export const FigureText = z
+  .string()
+  .max(F.valueChars)
+  .regex(/^-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/u, { message: 'figure_format' });
 
 const head = {
   id: LocalId,

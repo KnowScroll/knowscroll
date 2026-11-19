@@ -427,6 +427,57 @@ describe('compileEditorialV3: stage evidence', () => {
       expect(result.issues).toEqual([{ code: 'authoring_number_not_in_evidence', path: 'beats.3' }]);
     });
 
+    it('refuses a figure its passage writes without the magnitude word the text gives it (D-208)', () => {
+      const result = refused((draft) => {
+        setBeatText(draft, 3, (text) => `${text} It boils at 100 million degrees.`);
+        beatAt(draft, 3).cites = ['c-boil'];
+      });
+      expect(result.issues).toEqual([{ code: 'authoring_number_not_in_evidence', path: 'beats.3' }]);
+    });
+
+    it('refuses a sign its passage does not write', () => {
+      const result = refused((draft) => {
+        setBeatText(draft, 3, (text) => `${text} It boils at -100 degrees.`);
+        beatAt(draft, 3).cites = ['c-boil'];
+      });
+      expect(result.issues).toEqual([{ code: 'authoring_number_not_in_evidence', path: 'beats.3' }]);
+    });
+
+    it('refuses a figure in the misconception, read against every passage the Scroll cites', () => {
+      const result = refused((draft) => {
+        draft.authored.misconception = {
+          kind: 'myth',
+          claim: 'A kettle boils in 93 million years if you watch it.',
+          source: { label: 'A proverb', reviewed: true },
+        };
+      });
+      expect(result.issues).toEqual([{ code: 'authoring_number_not_in_evidence', path: 'header' }]);
+    });
+
+    it('refuses a chart unit whose words no cited passage uses', () => {
+      const result = refused((draft) => {
+        const entry = draft.authored.pictures[1];
+        if (entry === undefined) throw new Error('fixture shape');
+        entry.picture = {
+          id: entry.picture.id,
+          kind: 'chart',
+          title: 'Where water boils',
+          form: 'bars',
+          unit: 'light years',
+          values: 'shown',
+          points: [
+            { id: 'sea', label: 'Sea level', value: '100' },
+            { id: 'pan', label: 'A pan', value: '100' },
+          ],
+          marks: [],
+        };
+      });
+      expect(result.issues).toContainEqual({
+        code: 'authoring_number_not_in_evidence',
+        path: 'pictures.1.picture.unit',
+      });
+    });
+
     it('accepts the same figure once the beat cites the claim that holds it', () => {
       compiled((draft) => {
         setBeatText(draft, 3, (text) => `${text} It boils at 100 degrees.`);
