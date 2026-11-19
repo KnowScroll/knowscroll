@@ -20,12 +20,14 @@ import {
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
 import { FeedbackSheetBody } from '../feedback/feedback-sheet';
-import { SCROLL_DOCUMENT_V3_SCHEMA_VERSION, whyNoMoment } from '@knowscroll/scroll-model';
+import { SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
 import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import { MoreSheetBody } from './more-sheet';
+import { reportTargetOf } from './report-target';
+import { whyNoMomentAt } from './scroll-moment';
 import { isScrollV2, type OpenedScrollFolio } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
@@ -65,7 +67,7 @@ export interface ReaderMoves {
    * reader opens the share sheet itself, so Share is never a dead button.
    */
   readonly shareScroll?: (() => void) | undefined;
-  /** Ask from here, anchored to the stop on screen: the first row of the ••• sheet and the A and ? keys. */
+  /** Ask from here, anchored to the stop (the beat, for a v3 Scroll) on screen: the first row of the ••• sheet and the A and ? keys. */
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
   readonly formatSwitch?: ReactNode;
@@ -92,9 +94,9 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
  * by screen; Share is the reader's own: a moment, or the whole Scroll. On a
  * tablet or desktop the essay is a centred column wide enough to set a held figure beside the text (D-425).
  *
- * What names a stop, a call or a stage is a v2 field: a Quick answer, Share a moment, Challenge and the anchor of a
- * report. A v3 Scroll has beats and pictures instead, and the contracts that carry those are not shipped yet, so for
- * a v3 Scroll those moves are simply not offered; the essay, Like, Save, sharing the whole Scroll and the small print are.
+ * A v3 Scroll's beats are what a v2 Scroll's stops are to the moves that name a place: a Quick answer, Share a moment, Ask
+ * and the anchor of a report all name the beat on screen. A call is a v2 field, and a v3 Scroll has none (decision I1), so Challenge is not offered for it, nor is the Ask puzzle, and no empty button stands where
+ * they would be.
  */
 export function ScrollReaderSurface({
   scroll,
@@ -171,10 +173,10 @@ export function ScrollReaderSurface({
   );
   const { breakpoint } = useDisplay();
   const { document } = scroll;
-  // The Scroll as a v2 one, where a move needs its stops and calls; a v3 Scroll has none of them.
-  const withStops = isScrollV2(scroll) ? scroll : undefined;
-  const canChallenge = withStops !== undefined && challengeCallOf(withStops.document) !== undefined;
-  const noMoment = withStops === undefined ? 'no_stop' : whyNoMoment(withStops.document, stopNow);
+  // The Scroll as a v2 one, where a move needs its calls; a v3 Scroll has none.
+  const withCalls = isScrollV2(scroll) ? scroll : undefined;
+  const canChallenge = withCalls !== undefined && challengeCallOf(withCalls.document) !== undefined;
+  const noMoment = whyNoMomentAt(scroll, stopNow);
   const model = useMemo(
     () =>
       document.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION
@@ -187,19 +189,7 @@ export function ScrollReaderSurface({
     setMomentStop(reader.current?.capture()?.stopId);
     setSharingMoment(true);
   };
-  const openReport = () => {
-    const stopId = reader.current?.capture()?.stopId;
-    setReporting({
-      kind: 'asset',
-      assetId: scroll.assetId,
-      assetRevision: scroll.assetRevision,
-      title: document.title,
-      format: 'scroll',
-      ...(stopId === undefined || withStops === undefined
-        ? {}
-        : { anchor: { kind: 'scroll' as const, blockId: stopId } }),
-    });
-  };
+  const openReport = () => setReporting(reportTargetOf(scroll, reader.current?.capture()?.stopId));
   // Share (D-429): the stop on screen as a moment where it can be one, otherwise the whole Scroll; never a dead button.
   const shareWhole = moves.shareScroll ?? (() => setSharingScroll(true));
   const openMore = () => {
@@ -239,7 +229,7 @@ export function ScrollReaderSurface({
             challenge: canChallenge ? () => setChallenging(true) : undefined,
             like: moves.like?.onPress,
             save: moves.save?.onPress,
-            shareMoment: withStops === undefined ? undefined : openMoment,
+            shareMoment: openMoment,
             smallPrint: limits === undefined ? undefined : () => setSmallPrintOpen(true),
             report: openReport,
             askAbout:
@@ -258,15 +248,7 @@ export function ScrollReaderSurface({
                 }
                 onReport={() => {
                   if (card.phase !== 'answered') return;
-                  setReporting({
-                    kind: 'asset',
-                    assetId: scroll.assetId,
-                    assetRevision: scroll.assetRevision,
-                    title: document.title,
-                    format: 'scroll',
-                    anchor: { kind: 'scroll', blockId: stopId },
-                    quickAnswerId: card.id,
-                  });
+                  setReporting(reportTargetOf(scroll, stopId, card.id));
                 }}
                 onFollowUp={(question) => void quick.session.ask({ stopId, passage: card.passage, question })}
                 onClose={() => quick.session.dismiss(stopId)}
@@ -343,14 +325,12 @@ export function ScrollReaderSurface({
         )}
       </BottomSheet>
       <BottomSheet visible={sharingMoment} title="Share a moment" onClose={() => setSharingMoment(false)}>
-        {withStops === undefined ? null : (
-          <ShareStopSheet
-            scroll={withStops}
-            stopId={momentStop}
-            thread={momentThread}
-            onClose={() => setSharingMoment(false)}
-          />
-        )}
+        <ShareStopSheet
+          scroll={scroll}
+          stopId={momentStop}
+          thread={momentThread}
+          onClose={() => setSharingMoment(false)}
+        />
       </BottomSheet>
       <BottomSheet visible={sharingScroll} title="Share" onClose={() => setSharingScroll(false)}>
         <ShareSheetBody
@@ -366,7 +346,7 @@ export function ScrollReaderSurface({
         )}
       </BottomSheet>
       <BottomSheet visible={challenging} title="Challenge a friend" onClose={() => setChallenging(false)}>
-        {withStops === undefined ? null : <ChallengeSheet scroll={withStops} onClose={() => setChallenging(false)} />}
+        {withCalls === undefined ? null : <ChallengeSheet scroll={withCalls} onClose={() => setChallenging(false)} />}
       </BottomSheet>
     </View>
   );

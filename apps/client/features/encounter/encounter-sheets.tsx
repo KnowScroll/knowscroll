@@ -11,7 +11,7 @@ import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { NotInterestedRow } from '../feedback/feedback-parts';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { RequestPanel } from '../requests/request-panel';
-import { isScrollV2 } from '../scroll/scroll-session';
+import { isScrollFolio } from '../scroll/scroll-session';
 import { continuationIntent, continuationLabel, type ReadyContinuation } from './continuation-intent';
 import { EncounterOverlay } from './encounter-overlay';
 import type { EncounterEntry } from './encounter-history';
@@ -344,7 +344,9 @@ export function EncounterSheets({
           session={session.requests}
           onClose={() => session.setOverlay(false)}
           ask={
-            state.entry.kind === 'scroll' && isScrollV2(state.entry.scroll) ? { scroll: state.entry.scroll } : undefined
+            state.entry.kind === 'scroll' && isScrollFolio(state.entry.scroll)
+              ? { scroll: state.entry.scroll }
+              : undefined
           }
         />
       ) : owner === 'share' ? (

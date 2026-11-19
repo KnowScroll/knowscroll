@@ -1,9 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
+import {
+  coverFrameOfV3,
+  describePicture,
+  type ScrollDocumentV2,
+  type ScrollDocumentV3,
+} from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
 import { stageFigureAt } from '../stage/stage-figure';
 import { EssayCover, type EssayCoverProps } from './essay-cover';
+import { pictureFigureOf } from './from-v3';
 
 // The labelled CI fixture of `scroll-model` (not product content): its first stage state is the cover's figure.
 const document = seasons as unknown as ScrollDocumentV2;
@@ -11,6 +18,11 @@ const stage = document.stage;
 const first = stage?.states[0];
 if (stage === undefined || first === undefined) throw new Error('the fixture has a stage');
 const figure = stageFigureAt(stage, document.stops, first.stop);
+
+// The labelled document v3 fixture: the cover's picture is the first one its beats show, as the server picks it.
+const frameOfV3 = coverFrameOfV3(seasonsV3 as unknown as ScrollDocumentV3);
+if (frameOfV3 === undefined) throw new Error('the fixture shows a picture');
+const pictureFigure = pictureFigureOf(frameOfV3.picture, frameOfV3.state);
 
 async function cover(overrides: Partial<EssayCoverProps> = {}) {
   const props: EssayCoverProps = {
@@ -129,5 +141,36 @@ describe('a Scroll as a cover', () => {
     // The cover goes on offering both ways on.
     expect(screen.getByTestId('essay-cover-read')).toBeOnTheScreen();
     expect(screen.getByTestId('essay-cover-next')).toBeOnTheScreen();
+  });
+
+  describe('with the picture of a document v3', () => {
+    it('draws it with the general renderer on the same plate, named by its own words', async () => {
+      await cover({ figure: pictureFigure });
+      expect(screen.getByTestId('essay-cover-figure')).toBeOnTheScreen();
+      expect(screen.getByLabelText(describePicture(frameOfV3.picture, frameOfV3.state))).toBeOnTheScreen();
+    });
+
+    it('keeps the rules of a cover: nothing to operate, and the Scroll opens from the picture', async () => {
+      const { props } = await cover({ figure: pictureFigure });
+      expect(screen.queryByText('Text')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Text version of this picture' })).toBeNull();
+      expect(screen.queryByRole('adjustable')).toBeNull();
+      expect(screen.queryByRole('radio')).toBeNull();
+      await fireEvent.press(screen.getByTestId('essay-cover-figure'));
+      expect(props.onOpen).toHaveBeenCalledTimes(1);
+      expect(screen.getAllByRole('button', { name: /Read|Continue|open/i })).toHaveLength(1);
+    });
+
+    it('drops the picture where the text leaves no room for it, as a kit picture is', async () => {
+      const laid = (testID: string, height: number) =>
+        fireEvent(screen.getByTestId(testID), 'layout', {
+          nativeEvent: { layout: { x: 0, y: 0, width: 350, height } },
+        });
+      await cover({ figure: pictureFigure, height: 568 });
+      await laid('essay-cover-body', 400);
+      await laid('essay-cover-next', 70);
+      expect(screen.queryByTestId('essay-cover-figure')).toBeNull();
+      expect(screen.getByTestId('essay-cover-read')).toBeOnTheScreen();
+    });
   });
 });

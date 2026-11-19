@@ -1,17 +1,12 @@
 import { useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { EssayCover, Skeleton, Text, useDisplay, type FigureState } from '@knowscroll/ui';
+import { EssayCover, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { useEncounterMetrics } from '../encounter/encounter-metrics';
 import { readResume } from '../encounter/encounter-history';
-import type { CoverHand, CoveredOffer, EncounterSession, EncounterState } from '../encounter/encounter-session';
+import type { CoverHand, EncounterSession, EncounterState } from '../encounter/encounter-session';
+import { coverFigureOf } from './cover-figure';
 import { useCoverPaging } from './cover-paging';
-
-/** The figure a cover shows: its Scroll's first stage frame, drawn by the kits on this device. */
-function figureOf(offer: CoveredOffer): FigureState | undefined {
-  const frame = offer.cover.figure;
-  return frame && { kind: 'state', kit: frame.kit, state: frame.state, alt: frame.alt, key: `cover-${offer.offerId}` };
-}
 
 /**
  * Explore's hand of covers (#745): one Scroll at a time, opened only when the person taps it. Turning to the next
@@ -62,7 +57,7 @@ export function CoverFeed({
           title={offer.metadata.title}
           dek={offer.metadata.summary}
           minutes={offer.cover.readingMinutes}
-          figure={figureOf(offer)}
+          figure={coverFigureOf(offer)}
           way={continues ? 'continue' : 'read'}
           position={position}
           next={following ? { kicker: following.cover.kicker, title: following.metadata.title } : 'more'}

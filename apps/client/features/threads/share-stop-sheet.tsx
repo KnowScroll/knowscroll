@@ -4,10 +4,11 @@ import { threadRowView, threadsHolding, type AccountScope, type ThreadsHolding }
 import type { ContentThreadRef, ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, Stage, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
-import { momentAnchorOf, momentOf, whyNoMoment, type NoMoment } from '@knowscroll/scroll-model';
+import { momentAnchorOf, type NoMoment } from '@knowscroll/scroll-model';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
-import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import { isScrollV2, type OpenedScrollFolio } from '../scroll/scroll-session';
+import { momentOfPlace, whyNoMomentAt } from '../scroll/scroll-moment';
 import { useSnippetSend } from './use-snippet-send';
 import { useThreadInbox } from './use-thread-inbox';
 
@@ -130,12 +131,12 @@ function SendMoment({
   onClose,
 }: {
   readonly scope: AccountScope;
-  readonly scroll: OpenedScrollV2;
+  readonly scroll: OpenedScrollFolio;
   readonly stopId: string;
   readonly thread: MomentThread;
   readonly onClose: () => void;
 }) {
-  const moment = momentOf(scroll.document, stopId);
+  const moment = momentOfPlace(scroll, stopId);
   const send = useSnippetSend(scope, thread.ref);
   const [note, setNote] = useState('');
   const type = useTypeStyle('bodyS');
@@ -211,23 +212,29 @@ function SendMoment({
 }
 
 /**
- * What is about to be shared, shown before any thread is chosen (V3 G5, "This stop, with its picture"): the stop's picture
- * as the reader draws it at that stop, when the Scroll has one, and the words the card will quote. The picture is the
- * reader's own drawing, so nothing about it is sent; the card carries the stop and a hash (D-292).
+ * What is about to be shared, shown before any thread is chosen (V3 G5, "This stop, with its picture"): for a v2 Scroll
+ * the stop's picture as the reader draws it at that stop, when the Scroll has one, and the words the card will quote. The
+ * picture is the reader's own drawing, so nothing about it is sent; the card carries the stop and a hash (D-292). A v3
+ * Scroll's moment is one beat and shows words alone: the card never carries a picture, so the sheet does not promise one.
  */
-function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedScrollV2; readonly stopId: string }) {
-  const moment = momentOf(scroll.document, stopId);
-  const { stage, stops, title } = scroll.document;
+function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedScrollFolio; readonly stopId: string }) {
+  const moment = momentOfPlace(scroll, stopId);
   if (moment === undefined) return null;
+  const { document } = scroll;
   return (
     <View style={styles.preview} testID="moment-preview">
-      {stage === undefined ? null : (
+      {isScrollV2(scroll) && scroll.document.stage !== undefined ? (
         <View style={styles.picture} testID="moment-picture">
-          <Stage document={{ stops, stage }} stopId={stopId} reducedMotion height={PICTURE_HEIGHT} />
+          <Stage
+            document={{ stops: scroll.document.stops, stage: scroll.document.stage }}
+            stopId={stopId}
+            reducedMotion
+            height={PICTURE_HEIGHT}
+          />
         </View>
-      )}
+      ) : null}
       <Text variant="monoXs" color={content.ink2}>
-        This stop · {title}
+        This stop · {document.title}
       </Text>
       <Text variant="bodyS" style={styles.quote} testID="moment-quote">
         “{moment.quote}”
@@ -248,8 +255,8 @@ export function ShareStopSheet({
   thread,
   onClose,
 }: {
-  readonly scroll: OpenedScrollV2;
-  /** The stop on screen when the sheet opened. */
+  readonly scroll: OpenedScrollFolio;
+  /** The stop (or, for a v3 Scroll, the beat) on screen when the sheet opened. */
   readonly stopId: string | undefined;
   /** The thread the Scroll is being read in, when it is read in one. */
   readonly thread?: MomentThread | undefined;
@@ -258,7 +265,7 @@ export function ShareStopSheet({
   const { state } = useAccountScope();
   const [chosen, setChosen] = useState<MomentThread | undefined>(thread);
   if (state.status !== 'signed_in') return null;
-  const reason = whyNoMoment(scroll.document, stopId);
+  const reason = whyNoMomentAt(scroll, stopId);
   if (stopId === undefined || reason !== undefined)
     return (
       <View style={styles.step}>

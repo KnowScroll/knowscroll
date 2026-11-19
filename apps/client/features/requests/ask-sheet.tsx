@@ -24,7 +24,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import { useRecordingPausedIn } from '../../providers/use-recording-paused';
-import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import { isScrollV2, positionIds, type OpenedScrollFolio } from '../scroll/scroll-session';
 import { useScrollPlay } from '../scroll/use-scroll-play';
 import { AskPuzzle } from './ask-puzzle';
 import { COUNTER_FROM, PAUSED_COPY, aboutTitle, usuallyPhrase } from './ask-copy';
@@ -67,7 +67,8 @@ function Suggestion({
  * Ask from here (D1): the sheet a person opens from a Scroll they are reading. It starts from what they just read (the
  * questions the Scroll itself suggests), leaves format and scope to be inferred (one editable line says what will be
  * made), says plainly what happens next, and makes the wait honest: a status card they can leave, a real typical time
- * only when it was measured, and a puzzle from the Scroll's own calls. Nothing here is a model call: the sheet only
+ * only when it was measured, and a puzzle from the Scroll's own calls (a v3 Scroll has none, so it waits without one).
+ * The question is anchored to the stop on screen, or to the beat for a v3 Scroll. Nothing here is a model call: the sheet only
  * sends the question; code and a worker decide what becomes of it (D-218).
  */
 export function AskSheet({
@@ -76,7 +77,7 @@ export function AskSheet({
   onClose,
 }: {
   readonly session: RequestSession;
-  readonly scroll: OpenedScrollV2;
+  readonly scroll: OpenedScrollFolio;
   readonly onClose: () => void;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
@@ -89,7 +90,7 @@ export function AskSheet({
   const editing = state.phase === 'draft';
   const status = state.status;
   const suggestions = scroll.document.askSuggestions;
-  const anchorStopId = state.anchor?.stopId ?? scroll.document.stops[0]?.id ?? '';
+  const anchorStopId = state.anchor?.stopId ?? positionIds(scroll)[0] ?? '';
   const ask = (question: string) => {
     session.edit({ about: true, text: question });
     session.submit();
@@ -304,7 +305,9 @@ export function AskSheet({
                 <Button label="Cancel" variant="ghost" onPress={() => session.cancel()} />
               </View>
             </View>
-            {play === undefined ? null : <AskPuzzle scroll={scroll} anchorStopId={anchorStopId} play={play} />}
+            {play === undefined || !isScrollV2(scroll) ? null : (
+              <AskPuzzle scroll={scroll} anchorStopId={anchorStopId} play={play} />
+            )}
             <Text variant="meta" style={styles.note}>
               When it&apos;s ready you&apos;ll see a notice here, and it stays in Your requests.
             </Text>

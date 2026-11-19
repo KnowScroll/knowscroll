@@ -88,7 +88,7 @@ export interface EncounterState {
 }
 type Intent = NavigateExperienceRequest['intent'];
 type ReadyOutcome = Extract<NavigationOutcome, { status: 'ready' }>;
-/** A Scroll offer the server sent with its cover (`offer-cover.v1`). */
+/** A Scroll offer the server sent with its cover (`offer-cover.v1` or `offer-cover.v2`). */
 export type CoveredOffer = EncounterOffer & { readonly cover: OfferCover };
 /**
  * Covers in Explore (#745): the Scroll offers of one outcome, shown one at a time and opened only on a tap. A hand is

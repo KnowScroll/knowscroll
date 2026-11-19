@@ -2,9 +2,10 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DisplayProvider } from '@knowscroll/ui';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import pictureDocument from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
+import { beatsOfV3, type ScrollDocumentV2, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
-import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import type { OpenedScrollFolio, OpenedScrollV2 } from '../scroll/scroll-session';
 import { RequestPanel } from './request-panel';
 import { requestHarness } from './request-session.fixture';
 
@@ -18,8 +19,12 @@ const scroll: OpenedScrollV2 = {
 };
 const questions = (stageDocument as unknown as ScrollDocumentV2).askSuggestions;
 
-function sheet(h: ReturnType<typeof requestHarness>, close: () => void = jest.fn()) {
-  h.session.show('ask', { stopId: 'call-delhi' });
+function sheet(
+  h: ReturnType<typeof requestHarness>,
+  close: () => void = jest.fn(),
+  from: { readonly scroll: OpenedScrollFolio; readonly stopId: string } = { scroll, stopId: 'call-delhi' },
+) {
+  h.session.show('ask', { stopId: from.stopId });
   return (
     <SafeAreaProvider
       initialMetrics={{
@@ -29,7 +34,7 @@ function sheet(h: ReturnType<typeof requestHarness>, close: () => void = jest.fn
     >
       <DisplayProvider value={{ width: 390, textScale: 1 }}>
         <EncounterOverlay label="Ask for something" presentation="sheet" onClose={close}>
-          <RequestPanel session={h.session} onClose={close} ask={{ scroll }} />
+          <RequestPanel session={h.session} onClose={close} ask={{ scroll: from.scroll }} />
         </EncounterOverlay>
       </DisplayProvider>
     </SafeAreaProvider>
@@ -235,6 +240,50 @@ describe('the Ask sheet (D1)', () => {
       expect(screen.getByText('FROM WHAT YOU JUST READ')).toBeTruthy();
       await fireEvent.changeText(screen.getByLabelText('Ask a question'), '   ');
       expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+});
+
+describe('the Ask sheet on a document v3 Scroll', () => {
+  const document3 = pictureDocument as unknown as ScrollDocumentV3;
+  const scroll3: OpenedScrollFolio = {
+    exposureId: 'fixture-exposure',
+    assetId: 'fixture-asset',
+    assetRevision: 2,
+    document: document3,
+    degradedEssential: [],
+  };
+  const beat = beatsOfV3(document3)[2]!;
+
+  it('offers the Scroll own questions and sends one anchored to the beat on screen', async () => {
+    const h = requestHarness();
+    const screen = await render(sheet(h, jest.fn(), { scroll: scroll3, stopId: beat.id }));
+    try {
+      for (const question of document3.askSuggestions)
+        expect(screen.getByRole('button', { name: `Ask: ${question}` })).toBeTruthy();
+      await fireEvent.press(screen.getByRole('button', { name: `Ask: ${document3.askSuggestions[0]!}` }));
+      await waitFor(() => expect(posts(h)).toHaveLength(1));
+      expect(posts(h)[0]!.body).toMatchObject({
+        intent: { kind: 'ask', anchor: { kind: 'stop', stopId: beat.id }, question: document3.askSuggestions[0] },
+      });
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
+  it('makes the wait with no puzzle, because a v3 Scroll has no call to play', async () => {
+    const h = requestHarness();
+    const screen = await render(sheet(h, jest.fn(), { scroll: scroll3, stopId: beat.id }));
+    try {
+      await fireEvent.press(screen.getByRole('button', { name: `Ask: ${document3.askSuggestions[0]!}` }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      expect(screen.getByText('Making it now')).toBeTruthy();
+      expect(screen.queryByTestId('ask-puzzle')).toBeNull();
+      expect(screen.queryByText('MEANWHILE · 20-SECOND PUZZLE')).toBeNull();
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());
