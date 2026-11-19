@@ -46,4 +46,3 @@ export function blocksOfRun(run: readonly RunBeat[]): ReadingBlock[] {
   }
   return [...blocks, ...after];
 }
-

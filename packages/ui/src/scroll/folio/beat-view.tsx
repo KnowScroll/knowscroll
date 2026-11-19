@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { radius, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, radius, spacing } from '@knowscroll/design-tokens';
 import { ScreenReaderOnly } from '../../display/screen-reader-only';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
 import { GuideView, PlayBlockView } from '../play-blocks';
 import { AsideView } from '../reader/aside-view';
-import type { Beat } from './reading-model';
+import { linkedWords } from './linked-text';
+import type { Beat, BeatText } from './reading-model';
 
 export interface BeatViewProps {
   readonly beat: Beat;
@@ -22,6 +23,8 @@ export interface BeatViewProps {
   readonly footer?: ReactNode;
   /** The footer was laid out: how far its bottom is below the beat's top. */
   readonly onFooterLayout?: ((bottom: number) => void) | undefined;
+  /** A linked phrase was pressed: the part of the picture it names. Without it the phrases are plain words. */
+  readonly onLinkPress?: ((part: string) => void) | undefined;
 }
 
 /**
@@ -30,6 +33,8 @@ export interface BeatViewProps {
  * the selection menu), the paragraphs give way to the ones the writer gave (no model is asked, D-244); the beat draws no
  * link of its own for that (D-429); it says so instead, with a small "Plainer words" label above the text and a polite
  * announcement of the change (and of the change back). A question is a call drawn as text: the prompt as a line, then the explanation.
+ * A document v3 beat can link phrases to parts of its picture (underlined buttons in the part's colour, which call
+ * `onLinkPress`) and can be a quotation, set apart with who said it under it. Plainer words show neither.
  */
 export function BeatView({
   beat,
@@ -41,6 +46,7 @@ export function BeatView({
   figureWords,
   footer,
   onFooterLayout,
+  onLinkPress,
 }: BeatViewProps) {
   const page = usePagePalette();
   const ink = quiet ? page.ink2 : page.ink;
@@ -75,18 +81,12 @@ export function BeatView({
             {beat.simple}
           </Text>
         </View>
+      ) : beat.kind === 'quote' ? (
+        <QuoteWords beat={beat} ink={ink} onLinkPress={onLinkPress} />
       ) : (
-        beat.text.map((part, index) =>
-          part.kind === 'line' ? (
-            <Text key={index} variant="title" color={ink}>
-              {part.text}
-            </Text>
-          ) : (
-            <Text key={index} variant="body" color={ink}>
-              {part.text}
-            </Text>
-          ),
-        )
+        beat.text.map((part, index) => (
+          <BeatParagraph key={index} part={part} links={beat.links} ink={ink} onLinkPress={onLinkPress} />
+        ))
       )}
       {beat.guide === undefined ? null : <GuideView guide={beat.guide} asText={textVersion} />}
       {beat.play === undefined ? null : <PlayBlockView interactive={beat.play} readerAsText={textVersion} />}
@@ -102,6 +102,68 @@ export function BeatView({
         <View onLayout={(event) => onFooterLayout?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}>
           {footer}
         </View>
+      )}
+    </View>
+  );
+}
+
+/** A paragraph, or a line that stands alone for rhythm; a paragraph's linked phrases are buttons. */
+function BeatParagraph({
+  part,
+  links,
+  ink,
+  onLinkPress,
+}: {
+  readonly part: BeatText;
+  readonly links: Beat['links'];
+  readonly ink: string;
+  readonly onLinkPress: BeatViewProps['onLinkPress'];
+}) {
+  return part.kind === 'line' ? (
+    <Text variant="title" color={ink}>
+      {part.text}
+    </Text>
+  ) : (
+    <Text variant="body" color={ink}>
+      {linkedWords(part.text, links, onLinkPress)}
+    </Text>
+  );
+}
+
+/**
+ * A quotation set apart: a rule on the leading edge, the words in quotation marks and italic, then who said it, where
+ * and when under it in the secondary ink. The group is named for assistive tech, as the repo has no quotation role.
+ */
+function QuoteWords({
+  beat,
+  ink,
+  onLinkPress,
+}: {
+  readonly beat: Beat;
+  readonly ink: string;
+  readonly onLinkPress: BeatViewProps['onLinkPress'];
+}) {
+  const page = usePagePalette();
+  const cite = beat.cite;
+  const source = cite === undefined ? undefined : [cite.who, cite.work, cite.year].filter(Boolean).join(', ');
+  return (
+    <View
+      role="group"
+      accessibilityLabel={cite === undefined ? 'Quotation' : `Quotation from ${cite.who}`}
+      style={[styles.quote, { borderStartColor: page.ink2 }]}
+      testID={`quote-${beat.id}`}
+    >
+      {beat.text.map((part, index) => (
+        <Text key={index} variant="body" color={ink} style={styles.quoted}>
+          {'“'}
+          {linkedWords(part.text, beat.links, onLinkPress)}
+          {'”'}
+        </Text>
+      ))}
+      {source === undefined ? null : (
+        <Text variant="bodyS" color={page.ink2} testID="quote-cite">
+          {`— ${source}`}
+        </Text>
       )}
     </View>
   );
@@ -126,4 +188,6 @@ function useSimplerAnnouncement(hasSimpler: boolean, showing: boolean): string {
 const styles = StyleSheet.create({
   beat: { gap: spacing[3] },
   simpler: { padding: spacing[3], borderRadius: radius.card, gap: spacing[1] },
+  quote: { borderStartWidth: borderWidth.current, paddingStart: spacing[4], gap: spacing[2] },
+  quoted: { fontStyle: 'italic' },
 });

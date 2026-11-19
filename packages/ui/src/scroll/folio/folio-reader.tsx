@@ -104,6 +104,24 @@ function hasTextVersion(model: ReadingModel): boolean {
   );
 }
 
+/** How long a part of a picture is emphasised after a linked phrase naming it is pressed. */
+const PULSE_MS = 1200;
+
+/**
+ * The part of a picture a pressed linked phrase asks to emphasise, until `PULSE_MS` have passed. Pressing again, on the
+ * same phrase or another, starts a new pulse. It is emphasis rather than motion, so reduced motion needs nothing of it.
+ */
+function usePulse() {
+  const [pulse, setPulse] = useState<{ readonly part: string; readonly until: number } | undefined>(undefined);
+  useEffect(() => {
+    if (pulse === undefined) return undefined;
+    const timer = setTimeout(() => setPulse(undefined), Math.max(0, pulse.until - Date.now()));
+    return () => clearTimeout(timer);
+  }, [pulse]);
+  const pulsePart = (part: string) => setPulse({ part, until: Date.now() + PULSE_MS });
+  return { pulse, pulsePart };
+}
+
 /**
  * The Folio reader (folio README 5): a Scroll as an essay in one scrolling column, with figures set after the beats that
  * change them and a figure that holds while the beats about it pass. It draws a `ReadingModel`, whatever document made
@@ -156,6 +174,7 @@ export function FolioReader({
   const [openNotes, setOpenNotes] = useState<ReadonlySet<string>>(
     () => new Set(order.flatMap((beat) => beat.notes.filter((note) => !note.collapsed).map((note) => note.id))),
   );
+  const { pulse, pulsePart } = usePulse();
   const figureHeight = figureHeightFor(viewportHeight, beside);
   // With every picture as its words, a figure is as tall as its words and nothing needs to stay in view: holds lie flat.
   const pinHolds = !textVersion && canPinHolds(viewportHeight, figureHeight, beside, textScale);
@@ -430,6 +449,7 @@ export function FolioReader({
         figureWords={held?.figureWords}
         footer={stopFooter?.(beat.id)}
         onFooterLayout={(bottom) => showFooter(beat.id, bottom)}
+        onLinkPress={pulsePart}
       />
     </MeasuredBeat>
   );
@@ -441,6 +461,7 @@ export function FolioReader({
         height={figureHeight}
         reducedMotion={reducedMotion}
         textVersion={textVersion}
+        pulsing={pulse?.part}
         testID={`figure-${id}`}
       />
     </View>
@@ -513,6 +534,7 @@ export function FolioReader({
                   onTextVersion={textVersionShown ? toggleTextVersion : undefined}
                   renderBeat={renderBeat}
                   places={places}
+                  pulsing={pulse?.part}
                 />,
               ];
             }),

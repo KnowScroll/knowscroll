@@ -1,6 +1,5 @@
 import type { ReadStop, ScrollDocumentV2, Stop } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
-import type { FigureState } from '../stage/kit-figure';
 import { stageFigureAt } from '../stage/stage-figure';
 import { blocksOfRun, type RunBeat } from './holds';
 import type { Figure } from './reading-model';
