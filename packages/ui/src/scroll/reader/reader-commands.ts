@@ -16,6 +16,8 @@ export interface ReaderCommands {
   readonly challenge?: (() => void) | undefined;
   /** The ••• sheet's other rows (V3 G5), each also a key; absent where the screen cannot do it (a thread's reader has no Save). */
   readonly save?: (() => void) | undefined;
+  /** Like this Scroll or take the like back, as the dock's ♡ does (D-429); absent where the screen has no Like (a thread's reader). */
+  readonly like?: (() => void) | undefined;
   readonly shareMoment?: (() => void) | undefined;
   readonly smallPrint?: (() => void) | undefined;
   readonly report?: (() => void) | undefined;

@@ -16,6 +16,16 @@ export interface EncounterFixtureOptions {
   /** The title of the first offer, which the served Scroll document takes too (a short one and a long one lay the reader's bar out differently). */
   readonly firstTitle?: string;
   /**
+   * What the context says is liked, saved and hidden, read each time the context is read: a spec that answers
+   * `/v1/actions` (`answerActions`) changes it, so the reconciliation that follows an action finds the new state.
+   */
+  readonly actions?: { saved: boolean; liked: boolean; hidden: boolean };
+  /**
+   * Whether the Keep reads say the Scroll is saved (the default, as the Saved list is read) or not: a Scroll opened by
+   * its address has its Save pressed or not from this.
+   */
+  readonly kept?: boolean;
+  /**
    * Serves a Scroll opened by its address (`/scroll/<id>`): a direct open and activation with no session, and a
    * series of `parts` Scrolls that the context counts and links (each Part has the Part before and the Part after
    * it). One part is no series.
@@ -99,7 +109,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   /** The Part each entry is, once a series step has been taken to it (the first is Part 1). */
   const partOf = new Map<number, number>();
   const partAt = (n: number) => partOf.get(n) ?? 1;
-  let saved = true;
+  let saved = options.kept ?? true;
   const commands: { path: string; body: Record<string, unknown> }[] = [];
   /** Every observation event the page sent, in order. */
   const observed: { kind: string; exposureId: string; payload: Record<string, unknown> }[] = [];
@@ -246,7 +256,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       assetId: id(300 + n),
       assetRevision: document.revision,
       revision: 1,
-      actions: { saved: false, liked: false, hidden: false },
+      actions: { ...(options.actions ?? { saved: false, liked: false, hidden: false }) },
       ...(direct.parts > 1 ? { series: { seriesId, seriesRevision: 1, part: n + 1, total: direct.parts } } : {}),
       variants: [{ kind: 'reel', status: 'unavailable' }],
       continuations: {
@@ -527,7 +537,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
         assetRevision: document.revision,
         revision: intentRevision,
         session: { sessionId: id(3), intentRevision },
-        actions: { saved: false, liked: false, hidden: false },
+        actions: { ...(options.actions ?? { saved: false, liked: false, hidden: false }) },
         ...(series ? { series: { seriesId: 'ci-series', seriesRevision: 1, part: partAt(n), total: 2 } } : {}),
         variants: variantsOf(n),
         continuations: {

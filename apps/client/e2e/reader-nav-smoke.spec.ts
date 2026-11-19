@@ -144,11 +144,14 @@ test.describe('a Scroll opened by its address (/scroll/<id>)', () => {
 });
 
 test.describe('a Scroll opened from Explore', () => {
-  test('the dock has Ask, ••• and Part 2', async ({ page }) => {
+  test('the dock has Like, Share, Save, ••• and Part 2, and Ask is in •••', async ({ page }) => {
     await openFromExplore(page);
-    await expect(page.getByRole('button', { name: 'Ask about this' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
+    for (const name of ['Like', 'Share a moment', 'Save', 'More'])
+      await expect(page.getByTestId('reader-dock').getByRole('button', { name, exact: true })).toBeVisible();
+    await expect(page.getByTestId('reader-dock').getByRole('button', { name: 'Ask about this' })).toHaveCount(0);
     await expect(dock(page)).toHaveText('Part 2');
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await expect(page.getByTestId('more-list').getByRole('button').first()).toHaveAccessibleName('Ask about this');
   });
 });
 
@@ -157,7 +160,7 @@ const desktop = { width: 1440, height: 900 };
 /** ••• then Share: one sheet, and the way to a conversation is reachable (#548). */
 async function shareFromMore(page: Page) {
   await page.getByRole('button', { name: 'More', exact: true }).click();
-  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await page.getByRole('button', { name: 'Share this Scroll', exact: true }).click();
   // The More sheet has stepped aside: only the Share sheet is open, so a tap lands on it.
   await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Send to a conversation' }).click();
@@ -185,7 +188,7 @@ test('browser Back after ••• then Share closes the Share sheet with one Ba
   const heading = page.getByTestId('reader-top-title').getByRole('heading', { level: 1 });
   const title = await heading.innerText();
   await page.getByRole('button', { name: 'More', exact: true }).click();
-  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await page.getByRole('button', { name: 'Share this Scroll', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Send to a conversation' })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('button', { name: 'Send to a conversation' })).toHaveCount(0);
@@ -217,17 +220,17 @@ for (const [name, viewport] of [
 }
 
 test.describe('the end card', () => {
-  test('a Scroll with a picture of the journey draws it on the end plate; a plain Scroll has none, and both give the short version', async ({
+  test('a Scroll with a picture of the journey draws it on the end plate; a plain Scroll has none, and both sum up', async ({
     page,
   }) => {
     await openByAddress(page, { parts: 1 });
     await toTheEnd(page);
-    await expect(plate(page).getByRole('heading', { name: 'The short version' })).toBeVisible();
+    await expect(plate(page).getByRole('heading', { name: 'To sum up' })).toBeVisible();
     await expect(plate(page).getByTestId('end-figure').getByRole('img')).toHaveAccessibleName(/^The picture you built/);
 
     await openByAddress(page, { parts: 1 }, { document: plain });
     await toTheEnd(page);
-    await expect(plate(page).getByRole('heading', { name: 'The short version' })).toBeVisible();
+    await expect(plate(page).getByRole('heading', { name: 'To sum up' })).toBeVisible();
     await expect(page.getByTestId('end-figure')).toHaveCount(0);
     await expect(page.getByText('The picture you built')).toHaveCount(0);
   });

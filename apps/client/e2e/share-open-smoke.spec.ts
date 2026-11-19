@@ -169,7 +169,7 @@ async function openScrollWithFriend(page: Page, anchor?: string) {
 
 async function openShareSheet(page: Page) {
   await page.getByRole('button', { name: 'More', exact: true }).click();
-  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await page.getByRole('button', { name: 'Share this Scroll', exact: true }).click();
   // The More sheet has stepped aside: only the Share sheet is open, so a tap lands on it.
   await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
 }

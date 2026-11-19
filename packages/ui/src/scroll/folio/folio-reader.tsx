@@ -323,6 +323,8 @@ export function FolioReader({
         return run(commands.ask);
       case 'format':
         return run(commands.format);
+      case 'like':
+        return run(commands.like);
       case 'save':
         return run(commands.save);
       case 'share-moment':
@@ -417,7 +419,6 @@ export function FolioReader({
         beat={beat}
         textVersion={textVersion}
         simpler={simpler.has(beat.id)}
-        onToggleSimpler={toggleSimpler}
         openNotes={openNotes}
         onToggleNote={(noteId) =>
           setOpenNotes((all) => {

@@ -82,31 +82,46 @@ for (const viewport of [phone, desktop]) {
   const size = `${String(viewport.width)} × ${String(viewport.height)}`;
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
 
-  test(`Simpler swaps the stop for its own plainer words in place, offers Undo, and Undo brings the text back, at ${size}`, async ({
+  test(`Simpler, from the ••• sheet, swaps the stop for its own plainer words in place and can be undone from there, with no link under the paragraph, at ${size}`, async ({
     page,
   }) => {
     await openScroll(page, viewport);
     const stop = page.locator(`[data-ks-stop="${first.id}"]`);
     await expect(stop.getByText('It leans.')).toBeVisible();
     await expect(stop.getByText(paragraph)).toBeVisible();
-    await stop.getByRole('button', { name: 'Say it simpler' }).click();
+    // D-429: no "Say it simpler" link under the paragraph, in any state of the stop.
+    await expect(stop.getByRole('button')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Say it simpler' })).toHaveCount(0);
+    const simpler = async () => {
+      await page.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('button', { name: 'Simpler (this screen)' }).click();
+    };
+    await simpler();
     await expect(stop.getByText(first.simple)).toBeVisible();
     await expect(stop.getByText(paragraph)).toHaveCount(0);
     await expect(stop.getByText('It leans.')).toBeVisible();
-    // Folio draws no label over the plainer words: what tells a reader they are on is the swap itself and the link,
-    // which now offers the way back.
-    await expect(stop.getByTestId('simpler-text')).toHaveText(first.simple);
-    await expect(stop.getByRole('button', { name: 'Say it simpler' })).toHaveCount(0);
+    await expect(stop.getByTestId('simpler-text')).toContainText(first.simple);
+    // With the link gone, the stop says that it is in plainer words: a small label above them, and a polite announcement.
+    await expect(stop.getByTestId('simpler-label')).toHaveText('Plainer words');
+    await expect(stop.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+    await expect(stop.getByRole('status')).toHaveText('Showing this part in plainer words.');
+    await expect(stop.getByRole('button')).toHaveCount(0);
     await shot(page, `simpler-${name}`);
     expect(await audit(page)).toEqual([]);
-    await stop.getByRole('button', { name: 'Undo simpler version' }).click();
+    // The same row undoes it, and says which way it is set.
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await expect(page.getByTestId('more-simpler-detail')).toHaveText('Showing this stop in plainer words');
+    await page.getByRole('button', { name: 'Simpler (this screen)' }).click();
     await expect(stop.getByText(paragraph)).toBeVisible();
     await expect(stop.getByTestId('simpler-text')).toHaveCount(0);
-    await expect(stop.getByRole('button', { name: 'Say it simpler' })).toBeVisible();
-    // The ••• menu does the same for the stop on screen.
-    await page.getByRole('button', { name: 'More', exact: true }).click();
-    await page.getByRole('button', { name: 'Simpler (this screen)' }).click();
-    await expect(stop.getByText(first.simple)).toBeVisible();
+    await expect(stop.getByTestId('simpler-label')).toHaveCount(0);
+    await expect(stop.getByRole('status')).toHaveText('Showing the writer’s own words again.');
+    // Shift + S does the same from the keyboard.
+    await stop.click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press('Shift+S');
+    await expect(stop.getByTestId('simpler-text')).toContainText(first.simple);
+    await page.keyboard.press('Shift+S');
+    await expect(stop.getByTestId('simpler-text')).toHaveCount(0);
   });
 
   test(`selecting words offers Simpler and Ask; Ask puts a Quick answer under the stop and asks for no Scroll, at ${size}`, async ({

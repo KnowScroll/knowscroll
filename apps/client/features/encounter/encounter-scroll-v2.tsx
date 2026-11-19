@@ -8,7 +8,6 @@ import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
-import { EncounterStrip } from './encounter-actions';
 import type { EncounterEntry } from './encounter-history';
 import { useEncounterMetrics } from './encounter-metrics';
 import { EncounterNotices } from './encounter-notices';
@@ -105,6 +104,17 @@ export function ScrollV2Encounter({
               session.act(entry.context.actions.saved ? 'unsave' : 'save');
             },
           },
+          // Like the whole Scroll (D-429): private, no count, "more like this" to the feed, as on a Reel.
+          like: {
+            liked: entry.context.actions.liked,
+            busy: state.actionPending === true,
+            onPress: () => {
+              if (state.actionPending || state.actionFailed) return;
+              session.act(entry.context.actions.liked ? 'unlike' : 'like');
+            },
+          },
+          // The whole Scroll: the dock's Share where the stop on screen cannot be a moment, and the ••• sheet's button.
+          shareScroll: () => session.openShare(),
           nextTopic: () => session.navigate({ mode: 'vertical', direction: 'next' }),
           ...moves,
           // Ask from here (D1): the question is anchored to the stop on screen, or the last one at the end of the Scroll.
@@ -125,13 +135,13 @@ export function ScrollV2Encounter({
         }}
         moreBody={(close) => (
           <View style={styles.more}>
-            <EncounterStrip
-              entry={entry}
-              state={state}
-              session={session}
-              align="start"
-              beforeOverlay={close}
-              available={['like', 'share', 'ask']}
+            <Button
+              label="Share this Scroll"
+              icon="share"
+              onPress={() => {
+                close();
+                session.openShare();
+              }}
             />
             <Button
               label="Your path and more options"

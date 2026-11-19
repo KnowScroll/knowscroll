@@ -214,7 +214,7 @@ test.describe('accessibility (axe) of the reader', () => {
       await reader(page).focus();
       await page.keyboard.press('End');
       const plate = page.getByTestId('end-plate');
-      await expect(plate.getByText('The short version')).toBeInViewport();
+      await expect(plate.getByText('To sum up')).toBeInViewport();
       await plate.getByRole('button', { name: 'Small print', exact: true }).click();
       await expect(page.getByTestId('end-small-print')).toBeVisible();
       expect(await audit()).toEqual([]);
@@ -347,13 +347,15 @@ test.describe('a pull that starts at the end, by finger, when the reader has not
 test('a mouse drag up the text at the end selects words and moves on nowhere', async ({ page }) => {
   const { commands } = await open(page, phone);
   await toTheVeryEnd(page);
-  const words = page.getByTestId('end-plate').getByText('The short version');
+  // The summary is the end plate's text: from its last line, up to its first (or the top of the essay).
+  const words = page.getByTestId('end-plate').getByTestId('end-summary');
   const box = await words.boundingBox();
   if (box === null) throw new Error('the end plate is on the page');
   const { y: middleY, height } = await middle(page);
-  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  const top = middleY - height / 2;
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height - 6);
   await page.mouse.down();
-  await page.mouse.move(box.x + 2, middleY - height * 0.3, { steps: 8 });
+  await page.mouse.move(box.x + 2, Math.max(box.y + 4, top + 8), { steps: 8 });
   await page.mouse.up();
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString().length ?? 0)).toBeGreaterThan(0);
   // A pull is decided as the press lifts; there is nothing more to wait for if none was made.

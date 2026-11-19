@@ -69,6 +69,7 @@ export default defineConfig({
         'blocks-smoke.spec.ts',
         'payoff-smoke.spec.ts',
         'reader-nav-smoke.spec.ts',
+        'scroll-keep-smoke.spec.ts',
         'ask-smoke.spec.ts',
         'challenge-smoke.spec.ts',
         'simpler-smoke.spec.ts',

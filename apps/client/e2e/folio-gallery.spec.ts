@@ -291,7 +291,7 @@ test.describe('keys', () => {
     await reader(page).focus();
     await page.keyboard.press('End');
     await expect.poll(() => inView(page, '[data-testid="end-plate"]')).toBe(true);
-    await expect(page.getByTestId('end-plate').getByText('The short version')).toBeVisible();
+    await expect(page.getByTestId('end-plate').getByText('To sum up')).toBeVisible();
     await page.keyboard.press('Home');
     await expect.poll(() => inView(page, '[data-testid="folio-scroller"] h1')).toBe(true);
     await expect.poll(() => scroller(page).evaluate((node) => node.scrollTop)).toBe(0);
@@ -447,6 +447,62 @@ for (const name of ['seasons', 'circulation'] as const) {
     });
   }
 }
+
+/** The dock of the essay (D-429): every control whole, at least 44 px, on screen, in a row that does not overlap itself. */
+for (const { label, viewport, query } of [
+  { label: '320 x 568', viewport: { width: 320, height: 568 }, query: {} },
+  { label: '390 x 844', viewport: phone, query: {} },
+  { label: '1440 x 900', viewport: desktop, query: {} },
+  { label: '200 % text at 320 x 568', viewport: { width: 320, height: 568 }, query: { scale: '2' } },
+  { label: '200 % text at 390 x 844', viewport: phone, query: { scale: '2' } },
+] as { label: string; viewport: { width: number; height: number }; query: Record<string, string> }[]) {
+  test(`the dock fits at ${label}: Like, Share, Save, ••• and Part 2, none under 44 px or off the screen`, async ({
+    page,
+  }) => {
+    await open(page, 'seasons', viewport, { ...query, bare: '1' });
+    const dock = page.getByTestId('reader-dock');
+    await expect(dock).toBeVisible();
+    const boxes: { name: string; x: number; y: number; width: number; height: number }[] = [];
+    for (const name of ['Like', 'Share a moment', 'Save', 'More', 'Part 2']) {
+      const button = dock.getByRole('button', { name: name === 'Part 2' ? /^Part 2/ : name, exact: name !== 'Part 2' });
+      // The gallery has no next Part: its dock leaves that control out.
+      if (name === 'Part 2' && (await button.count()) === 0) continue;
+      const box = (await button.boundingBox())!;
+      expect(box.width, `${name} width`).toBeGreaterThanOrEqual(44);
+      expect(box.height, `${name} height`).toBeGreaterThanOrEqual(44);
+      expect(box.x, `${name} inside left`).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, `${name} inside right`).toBeLessThanOrEqual(viewport.width);
+      boxes.push({ name, ...box });
+    }
+    expect(boxes).toHaveLength(4);
+    for (const [index, a] of boxes.entries())
+      for (const b of boxes.slice(index + 1)) {
+        const apart =
+          a.x + a.width <= b.x + 0.5 ||
+          b.x + b.width <= a.x + 0.5 ||
+          a.y + a.height <= b.y + 0.5 ||
+          b.y + b.height <= a.y + 0.5;
+        expect(apart, `${a.name} and ${b.name} do not overlap`).toBe(true);
+      }
+    // The dock sits at the foot of the screen, whole, and the page does not scroll sideways.
+    const frame = (await dock.boundingBox())!;
+    expect(frame.y + frame.height).toBeLessThanOrEqual(viewport.height + 0.5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await shot(page, `dock-${label.replace(/[^a-z0-9]+/gi, '-')}`);
+  });
+}
+
+test('the gallery dock toggles Like and Save, each keeping its word', async ({ page }) => {
+  await open(page, 'seasons', phone, { bare: '1' });
+  const dock = page.getByTestId('reader-dock');
+  for (const name of ['Like', 'Save']) {
+    await dock.getByRole('button', { name, pressed: false }).click();
+    await expect(dock.getByRole('button', { name, pressed: true })).toBeVisible();
+    await expect(dock.getByText(name, { exact: true })).toBeVisible();
+    await dock.getByRole('button', { name, pressed: true }).click();
+    await expect(dock.getByRole('button', { name, pressed: false })).toBeVisible();
+  }
+});
 
 for (const { label, viewport } of sizes) {
   test(`axe finds nothing serious or critical on seasons at ${label}`, async ({ page }) => {

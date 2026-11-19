@@ -9,6 +9,7 @@ export type ReaderKey =
   | { readonly action: 'ask' }
   | { readonly action: 'text-version' }
   | { readonly action: 'format' }
+  | { readonly action: 'like' }
   | { readonly action: 'save' }
   | { readonly action: 'share-moment' }
   | { readonly action: 'challenge' }
@@ -30,6 +31,8 @@ const BY_KEY: Readonly<Record<string, ReaderKey>> = {
   f: { action: 'format' },
   // The rows of the ••• sheet each have a key (V3 G5). Shift + S is Simpler; S alone is Save.
   s: { action: 'save' },
+  // Like is the dock's first control (D-429).
+  l: { action: 'like' },
   h: { action: 'share-moment' },
   c: { action: 'challenge' },
   'Shift+S': { action: 'simpler' },

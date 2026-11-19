@@ -1,5 +1,5 @@
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createScrollRecorder, type AccountScope } from '@knowscroll/client-core';
@@ -7,6 +7,7 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   ActionStrip,
   Banner,
+  Button,
   BottomSheet,
   ErrorState,
   FormatSwitch,
@@ -24,6 +25,8 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { useKeepSurface } from '../saved/use-keep-surface';
 import { KeepWriteStatus } from '../saved/keep-detail';
+import { RemovalNotice } from '../saved/removal-notice';
+import { savedRemovalFor } from '../saved/saved-query';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
@@ -72,45 +75,10 @@ function Frame({ children }: { readonly children: React.ReactNode }) {
 
 type KeepState = ReturnType<typeof useKeepSurface>;
 
-/** Save, and what to say when saving or the remembered place is not settled (shared by both readers). */
-function KeepActions({
-  kept,
-  isKept,
-  capture,
-  degraded,
-  onShare,
-  saveInStrip = true,
-}: {
-  readonly kept: KeepState;
-  readonly isKept: boolean;
-  readonly capture: () => unknown;
-  readonly degraded: boolean;
-  /** Opens the Share sheet; without it the strip holds Save only. */
-  readonly onShare?: () => void;
-  /** False where Save is a row of its own (a v2 Scroll's ••• sheet): the strip holds Share alone. */
-  readonly saveInStrip?: boolean;
-}) {
+/** What to say when saving or the remembered place is not settled (the article's, and a v2 Scroll's outside its ••• sheet). */
+function KeepStatus({ kept, capture }: { readonly kept: KeepState; readonly capture: () => unknown }) {
   return (
-    <View style={{ gap: spacing[3] }}>
-      {degraded ? (
-        <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
-      ) : null}
-      {onShare === undefined && !saveInStrip ? null : (
-        <ActionStrip
-          available={[...(saveInStrip ? ['save' as const] : []), ...(onShare === undefined ? [] : ['share' as const])]}
-          saved={isKept}
-          saving={kept.state.save === 'sending'}
-          onAction={(action) => {
-            if (action === 'share') {
-              onShare?.();
-              return;
-            }
-            if (isKept) return;
-            capture();
-            void kept.surface.save();
-          }}
-        />
-      )}
+    <>
       {kept.state.save === 'unavailable' ? (
         <Banner kind="info" lead="Couldn't save yet." message="Earlier saves still need confirming." />
       ) : null}
@@ -136,6 +104,38 @@ function KeepActions({
           resolve={kept.surface.resolveConflict}
         />
       ) : null}
+    </>
+  );
+}
+
+/** The article's Save, and what to say when saving or the remembered place is not settled. */
+function KeepActions({
+  kept,
+  isKept,
+  capture,
+  degraded,
+}: {
+  readonly kept: KeepState;
+  readonly isKept: boolean;
+  readonly capture: () => unknown;
+  readonly degraded: boolean;
+}) {
+  return (
+    <View style={{ gap: spacing[3] }}>
+      {degraded ? (
+        <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
+      ) : null}
+      <ActionStrip
+        available={['save']}
+        saved={isKept}
+        saving={kept.state.save === 'sending'}
+        onAction={() => {
+          if (isKept) return;
+          capture();
+          void kept.surface.save();
+        }}
+      />
+      <KeepStatus kept={kept} capture={capture} />
     </View>
   );
 }
@@ -297,8 +297,15 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
     return stop === undefined ? undefined : remember(stop.stopId);
   }, [remember]);
   const kept = useKeepSurface(scope, target, scroll.exposureId, capture);
-  const isKept =
-    kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
+  const snapshot = kept.state.place.snapshot;
+  const isKept = snapshot?.status === 'available' || snapshot?.status === 'saved_unavailable';
+  // Taking a Scroll out of Saved is the Keep removal the Saved list, the Reel and Explore use: five seconds with Undo.
+  const removal = useMemo(() => savedRemovalFor(scope, newCommandId), [scope]);
+  const removalState = useSyncExternalStore(removal.subscribe, removal.getState, removal.getState);
+  const removalHere = 'item' in removalState && removalState.item.assetId === scroll.assetId ? removalState : undefined;
+  useEffect(() => {
+    if (removalHere?.status === 'confirmed') kept.surface.refresh();
+  }, [removalHere?.status, kept.surface]);
   const [resume] = useState(() => readResume(scope, scroll.assetId, scroll.assetRevision));
   const [sharing, setSharing] = useState(false);
   const currentStop = useCallback(() => reader.current?.capture()?.stopId, []);
@@ -346,13 +353,23 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
           universe: () => router.navigate('/universe'),
           save: {
             saved: isKept,
-            busy: kept.state.save === 'sending',
+            busy:
+              kept.state.save === 'sending' || removalHere?.status === 'preparing' || removalHere?.status === 'sending',
             onPress: () => {
-              if (isKept) return;
+              // A pressed Save takes the Scroll out of Saved, with the same Undo as everywhere else.
+              if (isKept && kept.state.save !== 'unknown') {
+                void removal.prepare({
+                  assetId: scroll.assetId,
+                  assetRevision: scroll.assetRevision,
+                  savedEntryId: snapshot?.entry.savedEntryId,
+                });
+                return;
+              }
               capture();
               void kept.surface.save();
             },
           },
+          shareScroll: () => setSharing(true),
           nextTopic: () => router.navigate('/explore'),
           nextPart: moves.nextPart,
           previousPart: moves.previousPart,
@@ -373,13 +390,10 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
           done: back,
         }}
         moreBody={(close) => (
-          <KeepActions
-            kept={kept}
-            isKept={isKept}
-            capture={capture}
-            degraded={false}
-            saveInStrip={false}
-            onShare={() => {
+          <Button
+            label="Share this Scroll"
+            icon="share"
+            onPress={() => {
               close();
               setSharing(true);
             }}
@@ -393,6 +407,8 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
       </BottomSheet>
       <View style={[styles.askNotices, { top: insets.top + spacing[3] + 72 }]} pointerEvents="box-none">
         <View style={styles.askNoticeColumn} pointerEvents="box-none">
+          <KeepStatus kept={kept} capture={capture} />
+          <RemovalNotice removal={removalHere} undo={() => removal.undo()} retry={() => removal.retry()} />
           <RequestNotice
             requests={ask.session}
             exposureId={scroll.exposureId}
@@ -555,5 +571,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: layout.measureDesktop + 2 * layout.gutter + spacing[8],
     paddingHorizontal: spacing[4],
+    gap: spacing[2],
   },
 });

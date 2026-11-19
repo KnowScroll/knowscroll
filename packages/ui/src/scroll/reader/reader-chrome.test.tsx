@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { expectPressed } from '../../test-support/render';
 import { DisplayProvider } from '../../display/display';
 import { ReaderDock, ReaderTopBar } from './reader-chrome';
 import type { LayoutRectangle } from 'react-native';
@@ -87,15 +88,118 @@ describe('Next in the top bar, with a title that needs more than two lines besid
   });
 });
 
-describe('Ask in the dock', () => {
-  it('is the blue sparkle on a tinted pill', async () => {
-    await render(
-      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <ReaderDock onAsk={jest.fn()} />
-      </DisplayProvider>,
+function dock(width: number, props: Parameters<typeof ReaderDock>[0], textScale = 1) {
+  return render(
+    <DisplayProvider value={{ width, textScale, reducedMotion: true }}>
+      <ReaderDock {...props} />
+    </DisplayProvider>,
+  );
+}
+
+const nextPart = { label: 'Part 2', title: 'How tides work', onPress: jest.fn() };
+
+describe('the dock (D-429)', () => {
+  it('is Like, Share and Save, then ••• and the next Part, with a small word under each glyph and no Ask', async () => {
+    await dock(390, {
+      like: { on: false, onPress: jest.fn() },
+      share: { onPress: jest.fn(), what: 'moment' },
+      save: { on: false, onPress: jest.fn() },
+      onMore: jest.fn(),
+      nextPart,
+    });
+    // Like and Save are toggle buttons; the rest are plain buttons.
+    expectPressed(screen.getByRole('togglebutton', { name: 'Like' }), false);
+    expect(screen.getByRole('button', { name: 'Share a moment' })).toBeOnTheScreen();
+    expectPressed(screen.getByRole('togglebutton', { name: 'Save' }), false);
+    expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Part 2: How tides work' })).toBeOnTheScreen();
+    for (const word of ['Like', 'Share', 'Save', 'More'])
+      expect(screen.getByText(word, { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /^Ask/ })).not.toBeOnTheScreen();
+  });
+
+  it('presses Like and Save as toggles that announce their state and keep their word', async () => {
+    const like = jest.fn();
+    const save = jest.fn();
+    await dock(390, { like: { on: true, onPress: like }, save: { on: false, onPress: save } });
+    expectPressed(screen.getByRole('togglebutton', { name: 'Like' }), true);
+    expectPressed(screen.getByRole('togglebutton', { name: 'Save' }), false);
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Like' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Save' }));
+    expect(like).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    // The word under the glyph does not change with the state (WCAG 2.5.3).
+    expect(screen.getByText('Like', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Save', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('shows a Save that is in flight as busy and inert', async () => {
+    await dock(390, { save: { on: false, busy: true, onPress: jest.fn() } });
+    // The button itself takes no press while busy (the host element has no handler; `IconButton` tests the press).
+    expect(screen.getByRole('togglebutton', { name: 'Save' })).toBeBusy();
+    expect(screen.getByRole('togglebutton', { name: 'Save' })).toHaveProp('pointerEvents', 'none');
+  });
+
+  it('shares the whole Scroll where the stop on screen cannot be a moment: never disabled, and its name says which', async () => {
+    const share = jest.fn();
+    await dock(390, { share: { onPress: share, what: 'scroll' } });
+    expect(screen.queryByRole('button', { name: /^Share a moment/ })).not.toBeOnTheScreen();
+    const button = screen.getByRole('button', { name: 'Share this Scroll' });
+    expect(button).toBeEnabled();
+    // The word under the glyph stays "Share" (WCAG 2.5.3: it is in the name).
+    expect(screen.getByText('Share', { includeHiddenElements: true })).toBeOnTheScreen();
+    await fireEvent.press(button);
+    expect(share).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares the moment when Share is pressed on a stop that can be one', async () => {
+    const share = jest.fn();
+    await dock(390, { share: { onPress: share, what: 'moment' } });
+    await fireEvent.press(screen.getByRole('button', { name: 'Share a moment' }));
+    expect(share).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves out what the screen cannot do: a thread's reader has no Like and no Save", async () => {
+    await dock(390, { share: { onPress: jest.fn(), what: 'moment' }, onMore: jest.fn() });
+    expect(screen.queryByRole('togglebutton', { name: 'Like' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('togglebutton', { name: 'Save' })).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
+  });
+
+  it('draws Like, Share, Save, More and the way on at 320, 360 and 390 px (the layout itself is checked in the browser)', async () => {
+    for (const width of [320, 360, 390]) {
+      const view = await dock(width, {
+        like: { on: false, onPress: jest.fn() },
+        share: { onPress: jest.fn(), what: 'moment' },
+        save: { on: false, onPress: jest.fn() },
+        onMore: jest.fn(),
+        nextPart,
+      });
+      expect(screen.getAllByRole('button')).toHaveLength(3);
+      expect(screen.getAllByRole('togglebutton')).toHaveLength(2);
+      expect(screen.getByText('Share', { includeHiddenElements: true })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Part 2: How tides work' })).toBeOnTheScreen();
+      await view.unmount();
+    }
+  });
+
+  it('is a wrapping row of 44 px targets at large text, so it can grow a line instead of squeezing a control (measured in the browser)', async () => {
+    await dock(
+      320,
+      {
+        like: { on: true, onPress: jest.fn() },
+        share: { onPress: jest.fn(), what: 'moment' },
+        save: { on: false, onPress: jest.fn() },
+        onMore: jest.fn(),
+        nextPart,
+      },
+      2,
     );
-    const ask = screen.getByRole('button', { name: 'Ask about this' });
-    expect(ask).toBeOnTheScreen();
-    expect(ask).toHaveStyle({ backgroundColor: '#F4EDD8' });
+    expect(screen.getByTestId('reader-dock')).toHaveStyle({ flexWrap: 'wrap' });
+    expectPressed(screen.getByRole('togglebutton', { name: 'Like' }), true);
+    expectPressed(screen.getByRole('togglebutton', { name: 'Save' }), false);
+    expect(screen.getByRole('button', { name: 'Share a moment' })).toHaveStyle({ width: 44, height: 44 });
+    expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Part 2: How tides work' })).toBeOnTheScreen();
   });
 });

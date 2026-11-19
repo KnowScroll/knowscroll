@@ -1,5 +1,5 @@
 import { setStatusBarStyle } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -93,6 +93,9 @@ export function FolioGalleryScreen() {
   );
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // The dock's Like and Save keep their state here, so the browser smoke can see them toggle without a backend.
+  const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
   const params = useLocalSearchParams<{
     doc?: string;
     stop?: string;
@@ -146,7 +149,12 @@ export function FolioGalleryScreen() {
             header={<ReaderTopBar title={document.title} kicker={document.kicker} onUniverse={() => undefined} />}
             dock={
               <View style={{ paddingBottom: insets.bottom }}>
-                <ReaderDock onAsk={() => undefined} onMore={() => undefined} />
+                <ReaderDock
+                  like={{ on: liked, onPress: () => setLiked((on) => !on) }}
+                  share={{ onPress: () => undefined, what: 'moment' }}
+                  save={{ on: saved, onPress: () => setSaved((on) => !on) }}
+                  onMore={() => undefined}
+                />
               </View>
             }
           />

@@ -5,7 +5,7 @@ import { ReaderMoreList } from '@knowscroll/ui';
 import { moreRowsOf, type MoreRowInput } from './more-rows';
 
 /**
- * The body of a Scroll's ••• sheet: the seven rows, then what the screen adds under them. A row closes the sheet first, so
+ * The body of a Scroll's ••• sheet: the rows, then what the screen adds under them. A row closes the sheet first, so
  * the sheet it opens, or the picture it changes, is what the person sees next.
  */
 export function MoreSheetBody({
@@ -27,8 +27,8 @@ export function MoreSheetBody({
       <ReaderMoreList
         rows={moreRowsOf({
           ...input,
+          ask: input.ask === undefined ? undefined : closing(input.ask),
           act: {
-            shareMoment: closing(act.shareMoment),
             challenge: closing(act.challenge),
             toggleTextVersion: closing(act.toggleTextVersion),
             toggleSimpler: closing(act.toggleSimpler),

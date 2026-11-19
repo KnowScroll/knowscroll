@@ -12,7 +12,7 @@ import { useSnippetSend } from './use-snippet-send';
 import { useThreadInbox } from './use-thread-inbox';
 
 /** Why a stop is not offered as a moment, in the words shown next to the disabled row and in the sheet. */
-export function noMomentWords(reason: NoMoment): string {
+function noMomentWords(reason: NoMoment): string {
   switch (reason) {
     case 'call':
       return 'A call would give its answer away, so it can’t be shared as a moment. Challenge a friend sends it without one.';

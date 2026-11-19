@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import { answerActions, type ActionsState } from './actions-fixture';
 import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
@@ -33,8 +34,9 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-async function open(page: Page, viewport = phone) {
+async function open(page: Page, viewport = phone, actions?: ActionsState) {
   const served = await encounterFixture(page, 'scroll', {
+    ...(actions === undefined ? {} : { actions }),
     series: true,
     viewport,
     scrollDocument: seasons as unknown as Record<string, unknown>,
@@ -53,41 +55,54 @@ const rowsOf = (page: Page) => page.getByTestId('more-list').getByRole('listitem
 for (const viewport of [phone, desktop]) {
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
 
-  test(`the dock's Ask is a blue sparkle on a tinted pill, at ${name}`, async ({ page }) => {
+  test(`the dock is Like, Share and Save with a small word under each, then ••• and Part 2, at ${name}`, async ({
+    page,
+  }) => {
     await open(page, viewport);
-    const ask = page.getByRole('button', { name: 'Ask about this' });
-    // The dock is reader chrome, so its tinted pill follows Appearance: sunken paper on the sky in Dark (D-400).
-    await expect(ask).toHaveCSS('background-color', 'rgb(18, 23, 34)');
-    await expect(ask.locator('svg path')).toHaveCSS('fill', 'rgb(44, 70, 232)');
+    const dock = page.getByTestId('reader-dock');
+    // Each control is a 44 px target, in order, with its word under it (D-429).
+    let left = 0;
+    for (const [button, word] of [
+      ['Like', 'Like'],
+      ['Share a moment', 'Share'],
+      ['Save', 'Save'],
+    ] as const) {
+      const box = await dock.getByRole('button', { name: button, exact: true }).boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x).toBeGreaterThanOrEqual(left);
+      left = box!.x + box!.width;
+      await expect(dock.getByText(word, { exact: true })).toBeVisible();
+    }
+    // Ask is the first row of •••, not a pill in the dock.
+    await expect(dock.getByRole('button', { name: 'Ask about this' })).toHaveCount(0);
     await shot(page, `dock-${name}`);
     expect(await audit(page)).toEqual([]);
   });
 
-  test(`the ••• sheet is the seven rows of the design, each with its sub-line and key, at ${name}`, async ({
+  test(`the ••• sheet is six rows, Ask about this first, each with its sub-line and key, at ${name}`, async ({
     page,
   }) => {
     await open(page, viewport);
     await page.getByRole('button', { name: 'More', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'More' });
     await expect(dialog).toBeVisible();
-    // Save, Share a moment, Challenge (the fixture's Scroll has calls), Text, Simpler, Small print, Report.
-    await expect(rowsOf(page)).toHaveCount(7);
+    // Ask, Challenge (the fixture's Scroll has calls), Text, Simpler, Small print, Report: no Save, no Share a moment (D-429).
+    await expect(rowsOf(page)).toHaveCount(6);
     const titles = await rowsOf(page)
       .getByRole('button')
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')));
     expect(titles).toEqual([
-      'Save',
-      'Share a moment',
+      'Ask about this',
       'Challenge a friend',
       'Text version',
       'Simpler (this screen)',
       'Small print',
       'Report',
     ]);
-    await expect(page.getByTestId('more-save-detail')).toHaveText('Keep this Scroll in Saved');
-    await expect(page.getByTestId('more-share-moment-detail')).toHaveText('This stop, with its picture');
+    await expect(page.getByTestId('more-ask-detail')).toHaveText('A question about the part you are reading');
     // The shift sign carries U+FE0E so no system draws it as an emoji.
-    for (const key of [/^S$/, /^H$/, /^C$/, /^T$/, /^⇧︎?S$/, /^P$/, /^R$/])
+    for (const key of [/^A$/, /^C$/, /^T$/, /^⇧︎?S$/, /^P$/, /^R$/])
       await expect(page.getByTestId('more-list').getByText(key)).toBeVisible();
     await shot(page, `more-${name}`);
     // The sheet fades in over the page; judge it once it has settled.
@@ -132,8 +147,7 @@ for (const viewport of [phone, desktop]) {
 
   test(`Share a moment shows the stop and its picture before a thread is chosen, at ${name}`, async ({ page }) => {
     await open(page, viewport);
-    await page.getByRole('button', { name: 'More', exact: true }).click();
-    await page.getByTestId('more-share-moment').click();
+    await page.getByTestId('reader-dock').getByRole('button', { name: 'Share a moment' }).click();
     const sheet = page.getByRole('dialog', { name: 'Share a moment' });
     await expect(sheet.getByTestId('moment-preview')).toBeVisible();
     await expect(sheet.getByTestId('moment-picture').getByRole('img')).toBeVisible();
@@ -144,11 +158,23 @@ for (const viewport of [phone, desktop]) {
   });
 }
 
-test('the keys of the ••• rows act from the reader: S, H, C, ⇧S, P and R, each doing what its row does', async ({
+test('the keys of the dock and the ••• rows act from the reader: L, S, H, C, ⇧S, P and R, each doing what its control does', async ({
   page,
 }) => {
-  await open(page, desktop);
+  const state = { saved: false, liked: false, hidden: false };
+  await open(page, desktop, state);
+  await answerActions(page, state);
   await page.getByRole('group', { name: 'Scroll reader' }).focus();
+  // L is Like: it sends the like action for this Scroll.
+  const likes = page.waitForRequest((request) => new URL(request.url()).pathname === '/v1/actions');
+  await page.keyboard.press('l');
+  expect(JSON.parse((await likes).postData() ?? '{}')).toMatchObject({ kind: 'like' });
+  await expect(page.getByTestId('reader-dock').getByRole('button', { name: 'Like', pressed: true })).toBeVisible();
+  // A press is ignored while the one before is settling.
+  await expect(page.getByTestId('reader-dock').getByRole('button', { name: 'Like' })).not.toHaveAttribute(
+    'aria-busy',
+    'true',
+  );
   // S alone is Save (not Simpler): it sends the save action for this Scroll, and changes no stop's words.
   const saves = page.waitForRequest((request) => new URL(request.url()).pathname === '/v1/actions');
   await page.keyboard.press('s');

@@ -19,6 +19,8 @@ describe('the reader keys', () => {
     expect(readerKeyOf('S')).toEqual({ action: 'save' });
     expect(readerKeyOf('S', true)).toEqual({ action: 'simpler' });
     expect(readerKeyOf('h')).toEqual({ action: 'share-moment' });
+    expect(readerKeyOf('l')).toEqual({ action: 'like' });
+    expect(readerKeyOf('L')).toEqual({ action: 'like' });
     expect(readerKeyOf('c')).toEqual({ action: 'challenge' });
     expect(readerKeyOf('p')).toEqual({ action: 'small-print' });
     expect(readerKeyOf('R')).toEqual({ action: 'report' });

@@ -33,7 +33,11 @@ async function open(page: Page, viewport = phone, options: Pick<EncounterFixture
   return served;
 }
 
-const askButton = (page: Page) => page.getByRole('button', { name: /^Ask/ }).first();
+/** Ask about this is the first row of the ••• sheet (D-429); the A key opens it directly. */
+async function openAsk(page: Page) {
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Ask about this', exact: true }).click();
+}
 const asked = (served: Awaited<ReturnType<typeof open>>) =>
   served.commands.filter((command) => command.path === '/v1/content/requests');
 
@@ -58,7 +62,7 @@ async function audit(page: Page) {
 for (const viewport of [phone, desktop]) {
   const size = `${String(viewport.width)} × ${String(viewport.height)}`;
 
-  test(`on a Scroll's own address the dock offers the same Ask, sourced from that Scroll's exposure with no session, at ${size}`, async ({
+  test(`on a Scroll's own address the ••• sheet offers the same Ask, sourced from that Scroll's exposure with no session, at ${size}`, async ({
     page,
   }) => {
     const served = await encounterFixture(page, 'scroll', {
@@ -68,7 +72,7 @@ for (const viewport of [phone, desktop]) {
     });
     await page.goto(`/scroll/${id(300)}`);
     await expect(page.getByTestId('scroll-reader')).toBeVisible();
-    await askButton(page).click();
+    await openAsk(page);
     const sheet = page.getByRole('dialog', { name: 'Ask' });
     await expect(sheet.getByRole('heading', { name: 'Ask' })).toBeVisible();
     await expect(sheet.getByText('FROM WHAT YOU JUST READ')).toBeVisible();
@@ -111,7 +115,7 @@ for (const viewport of [phone, desktop]) {
     page,
   }) => {
     const served = await open(page, viewport);
-    await askButton(page).click();
+    await openAsk(page);
     const sheet = page.getByRole('dialog', { name: 'Ask for something' });
     await expect(sheet.getByRole('heading', { name: 'Ask' })).toBeVisible();
     await expect(sheet.getByText('FROM WHAT YOU JUST READ')).toBeVisible();
@@ -132,7 +136,7 @@ for (const viewport of [phone, desktop]) {
     page,
   }) => {
     const served = await open(page, viewport);
-    await askButton(page).click();
+    await openAsk(page);
     await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
 
     const making = page.getByTestId('ask-making');
@@ -171,7 +175,7 @@ test('the puzzle is one of the Scroll’s own calls, played in place: a right pi
   page,
 }) => {
   const served = await open(page);
-  await askButton(page).click();
+  await openAsk(page);
   await page.getByRole('button', { name: `Ask: ${suggestions[1]}` }).click();
   const puzzle = page.getByTestId('ask-puzzle');
   await expect(puzzle.getByText('MEANWHILE · 20-SECOND PUZZLE')).toBeVisible();
@@ -196,7 +200,7 @@ test('the puzzle is one of the Scroll’s own calls, played in place: a right pi
 
 test('a typical time appears only when the server measured one', async ({ page }) => {
   await open(page, phone, { requests: { typicalSeconds: 150 } });
-  await askButton(page).click();
+  await openAsk(page);
   await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
   await expect(page.getByTestId('ask-making')).toContainText(
     "We'll let you know here when it's ready, usually about 3 min.",
@@ -205,7 +209,7 @@ test('a typical time appears only when the server measured one', async ({ page }
 
 test('typing a question and sending it works, with the counter only near the limit', async ({ page }) => {
   const served = await open(page);
-  await askButton(page).click();
+  await openAsk(page);
   const sheet = page.getByRole('dialog', { name: 'Ask for something' });
   const input = sheet.getByRole('textbox', { name: 'Ask a question' });
   await input.fill('Why does the far side of the planet stay cold in its summer?');
@@ -222,7 +226,7 @@ test('typing a question and sending it works, with the counter only near the lim
 
 test('Change asks about something new: the words go as a free-text ask with no source', async ({ page }) => {
   const served = await open(page);
-  await askButton(page).click();
+  await openAsk(page);
   const sheet = page.getByRole('dialog', { name: 'Ask for something' });
   await sheet.getByRole('button', { name: 'Change: ask about something new' }).click();
   await expect(sheet.getByText('A short Scroll · about something new')).toBeVisible();
@@ -253,7 +257,7 @@ test('the keys of D1: 1 picks a suggested question, Esc closes', async ({ page }
 
 test('a ready answer opens from the sheet, and a close that was not final keeps the request', async ({ page }) => {
   await open(page, phone, { requests: { outcome: 'ready' } });
-  await askButton(page).click();
+  await openAsk(page);
   await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
   const ready = page.getByTestId('ask-ready');
   await expect(ready.getByText('Why the far side stays cold')).toBeVisible();
@@ -262,7 +266,7 @@ test('a ready answer opens from the sheet, and a close that was not final keeps 
 
 test('could not prepare is said plainly, and Try again re-drives the same request', async ({ page }) => {
   const served = await open(page, phone, { requests: { outcome: 'could_not_prepare' } });
-  await askButton(page).click();
+  await openAsk(page);
   await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
   const closed = page.getByTestId('ask-closed');
   await expect(closed.getByRole('heading', { name: "We couldn't prepare this one" })).toBeVisible();
@@ -291,7 +295,7 @@ for (const [outcome, name, words] of [
   ] as const)
     test(`a question closed by ${name} says which, and nothing about other people, at ${size}`, async ({ page }) => {
       await open(page, viewport, { requests: { outcome } });
-      await askButton(page).click();
+      await openAsk(page);
       await page.getByRole('button', { name: `Ask: ${suggestions[0]}` }).click();
       const closed = page.getByTestId('ask-closed');
       await expect(closed.getByText(words)).toBeVisible();
@@ -304,7 +308,7 @@ for (const [outcome, name, words] of [
 
 test('while recording is paused the ask is off, says why, and sends nothing', async ({ page }) => {
   const served = await open(page, phone, { play: { recordingPaused: true } });
-  await askButton(page).click();
+  await openAsk(page);
   const sheet = page.getByRole('dialog', { name: 'Ask for something' });
   await expect(sheet.getByTestId('ask-paused')).toContainText('off while recording is paused');
   await expect(sheet.getByRole('button', { name: `Ask: ${suggestions[0]}` })).toBeDisabled();
