@@ -316,10 +316,11 @@ document v3 is admitted yet. **Planned**: beat coverage and the admission it all
     (shape, evidence, the stored document) and turns into the document and its `scroll-provenance.v3`.
   The revision number is not in the file: admission assigns it. The compile is pure, so the same source and revision give
   byte-identical output.
-- **Refused as `coverage_missing`.** A document v3 Scroll would form nothing in the Universe without the coverage of its
-  beats, so none is admitted without it (decision G1). Until beat coverage lands (#761), `importEditorialScroll`
-  compiles a v3 source and then refuses it as `coverage_missing`: nothing is written, no asset, revision or provenance.
-  A v3 source that does not compile is refused as `compile_refused`, with the stage and the codes, as before.
+- **Admitted with its coverage, or not at all.** A document v3 Scroll would form nothing in the Universe without the
+  coverage of its beats, so none is admitted without it (decision G1). `importEditorialScroll` stores the revision,
+  attributes the planet of the recipe the source names as its topic, and admits its beat coverage in one transaction
+  (see Coverage v3); if any of the three cannot be done it rolls back and refuses `coverage_missing` with the reason's
+  code, writing nothing. A v3 source that does not compile is refused as `compile_refused`, with the stage and the codes.
 - **Fixtures (`fixtures/document-v3/`).** Three sources, one for each topic of the design's `CONTENT.md`: the seasons
   (`seasons`: a cycle, a grid and a chart), the pump on Broad Street (`broad-street`: a plan, a chart and a flow) and
   Chesterton's fence (`fence`: a flow, a grid and a flow). Their kicker is "Fixture" and their reference is

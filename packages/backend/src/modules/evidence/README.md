@@ -183,7 +183,9 @@ Status: **implemented**, runtime-verified with the labelled fixtures on real Pos
 
 Folio shows several beats at once, and under the per-unit clock each of them earns every moment it is on screen, so a
 skimmer qualifies a whole screen at once (Folio README 7.2). A reading of a document v3 (reading facts v4, whose units
-are beats) is qualified under `scroll-qualification.shared.v1` (`policy.clock: 'shared'`) in either clock domain: each
+are beats) is qualified under `scroll-qualification.shared.v1` in the legacy clock domain and
+`scroll-qualification.shared.recording.v1` in a recorded session (`policy.clock: 'shared'`; one label per domain, as
+for v0 and `recording.v1`): each
 moment of active visible time is divided between the beats on screen in proportion to their weight (their words), and a
 beat counts once its **share** reaches its own minimum (40 % of its words' time) and the 500 ms floor, and its peak
 visible fraction reached 0.5 (`sharedVisibleMs`). The thresholds, q and its weights are unchanged. Folio README 7.2's

@@ -141,7 +141,7 @@ export async function readLatestEvidence(
           input_watermark: number;
           policy_version: string;
         }>`select r.id,r.revision,r.input_watermark,r.policy_version from evidence.recording_segment_heads h join evidence.encounter_evidence r on r.universe_id=h.universe_id and r.id=h.qualification_id
-    where h.universe_id=${scope.personal.authority.universeId}::uuid and h.privacy_epoch=${scope.personal.authority.privacyEpoch} and h.exposure_id=${exposureId}::uuid and h.recording_generation=${scope.generation} and r.policy_version in('scroll-qualification.recording.v1','scroll-qualification.shared.v1','reel-qualification.recording.v1') limit 1`.execute(
+    where h.universe_id=${scope.personal.authority.universeId}::uuid and h.privacy_epoch=${scope.personal.authority.privacyEpoch} and h.exposure_id=${exposureId}::uuid and h.recording_generation=${scope.generation} and r.policy_version in('scroll-qualification.recording.v1','scroll-qualification.shared.recording.v1','reel-qualification.recording.v1') limit 1`.execute(
           recordingTransactionOf(scope),
         );
   const row = result.rows[0];
