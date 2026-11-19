@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from './policy.js';
+import { SCROLL_QUALIFICATION_POLICIES, SCROLL_QUALIFICATION_POLICY_V0, SHARED_CLOCK_FACTS_VERSION } from './policy.js';
 import { intervalsLength, intersectIntervals, mergeIntervals, type Interval } from './intervals.js';
 import {
   REEL_QUALIFICATION_POLICY_V0,
@@ -64,7 +64,7 @@ export const ObservedCoverageSchema = z
         explanationUnitId: Ref,
         framing: z.literal('factual'),
         framingSha256: Hash,
-        readingFactsVersion: z.union([z.literal(2), z.literal(3)]),
+        readingFactsVersion: z.union([z.literal(2), z.literal(3), z.literal(4)]),
         readingFactsSha256: Hash,
         catalogueVersion: z.literal('content-concepts.v1'),
         catalogueSha256: Hash,
@@ -146,11 +146,13 @@ interface CoverageHeadInput {
 }
 /**
  * The unit kinds a coverage locator may name, by reading-facts version: prose blocks of a v1 document,
- * read stops of a v2 document. Content's `coverageLocatorTypes` is the rule; a test keeps the two equal.
+ * read stops of a v2 document, beats of a document v3. Content's `coverageLocatorTypes` is the rule; a
+ * test keeps the two equal.
  */
 export const ELIGIBLE_BY_FACTS_VERSION: Readonly<Record<number, readonly string[]>> = {
   2: ['paragraph', 'quote', 'callout'],
   3: ['stop'],
+  4: ['beat'],
 };
 export function observedBindings(
   evidence: CoverageEvidence,
@@ -160,9 +162,8 @@ export function observedBindings(
 ) {
   const summary = ReadingCoverageSummarySchema.safeParse(evidence.summary);
   const policy =
-    evidence.policyVersion === SCROLL_RECORDING_QUALIFICATION_POLICY.version
-      ? SCROLL_RECORDING_QUALIFICATION_POLICY
-      : SCROLL_QUALIFICATION_POLICY_V0;
+    SCROLL_QUALIFICATION_POLICIES.find((known) => known.version === evidence.policyVersion) ??
+    SCROLL_QUALIFICATION_POLICY_V0;
   if (
     !summary.success ||
     evidence.policyVersion !== policy.version ||
@@ -178,6 +179,8 @@ export function observedBindings(
     summary.data.totalWeight !== facts.totalWeight ||
     evidence.estimatedReadingMs !== facts.estimatedReadingMs ||
     ELIGIBLE_BY_FACTS_VERSION[facts.v] === undefined ||
+    // A document v3's beats count only on the shared clock, and nothing else is read on it (#761).
+    (facts.v === SHARED_CLOCK_FACTS_VERSION) !== (policy.clock === 'shared') ||
     facts.reelDurationMs !== undefined ||
     hash(facts) !== head.mapping.readingFactsSha256
   )

@@ -106,6 +106,17 @@ mapping keeps the policy `scroll-static-coverage.v1` so region bindings still re
 chosen by the revision's facts version, so v1 revisions are decided exactly as before, including by
 `content readmit-coverage`.
 
+**Coverage v3 (#761, D-431), implemented, runtime-verified on real PostgreSQL with the labelled fixtures.** A
+`scroll-document.v3` is read by the beat (reading facts v4), so its rule is `scroll-recipe-coverage.v3`: the eligible
+units are the **beats** that cite at least one documented or synthesis claim (quote beats included), first-middle-last for
+the main facet, the last two for a supporting one, at least three. Sections are not units, so one essay still covers its
+main facet and at most one supporting facet. The target (`adapters/coverage-target-v3.ts`) admits an authored editorial
+Scroll as well as a model's. **No document v3 is served without its coverage** (decision G1): the editorial import stores
+the revision, attributes its recipe's planet as its topic (`adapters/topic-attribution.ts`, shared with publication) and
+admits its coverage in one transaction, or rolls back and refuses `coverage_missing`; the release command refuses a
+document v3 revision that has no active head (`coverage_missing`). The policy release holds a document v3 as unreadable
+until the writer step teaches it the format.
+
 `lockCurrentCoverageAuthorities` is the recheck every apply path makes: each named authority must still be the current mapping
 head, held under a `SHARE` lock until the transaction ends. `readCurrentCoverageAuthorities` (D-411) is the same recheck without
 the locks, for the read-only dry runs: PostgreSQL refuses a row lock in a READ ONLY transaction, and a dry run applies nothing
@@ -305,10 +316,11 @@ document v3 is admitted yet. **Planned**: beat coverage and the admission it all
     (shape, evidence, the stored document) and turns into the document and its `scroll-provenance.v3`.
   The revision number is not in the file: admission assigns it. The compile is pure, so the same source and revision give
   byte-identical output.
-- **Refused as `coverage_missing`.** A document v3 Scroll would form nothing in the Universe without the coverage of its
-  beats, so none is admitted without it (decision G1). Until beat coverage lands (#761), `importEditorialScroll`
-  compiles a v3 source and then refuses it as `coverage_missing`: nothing is written, no asset, revision or provenance.
-  A v3 source that does not compile is refused as `compile_refused`, with the stage and the codes, as before.
+- **Admitted with its coverage, or not at all.** A document v3 Scroll would form nothing in the Universe without the
+  coverage of its beats, so none is admitted without it (decision G1). `importEditorialScroll` stores the revision,
+  attributes the planet of the recipe the source names as its topic, and admits its beat coverage in one transaction
+  (see Coverage v3); if any of the three cannot be done it rolls back and refuses `coverage_missing` with the reason's
+  code, writing nothing. A v3 source that does not compile is refused as `compile_refused`, with the stage and the codes.
 - **Fixtures (`fixtures/document-v3/`).** Three sources, one for each topic of the design's `CONTENT.md`: the seasons
   (`seasons`: a cycle, a grid and a chart), the pump on Broad Street (`broad-street`: a plan, a chart and a flow) and
   Chesterton's fence (`fence`: a flow, a grid and a flow). Their kicker is "Fixture" and their reference is

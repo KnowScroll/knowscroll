@@ -1,6 +1,10 @@
 import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
-import { SCROLL_QUALIFICATION_POLICY_V0 as policy, type ScrollQualificationPolicy } from './policy.js';
+import {
+  SCROLL_QUALIFICATION_POLICY_V0 as policy,
+  SCROLL_RECORDING_QUALIFICATION_POLICY,
+  type ScrollQualificationPolicy,
+} from './policy.js';
 import { qualifyScrollReading } from './qualification.js';
 import {
   summariseReading,
@@ -68,6 +72,22 @@ describe('Scroll qualification (blueprint §8), as pure functions of the observa
       ),
     );
     expect(result).toMatchObject({ coverage: 0.8, dwellRatio: 0.5, q: 0.65, qualification: 'qualified', reasons: [] });
+  });
+
+  it('gives the same numbers under the v0 and the recording policy: the per-unit clock did not move with the shared clock (#761)', () => {
+    const records = reading(
+      [
+        ['c', 0, 5_000],
+        ['d', 5_000, 50_000],
+      ],
+      [[0, 50_000]],
+    );
+    const expected = { coverage: 0.8, dwellRatio: 0.5, q: 0.65, qualification: 'qualified', reasons: [] };
+    expect(qualify(records, policy)).toMatchObject(expected);
+    expect(qualify(records, SCROLL_RECORDING_QUALIFICATION_POLICY)).toMatchObject(expected);
+    expect(summariseReading(records, facts, SCROLL_RECORDING_QUALIFICATION_POLICY)).toEqual(
+      summariseReading(records, facts, policy),
+    );
   });
 
   it('weights coverage by content size: many tiny blocks do not dominate', () => {

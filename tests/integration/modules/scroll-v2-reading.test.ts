@@ -153,7 +153,11 @@ describe('Qualifying a v2 reading (pure, from the labelled Orrin fixture)', () =
   const { facts, nominalMs } = orrin();
 
   it('names the same coverage units in content and in evidence, for each version of the facts', () => {
-    expect(ELIGIBLE_BY_FACTS_VERSION).toEqual({ 2: coverageLocatorTypes(2), 3: coverageLocatorTypes(3) });
+    expect(ELIGIBLE_BY_FACTS_VERSION).toEqual({
+      2: coverageLocatorTypes(2),
+      3: coverageLocatorTypes(3),
+      4: coverageLocatorTypes(4),
+    });
     expect(facts.v).toBe(3);
   });
 

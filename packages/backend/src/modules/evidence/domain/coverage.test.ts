@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fc, test } from '@fast-check/vitest';
 import { REEL_COVERAGE_POLICY, type ReadingFacts, type CoverageHead } from '../../content/public.js';
 import {
+  ELIGIBLE_BY_FACTS_VERSION,
   observedBindings,
   observedReelBindings,
   REEL_MAPPING_POLICY,
@@ -92,6 +93,79 @@ describe('observed static coverage, labelled source fixtures', () => {
       ),
     ).toEqual([]);
     expect(observedBindings(evidence(['one', 'one', 'two']), facts, head, () => hash)).toBeUndefined();
+  });
+});
+
+describe('observed beat coverage: facts v4 is read on the shared clock only (#761)', () => {
+  const SHARED = 'scroll-qualification.shared.v1';
+  const beatFacts: ReadingFacts = {
+    v: 4,
+    measuresVersion: 'fixture',
+    totalWeight: 10,
+    estimatedReadingMs: 1000,
+    blocks: [
+      { id: 'one', type: 'beat', weight: 5 },
+      { id: 'two', type: 'beat', weight: 5 },
+    ],
+    nested: [],
+  };
+  const stopFacts: ReadingFacts = {
+    ...beatFacts,
+    v: 3,
+    blocks: [
+      { id: 'one', type: 'stop', weight: 5 },
+      { id: 'two', type: 'stop', weight: 5 },
+    ],
+  };
+  const withPolicy = (policyVersion: string) => ({ ...evidence(['one', 'two']), policyVersion });
+
+  it('names beats as the unit of facts v4', () => {
+    expect(ELIGIBLE_BY_FACTS_VERSION[4]).toEqual(['beat']);
+  });
+
+  it('binds facts v4 with an evidence row of the shared policy', () => {
+    expect(observedBindings(withPolicy(SHARED), beatFacts, head, () => hash)).toEqual([binding]);
+  });
+
+  it.each(['scroll-qualification.recording.v1', 'scroll-qualification.v0'])(
+    'does not bind facts v4 with a per-unit row (%s): a beat seen on the per-unit clock was not read',
+    (label) => {
+      expect(observedBindings(withPolicy(label), beatFacts, head, () => hash)).toBeUndefined();
+    },
+  );
+
+  it.each([
+    ['v3 (stops)', stopFacts],
+    ['v2 (paragraphs)', facts],
+  ])('does not bind facts %s with a row of the shared policy', (_name, older) => {
+    expect(observedBindings(withPolicy(SHARED), older, head, () => hash)).toBeUndefined();
+  });
+
+  it('still binds facts v3 with a per-unit row, as before', () => {
+    expect(observedBindings(withPolicy('scroll-qualification.recording.v1'), stopFacts, head, () => hash)).toEqual([
+      binding,
+    ]);
+  });
+
+  it.each([beatFacts, stopFacts, facts])('does not bind an unknown policy label (facts v%#)', (anyFacts) => {
+    expect(observedBindings(withPolicy('scroll-qualification.shared.v2'), anyFacts, head, () => hash)).toBeUndefined();
+  });
+
+  it('binds only beats on facts v4, not other unit kinds', () => {
+    const paragraphs: ReadingFacts = {
+      ...beatFacts,
+      blocks: [
+        { id: 'one', type: 'paragraph', weight: 5 },
+        { id: 'two', type: 'stop', weight: 5 },
+      ],
+    };
+    expect(observedBindings(withPolicy(SHARED), paragraphs, head, () => hash)).toEqual([]);
+  });
+
+  it('keeps the checks every row needs: a shared row that is not qualified binds nothing', () => {
+    expect(
+      observedBindings({ ...withPolicy(SHARED), qualification: 'not_qualified' }, beatFacts, head, () => hash),
+    ).toBeUndefined();
   });
 });
 

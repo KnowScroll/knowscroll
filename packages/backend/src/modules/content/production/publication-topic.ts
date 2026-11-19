@@ -13,9 +13,9 @@ import type {
 import { coverageHeadPorts } from '../adapters/coverage-store.js';
 import { inAdmissionTransaction } from '../adapters/postgres-store.js';
 import { makeStoredRecipes } from '../adapters/stored-recipes.js';
+import { attributePrimaryTopic } from '../adapters/topic-attribution.js';
 import { admitRecipeCoverage } from '../application/admit-recipe-coverage.js';
 import { codeRecipeOf } from '../application/recipe-book.js';
-import { validateTopics } from '../domain/discovery.js';
 import type { BookRecipe } from '../domain/library/generated.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
@@ -236,54 +236,14 @@ async function verifyPublication(
   return { recipe: recipe.recipe, assetId: row.asset_id, revision: row.revision };
 }
 
-/**
- * Records the recipe's planet as the revision's single primary topic. The 0016 revision trigger
- * already created the baseline row; this never creates metadata for a missing revision or replaces
- * conflicting authority. SQL's aggregate weight guard stays active, and the row lock serializes even
- * an idempotent projection of the same target. Returns false when existing attribution conflicts.
- */
-async function attributeTopic(tx: Transaction<Database>, publication: VerifiedPublication): Promise<boolean> {
-  const metadata = await tx
-    .selectFrom('content.discovery_revisions')
-    .select('facets')
-    .where('asset_id', '=', publication.assetId)
-    .where('asset_revision', '=', publication.revision)
-    .forUpdate()
-    .executeTakeFirst();
-  if (metadata === undefined) return false;
-  const attribution = { topicId: publication.recipe.topicId, role: 'primary' as const, weight: 1 };
-  validateTopics([attribution]);
-  const existing = await tx
-    .selectFrom('content.encounter_topics')
-    .select(['topic_id', 'role', 'weight'])
-    .where('asset_id', '=', publication.assetId)
-    .where('asset_revision', '=', publication.revision)
-    .limit(17)
-    .execute();
-  if (
-    (metadata.facets.length !== 0 && JSON.stringify(metadata.facets) !== JSON.stringify([attribution.topicId])) ||
-    existing.length > 1 ||
-    existing.some((entry) => entry.topic_id !== attribution.topicId || entry.role !== 'primary' || entry.weight !== 1)
-  )
-    return false;
-  await tx
-    .insertInto('content.encounter_topics')
-    .values({
-      asset_id: publication.assetId,
-      asset_revision: publication.revision,
-      topic_id: attribution.topicId,
-      role: 'primary',
-      weight: 1,
-    })
-    .onConflict((conflict) => conflict.columns(['asset_id', 'asset_revision', 'topic_id']).doNothing())
-    .execute();
-  await tx
-    .updateTable('content.discovery_revisions')
-    .set({ facets: [attribution.topicId], attribution_version: ATTRIBUTION_VERSION })
-    .where('asset_id', '=', publication.assetId)
-    .where('asset_revision', '=', publication.revision)
-    .execute();
-  return true;
+/** Records the recipe's planet as the published revision's single primary topic (`attributePrimaryTopic`). */
+function attributeTopic(tx: Transaction<Database>, publication: VerifiedPublication): Promise<boolean> {
+  return attributePrimaryTopic(tx, {
+    assetId: publication.assetId,
+    revision: publication.revision,
+    topicId: publication.recipe.topicId,
+    version: ATTRIBUTION_VERSION,
+  });
 }
 
 /** Adds a code-only receipt to the job so the operator can see why a published Scroll lacks metadata. */
