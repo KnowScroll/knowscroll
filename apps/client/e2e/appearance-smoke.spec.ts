@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { signedInAccount } from './account-fixture';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 import { roomFixture } from './rooms-fixture';
 import { openPair, pairWorld } from './talk-pair-fixture';
 import { openParty } from './thread-party-fixture';
@@ -143,12 +143,31 @@ for (const [earlier, appearance] of [
         textSize: 'larger',
         reelSound: false,
         readyNotices: true,
-        coversInExplore: false,
         appearance,
       });
     await page.reload();
     await expect.poll(() => appearanceOf(page)).toBe(appearance);
   });
+
+test('the covers trial choice an earlier version stored is dropped the next time preferences are written', async ({
+  page,
+}) => {
+  await kept(page, {
+    motion: 'reduce',
+    textSize: 'larger',
+    reelSound: true,
+    readyNotices: true,
+    appearance: 'light',
+    coversInExplore: true,
+  });
+  await signedInAccount(page);
+  await page.goto('/account/accessibility');
+  await expect(page.getByRole('switch', { name: 'Start Reels with sound' })).toBeVisible();
+  await page.getByRole('switch', { name: 'Start Reels with sound' }).click();
+  await expect
+    .poll(() => stored(page))
+    .toEqual({ motion: 'reduce', textSize: 'larger', reelSound: false, readyNotices: true, appearance: 'light' });
+});
 
 for (const viewport of [phone, desktop])
   for (const appearance of ['dark', 'light'] as const) {
@@ -212,6 +231,7 @@ for (const viewport of [phone, desktop])
         scrollDocument: seasons as unknown as Record<string, unknown>,
       });
       await page.goto('/explore');
+      await readCover(page);
       await expect(
         page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
       ).toBeVisible();
@@ -230,6 +250,7 @@ test('switching halfway through a Scroll repaints the reader and keeps its place
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
   ).toBeVisible();

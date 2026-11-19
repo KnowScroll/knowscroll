@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture, id, type EncounterFixtureOptions } from './encounter-fixture';
+import { encounterFixture, id, type EncounterFixtureOptions, readCover } from './encounter-fixture';
 
 /**
  * How a v2 Scroll moves between Parts, and how its top bar and end card read, wherever it is opened
@@ -43,6 +43,7 @@ async function openFromExplore(page: Page, viewport = phone) {
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   await expect(title(page, 1)).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   return served;
@@ -177,19 +178,12 @@ test('closing ••• on a Part you moved on to stays on that Part', async ({ 
   await expect(heading).toHaveText(part2);
 });
 
-test('browser Back after ••• then Share closes the Share sheet with one pop and stays on the Scroll', async ({
+test('browser Back after ••• then Share closes the Share sheet with one Back and stays on the Scroll', async ({
   page,
 }) => {
   await openFromExplore(page);
   const heading = page.getByTestId('reader-top-title').getByRole('heading', { level: 1 });
   const title = await heading.innerText();
-  await page.evaluate(() => {
-    const seen = { pops: 0 };
-    (window as unknown as { __pops: typeof seen }).__pops = seen;
-    window.addEventListener('popstate', () => {
-      seen.pops += 1;
-    });
-  });
   await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('button', { name: 'Share', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Send to a conversation' })).toBeVisible();
@@ -198,7 +192,11 @@ test('browser Back after ••• then Share closes the Share sheet with one po
   await page.waitForTimeout(500);
   await expect(heading).toHaveText(title);
   await expect(page).toHaveURL(new RegExp('/explore'));
-  expect(await page.evaluate(() => (window as unknown as { __pops: { pops: number } }).__pops.pops)).toBe(1);
+  // The Scroll was opened from its cover, so the encounter keeps its own entry under the sheet's: one Back closed
+  // the sheet and nothing more, and the next Back is the cover.
+  await expect(page.getByTestId('essay-cover')).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByTestId('essay-cover')).toBeVisible();
 });
 
 for (const [name, viewport] of [

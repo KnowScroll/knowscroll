@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture, id, type EncounterFixtureOptions } from './encounter-fixture';
+import { encounterFixture, id, type EncounterFixtureOptions, readCover } from './encounter-fixture';
 
 /**
  * Ask from here (D1, D-218) in the production export: the sheet over a Scroll that has stops, the questions the Scroll
@@ -24,6 +24,7 @@ async function open(page: Page, viewport = phone, options: Pick<EncounterFixture
     ...options,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar; the essay repeats it in its opening.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),

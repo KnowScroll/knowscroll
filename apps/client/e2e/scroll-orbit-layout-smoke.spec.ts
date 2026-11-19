@@ -10,7 +10,7 @@ import {
   type StageFigure,
   type StageState,
 } from '@knowscroll/scroll-model';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * The orbit pictures of the Earth & sky kit, drawn as figures of the Folio essay in the production export over the labelled
@@ -63,6 +63,7 @@ async function open(page: Page, document: ScrollDocumentV2, viewport: { width: n
     scrollDocument: document as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar and again in the essay.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),

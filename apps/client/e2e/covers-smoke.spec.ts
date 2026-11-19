@@ -1,14 +1,26 @@
 import AxeBuilder from '@axe-core/playwright';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import { signedInAccount } from './account-fixture';
 import { encounterFixture, id, type EncounterFixtureOptions } from './encounter-fixture';
 
 /**
- * Covers in Explore (#747) in the production export over labelled HTTP fixtures (no backend): behind the device switch
- * "Show Scrolls as covers (trial)", Explore deals a hand of covers and opens one only when asked. The hands, the covers
- * and the documents are authored in `encounter-fixture.ts`, so this proves what the page does with them, not what the
- * server chooses to deal.
+ * Covers in Explore (#747, #752) in the production export over labelled HTTP fixtures (no backend): Explore deals a hand
+ * of covers and opens one only when asked, with no switch to turn on. The hands, the covers and the documents are
+ * authored in `encounter-fixture.ts`, so this proves what the page does with them, not what the server chooses to deal.
  */
+
+/** Screenshots are written only when `KS_COVERS_SHOTS` names a folder (for the PR; never inside the repository). */
+async function shot(page: Page, name: string) {
+  const folder = process.env['KS_COVERS_SHOTS'];
+  if (folder === undefined) return;
+  mkdirSync(folder, { recursive: true });
+  // The figure draws in and the essay settles before it is looked at.
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: join(folder, `${name}.png`) });
+}
 
 const phone = { width: 390, height: 844 };
 const desktop = { width: 1440, height: 900 };
@@ -36,38 +48,36 @@ const pressable = (control: Locator) =>
     return top !== null && node.contains(top);
   });
 
-/** Explore with covers on (or off, with `switchOn: false`), up to the first cover and past the first-arrival note. */
+/** Explore up to the first cover and past the first-arrival note. */
 async function openCovers(
   page: Page,
   options: {
-    readonly switchOn?: boolean;
     readonly preferences?: Record<string, unknown>;
     readonly viewport?: { width: number; height: number };
     readonly fixture?: EncounterFixtureOptions;
   } = {},
 ) {
-  const switchOn = options.switchOn ?? true;
   const served = await encounterFixture(page, 'scroll', {
     covers: { hand: HAND },
     scrollDocument: document2,
     viewport: options.viewport ?? phone,
-    devicePreferences: { ...(switchOn ? { coversInExplore: true } : {}), ...options.preferences },
+    ...(options.preferences === undefined ? {} : { devicePreferences: options.preferences }),
     ...options.fixture,
   });
   await page.goto('/explore');
-  if (switchOn) {
-    await expect(cover(page)).toBeVisible();
-    // A cover names its own moves (the arrows, Read, the strip), so no first-arrival note is laid over Read.
-    await expect(page.getByRole('note', { name: 'How to move around' })).toHaveCount(0);
-  }
+  await expect(cover(page)).toBeVisible();
+  // A cover names its own moves (the arrows, Read, the strip), so no first-arrival note is laid over Read.
+  await expect(page.getByRole('note', { name: 'How to move around' })).toHaveCount(0);
   return served;
 }
 
-test('with the switch on, Explore arrives on a cover and opens nothing; it asked for covers', async ({ page }) => {
+test('Explore arrives on a cover and opens nothing; it asked for covers', async ({ page }) => {
   const { commands } = await openCovers(page);
   await expect(coverTitle(page, 1)).toBeVisible();
   await expect(position(page, 1)).toBeVisible();
   await expect(cover(page).getByText('CI cover kicker 1', { exact: true })).toBeVisible();
+  // Nothing was chosen on this device, and nothing needed to be: covers are how Explore offers a Scroll.
+  expect(await page.evaluate(() => window.localStorage.getItem('ks.device.preferences'))).toBeNull();
   await expect(page.getByTestId('essay-cover-figure')).toBeVisible();
   await expect(page.getByTestId('essay-cover-read')).toBeVisible();
   // The strip is the way on at the foot of the cover: the floating tab bar must not sit over it.
@@ -150,6 +160,26 @@ test('Read opens the shown cover with one activation, in Folio; Back returns to 
   expect(activations(commands)).toHaveLength(1);
 });
 
+test('Next idea from an essay opened from a cover deals a new hand; its Scroll opens from its cover with no Next-topic note', async ({
+  page,
+}) => {
+  const { commands } = await openCovers(page);
+  await page.getByTestId('essay-cover-read').click();
+  await expect(readerTitle(page, 1)).toBeVisible();
+  await page.getByRole('button', { name: 'Next topic' }).click();
+  await expect(cover(page)).toBeVisible();
+  await expect(coverTitle(page, 4)).toBeVisible();
+  expect(callsTo(commands, '/v1/experience/navigate')).toHaveLength(1);
+  expect(activations(commands)).toHaveLength(1);
+  await page.getByTestId('essay-cover-read').click();
+  await expect(readerTitle(page, 4)).toBeVisible();
+  expect(activations(commands)).toHaveLength(2);
+  // The cover said what it is, so the Scroll arrives with no note about the new topic, and Back is the Undo.
+  await expect(page.getByTestId('format-note')).toHaveCount(0);
+  await page.goBack();
+  await expect(coverTitle(page, 4)).toBeVisible();
+});
+
 test('Enter on a cover opens it, and a tap on its title does too', async ({ page }) => {
   const { commands } = await openCovers(page);
   await page.keyboard.press('Enter');
@@ -197,19 +227,20 @@ test.describe('a finger', () => {
   });
 });
 
-test('with the switch off a Scroll opens on arrival as before', async ({ page }) => {
-  // The server would send a cover; the page does not ask for one to be shown, and one Scroll activates.
-  const off = await openCovers(page, { switchOn: false });
-  await expect(readerTitle(page, 1)).toBeVisible();
-  await expect(cover(page)).toHaveCount(0);
-  expect(activations(off.commands)).toHaveLength(1);
+test('there is no switch for covers on the Accessibility screen', async ({ page }) => {
+  await signedInAccount(page);
+  await page.goto('/account/accessibility');
+  await expect(page.getByRole('switch', { name: 'Start Reels with sound' })).toBeVisible();
+  await expect(page.getByRole('switch', { name: /covers/i })).toHaveCount(0);
+  await expect(page.getByText('Show Scrolls as covers')).toHaveCount(0);
+  await shot(page, 'accessibility-no-switch-phone-dark');
 });
 
-test('with the switch on, an offer without a cover also opens on arrival', async ({ page }) => {
-  // No `covers` in the fixture: the offers carry none, however the page asks.
+test('an offer without a cover opens on arrival', async ({ page }) => {
+  // A server that predates covers sends none: the page has nothing to show, so the Scroll opens and one activates.
   const { commands } = await encounterFixture(page, 'scroll', {
+    covers: { absent: true },
     scrollDocument: document2,
-    devicePreferences: { coversInExplore: true },
   });
   await page.goto('/explore');
   await expect(readerTitle(page, 1)).toBeVisible();
@@ -217,11 +248,8 @@ test('with the switch on, an offer without a cover also opens on arrival', async
   expect(activations(commands)).toHaveLength(1);
 });
 
-test('with the switch on, a hand of Reels plays as before', async ({ page }) => {
-  const { commands } = await encounterFixture(page, 'reel', {
-    covers: { hand: HAND },
-    devicePreferences: { coversInExplore: true },
-  });
+test('a hand of Reels plays as before', async ({ page }) => {
+  const { commands } = await encounterFixture(page, 'reel', { covers: { hand: HAND } });
   await page.route('**/media/gesture-fixture', (route) =>
     route.fulfill({ status: 404, body: 'CI fixture only: no decoded playback claimed' }),
   );
@@ -259,6 +287,25 @@ for (const [label, viewport] of [
       await expect(position(page, 2)).toBeVisible();
       await page.waitForTimeout(600);
       expect(await seriousViolations(page)).toEqual([]);
+    });
+  }
+}
+
+for (const [label, viewport, text] of [
+  ['390x844', phone, 'device'],
+  ['1440x900', desktop, 'device'],
+  ['320x568-largest', small, 'largest'],
+] as const) {
+  for (const appearance of ['light', 'dark'] as const) {
+    test(`Explore arrives on a cover and Read opens the essay, in ${appearance} at ${label}`, async ({ page }) => {
+      await openCovers(page, { viewport, preferences: { appearance, textSize: text } });
+      await expect(coverTitle(page, 1)).toBeVisible();
+      await shot(page, `cover-${label}-${appearance}`);
+      await page.getByTestId('essay-cover-read').click();
+      await expect(readerTitle(page, 1)).toBeVisible();
+      await expect(page.getByTestId('folio-page')).toBeVisible();
+      await expect(cover(page)).toHaveCount(0);
+      await shot(page, `essay-${label}-${appearance}`);
     });
   }
 }

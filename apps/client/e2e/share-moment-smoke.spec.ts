@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { anchorIsMoment, momentOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { encounterFixture, id } from './encounter-fixture';
+import { encounterFixture, id, readCover } from './encounter-fixture';
 import { openParty, partyWorld } from './thread-party-fixture';
 
 /**
@@ -106,6 +106,7 @@ async function openExploreWithThreads(
     });
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar and again in the essay.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),

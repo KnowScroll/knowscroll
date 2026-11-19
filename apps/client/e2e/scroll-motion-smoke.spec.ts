@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import blocks from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
-import { encounterFixture, id } from './encounter-fixture';
+import { encounterFixture, id, readCover, type EncounterFixtureOptions } from './encounter-fixture';
 
 /**
  * Moving between Parts and topics in the Scroll reader (#497, part B) in the production export over labelled HTTP fixtures:
- * the note a Part arrives with and the link back to the Part before, and the note after Next ↑. The document is the
+ * the note a Part arrives with and the link back to the Part before, and the note after Next ↑ on a Scroll that opens at once. The document is the
  * labelled CI fixture `seasons-stage-ci` (not product content). Screenshots are written only when `KS_FIDELITY_SHOTS`
  * names a folder (outside the repository).
  */
@@ -31,13 +31,22 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-async function open(page: Page, viewport = phone) {
+/**
+ * The note after Next ↑ belongs to a Scroll that opens at once. One opened from its cover has none (D-426), so the
+ * note's own specs run over an offer with no cover, which opens at once, until the note goes with that path.
+ */
+const NO_COVER = { covers: { absent: true } } as const;
+
+/** Explore on the fixture Scroll, opened as a person does: from its cover, or at once when the offer has none. */
+async function open(page: Page, viewport = phone, fixture: EncounterFixtureOptions = {}) {
   const served = await encounterFixture(page, 'scroll', {
     series: true,
     viewport,
     scrollDocument: seasons as unknown as Record<string, unknown>,
+    ...fixture,
   });
   await page.goto('/explore');
+  if (fixture.covers?.absent !== true) await readCover(page);
   await expect(heading(page)).toHaveText('CI encounter fixture 1');
   await page.getByRole('button', { name: 'Got it' }).click();
   return served;
@@ -66,7 +75,7 @@ test('the button opens the Part with a note that the place in the Part before is
 test('after Next ↑ the note says it is the next topic as a Scroll, offers the Reel and Undo, and Undo goes back', async ({
   page,
 }) => {
-  await open(page);
+  await open(page, phone, NO_COVER);
   await page.getByRole('button', { name: 'Next topic' }).click();
   await expect(heading(page)).toHaveText('CI encounter fixture 2');
   const note = page.getByTestId('format-note');
@@ -82,7 +91,7 @@ test('after Next ↑ the note says it is the next topic as a Scroll, offers the 
 });
 
 test('Esc undoes the new topic while the note is showing, and the note is not said for a Part', async ({ page }) => {
-  await open(page);
+  await open(page, phone, NO_COVER);
   // The key N from the reader group: focus is not taken into the note (that would hold its timer for good), and the
   // reader's own keys act with no click or Tab first.
   await page.getByTestId('scroll-reader').focus();
@@ -109,7 +118,7 @@ for (const { label, viewport } of [
     page,
   }) => {
     await page.clock.install();
-    await open(page, viewport);
+    await open(page, viewport, NO_COVER);
     await page.getByRole('button', { name: 'Next topic' }).click();
     const note = page.getByTestId('format-note');
     await expect(note).toBeVisible();
@@ -125,7 +134,7 @@ test('the note waits while the pointer is over it or focus is in it by the perso
   page,
 }) => {
   await page.clock.install();
-  await open(page);
+  await open(page, phone, NO_COVER);
   await page.getByRole('button', { name: 'Next topic' }).click();
   const note = page.getByTestId('format-note');
   await expect(note).toBeVisible();
@@ -148,7 +157,7 @@ test('the note waits while the pointer is over it or focus is in it by the perso
 });
 
 test('the note is drawn at 1440 × 900 too', async ({ page }) => {
-  await open(page, desktop);
+  await open(page, desktop, NO_COVER);
   await page.getByRole('button', { name: 'Next topic' }).click();
   await expect(page.getByTestId('format-note')).toBeVisible();
   await shot(page, 'format-note-1440x900');
@@ -190,6 +199,7 @@ for (const width of [320, 390]) {
         scrollDocument: fixture as unknown as Record<string, unknown>,
       });
       await page.goto('/explore');
+      await readCover(page);
       await page.getByRole('button', { name: 'Got it' }).click();
       await expect(page.getByTestId('reader-dock')).toBeVisible();
       const past = await page.evaluate((limit) => {
@@ -207,7 +217,7 @@ for (const width of [320, 390]) {
 }
 
 test('F switches to the Reel with no click or Tab first: the reader has focus, not the note', async ({ page }) => {
-  await open(page);
+  await open(page, phone, NO_COVER);
   await page.getByTestId('scroll-reader').focus();
   await page.keyboard.press('n');
   await expect(page.getByTestId('format-note')).toBeVisible();
@@ -221,7 +231,7 @@ test('F switches to the Reel with no click or Tab first: the reader has focus, n
 test('at 320 px the note sits below the whole top bar, wrapped as it is, and covers none of its controls', async ({
   page,
 }) => {
-  await open(page, { width: 320, height: 640 });
+  await open(page, { width: 320, height: 640 }, NO_COVER);
   await page.getByRole('button', { name: 'Next topic' }).click();
   const note = await page.getByTestId('format-note').boundingBox();
   const bar = await page.getByTestId('reader-top-bar').boundingBox();
@@ -239,7 +249,7 @@ for (const viewport of [{ width: 320, height: 568 }, phone, desktop]) {
     page,
   }) => {
     // The default fixture is a v1 article: the reader that has no stage.
-    await encounterFixture(page, 'scroll', { viewport });
+    await encounterFixture(page, 'scroll', { viewport, ...NO_COVER });
     await page.goto('/explore');
     await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
     await page.getByRole('button', { name: 'Got it' }).click();

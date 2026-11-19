@@ -1,15 +1,24 @@
 import { expect, test, type Page } from '@playwright/test';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
-import { encounterFixture, id } from './encounter-fixture';
+import { encounterFixture, id, readCover } from './encounter-fixture';
 
 test('Explore activates once per offer; browser Back restores the retained Scroll without another lineage command; Keep removes withdrawn references', async ({
   page,
 }) => {
   const { commands } = await encounterFixture(page, 'scroll');
   await page.goto('/explore');
+  // Explore arrives on the Scroll's cover; looking at a cover activates nothing.
+  await expect(page.getByTestId('essay-cover')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  expect(commands.map((call) => call.path)).toEqual(['/v1/experience/open']);
+  await readCover(page);
+  await expect(page.getByTestId('essay-cover')).toHaveCount(0);
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next subject', exact: true }).last().click();
+  await readCover(page);
+  // The cover's title is the page's h1 too: the essay is open once the cover is gone.
+  await expect(page.getByTestId('essay-cover')).toHaveCount(0);
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 2' })).toBeVisible();
   expect(commands.map((call) => call.path)).toEqual([
     '/v1/experience/open',
@@ -18,8 +27,12 @@ test('Explore activates once per offer; browser Back restores the retained Scrol
     '/v1/experience/activate',
   ]);
   const count = commands.length;
+  // Back from the Scroll opened from its cover is that cover; Back from the covers is the Scroll they were dealt over.
+  await page.goBack();
+  await expect(page.getByTestId('essay-cover')).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  await expect(page.getByTestId('essay-cover')).toHaveCount(0);
   expect(commands).toHaveLength(count);
   await page.getByRole('button', { name: 'More options' }).click();
   await expect(page.getByRole('heading', { name: 'More', exact: true })).toBeVisible();
@@ -383,6 +396,7 @@ test('the narrow Scroll keeps its own bounded reading viewport and vertical read
   const { commands } = await encounterFixture(page, 'scroll');
   await page.setViewportSize({ width: 355, height: 767 });
   await page.goto('/explore');
+  await readCover(page);
   await page.getByRole('button', { name: 'Got it' }).click();
   const article = page.getByTestId('scroll-article');
   await expect(article).toBeVisible();
