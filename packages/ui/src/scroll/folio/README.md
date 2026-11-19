@@ -28,6 +28,17 @@ scroll-document.v2 ──readingModelOfV2──► ReadingModel ──► FolioR
 
 Colours come from `usePagePalette()` (`../page/page-palette.tsx`). The page follows the person's appearance with a palette of its own (D-424): on the web `scrollPageSurface()` names the page and every colour inside it is a custom property, so switching appearance repaints the essay at once and keeps the place; native draws the Light page for now (#740). Figures are drawn by role (`../kit/parts.tsx`): a line in ink, a dark body in `SOLID`, a lit side in `LIT`. `/gallery-folio?figures=1` puts every figure state of a document on one page, to look at each kit in both appearances.
 
+## The cover
+
+A Scroll can be shown as a cover first and opened on tap (`essay-cover.tsx`, `EssayCover`). It shows the three lines the essay opens with, one picture, a Read (or Continue) button with the reading time, a "1 OF 3" place in the hand, and ways to the previous and next cover: two round arrows and a strip along the foot that names what the next move shows ("NEXT · kicker" over the next title, or "MORE COVERS" after the last).
+
+- **The opening is shared.** `essay-opening.tsx` (`EssayOpening`) draws the kicker, title and dek for the essay and the cover alike, so the type is identical and opening a cover reads as the same page unfolding. The title is the one `h1`: the cover replaces the essay on screen.
+- **The picture cannot be operated.** It is the Scroll's first stage state drawn on a plate like the essay's, with no "Text" chip and no control (no tilt slider). It is the part that gives way to the `height` the cover is given: shorter, then dropped when under about 140 px is left, as on a small phone or at large text. What remains scrolls inside the cover; no line of text is clipped.
+- **Opening has one control.** A tap on the opening or the picture opens the Scroll for a pointer or a finger, but that area is not a focus stop or a screen-reader control: the Read button is the one way in for a keyboard.
+- **It is the Scroll's page** (`scrollPageSurface`, the page palette), so Light and Dark match the essay it opens into. It moves nothing beyond what `useKitFigure` does, and nothing under reduced motion.
+
+`/gallery-folio?covers=1` draws one hand of five labelled fixture covers (first, no stage, words only, Continue, last), each as tall as the window leaves it.
+
 ## How reading is measured
 
 Each beat's wrapper is measured by the article's hooks (`../reading/`): IntersectionObserver on the web, layout and scroll offset on native. Only a band of the viewport counts (`readingBandOf`: from 42 % down to 12 % above the bottom), so a beat hidden behind a held figure is never visible and only a few beats count at once. The ids reported are stop ids, as the Stage reader's were; nothing a person does with a figure or a play block is reported. The stop being read (for Keep, Ask and Share a moment) is the last beat whose top has passed the top of the band; a kept place or a jump puts its beat there, so the stop opened is the stop being read.

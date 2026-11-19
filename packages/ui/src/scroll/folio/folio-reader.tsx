@@ -39,6 +39,7 @@ import { SelectionMenu } from '../reader/selection-menu';
 import { passageOf } from '../reader/passage';
 import { useBeatReading } from './beat-reading';
 import { BeatView } from './beat-view';
+import { EssayOpening } from './essay-opening';
 import { EndPlateView } from './end-plate';
 import { canPinHolds, figureHeightFor, holdsBeside, isWide, readingBandOf } from './essay-layout';
 import { FigureView } from './figure-view';
@@ -474,18 +475,13 @@ export function FolioReader({
           }}
           onScrollBeginDrag={onScrollBeginDrag}
         >
-          <View style={[column, styles.opening]}>
-            {previousPart === undefined ? null : <PreviousPartLink previous={previousPart} />}
-            <Text variant="label" color={page.link}>
-              {model.kicker}
-            </Text>
-            <Text variant="page" heading={1} color={page.ink}>
-              {model.title}
-            </Text>
-            <Text variant="bodyS" color={page.ink2}>
-              {model.dek}
-            </Text>
-          </View>
+          <EssayOpening
+            kicker={model.kicker}
+            title={model.title}
+            dek={model.dek}
+            before={previousPart === undefined ? null : <PreviousPartLink previous={previousPart} />}
+            style={column}
+          />
           {model.sections.flatMap((section) => [
             section.heading === undefined ? null : (
               <View key={`heading-${section.id}`} style={column}>
@@ -683,7 +679,6 @@ const styles = StyleSheet.create({
   scroller: { flex: 1 },
   content: { paddingHorizontal: layout.gutter, paddingBottom: spacing[12], gap: spacing[6], alignItems: 'center' },
   column: { width: '100%' },
-  opening: { gap: spacing[2], paddingTop: spacing[6] },
   rail: { height: 3, width: '100%' },
   railFill: { height: 3 },
   previous: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },

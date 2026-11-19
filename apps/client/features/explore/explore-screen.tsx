@@ -7,6 +7,7 @@ import type { AccountScope } from '@knowscroll/client-core';
 import { content, layout } from '@knowscroll/design-tokens';
 import { Skeleton } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { useDocumentTitle } from '../../platform/document-title';
 import type { EncounterEntry } from '../encounter/encounter-history';
 import { isScrollV2 } from '../scroll/scroll-session';
@@ -21,6 +22,7 @@ import { useEncounterSession } from '../encounter/use-encounter-session';
 import { railWidth, usesRail } from '../shell/app-navigation';
 import { ReelPage } from '../reel/reel-page';
 import { useDisplay } from '@knowscroll/ui';
+import { CoverFeed } from './cover-feed';
 import { ReelFrame } from './reel-frame';
 import { FirstArrivalHint } from './first-arrival-hint';
 import { FirstArrivalScreen } from './first-arrival-screen';
@@ -36,6 +38,9 @@ function EncounterPage({ reading, children }: { readonly reading: boolean; reado
     <ReelPage testID="encounter-page">{children}</ReelPage>
   );
 }
+
+/** Phases a hand of covers stays on screen through: at rest, asking for more, and opening one. */
+const COVER_PHASES = new Set(['covers', 'opening', 'ready_offer', 'activating']);
 
 /** Phases that keep the current Reel or Scroll on screen: playing, or opening the next one over it. */
 const SURFACE_PHASES = new Set(['active', 'opening', 'ready_offer', 'activating']);
@@ -71,6 +76,7 @@ function hintsFor(entry: EncounterEntry) {
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const { session, state } = useEncounterSession(scope);
+  const { preferences } = useDevicePreferences();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { breakpoint } = useDisplay();
@@ -81,8 +87,9 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   // "Done for now" belongs to the entry it was chosen on; any other state or entry shows its own screen.
   const [calmedEntry, setCalmedEntry] = useState<EncounterEntry>();
   useEncounterContext(scope, session, state.entry, foreground);
+  useEffect(() => session.setCoverFeed(preferences.coversInExplore), [session, preferences.coversInExplore]);
   const [hintOpen, setHintOpen] = useState(() => scope.storage.get('explore.hint.dismissed') !== '1');
-  useDocumentTitle(state.entry?.offer.metadata.title ?? 'Explore');
+  useDocumentTitle((state.covers ? undefined : state.entry?.offer.metadata.title) ?? 'Explore');
   useFocusEffect(
     useCallback(() => {
       const activity = (active: boolean) => {
@@ -115,22 +122,22 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const entry = state.entry;
   const calm = state.phase === 'exhausted' && entry !== undefined && calmedEntry === entry;
   const choosing = state.choices !== undefined;
-  const showSurface = entry !== undefined && SURFACE_PHASES.has(state.phase) && !choosing;
+  // A hand of covers stands in front of whatever was on screen until a cover opens or the person goes Back. Any other
+  // phase (a failure, a stale path, Keep blocked) has its own screen, which a cover must never hide.
+  const covers = state.covers && COVER_PHASES.has(state.phase) ? state.covers : undefined;
+  const showSurface = entry !== undefined && SURFACE_PHASES.has(state.phase) && !choosing && covers === undefined;
   const opening = state.phase !== 'active';
   // The thread sits beside the encounter from 768 px up (V01, D01); the desktop Reel is a card (D01).
   const asideWidth = showSurface && railed ? asideWidthFor(windowWidth) : 0;
   const framedReel = showSurface && desktop && entry.kind === 'reel';
   // The swipe hint is written for touch; a desktop Reel shows its keys under the card instead.
+  const dismissHint = () => {
+    if (scope.active) scope.storage.set('explore.hint.dismissed', '1');
+    setHintOpen(false);
+  };
   const hint =
     hintOpen && showSurface && !framedReel ? (
-      <FirstArrivalHint
-        {...hintsFor(entry)}
-        lines={hintsFor(entry).lines}
-        onDismiss={() => {
-          if (scope.active) scope.storage.set('explore.hint.dismissed', '1');
-          setHintOpen(false);
-        }}
-      />
+      <FirstArrivalHint {...hintsFor(entry)} lines={hintsFor(entry).lines} onDismiss={dismissHint} />
     ) : null;
   const ground = !showSurface
     ? state.phase === 'exhausted' && entry && !calm
@@ -167,7 +174,9 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       testID="encounter-explore"
     >
       <View role="main" style={styles.main}>
-        {state.choices ? (
+        {covers ? (
+          <CoverFeed scope={scope} session={session} state={state} hand={covers} foreground={foreground} />
+        ) : state.choices ? (
           <DirectionPicker
             choices={state.choices}
             onPick={(offerId) => session.pickDirection(offerId)}

@@ -20,6 +20,7 @@
         "e2e/*.spec.ts",
         "features/encounter/encounter-overlay.web.tsx",
         "features/encounter/gestures/reel-gesture-stage.web.tsx",
+        "features/explore/cover-paging.web.ts",
         "features/universe/space/space-canvas.web.tsx",
         "features/universe/space/low-memory-device.web.ts"
       ],

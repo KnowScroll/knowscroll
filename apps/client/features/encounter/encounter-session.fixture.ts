@@ -6,6 +6,7 @@ import {
   type NavigationOutcome,
   type RecordingObservationBatchRequest,
 } from '@knowscroll/contracts';
+import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import { createEncounterSession } from './encounter-session';
 
 /** Labelled CI HTTP fixtures: actual typed transport, AccountScope and recorder, no live backend/media. */
@@ -13,16 +14,28 @@ export const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(1
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const problem = (code: Parameters<typeof problemDetails>[0]) => json(problemDetails(code), problemDetails(code).status);
-export function offer(n: number): EncounterOffer {
+/** What an offer is: a Reel, a Scroll without a cover, or a Scroll that carries one (`offer-cover.v1`). */
+export type OfferSpec = 'reel' | 'scroll' | 'cover';
+export function offer(n: number, spec: OfferSpec = 'reel'): EncounterOffer {
+  const scroll = spec !== 'reel';
   return {
     offerId: id(n + 100),
     decisionId: id(n + 200),
     assetId: id(n + 300),
-    assetRevision: 2,
+    // A Scroll's revision is its fixture document's, so the served document and the offer name the same one.
+    assetRevision: scroll ? scrollDocument.revision : 2,
     explanationUnitId: `fixture-${String(n)}`,
-    metadata: { kind: 'reel', title: `Fixture ${String(n)}`, summary: 'CI fixture only', language: 'en' },
+    metadata: {
+      kind: scroll ? 'scroll' : 'reel',
+      title: `Fixture ${String(n)}`,
+      summary: 'CI fixture only',
+      language: 'en',
+    },
+    ...(spec === 'cover'
+      ? { cover: { version: 'offer-cover.v1' as const, kicker: `Fixture kicker ${String(n)}`, readingMinutes: 4 } }
+      : {}),
     relation: { kind: 'discovery' },
-    variants: [{ status: 'unavailable', kind: 'scroll' }],
+    variants: [{ status: 'unavailable', kind: scroll ? 'reel' : 'scroll' }],
   };
 }
 export function harness() {
@@ -40,10 +53,25 @@ export function harness() {
   let contextNotFound = false;
   let contextGate: Promise<void> | undefined;
   let bufferedCount = 0;
+  let offerSpecs: readonly OfferSpec[] | undefined;
+  let activationProblem: Parameters<typeof problemDetails>[0] | undefined;
+  /** Every offer the fixture has served, so context, document and activation answer for the offer's own kind. */
+  const served = new Map<number, EncounterOffer>();
+  const servedOffer = (n: number) => served.get(n) ?? offer(n);
   let outcomeStatus: 'ready' | 'pending' | 'exhausted' = 'ready';
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const batches: RecordingObservationBatchRequest[] = [];
   const store = memoryStore();
+  const offersOf = () => {
+    const specs = offerSpecs ?? Array.from<OfferSpec>({ length: 1 + bufferedCount }).fill('reel');
+    const made = specs.map((spec, index) => {
+      const n = index === 0 ? selected : selected + 9 + index;
+      const made = offer(n, spec);
+      served.set(n, made);
+      return made;
+    });
+    return { offer: made[0]!, bufferedOffers: made.slice(1) };
+  };
   const outcome = (commandId: string): NavigationOutcome => ({
     commandId,
     sessionId: outcomeSessionId,
@@ -54,8 +82,7 @@ export function harness() {
     ...(outcomeStatus === 'ready'
       ? {
           status: 'ready',
-          offer: offer(selected),
-          bufferedOffers: Array.from({ length: bufferedCount }, (_, index) => offer(selected + 10 + index)),
+          ...offersOf(),
         }
       : outcomeStatus === 'pending'
         ? { status: 'pending', reason: 'buffer_preparing' }
@@ -63,8 +90,8 @@ export function harness() {
   });
   const context = (n: number): ExposureContextResponse => ({
     exposureId: id(n + 400),
-    assetId: offer(n).assetId,
-    assetRevision: 2,
+    assetId: servedOffer(n).assetId,
+    assetRevision: servedOffer(n).assetRevision,
     revision,
     session: { sessionId: id(1), intentRevision: revision },
     actions: { saved, liked: false, hidden: false },
@@ -117,18 +144,19 @@ export function harness() {
       }
       if (path === '/v1/experience/activate') {
         if (activationFailure) throw new Error('Unknown activation outcome');
+        if (activationProblem) return problem(activationProblem);
         // The fixture activates whichever of the ranked offers the request names.
         const picked = Number((body.target as { offerId: string }).offerId.slice(-12)) - 100;
         if (picked !== selected) selected = picked;
         return json({
           commandId: body.commandId,
           sessionId: id(1),
-          offerId: offer(selected).offerId,
+          offerId: servedOffer(selected).offerId,
           intentRevision: revision,
           exposureId: id(selected + 400),
-          assetId: offer(selected).assetId,
-          assetRevision: 2,
-          kind: 'reel',
+          assetId: servedOffer(selected).assetId,
+          assetRevision: servedOffer(selected).assetRevision,
+          kind: servedOffer(selected).metadata.kind,
           activatedAt: '2026-10-20T10:00:00.000Z',
           revision,
           replayed: false,
@@ -140,6 +168,17 @@ export function harness() {
         const exposure = path.split('/').at(-2)!;
         const n = Number(exposure.slice(-12)) - 400;
         return json(context(n));
+      }
+      if (path.endsWith('/document')) {
+        const n = Number(path.split('/').at(-2)!.slice(-12)) - 400;
+        return json({
+          exposureId: id(n + 400),
+          assetId: servedOffer(n).assetId,
+          assetRevision: servedOffer(n).assetRevision,
+          // A v1 fixture document, rebound to the offer's asset; the device does not verify the hash.
+          document: { ...scrollDocument, assetId: servedOffer(n).assetId },
+          degradedEssential: [],
+        });
       }
       if (path === '/v1/media/grants')
         return json({
@@ -245,6 +284,23 @@ export function harness() {
     /** How many further offers a ready outcome carries beside the first. */
     setBuffered: (value: number) => {
       bufferedCount = value;
+    },
+    /**
+     * The offers each outcome carries, the first then the buffered ones, overriding `setBuffered`: Reels, Scrolls without
+     * a cover, or Scrolls with one. Unset, every offer is a Reel.
+     */
+    setOffers: (value: readonly OfferSpec[] | undefined) => {
+      offerSpecs = value;
+    },
+    /** Makes activation answer with this API problem, as the server does for a spent offer or a moved session. */
+    setActivationProblem: (value: typeof activationProblem) => {
+      activationProblem = value;
+    },
+    /** Registers an offer the fixture did not generate itself (a region card's), so activation and context serve it. */
+    serve: (n: number, spec: OfferSpec) => {
+      const made = offer(n, spec);
+      served.set(n, made);
+      return made;
     },
     setOutcome: (value: typeof outcomeStatus) => {
       outcomeStatus = value;

@@ -59,6 +59,14 @@ describe('the note after a new topic lands on a Scroll (V3 G4)', () => {
     expect(formatNoteOf([reel, now], now)).toBeUndefined();
     expect(formatNoteOf([left, now, entry('discovery')], now)).toBeUndefined();
   });
+
+  it('is not said for a Scroll opened from its cover, which the person chose there, and still is for the same Scroll without one (#747)', () => {
+    const left = entry('discovery');
+    const fromCover = entry('discovery', { fromCover: { handId: 'hand-1', index: 1 } });
+    expect(formatNoteOf([left, fromCover], fromCover)).toBeUndefined();
+    const plain = entry('discovery');
+    expect(formatNoteOf([left, plain], plain)).toBeDefined();
+  });
 });
 
 describe('the note on a library article (D-391)', () => {
