@@ -11,6 +11,8 @@ export {
   LocalId,
   SCROLL_DOCUMENT_SCHEMA_VERSION,
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
   ScrollDocument,
   ScrollDocumentV2,
+  ScrollDocumentV3,
 } from '@knowscroll/scroll-model';

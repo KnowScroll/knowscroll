@@ -1,5 +1,5 @@
 import { oc } from '@orpc/contract';
-import { StageFrame } from '@knowscroll/scroll-model';
+import { PictureFrame, StageFrame } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import { ClientCapabilities } from './content.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
@@ -60,25 +60,52 @@ export const FormatVariantSchema = z.discriminatedUnion('status', [
 export const OFFER_COVER_SCHEMA = 'offer-cover.v1';
 
 /**
+ * The cover a client declares when it can also draw the figure of a document v3 Scroll, a picture in one state.
+ * It is `offer-cover.v1` whose `figure` may be a {@link PictureFrame} as well as a stage frame. A session that
+ * declares both is sent v2; a session that declares only v1 is sent v1, which never carries a picture.
+ */
+export const OFFER_COVER_V2_SCHEMA = 'offer-cover.v2';
+
+/**
  * What a Scroll offer shows before it is opened, taken from the offered revision's own document. The
  * title is the offer's `metadata.title` and the dek its `metadata.summary` (for a Scroll, discovery
  * stores the document's dek as the summary), so neither is repeated here. `readStops` (the paragraphs
- * of a v2 essay) and `figure` (the first state of its stage) exist only for a v2 Scroll that has them.
- * Consumer-facing words and numbers only, like the rest of the offer.
+ * of a v2 essay, the beats of a v3 one) and `figure` (a v2's first stage state, or a v3's first picture) exist only
+ * for a Scroll that has them. Consumer-facing words and numbers only, like the rest of the offer.
+ *
+ * `version` names what the client declared: under `offer-cover.v1` the figure is a stage frame; under
+ * `offer-cover.v2` it may also be a {@link PictureFrame}. The schema is one object and the figure's union is flat,
+ * so a response that holds an offer stays as shallow as it can for its OpenAPI description.
  */
-export const OfferCoverSchema = z.strictObject({
-  version: z.literal(OFFER_COVER_SCHEMA),
-  kicker: z.string().min(1).max(40),
-  readingMinutes: z.number().min(0.1).max(240),
-  readStops: z.number().int().min(1).max(64).optional(),
-  figure: StageFrame.optional(),
-});
+export const OfferCoverSchema = z
+  .strictObject({
+    version: z.enum([OFFER_COVER_SCHEMA, OFFER_COVER_V2_SCHEMA]),
+    kicker: z.string().min(1).max(40),
+    readingMinutes: z.number().min(0.1).max(240),
+    readStops: z.number().int().min(1).max(64).optional(),
+    figure: z.union([...StageFrame.options, PictureFrame]).optional(),
+  })
+  .refine((cover) => cover.version === OFFER_COVER_V2_SCHEMA || cover.figure === undefined || 'kit' in cover.figure, {
+    message: 'A picture frame needs offer-cover.v2.',
+    path: ['figure'],
+  });
+
+/**
+ * The cover version a client's declared `documentSchemas` ask for: the newest it names, or `undefined` when it names
+ * none (then its offers carry no cover). One rule for the server wherever it decides whether and how to send one.
+ */
+export function declaredCoverSchema(
+  documentSchemas: readonly string[],
+): typeof OFFER_COVER_V2_SCHEMA | typeof OFFER_COVER_SCHEMA | undefined {
+  if (documentSchemas.includes(OFFER_COVER_V2_SCHEMA)) return OFFER_COVER_V2_SCHEMA;
+  return documentSchemas.includes(OFFER_COVER_SCHEMA) ? OFFER_COVER_SCHEMA : undefined;
+}
 
 /**
  * A prepared offer is not an exposure and grants no rendering/evidence authority. Activation must
  * recheck its owner/epoch, session intent, expiry, immutable revision and current asset eligibility
  * independently. Buffered offers are not observations. Decision IDs are opaque ops correlation.
- * A Scroll offer carries a `cover` only for a session that declared {@link OFFER_COVER_SCHEMA}.
+ * A Scroll offer carries a `cover` only for a session that declared {@link OFFER_COVER_SCHEMA} or {@link OFFER_COVER_V2_SCHEMA}.
  */
 export const EncounterOfferSchema = z.strictObject({
   offerId: UuidSchema,

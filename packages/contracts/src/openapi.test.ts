@@ -67,6 +67,10 @@ import {
 // Supported converter interception keeps canonical scene metadata out of shared runtime imports.
 function makeSchemaConverter(): ZodToJsonSchemaConverter {
   return new ZodToJsonSchemaConverter({
+    // An offer's cover carries a picture frame (a picture, its items and their parts), which is deeper than the converter's
+    // default of ten structure levels: past it the same schema is described differently as an input and as an output, and
+    // a response that holds one could no longer be shared as a component.
+    maxStructureDepth: 16,
     interceptors: [
       (options) => {
         const scene = sceneWireJsonSchemas.find((entry) => entry.schema === options.schema);

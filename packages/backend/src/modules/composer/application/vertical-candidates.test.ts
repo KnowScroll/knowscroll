@@ -14,6 +14,7 @@ import {
   readInterestRollups,
   readUnseenFirst,
   readVerticalCandidates,
+  renderableFormats,
   systemIdsOf,
   wantsLanes,
   wantsUnseenFirst,
@@ -244,5 +245,20 @@ describe('lane-reading retrieval (policy v3, D-420)', () => {
     expect(
       systemIdsOf([encounter('y', 'scroll', 'earth.tides'), encounter('z', 'scroll', 'space.stars')], systemOf, 1),
     ).toEqual(['earth']);
+  });
+});
+
+describe('the formats a client declares it can render', () => {
+  it('offers Scrolls to a client that declares any Scroll schema, and Reels to one that declares the Reel player', () => {
+    expect(renderableFormats(['scroll-document.v1'])).toEqual(['scroll']);
+    expect(renderableFormats(['scroll-document.v2'])).toEqual(['scroll']);
+    expect(renderableFormats(['scroll-document.v3'])).toEqual(['scroll']);
+    expect(renderableFormats(['reel-document.v1'])).toEqual(['reel']);
+    expect(renderableFormats(['reel-document.v1', 'scroll-document.v3'])).toEqual(['reel', 'scroll']);
+  });
+
+  it('offers nothing to a client that declares no document schema it knows, a cover alone included', () => {
+    expect(renderableFormats([])).toEqual([]);
+    expect(renderableFormats(['offer-cover.v2', 'scroll-document.v4'])).toEqual([]);
   });
 });

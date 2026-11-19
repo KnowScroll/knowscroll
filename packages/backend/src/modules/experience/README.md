@@ -124,8 +124,8 @@ Transaction 2 is `commitNavigation`: `recheckPreparation`, `lockRegionSelection`
 `readVerticalCandidates` and `assembleSnapshot`, shared with the buffer worker. The input is serialised
 once, and again only if it must be trimmed to its durable budget.
 
-A Scroll offer carries a cover when the session's stored capabilities declare `offer-cover.v1`
-(`declaresCover`). `selectStillEligible` then rereads each selected candidate with `readOfferEncounter`: the
+A Scroll offer carries a cover when the session's stored capabilities declare `offer-cover.v1` or
+`offer-cover.v2` (`declaresCover`; the version sent is Content's choice, the newest declared). `selectStillEligible` then rereads each selected candidate with `readOfferEncounter`: the
 cover comes from the same exact row as the recheck, so the offer shows the revision it will open. It is
 frozen in the stored offer descriptor, so a replay returns it unchanged. Other sessions and Reels get offers
 without the key. The Composer snapshot and buffers never hold a cover. Implemented, CI-tested against real

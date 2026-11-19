@@ -51,6 +51,26 @@ describe('traits: the play level of a stored document (D-192)', () => {
     expect(traitsOfDocument(v2([read])).misconceptionClaim).toBeUndefined();
   });
 
+  it('a document v3 is a stage Scroll with its misconception, never plain and never a game', () => {
+    const v3 = (extra: Record<string, unknown> = {}) => ({
+      schemaVersion: 'scroll-document.v3',
+      sections: [],
+      misconception: { kind: 'none' },
+      measures: { readingMinutes: 3.2 },
+      ...extra,
+    });
+    expect(traitsOfDocument(v3())).toEqual({ playLevel: 'stage', readingMinutes: 3.2 });
+    expect(traitsOfDocument(v3({ misconception: { kind: 'myth', claim: 'The seasons come from distance.' } }))).toEqual(
+      {
+        playLevel: 'stage',
+        readingMinutes: 3.2,
+        misconceptionClaim: 'The seasons come from distance.',
+      },
+    );
+    // Whatever else a stored shape carries, a v3 has no stops and so no calls to make a game of.
+    expect(traitsOfDocument(v3({ stops: [call, call, finalCall] })).playLevel).toBe('stage');
+  });
+
   it('declares the three levels in order of how much they ask', () => {
     expect(PLAY_LEVELS).toEqual(['plain', 'stage', 'game']);
   });

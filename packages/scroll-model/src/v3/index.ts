@@ -11,4 +11,5 @@ export * from './measures.js';
 export * from './issues.js';
 export * from './validate.js';
 export * from './delivery.js';
+export * from './moment.js';
 export { describePicture } from './describe.js';

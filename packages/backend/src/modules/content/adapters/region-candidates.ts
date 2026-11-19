@@ -27,7 +27,7 @@ const Query = z.strictObject({
   capabilities: ClientCapabilities,
   expected: CoverageRefSchema.optional(),
 });
-const SCROLL_SCHEMAS = ['scroll-document.v1', 'scroll-document.v2'];
+const SCROLL_SCHEMAS = ['scroll-document.v1', 'scroll-document.v2', 'scroll-document.v3'];
 const supported = (
   q: RegionEncounterQuery & { readonly capabilities: z.infer<typeof ClientCapabilities> },
   catalogue: CatalogueSnapshot,

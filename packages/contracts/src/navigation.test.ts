@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { coverFrameOfV3, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import {
+  declaredCoverSchema,
+  OFFER_COVER_SCHEMA,
+  OFFER_COVER_V2_SCHEMA,
   ActivateExposureRequestSchema,
   ActivateExposureResponseSchema,
   ActivateOfferRequestSchema,
@@ -319,7 +324,7 @@ describe('Explore prerequisite wire contracts', () => {
     expect(NavigationOutcomeSchema.parse(ready)).toEqual(ready);
     for (const invalid of [
       { ...cover, price: 1 },
-      { ...cover, version: 'offer-cover.v2' },
+      { ...cover, version: 'offer-cover.v3' },
       { ...cover, kicker: '' },
       { ...cover, kicker: 'k'.repeat(41) },
       { ...cover, readingMinutes: 0 },
@@ -333,6 +338,62 @@ describe('Explore prerequisite wire contracts', () => {
     expect(
       EncounterOfferSchema.safeParse({ ...offer, cover: { kicker: 'Wire fixture', readingMinutes: 3 } }).success,
     ).toBe(false);
+  });
+
+  describe('offer-cover.v2: a cover whose figure may be a picture frame', () => {
+    const seasons = JSON.parse(
+      readFileSync(new URL('../../scroll-model/fixtures/documents/seasons-v3-ci.json', import.meta.url), 'utf8'),
+    ) as ScrollDocumentV3;
+    const frame = coverFrameOfV3(seasons);
+    const picture = { version: 'offer-cover.v2', kicker: 'Fixture', readingMinutes: 3, readStops: 12, figure: frame };
+
+    it('carries a picture frame, a stage frame or no figure, and round-trips each', () => {
+      expect(frame).toBeDefined();
+      const stage = {
+        kit: 'earth-sky.v1',
+        state: { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'axis' },
+        alt: 'Wire fixture: the Sun on the left, Earth on the right, in June.',
+      };
+      for (const cover of [
+        picture,
+        { ...picture, figure: stage },
+        { version: 'offer-cover.v2', kicker: 'k', readingMinutes: 1 },
+      ])
+        expect(EncounterOfferSchema.parse({ ...offer, cover }).cover).toEqual(cover);
+      const ready = { ...outcome, status: 'ready', offer: { ...offer, cover: picture }, bufferedOffers: [] };
+      expect(NavigationOutcomeSchema.parse(ready)).toEqual(ready);
+    });
+
+    it('is strict: a stray key, a malformed or half a picture frame, a bad count are refused', () => {
+      for (const invalid of [
+        { ...picture, price: 1 },
+        { ...picture, figure: { ...frame, extra: true } },
+        { ...picture, figure: { picture: frame?.picture } },
+        { ...picture, figure: { state: frame?.state } },
+        { ...picture, figure: { picture: { ...frame?.picture, kind: 'hologram' }, state: frame?.state } },
+        { ...picture, readStops: 0 },
+        { ...picture, readStops: 65 },
+        { ...picture, kicker: '' },
+      ])
+        expect(EncounterOfferSchema.safeParse({ ...offer, cover: invalid }).success).toBe(false);
+    });
+
+    it('keeps the v1 cover stage-only: a picture frame is refused under offer-cover.v1', () => {
+      expect(
+        EncounterOfferSchema.safeParse({ ...offer, cover: { ...picture, version: 'offer-cover.v1' } }).success,
+      ).toBe(false);
+    });
+
+    it('names the newest cover version a client declares, and none when it declares neither', () => {
+      expect(OFFER_COVER_V2_SCHEMA).toBe('offer-cover.v2');
+      expect(declaredCoverSchema(['scroll-document.v1', OFFER_COVER_SCHEMA, OFFER_COVER_V2_SCHEMA])).toBe(
+        'offer-cover.v2',
+      );
+      expect(declaredCoverSchema([OFFER_COVER_V2_SCHEMA])).toBe('offer-cover.v2');
+      expect(declaredCoverSchema(['scroll-document.v3', OFFER_COVER_SCHEMA])).toBe('offer-cover.v1');
+      expect(declaredCoverSchema(['scroll-document.v1', 'scroll-document.v3'])).toBeUndefined();
+      expect(declaredCoverSchema([])).toBeUndefined();
+    });
   });
 
   it('reserves the new activation discriminator so malformed or mixed offers cannot downgrade into direct activation', () => {
