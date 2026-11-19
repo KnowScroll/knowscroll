@@ -1,0 +1,1155 @@
+{
+  "schemaVersion": "editorial-scroll-v3.v1",
+  "assetId": "5c05c923-2c2f-4da7-b473-9b0b16e24852",
+  "reference": "fixture-v3-broad-street",
+  "recipe": "industrial-towns",
+  "explanationUnitId": "fixture-v3-broad-street",
+  "language": "en",
+  "claims": [
+    {
+      "claimId": "c-night-31-aug",
+      "statement": "Snow wrote that the outbreak commenced in the night between 31 August and 1 September 1854.",
+      "quote": "the so-called outbreak, which commenced in the night between the 31st August and the 1st September",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-wiki-31-aug",
+      "statement": "Wikipedia: on 31 August 1854 a major cholera outbreak began in Soho; Snow later called it the most terrible outbreak of cholera in the kingdom.",
+      "quote": "On 31 August 1854, after several other outbreaks elsewhere in the city, there was a major outbreak of cholera in Soho. Snow later called it \"the most terrible outbreak of cholera which ever occurred in this kingdom.\"",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-500-ten-days",
+      "statement": "Snow reported upwards of five hundred fatal attacks of cholera in ten days within 250 yards of Cambridge Street and Broad Street.",
+      "quote": "Within two hundred and fifty yards of the spot where Cambridge Street joins Broad Street, there were upwards of five hundred fatal attacks of cholera in ten days.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-616-total",
+      "statement": "Snow's Table I totals 616 fatal attacks and 616 deaths for 19 August to 30 September 1854 (with 45 attacks of unknown date).",
+      "quote": "Date. No. of Fatal Attacks. Deaths. August 19 1 1 „ 20 1 0 „ 21 1 2 „ 22 0 0 „ 23 1 0 „ 24 1 2 „ 25 0 0 „ 26 1 0 „ 27 1 1 „ 28 1 0 „ 29 1 1 „ 30 8 2 „ 31 56 3 September 1 143 70 „ 2 116 127 „ 3 54 76 „ 4 46 71 „ 5 36 45 „ 6 20 37 „ 7 28 32 „ 8 12 30 „ 9 11 24 „ 10 5 18 „ 11 5 15 „ 12 1 6 „ 13 3 13 „ 14 0 6 „ 15 1 8 „ 16 4 6 „ 17 2 5 „ 18 3 2 „ 19 0 3 „ 20 0 0 „ 21 2 0 „ 22 1 2 „ 23 1 3 „ 24 1 0 „ 25 1 0 „ 26 1 2 „ 27 1 0 „ 28 0 2 „ 29 0 1 „ 30 0 0 Date unknown 45 0 ——— ——— Total 616 616",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-fled-snow",
+      "statement": "Snow: in less than six days from the start of the outbreak the most afflicted streets were deserted by more than three-quarters of their inhabitants.",
+      "quote": "so that in less than six days from the commencement of the outbreak, the most afflicted streets were deserted by more than three-quarters of their inhabitants.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-miasma",
+      "statement": "Miasma theorists held that cholera was caused by particles in the air arising from decomposing matter.",
+      "quote": "Miasma theorists concluded that cholera was caused by particles in the air, or \"miasmata\", which arose from decomposing matter or other dirty organic sources. \"Miasma\" particles were thought to travel through the air and infect individuals, and thus cause cholera.",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-snow-sceptic",
+      "statement": "Snow was sceptical of the miasma theory ('bad air') and his evidence led him to believe cholera was not spread by foul air.",
+      "quote": "Snow was sceptical of the prevailing miasma theory, which held that diseases such as cholera or the Black Death were caused by pollution or a noxious form of \"bad air\". The germ theory was not yet established (Louis Pasteur proposed it in 1861). Snow did not understand the mechanism by which disease was transmitted, but the evidence led him to believe that it was not foul air.",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-snow-gut",
+      "statement": "Snow concluded that cholera invariably begins with an affection of the alimentary canal (the gut), so the poison is swallowed.",
+      "quote": "I conclude that cholera invariably commences with the affection of the alimentary canal.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-pump-nearest",
+      "statement": "Snow found that nearly all deaths were within a short distance of the Broad Street pump; only ten deaths were in houses decidedly nearer another street pump.",
+      "quote": "On proceeding to the spot, I found that nearly all the deaths had taken place within a short distance of the pump. There were only ten deaths in houses situated decidedly nearer to another street pump.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-brewery",
+      "statement": "The Broad Street brewery employed above seventy workmen, none had severe cholera, and they were allowed malt liquor and did not take the pump water.",
+      "quote": "There is a Brewery in Broad Street, near to the pump, and on perceiving that no brewer’s men were registered as having died of cholera, I called on Mr. Huggins, the proprietor. He informed me that there were above seventy workmen employed in the brewery, and that none of them had suffered from cholera,—at least in a severe form,—only two having been indisposed, and that not seriously, at the time the disease prevailed. The men are allowed a certain quantity of malt liquor, and Mr. Huggins believes they do not drink water at all; and he is quite certain that the workmen never obtained water from the pump in the street.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-brewery-wiki",
+      "statement": "Wikipedia: none of the Broad Street brewery workers contracted cholera because they had a daily allowance of beer.",
+      "quote": "none of the workers in the nearby Broad Street brewery contracted cholera. As they were given a daily allowance of beer, they did not consume water from the nearby well.",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-workhouse",
+      "statement": "The Poland Street workhouse, mostly surrounded by houses with cholera deaths, had 535 inmates of whom only five died of cholera, and had its own pump-well.",
+      "quote": "The Workhouse in Poland Street is more than three-fourths surrounded by houses in which deaths from cholera occurred, yet out of five hundred and thirty-five inmates only five died of cholera, the other deaths which took place being those of persons admitted after they were attacked. The workhouse has a pump-well on the premises, in addition to the supply from the Grand Junction Water Works, and the inmates never sent to Broad Street for water.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-hampstead-widow",
+      "statement": "A widow at West End, Hampstead, who had not been near Broad Street for months, had a large bottle of Broad Street pump water carried to her by cart every day, as she preferred it.",
+      "quote": "I was informed by this lady’s son that she had not been in the neighbourhood of Broad Street for many months. A cart went from Broad Street to West End every day, and it was the custom to take out a large bottle of the water from the pump in Broad Street, as she preferred it.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-hampstead-death",
+      "statement": "The Weekly Return recorded the death at West End on 2 September of the widow of a percussion-cap maker, aged 59, of cholera.",
+      "quote": "At West End, on 2nd September, the widow of a percussion-cap maker, aged 59 years, diarrhœa two hours, cholera epidemica sixteen hours.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-board-handle",
+      "statement": "Snow met the Board of Guardians of St James's on the evening of Thursday 7 September and the handle was removed the next day.",
+      "quote": "I had an interview with the Board of Guardians of St. James’s parish, on the evening of Thursday, 7th September, and represented the above circumstances to them. In consequence of what I said, the handle of the pump was removed on the following day.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-declining-snow",
+      "statement": "Snow's own words: attacks per day were already falling (12 on 8 September, 11 on the 9th, 5 on the 10th) and it was impossible to decide whether the well still held the poison when the water was stopped.",
+      "quote": "On September the 8th—the day when the handle of the pump was removed—there were twelve attacks; on the 9th, eleven; on the 10th, five; on the 11th, five; on the 12th, only one; and after this time, there were never more than four attacks on one day. During the decline of the epidemic the deaths were more numerous than the attacks, owing to the decease of many persons who had lingered for several days in consecutive fever. [Sidenote: THE PUMP-WELL IN BROAD STREET, GOLDEN SQUARE.] There is no doubt that the mortality was much diminished, as I said before, by the flight of the population, which commenced soon after the outbreak; but the attacks had so far diminished before the use of the water was stopped, that it is impossible to decide whether the well still contained the cholera poison in an active state, or whether, from some cause, the water had become free from it.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-declining-wiki",
+      "statement": "Wikipedia: removing the handle is popularly reported as ending the outbreak, but the epidemic may already have been in rapid decline, as Snow explained.",
+      "quote": "Although this action has been popularly reported as ending the outbreak, the epidemic may have already been in rapid decline, as explained by Snow:",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-cesspit",
+      "statement": "The well was dug 3 feet (0.9 m) from an old leaking cesspit into which waste water from washing the nappies of a baby with cholera drained.",
+      "quote": "It was discovered later that this public well had been dug 3 feet (0.9 m) from an old cesspit that had begun to leak faecal bacteria. Waste water from washing nappies used by a baby who had contracted cholera from another source drained into this cesspit.",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-baby-40-broad",
+      "statement": "UCLA John Snow site: a child living at number 40 Broad Street was taken ill with cholera and its nappies were steeped in water tipped into a leaking cesspool three feet from the Broad Street well.",
+      "quote": "a child living at number 40 Broad Street had been taken ill with cholera symptoms, and its nappies had been steeped in water which was subsequently tipped into a leaking cesspool situated only three feet from the Broad Street well.",
+      "sourceId": "ucla-snow-stream2a",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-handle-replaced",
+      "statement": "After the epidemic subsided officials replaced the Broad Street pump handle and rejected Snow's theory.",
+      "quote": "After the cholera epidemic subsided, government officials replaced the Broad Street pump handle. They had responded only to the urgent threat posed to the population, and afterwards they rejected Snow's theory.",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-snow-died-1858",
+      "statement": "John Snow lived 15 March 1813 to 16 June 1858.",
+      "quote": "John Snow (15 March 1813 – 16 June 1858)",
+      "sourceId": "wiki-john-snow",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-second-ed-1855",
+      "statement": "Snow published the second edition of On the Mode of Communication of Cholera in 1855 with the more elaborate investigation of the 1854 Soho outbreak.",
+      "quote": "In 1855 he published a second edition, including a more elaborate investigation of the effect of the water supply in the 1854 Soho outbreak.",
+      "sourceId": "wiki-broad-street",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-map1-bars",
+      "statement": "Snow's Map 1 (second edition, 1855) shows deaths from 19 August to 30 September 1854 with a black bar for each death at the house, plus the Broad Street pump and other pumps.",
+      "quote": "Map 1. Showing the deaths from cholera in Broad Street, Golden Square, and the neighbourhood, from 19th August to 30th September 1854. A black mark or bar for each death is placed in the situation of the house in which the fatal attack took place. The situation of the Broad Street Pump is also indicated, as well as that of all the surrounding Pumps to which the public had access.",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "c-daily-table",
+      "statement": "Snow's Table I gives, for each day from 19 August to 30 September 1854, the number of fatal attacks and the number of deaths (peak attacks 143 on 1 September, peak deaths 127 on 2 September; 616 in total).",
+      "quote": "Date. No. of Fatal Attacks. Deaths. August 19 1 1 „ 20 1 0 „ 21 1 2 „ 22 0 0 „ 23 1 0 „ 24 1 2 „ 25 0 0 „ 26 1 0 „ 27 1 1 „ 28 1 0 „ 29 1 1 „ 30 8 2 „ 31 56 3 September 1 143 70 „ 2 116 127 „ 3 54 76 „ 4 46 71 „ 5 36 45 „ 6 20 37 „ 7 28 32 „ 8 12 30 „ 9 11 24 „ 10 5 18 „ 11 5 15 „ 12 1 6 „ 13 3 13 „ 14 0 6 „ 15 1 8 „ 16 4 6 „ 17 2 5 „ 18 3 2 „ 19 0 3 „ 20 0 0 „ 21 2 0 „ 22 1 2 „ 23 1 3 „ 24 1 0 „ 25 1 0 „ 26 1 2 „ 27 1 0 „ 28 0 2 „ 29 0 1 „ 30 0 0 Date unknown 45 0 ——— ——— Total 616 616",
+      "sourceId": "gutenberg-snow-1855",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "gutenberg-snow-1855",
+      "title": "On the Mode of Communication of Cholera, 2nd ed. (John Snow, 1855) - Project Gutenberg ebook 72894",
+      "url": "https://www.gutenberg.org/ebooks/72894",
+      "snapshotSha256": "3f3e71972f603e5fa50a0e71045afffa994ae38a86a8912dda3e90c8babb37af",
+      "retrievedAt": "2026-11-19T18:30:21Z"
+    },
+    {
+      "sourceId": "wiki-broad-street",
+      "title": "1854 Broad Street cholera outbreak - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/1854_Broad_Street_cholera_outbreak",
+      "snapshotSha256": "30bd23303a68935bbc5196831b875402ac50970e361c4ccc8f3ca8e2fad6c65b",
+      "retrievedAt": "2026-11-19T18:25:49Z"
+    },
+    {
+      "sourceId": "ucla-snow-stream2a",
+      "title": "John Snow site, Stream 2a: Broad Street Pump Outbreak overview - UCLA Fielding SPH",
+      "url": "https://epi-snow.ph.ucla.edu/Stream2_BSPoutbreak_a.html",
+      "snapshotSha256": "8f05f6c937192409252fddc25b62c8629575c59a56cb767dc5f83c78190d81bd",
+      "retrievedAt": "2026-11-19T18:29:08Z"
+    },
+    {
+      "sourceId": "wiki-john-snow",
+      "title": "John Snow - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/John_Snow",
+      "snapshotSha256": "de6a37d714c4aa2fcfe1e6899f86147810cca9060c9fc7df3225a6be445e224c",
+      "retrievedAt": "2026-11-19T18:25:50Z"
+    }
+  ],
+  "scroll": {
+    "schemaVersion": "scroll-authoring.v3",
+    "theme": {
+      "family": "past"
+    },
+    "kicker": "Fixture",
+    "title": "The pump on Broad Street",
+    "dek": "London, 1854. Five hundred dead in ten days, and one doctor who didn't trust his nose.",
+    "shape": "story",
+    "framing": {
+      "kind": "factual"
+    },
+    "misconception": {
+      "kind": "none"
+    },
+    "pictures": [
+      {
+        "picture": {
+          "id": "soho",
+          "kind": "plan",
+          "title": "Soho, 31 August to 9 September 1854",
+          "caption": "Schematic, after John Snow's 1855 map",
+          "size": {
+            "columns": 10,
+            "rows": 8
+          },
+          "ways": [
+            {
+              "id": "broad",
+              "label": "Broad Street",
+              "from": {
+                "column": 0,
+                "row": 4
+              },
+              "to": {
+                "column": 9,
+                "row": 4
+              }
+            },
+            {
+              "id": "marlborough",
+              "label": "Marlborough Street",
+              "from": {
+                "column": 0,
+                "row": 1
+              },
+              "to": {
+                "column": 9,
+                "row": 1
+              }
+            },
+            {
+              "id": "poland",
+              "label": "Poland Street",
+              "from": {
+                "column": 2,
+                "row": 0
+              },
+              "to": {
+                "column": 2,
+                "row": 7
+              }
+            },
+            {
+              "id": "cambridge",
+              "label": "Cambridge Street",
+              "from": {
+                "column": 7,
+                "row": 2
+              },
+              "to": {
+                "column": 7,
+                "row": 7
+              }
+            }
+          ],
+          "places": [
+            {
+              "id": "pump-broad",
+              "label": "Broad Street pump",
+              "at": {
+                "column": 5,
+                "row": 4
+              },
+              "mark": "ring",
+              "tone": "warm",
+              "note": "Nearly all the deaths were a short walk from this pump."
+            },
+            {
+              "id": "pump-marlborough",
+              "label": "Marlborough Street pump",
+              "at": {
+                "column": 1,
+                "row": 1
+              },
+              "mark": "ring"
+            },
+            {
+              "id": "pump-rupert",
+              "label": "Rupert Street pump",
+              "at": {
+                "column": 9,
+                "row": 7
+              },
+              "mark": "ring"
+            },
+            {
+              "id": "pump-north",
+              "label": "Another street pump",
+              "at": {
+                "column": 5,
+                "row": 0
+              },
+              "mark": "ring"
+            },
+            {
+              "id": "pump-south",
+              "label": "Another street pump",
+              "at": {
+                "column": 4,
+                "row": 7
+              },
+              "mark": "ring"
+            },
+            {
+              "id": "brewery",
+              "label": "Brewery",
+              "at": {
+                "column": 6,
+                "row": 4
+              },
+              "mark": "block",
+              "note": "Above seventy workmen, and none died. They drank beer, not pump water."
+            },
+            {
+              "id": "workhouse",
+              "label": "Workhouse",
+              "at": {
+                "column": 2,
+                "row": 6
+              },
+              "mark": "block",
+              "note": "It had its own well. Of five hundred and thirty-five inmates, five died."
+            },
+            {
+              "id": "hampstead",
+              "label": "West End, Hampstead",
+              "at": {
+                "column": 9,
+                "row": 0
+              },
+              "mark": "dot",
+              "note": "Miles away. A cart brought her Broad Street water every day."
+            }
+          ],
+          "tallies": [
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 1,
+              "step": 0
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 1
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 1
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 5
+              },
+              "count": 3,
+              "step": 1
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 3
+              },
+              "count": 3,
+              "step": 1
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 3
+              },
+              "count": 2,
+              "step": 1
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 4,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 5
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 3
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 3
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 5
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 3
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 3,
+                "row": 4
+              },
+              "count": 3,
+              "step": 2
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 3
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 3
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 5
+              },
+              "count": 3,
+              "step": 3
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 3
+              },
+              "count": 3,
+              "step": 3
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 3
+              },
+              "count": 3,
+              "step": 3
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 4
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 4
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 5
+              },
+              "count": 3,
+              "step": 4
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 3
+              },
+              "count": 3,
+              "step": 4
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 3
+              },
+              "count": 2,
+              "step": 4
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 5
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 5
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 5
+              },
+              "count": 3,
+              "step": 5
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 6
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 2,
+              "step": 6
+            },
+            {
+              "at": {
+                "column": 6,
+                "row": 5
+              },
+              "count": 2,
+              "step": 6
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 7
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 7
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 8
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 3,
+              "step": 8
+            },
+            {
+              "at": {
+                "column": 5,
+                "row": 5
+              },
+              "count": 3,
+              "step": 9
+            },
+            {
+              "at": {
+                "column": 4,
+                "row": 4
+              },
+              "count": 2,
+              "step": 9
+            },
+            {
+              "at": {
+                "column": 1,
+                "row": 2
+              },
+              "count": 1,
+              "step": 3
+            },
+            {
+              "at": {
+                "column": 8,
+                "row": 6
+              },
+              "count": 1,
+              "step": 5
+            },
+            {
+              "at": {
+                "column": 2,
+                "row": 6
+              },
+              "count": 1,
+              "step": 4
+            },
+            {
+              "at": {
+                "column": 9,
+                "row": 0
+              },
+              "count": 1,
+              "step": 2
+            }
+          ],
+          "steps": [
+            "31 Aug",
+            "1 Sep",
+            "2 Sep",
+            "3 Sep",
+            "4 Sep",
+            "5 Sep",
+            "6 Sep",
+            "7 Sep",
+            "8 Sep",
+            "9 Sep"
+          ],
+          "regions": [
+            {
+              "id": "near-broad",
+              "label": "Nearer the Broad Street pump",
+              "nearest": "pump-broad",
+              "among": [
+                "pump-broad",
+                "pump-marlborough",
+                "pump-rupert",
+                "pump-north",
+                "pump-south"
+              ]
+            }
+          ],
+          "routes": [
+            {
+              "id": "cart",
+              "label": "The daily cart",
+              "from": "pump-broad",
+              "to": "hampstead"
+            }
+          ]
+        },
+        "cites": [
+          "c-wiki-31-aug",
+          "c-second-ed-1855",
+          "c-daily-table",
+          "c-pump-nearest",
+          "c-brewery",
+          "c-workhouse",
+          "c-hampstead-widow",
+          "c-map1-bars"
+        ]
+      },
+      {
+        "picture": {
+          "id": "attacks",
+          "kind": "chart",
+          "title": "Fatal attacks a day, by Snow's count",
+          "form": "line",
+          "values": "hidden",
+          "points": [
+            {
+              "id": "aug-30",
+              "label": "30 Aug",
+              "value": "8"
+            },
+            {
+              "id": "aug-31",
+              "label": "31 Aug",
+              "value": "56"
+            },
+            {
+              "id": "sep-1",
+              "label": "1 Sep",
+              "value": "143"
+            },
+            {
+              "id": "sep-2",
+              "label": "2 Sep",
+              "value": "116"
+            },
+            {
+              "id": "sep-3",
+              "label": "3 Sep",
+              "value": "54"
+            },
+            {
+              "id": "sep-4",
+              "label": "4 Sep",
+              "value": "46"
+            },
+            {
+              "id": "sep-5",
+              "label": "5 Sep",
+              "value": "36"
+            },
+            {
+              "id": "sep-6",
+              "label": "6 Sep",
+              "value": "20"
+            },
+            {
+              "id": "sep-7",
+              "label": "7 Sep",
+              "value": "28"
+            },
+            {
+              "id": "sep-8",
+              "label": "8 Sep",
+              "value": "12"
+            },
+            {
+              "id": "sep-9",
+              "label": "9 Sep",
+              "value": "11"
+            },
+            {
+              "id": "sep-10",
+              "label": "10 Sep",
+              "value": "5"
+            },
+            {
+              "id": "sep-11",
+              "label": "11 Sep",
+              "value": "5"
+            },
+            {
+              "id": "sep-12",
+              "label": "12 Sep",
+              "value": "1"
+            },
+            {
+              "id": "sep-13",
+              "label": "13 Sep",
+              "value": "3"
+            },
+            {
+              "id": "sep-14",
+              "label": "14 Sep",
+              "value": "0"
+            }
+          ],
+          "marks": [
+            {
+              "point": "sep-8",
+              "label": "Handle removed"
+            }
+          ]
+        },
+        "cites": [
+          "c-daily-table",
+          "c-board-handle"
+        ]
+      },
+      {
+        "picture": {
+          "id": "well",
+          "kind": "flow",
+          "title": "Under Broad Street",
+          "steps": [
+            {
+              "id": "house",
+              "label": "40 Broad Street",
+              "note": "A sick baby's nappies were rinsed here."
+            },
+            {
+              "id": "cesspit",
+              "label": "The cesspit",
+              "note": "It had begun to leak."
+            },
+            {
+              "id": "well",
+              "label": "The pump's well",
+              "tone": "warm",
+              "note": "Dug 3 feet from the cesspit."
+            }
+          ]
+        },
+        "cites": [
+          "c-baby-40-broad",
+          "c-cesspit"
+        ]
+      }
+    ],
+    "sections": [
+      {
+        "title": "Ten days in Soho",
+        "beats": [
+          {
+            "kind": "plain",
+            "text": "On the last night of August 1854, people in Soho began to die. It started with cramps, then a thirst nothing could reach. Many who felt fine at breakfast were dead by dark.",
+            "simple": "In late August 1854, people in Soho, in London, began dying very fast of a sudden illness.",
+            "links": [],
+            "cites": [
+              "c-wiki-31-aug",
+              "c-night-31-aug"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 0
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "In ten days, five hundred people died, nearly all within a short walk of one street corner. Three-quarters of the neighbourhood fled.",
+            "simple": "Hundreds died in ten days, close to one street corner, and most people left.",
+            "links": [
+              {
+                "phrase": "one street corner",
+                "part": "broad"
+              }
+            ],
+            "cites": [
+              "c-500-ten-days",
+              "c-fled-snow"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Everyone knew the cause. Disease travelled as miasma, the bad air that rose from sewers and graves. You could smell it, and Soho stank. The theory fit what noses reported.",
+            "simple": "People believed that disease spread through bad-smelling air.",
+            "links": [],
+            "cites": [
+              "c-miasma"
+            ]
+          },
+          {
+            "kind": "plain",
+            "text": "A doctor who lived nearby didn't believe it. John Snow had noticed that cholera attacks the gut, not the lungs. He thought the victims weren't breathing the poison. They were swallowing it.",
+            "simple": "A local doctor, John Snow, thought people were drinking the poison, not breathing it.",
+            "links": [],
+            "cites": [
+              "c-snow-sceptic",
+              "c-snow-gut"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9,
+                "lit": [
+                  "pump-broad"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "The pattern",
+        "beats": [
+          {
+            "kind": "plain",
+            "text": "Snow got the list of the dead and walked their streets. For each death he drew a short black bar at the house where it happened.",
+            "simple": "Snow marked each death on a map of the streets.",
+            "links": [],
+            "cites": [
+              "c-map1-bars"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 0
+              }
+            },
+            "control": {
+              "kind": "scrub",
+              "label": "Drag through the ten days",
+              "along": "steps"
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "The bars pile up around a single point: the public pump on Broad Street. In houses that stood nearer to some other pump, he counted only ten deaths.",
+            "simple": "The deaths gathered around the Broad Street pump. Few were near the other pumps.",
+            "links": [
+              {
+                "phrase": "the public pump on Broad Street",
+                "part": "pump-broad"
+              }
+            ],
+            "cites": [
+              "c-pump-nearest"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9
+              }
+            },
+            "control": {
+              "kind": "switch",
+              "label": "Whose pump is nearest?",
+              "to": {
+                "step": 9,
+                "region": "near-broad"
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "The exceptions persuaded him most. The brewery on Broad Street employed seventy men, and none died. They were paid partly in beer and never touched the pump. The workhouse round the corner had five hundred and thirty-five inmates and its own well. Five died.",
+            "simple": "Brewery workers drank beer and stayed well. The workhouse had its own well, and few there died.",
+            "links": [
+              {
+                "phrase": "The brewery on Broad Street",
+                "part": "brewery"
+              },
+              {
+                "phrase": "The workhouse round the corner",
+                "part": "workhouse"
+              }
+            ],
+            "cites": [
+              "c-brewery",
+              "c-brewery-wiki",
+              "c-workhouse"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9,
+                "lit": [
+                  "brewery",
+                  "workhouse"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "And a widow in Hampstead, miles away in clean air, died of cholera that week. She had liked the taste of the Broad Street water. A cart carried a bottle of it to her every day.",
+            "simple": "A woman far away died too. She had Broad Street water brought to her every day.",
+            "links": [
+              {
+                "phrase": "A cart carried a bottle of it to her every day",
+                "part": "cart"
+              }
+            ],
+            "cites": [
+              "c-hampstead-widow",
+              "c-hampstead-death"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9,
+                "lit": [
+                  "hampstead",
+                  "cart"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "The handle",
+        "beats": [
+          {
+            "kind": "plain",
+            "text": "On the evening of 7 September, Snow took his findings to the parish board. They didn't believe his theory. They took the handle off the pump anyway, the next day.",
+            "simple": "Snow showed the parish board his evidence, and the next day they took the handle off the pump.",
+            "links": [],
+            "cites": [
+              "c-board-handle",
+              "c-handle-replaced"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9,
+                "lit": [
+                  "pump-broad"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "The legend says the dying stopped. Snow was more honest than the legend. The outbreak was already fading, he wrote, and it was impossible to tell whether the well was still poisonous.",
+            "simple": "Snow said the outbreak was already ending when the handle came off.",
+            "links": [],
+            "cites": [
+              "c-declining-snow",
+              "c-declining-wiki"
+            ],
+            "show": {
+              "picture": "attacks",
+              "state": {
+                "lit": [
+                  "sep-8"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "The source turned up later. A baby at 40 Broad Street had fallen ill first, and her mother had rinsed the nappies into a cesspit. It lay three feet from the well, and its bricks had rotted through.",
+            "simple": "The water was poisoned by a leaking cesspit right next to the well.",
+            "links": [
+              {
+                "phrase": "three feet from the well",
+                "part": "well"
+              }
+            ],
+            "cites": [
+              "c-baby-40-broad",
+              "c-cesspit"
+            ],
+            "show": {
+              "picture": "well",
+              "state": {}
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "When the outbreak ended, the city put the handle back. Officials found no reason to adopt Snow's belief. He died four years later, his theory still unaccepted.",
+            "simple": "Afterwards the handle went back, and Snow's idea was still not accepted when he died.",
+            "links": [],
+            "cites": [
+              "c-handle-replaced",
+              "c-snow-died-1858"
+            ]
+          },
+          {
+            "kind": "plain",
+            "text": "The famous map was drawn after the handle came off. It never found the pump. It did something harder: it made people see a cause they couldn't smell.",
+            "simple": "Snow's map came later. It did not find the pump, but it made people see the cause.",
+            "links": [],
+            "cites": [
+              "c-second-ed-1855",
+              "c-map1-bars"
+            ],
+            "show": {
+              "picture": "soho",
+              "state": {
+                "step": 9
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "asides": [
+      {
+        "kind": "limits",
+        "title": "A drawn plan, not the map",
+        "text": "The plan is a sketch after Snow's map. Each mark stands for about five deaths, and the streets are simplified. Snow counted 616 deaths from 19 August to 30 September.",
+        "beat": 5,
+        "collapsed": true,
+        "cites": [
+          "c-616-total",
+          "c-map1-bars"
+        ]
+      }
+    ],
+    "takeaway": {
+      "text": "The map didn't find the answer. It won the argument.",
+      "cites": [
+        "c-second-ed-1855",
+        "c-handle-replaced"
+      ]
+    },
+    "askSuggestions": [
+      "How did John Snow know the water was to blame?",
+      "Why did people believe disease came from bad air?",
+      "What happened to the Broad Street pump afterwards?"
+    ]
+  }
+}

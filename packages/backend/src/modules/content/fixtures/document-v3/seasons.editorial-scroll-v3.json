@@ -1,0 +1,755 @@
+{
+  "schemaVersion": "editorial-scroll-v3.v1",
+  "assetId": "b098225b-8bd8-4611-9866-b03b8020c70d",
+  "reference": "fixture-v3-seasons",
+  "recipe": "seasons",
+  "explanationUnitId": "fixture-v3-seasons",
+  "language": "en",
+  "claims": [
+    {
+      "claimId": "b-tilt-season",
+      "statement": "Earth's axis is tilted about 23.4 degrees to its orbital plane and this tilt causes the seasons.",
+      "quote": "The seasons result from the Earth's axis of rotation being tilted with respect to its orbital plane by an angle of approximately 23.4 degrees.",
+      "sourceId": "wiki-season",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-tilt-nasa",
+      "statement": "NASA's Earth fact sheet gives Earth's obliquity to its orbit as 23.44 degrees.",
+      "quote": "Obliquity to orbit (deg) 23.44",
+      "sourceId": "nasa-earth-fact",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-distance-not-cause",
+      "statement": "The seasons are not caused by Earth's varying distance from the Sun: perihelion is in January and aphelion in July.",
+      "quote": "The seasons are not the result of the variation in Earth's distance to the Sun because of its elliptical orbit. In fact, Earth reaches perihelion (the point in its orbit closest to the Sun) in January, and it reaches aphelion (the point farthest from the Sun) in July, so the slight contribution of orbital eccentricity opposes the temperature trends of the seasons in the Northern Hemisphere.",
+      "sourceId": "wiki-season",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-summer-at-aphelion",
+      "statement": "In the northern hemisphere summer occurs at the same time as aphelion, when solar radiation is lowest; at both perihelion and aphelion it is summer in one hemisphere and winter in the other.",
+      "quote": "Indeed, at both perihelion and aphelion it is summer in one hemisphere while it is winter in the other one. Winter falls on the hemisphere where sunlight strikes least directly, and summer falls where sunlight strikes most directly, regardless of the Earth's distance from the Sun. In the northern hemisphere, summer occurs at the same time as aphelion, when solar radiation is lowest.",
+      "sourceId": "wiki-apsis",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-opposite-seasons",
+      "statement": "The Northern and Southern Hemispheres always have opposite seasons; when it is summer in the north it is winter in the south.",
+      "quote": "When it is summer in the Northern Hemisphere, it is winter in the Southern, and vice versa.",
+      "sourceId": "wiki-season",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-axis-polaris",
+      "statement": "Earth's axis keeps pointing toward Polaris all year (axial parallelism).",
+      "quote": "The Earth's orbit exhibits approximate axial parallelism, maintaining its direction toward Polaris (the \"North Star\") year-round.",
+      "sourceId": "wiki-season",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-kepler-faster",
+      "statement": "A planet travels faster when it is closer to the Sun (Kepler's second law).",
+      "quote": "The second law establishes that when a planet is closer to the Sun, it travels faster.",
+      "sourceId": "wiki-keplers-laws",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-speed-peri",
+      "statement": "Earth's orbital speed is maximum at perihelion and minimum at aphelion, so the northern summer lasts about 93 days and the southern summer about 89 days.",
+      "quote": "because Earth's orbital speed is minimum at aphelion and maximum at perihelion, the planet takes longer to orbit from June solstice to September equinox than it does from December solstice to March equinox. Therefore, summer in the northern hemisphere lasts slightly longer (93 days) than summer in the southern hemisphere (89 days).",
+      "sourceId": "wiki-apsis",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-season-days",
+      "statement": "From the June solstice to the September equinox (northern summer) is 93.65 days; from the December solstice to the March equinox (northern winter) is 88.99 days.",
+      "quote": "From the March equinox it currently takes 92.75 days until the June solstice, then 93.65 days until the September equinox, 89.85 days until the December solstice and finally 88.99 days until the March equinox.",
+      "sourceId": "wiki-season",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-zenith-formula",
+      "statement": "Near solar noon the solar zenith angle is at a minimum and equals the absolute value of latitude minus solar declination (so noon altitude = 90 degrees minus |latitude - declination|).",
+      "quote": "Near (but usually not exactly at) solar noon, the zenith angle is at a minimum and is equal to the absolute value of latitude minus solar declination angle.",
+      "sourceId": "wiki-solar-zenith",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-40n-cities",
+      "statement": "The parallel 40 degrees north passes through Beijing, Madrid and other notable cities.",
+      "quote": "the parallel 40° north passes through: === Notable cities and towns on 40°N === Ankara, Turkey Beijing, China Columbus, Ohio, United States Boulder, Colorado, United States Madrid, Spain Naples, Italy Philadelphia, Pennsylvania, United States Yerevan, Armenia",
+      "sourceId": "wiki-40th-parallel",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-mars-tilt",
+      "statement": "NASA's Mars fact sheet lists Mars's obliquity to its orbit as 25.19 degrees (Earth 23.44).",
+      "quote": "Obliquity to orbit (deg) 25.19 23.44",
+      "sourceId": "nasa-mars-fact",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-mars-tilt-wiki",
+      "statement": "Mars has an axial tilt of 25 degrees and has seasons like Earth's.",
+      "quote": "With a significant axial tilt of 25 degrees, Mars experiences seasons, like Earth (which has an axial tilt of 23.5 degrees).",
+      "sourceId": "wiki-mars",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-mars-687",
+      "statement": "A Martian year is 687 Earth days (1.88 Earth years).",
+      "quote": "A Martian solar year is equal to 1.88 Earth years (687 Earth days)",
+      "sourceId": "wiki-mars",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-mars-seasons-long",
+      "statement": "Mars's seasons are nearly twice as long as Earth's because its orbital period is much longer.",
+      "quote": "The axial tilt of Mars is 25.19° relative to its orbital plane, which is similar to the axial tilt of Earth. As a result, Mars has seasons like Earth, though on Mars they are nearly twice as long because its orbital period is that much longer.",
+      "sourceId": "wiki-mars",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-uranus-tilt",
+      "statement": "NASA says Uranus's equator is nearly at a right angle to its orbit, with a tilt of 97.77 degrees, and that for nearly a quarter of each Uranian year the Sun shines directly over each pole, leaving the other half in a 21-year-long dark winter.",
+      "quote": "Uranus is the only planet whose equator is nearly at a right angle to its orbit, with a tilt of 97.77 degrees. This may be the result of a collision with an Earth-sized object long ago. This unique tilt causes Uranus to have the most extreme seasons in the solar system. For nearly a quarter of each Uranian year, the Sun shines directly over each pole, plunging the other half of the planet into a 21-year-long, dark winter.",
+      "sourceId": "nasa-uranus-facts",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-uranus-42",
+      "statement": "Wikipedia says that in Uranus's 84-year orbit each pole gets around 42 years of continuous sunlight followed by 42 years of continuous darkness.",
+      "quote": "This means that in an 84-Earth-year orbital period around the Sun, its poles get around 42 years of continuous sunlight, followed by 42 years of continuous darkness.",
+      "sourceId": "wiki-uranus",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-40n-sun-alt",
+      "statement": "At 40 degrees north the Sun's maximum altitude is 73.44 degrees on 21 June and 26.56 degrees on 21 December (so about 73 and 27).",
+      "quote": "On 21 June, the maximum altitude of the sun is 73.44 degrees, while it is 26.56 degrees on 21 December.",
+      "sourceId": "wiki-40th-parallel",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-40n-daylight",
+      "statement": "At 40 degrees north the Sun is visible 15 h 1 min 28 s at the summer solstice and 9 h 20 min at the winter solstice.",
+      "quote": "At this latitude the sun is visible for 15 hours, 1 minute and 28 seconds during the summer solstice and 9 hours, 20 minutes during the winter solstice.",
+      "sourceId": "wiki-40th-parallel",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-notilt-same",
+      "statement": "With Earth's axis perpendicular to its orbit the Sun's daily path, seen from any point on Earth, would stay exactly the same day after day (no seasons).",
+      "quote": "If the Earth's axis were perpendicular to the ecliptic, as in the drawings here, the Sun's position in the sky would be halfway between the celestial poles, and its daily path, seen from any point on Earth, would stay exactly the same, day after day.",
+      "sourceId": "nasa-stargaze-seasons",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-notilt-12h",
+      "statement": "With no tilt, day and night anywhere on Earth would always be equally long, 12 hours.",
+      "quote": "Because the motion is symmetric with respect to the line AB, day and night anywhere on Earth are always equally long, 12 hours.",
+      "sourceId": "nasa-stargaze-seasons",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-5m-km-earthdate",
+      "statement": "In northern winter Earth is 3 million miles (5 million km) closer to the Sun than in summer.",
+      "quote": "in the winter, Earth is 3 million miles (5 million km) closer to the Sun than in summer!",
+      "sourceId": "earthdate-winter-sun",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-5days-earthsky",
+      "statement": "Winter is the shortest season in the Northern Hemisphere, shorter than summer by nearly five days.",
+      "quote": "Conversely, winter is the shortest season in the Northern Hemisphere and summer is the shortest in the Southern Hemisphere, in each instance by nearly five days.",
+      "sourceId": "earthsky-aphelion-2026",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-range-km",
+      "statement": "Earth's distance from the Sun ranges from about 147.1 to 152.1 million km over a year.",
+      "quote": "so the actual distance ranges from 91.4 to 94.5 million miles (147.1 to 152.1 million km, or 0.9833 to 1.0167 AU).",
+      "sourceId": "earthdate-winter-sun",
+      "truthState": "documented"
+    },
+    {
+      "claimId": "b-uranus-98",
+      "statement": "Uranus's axis is tilted almost 98 degrees.",
+      "quote": "With its axis tilted almost 98°, Uranus’s environment differs from other planets in our solar system.",
+      "sourceId": "airandspace-uranus",
+      "truthState": "documented"
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "wiki-season",
+      "title": "Season - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Season",
+      "snapshotSha256": "87b14047d18acfd063f6191358fdd0b297b212c1aa251b7657edc01d8547fb59",
+      "retrievedAt": "2026-11-19T18:25:44Z"
+    },
+    {
+      "sourceId": "nasa-earth-fact",
+      "title": "Earth Fact Sheet - NASA NSSDCA",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html",
+      "snapshotSha256": "1b06e3ec31249d063d40d1b38837fac89ddcd2f4b25268b38e8a6d5f413e70ef",
+      "retrievedAt": "2026-11-19T18:27:16Z"
+    },
+    {
+      "sourceId": "wiki-apsis",
+      "title": "Apsis (Perihelion and aphelion) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Perihelion_and_aphelion",
+      "snapshotSha256": "9944b99febdf305c07766f4d8eede5a03857e68d0fd79464052a5783f562cd00",
+      "retrievedAt": "2026-11-19T18:25:45Z"
+    },
+    {
+      "sourceId": "wiki-keplers-laws",
+      "title": "Kepler's laws of planetary motion - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion",
+      "snapshotSha256": "93069029d47b3afe4262b1df775599fbb1f178f5b14f41eb8139460b685d441d",
+      "retrievedAt": "2026-11-19T18:27:11Z"
+    },
+    {
+      "sourceId": "wiki-solar-zenith",
+      "title": "Solar zenith angle - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Solar_zenith_angle",
+      "snapshotSha256": "cf26efc3fcceaf297e5b3a0e944d9539ca027f851296cba35081ba4d3b061813",
+      "retrievedAt": "2026-11-19T18:27:03Z"
+    },
+    {
+      "sourceId": "wiki-40th-parallel",
+      "title": "Circles of latitude between the 35th parallel north and the 40th parallel north (section: 40th parallel north) - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Circles_of_latitude_between_the_35th_parallel_north_and_the_40th_parallel_north",
+      "snapshotSha256": "e7739314a2666b86528b54552e48f827de9881383c76c7c06e10375d4da4fd0b",
+      "retrievedAt": "2026-11-19T18:27:27Z"
+    },
+    {
+      "sourceId": "nasa-mars-fact",
+      "title": "Mars Fact Sheet - NASA NSSDCA",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html",
+      "snapshotSha256": "366b0ce9b69cbee370be904956748af954468a41b93dc71a796a986519aa8d74",
+      "retrievedAt": "2026-11-19T18:27:13Z"
+    },
+    {
+      "sourceId": "wiki-mars",
+      "title": "Mars - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Mars",
+      "snapshotSha256": "22d2a5efa6dd1c2f8f66aa2147d1fd6844d458015eb2220cbed0dedc24fe2347",
+      "retrievedAt": "2026-11-19T18:25:47Z"
+    },
+    {
+      "sourceId": "nasa-uranus-facts",
+      "title": "Uranus Facts - NASA Science",
+      "url": "https://science.nasa.gov/uranus/facts/",
+      "snapshotSha256": "b63bab9673adc0167a1dbd61a317edeca09c72f33e47d0e2c34c83ef3e3b8e66",
+      "retrievedAt": "2026-11-19T18:27:16Z"
+    },
+    {
+      "sourceId": "wiki-uranus",
+      "title": "Uranus - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Uranus",
+      "snapshotSha256": "a9c5ee1d396554e22a6035e53514904d5100242fc10c7f623a172ebd444ef0d2",
+      "retrievedAt": "2026-11-19T18:25:48Z"
+    },
+    {
+      "sourceId": "nasa-stargaze-seasons",
+      "title": "Seasons of the Year - Stargazers and Skywatchers, NASA GSFC",
+      "url": "https://pwg.gsfc.nasa.gov/stargaze/Sseason.htm",
+      "snapshotSha256": "9f0a04015ecc90d1be5e88872a27ebfb757f4ec8defbc522773ecb320179accd",
+      "retrievedAt": "2026-11-19T18:39:01Z"
+    },
+    {
+      "sourceId": "earthdate-winter-sun",
+      "title": "Winter Sun Close Encounter - EarthDate",
+      "url": "https://www.earthdate.org/node/471",
+      "snapshotSha256": "1fccccb318dcb71baad03fc2acdd77af5f4417d3f4dac1d0cab3590ecba23cc1",
+      "retrievedAt": "2026-11-19T18:37:46Z"
+    },
+    {
+      "sourceId": "earthsky-aphelion-2026",
+      "title": "Earth farthest from sun - at aphelion - July 6, 2026 - EarthSky",
+      "url": "https://earthsky.org/astronomy-essentials/earth-farthest-from-sun-for-year-in-early-july/",
+      "snapshotSha256": "753320222e42751345e5a2fde2cb3fe29c5fafc6a69d52936ce4858910c5dd84",
+      "retrievedAt": "2026-11-19T18:37:39Z"
+    },
+    {
+      "sourceId": "airandspace-uranus",
+      "title": "Uranus | National Air and Space Museum",
+      "url": "https://airandspace.si.edu/explore/stories/uranus",
+      "snapshotSha256": "fa8c6c503bdee2b11bb2a0d76a5bd8e20ff7a1aca8a5a345affb7345df171956",
+      "retrievedAt": "2026-11-19T18:38:14Z"
+    }
+  ],
+  "scroll": {
+    "schemaVersion": "scroll-authoring.v3",
+    "theme": {
+      "family": "worlds"
+    },
+    "kicker": "Fixture",
+    "title": "Summer comes when the Sun is farthest away",
+    "dek": "The seasons have almost nothing to do with distance. A 23.4° lean does it.",
+    "shape": "mechanism",
+    "framing": {
+      "kind": "factual"
+    },
+    "misconception": {
+      "kind": "myth",
+      "claim": "Earth has seasons because it is closer to the Sun in summer and farther away in winter.",
+      "source": {
+        "label": "A Private Universe (1987 documentary)",
+        "reviewed": true
+      }
+    },
+    "pictures": [
+      {
+        "picture": {
+          "id": "orbit",
+          "kind": "cycle",
+          "title": "Earth's year around the Sun",
+          "caption": "Not to scale: the real orbit is almost a circle",
+          "centre": {
+            "id": "sun",
+            "label": "Sun",
+            "tone": "warm"
+          },
+          "items": [
+            {
+              "id": "jan",
+              "label": "January",
+              "note": "Nearest the Sun: about 147.1 million km away."
+            },
+            {
+              "id": "mar",
+              "label": "March equinox",
+              "note": "Neither half leans toward the Sun."
+            },
+            {
+              "id": "jun",
+              "label": "June solstice",
+              "tone": "warm",
+              "note": "The north leans toward the Sun. At 40° north the noon Sun stands 73.44° high."
+            },
+            {
+              "id": "jul",
+              "label": "July",
+              "note": "Farthest from the Sun: about 152.1 million km away."
+            },
+            {
+              "id": "sep",
+              "label": "September equinox",
+              "note": "Neither half leans toward the Sun."
+            },
+            {
+              "id": "dec",
+              "label": "December solstice",
+              "tone": "cool",
+              "note": "The north leans away. At 40° north the noon Sun stands 26.56° high."
+            }
+          ]
+        },
+        "cites": [
+          "b-range-km",
+          "b-40n-sun-alt",
+          "b-40n-cities",
+          "b-season-days"
+        ]
+      },
+      {
+        "picture": {
+          "id": "sky",
+          "kind": "grid",
+          "title": "The Sun at 40° north",
+          "columns": [
+            {
+              "id": "june",
+              "label": "21 June"
+            },
+            {
+              "id": "december",
+              "label": "21 December"
+            }
+          ],
+          "rows": [
+            {
+              "id": "noon",
+              "label": "Noon Sun"
+            },
+            {
+              "id": "daylight",
+              "label": "Daylight"
+            }
+          ],
+          "cells": [
+            {
+              "id": "noon-june",
+              "row": "noon",
+              "column": "june",
+              "text": "73.44° high",
+              "tone": "warm"
+            },
+            {
+              "id": "noon-december",
+              "row": "noon",
+              "column": "december",
+              "text": "26.56° high",
+              "tone": "cool"
+            },
+            {
+              "id": "day-june",
+              "row": "daylight",
+              "column": "june",
+              "text": "15 h 1 min"
+            },
+            {
+              "id": "day-december",
+              "row": "daylight",
+              "column": "december",
+              "text": "9 h 20 min"
+            }
+          ]
+        },
+        "cites": [
+          "b-40n-sun-alt",
+          "b-40n-daylight",
+          "b-40n-cities"
+        ]
+      },
+      {
+        "picture": {
+          "id": "leans",
+          "kind": "chart",
+          "title": "How far each planet leans",
+          "form": "bars",
+          "unit": "degrees",
+          "values": "shown",
+          "points": [
+            {
+              "id": "earth",
+              "label": "Earth",
+              "value": "23.44",
+              "tone": "mark",
+              "note": "Seasons as we know them."
+            },
+            {
+              "id": "mars",
+              "label": "Mars",
+              "value": "25.19",
+              "note": "Seasons like ours, nearly twice as long."
+            },
+            {
+              "id": "uranus",
+              "label": "Uranus",
+              "value": "97.77",
+              "note": "Each pole in turn has the Sun overhead."
+            }
+          ],
+          "marks": []
+        },
+        "cites": [
+          "b-tilt-nasa",
+          "b-mars-tilt",
+          "b-mars-seasons-long",
+          "b-uranus-tilt"
+        ]
+      }
+    ],
+    "sections": [
+      {
+        "title": "The wrong answer",
+        "beats": [
+          {
+            "kind": "plain",
+            "text": "Ask almost anyone why summer is hot and you'll hear that Earth is closer to the Sun. It's a good guess. It is also backwards.",
+            "simple": "Most people think summer comes when Earth is closest to the Sun. That is wrong.",
+            "links": [],
+            "cites": [
+              "b-distance-not-cause"
+            ],
+            "show": {
+              "picture": "orbit",
+              "state": {}
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Earth is nearest the Sun in the first days of January, about 147.1 million kilometres away. By early July it has drifted 5 million kilometres farther out. The northern summer happens at the far end of the orbit.",
+            "simple": "Earth is closest to the Sun in January and farthest in July, when it is summer in the north.",
+            "links": [
+              {
+                "phrase": "the first days of January",
+                "part": "jan"
+              },
+              {
+                "phrase": "early July",
+                "part": "jul"
+              }
+            ],
+            "cites": [
+              "b-range-km",
+              "b-5m-km-earthdate",
+              "b-summer-at-aphelion"
+            ],
+            "show": {
+              "picture": "orbit",
+              "state": {
+                "lit": [
+                  "jan",
+                  "jul"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "There's a second problem. When it is summer in Delhi it is winter in Sydney. One planet, one distance, two opposite seasons at once. Distance can't do that.",
+            "simple": "The north and the south have opposite seasons at the same time, so distance cannot be the cause.",
+            "links": [],
+            "cites": [
+              "b-opposite-seasons"
+            ]
+          },
+          {
+            "kind": "plain",
+            "text": "Something must be treating the two halves of the planet differently. It turns out to be a lean of 23.4 degrees.",
+            "simple": "The cause is that Earth leans by 23.4 degrees.",
+            "links": [
+              {
+                "phrase": "a lean of 23.4 degrees",
+                "part": "earth"
+              }
+            ],
+            "cites": [
+              "b-tilt-season"
+            ],
+            "show": {
+              "picture": "leans",
+              "state": {
+                "lit": [
+                  "earth"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "The lean",
+        "beats": [
+          {
+            "kind": "plain",
+            "text": "Earth spins on an axis that leans 23.4° from upright, and the lean always points the same way, toward the same distant star. So as Earth circles the Sun, first the north leans into the light, then the south.",
+            "simple": "Earth's axis always points the same way, so each half takes a turn leaning toward the Sun.",
+            "links": [
+              {
+                "phrase": "first the north leans into the light",
+                "part": "jun"
+              }
+            ],
+            "cites": [
+              "b-tilt-season",
+              "b-axis-polaris"
+            ],
+            "show": {
+              "picture": "orbit",
+              "state": {
+                "lit": [
+                  "jun",
+                  "dec"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Leaning in does two things. The Sun climbs higher, so the same beam of light lands on a smaller patch of ground and heats it harder. And the day gets longer, so the heating lasts.",
+            "simple": "When your half leans in, the Sun is higher and the day is longer, so it gets warmer.",
+            "links": [],
+            "cites": [
+              "b-zenith-formula"
+            ],
+            "show": {
+              "picture": "orbit",
+              "state": {
+                "lit": [
+                  "jun"
+                ]
+              }
+            },
+            "control": {
+              "kind": "scrub",
+              "label": "Move Earth through its year",
+              "along": "items"
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "At 40° north, the latitude of Madrid and Beijing, the June Sun stands 73.44° high at noon. In December it manages 26.56°. Same Sun, less than half the energy on each square metre, for nine hours instead of fifteen.",
+            "simple": "Where Madrid is, the summer Sun is high and the winter Sun is low, and winter days are much shorter.",
+            "links": [
+              {
+                "phrase": "At 40° north",
+                "part": "noon"
+              }
+            ],
+            "cites": [
+              "b-40n-cities",
+              "b-40n-sun-alt",
+              "b-40n-daylight"
+            ],
+            "show": {
+              "picture": "sky",
+              "state": {}
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Now take the lean away. Stand the axis upright and the seasons vanish: the same noon Sun and the same twelve-hour day, all year. Tip it further and they turn violent.",
+            "simple": "With no lean there would be no seasons. With more lean they would be harsher.",
+            "links": [],
+            "cites": [
+              "b-notilt-same",
+              "b-notilt-12h"
+            ],
+            "show": {
+              "picture": "leans",
+              "state": {}
+            },
+            "control": {
+              "kind": "pick",
+              "label": "Compare the leans"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Other skies",
+        "beats": [
+          {
+            "kind": "plain",
+            "text": "Mars leans 25°, nearly the same as Earth, and has seasons like ours. They last about twice as long, because Mars takes 687 days to go round.",
+            "simple": "Mars leans about as much as Earth, so it has seasons too, but they last about twice as long.",
+            "links": [
+              {
+                "phrase": "Mars leans 25°",
+                "part": "mars"
+              }
+            ],
+            "cites": [
+              "b-mars-tilt-wiki",
+              "b-mars-687",
+              "b-mars-seasons-long"
+            ],
+            "show": {
+              "picture": "leans",
+              "state": {
+                "lit": [
+                  "mars"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Uranus leans 98°. It rolls around the Sun on its side. Each pole gets about 42 years of unbroken daylight, then 42 years of night.",
+            "simple": "Uranus is tipped over, so each pole has decades of daylight and then decades of darkness.",
+            "links": [
+              {
+                "phrase": "Uranus leans 98°",
+                "part": "uranus"
+              }
+            ],
+            "cites": [
+              "b-uranus-98",
+              "b-uranus-42"
+            ],
+            "show": {
+              "picture": "leans",
+              "state": {
+                "lit": [
+                  "uranus"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Distance isn't entirely innocent. Earth moves fastest when it is nearest the Sun, in January, so it hurries through the northern winter. That winter is almost five days shorter than the northern summer.",
+            "simple": "Earth moves fastest in January, so the northern winter is a few days shorter than the summer.",
+            "links": [
+              {
+                "phrase": "nearest the Sun, in January",
+                "part": "jan"
+              }
+            ],
+            "cites": [
+              "b-kepler-faster",
+              "b-5days-earthsky"
+            ],
+            "show": {
+              "picture": "orbit",
+              "state": {
+                "lit": [
+                  "jan"
+                ]
+              }
+            }
+          },
+          {
+            "kind": "plain",
+            "text": "Seasons aren't about how far you are from the fire. They're about how you face it.",
+            "simple": "What matters is not how far away the Sun is, but how your half of Earth faces it.",
+            "links": [],
+            "cites": [
+              "b-tilt-season"
+            ],
+            "show": {
+              "picture": "leans",
+              "state": {
+                "lit": [
+                  "earth"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "asides": [
+      {
+        "kind": "tangent",
+        "title": "Seasons of different lengths",
+        "text": "Counted from solstice to equinox, the northern summer runs 93.65 days and the northern winter 88.99 days.",
+        "beat": 11,
+        "collapsed": true,
+        "cites": [
+          "b-season-days"
+        ]
+      },
+      {
+        "kind": "limits",
+        "title": "A simplified picture",
+        "text": "The ring shows six moments of the year, not the shape of the orbit. The heights and hours are for 40° north at the solstices; other places see other numbers.",
+        "beat": 7,
+        "collapsed": true,
+        "cites": [
+          "b-40n-sun-alt",
+          "b-40n-cities"
+        ]
+      }
+    ],
+    "takeaway": {
+      "text": "Tilt makes the seasons. Distance only trims them.",
+      "cites": [
+        "b-tilt-season",
+        "b-speed-peri"
+      ]
+    },
+    "askSuggestions": [
+      "Why is the northern winter shorter than the summer?",
+      "What would the seasons be like if Earth did not lean?",
+      "Why does Uranus lean so far over?"
+    ]
+  }
+}
