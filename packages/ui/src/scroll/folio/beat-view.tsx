@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { radius, spacing } from '@knowscroll/design-tokens';
-import { useFocusRing } from '../../display/focus-ring';
 import { ScreenReaderOnly } from '../../display/screen-reader-only';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
@@ -13,7 +12,6 @@ export interface BeatViewProps {
   readonly beat: Beat;
   readonly textVersion: boolean;
   readonly simpler: boolean;
-  readonly onToggleSimpler: (beatId: string) => void;
   readonly openNotes: ReadonlySet<string>;
   readonly onToggleNote: (noteId: string) => void;
   /** In a hold that is showing another beat's picture: drawn quieter, so the eye finds the one the figure is about. */
@@ -28,14 +26,14 @@ export interface BeatViewProps {
 
 /**
  * One beat of the essay: an optional subhead, its paragraphs and lines, the guide's line and its play block when it has
- * them, its side notes, and "Say it simpler", which swaps the words for the plainer ones the writer gave (no model is
- * asked, D-244). A question is a call drawn as text: the prompt as a line, then the explanation.
+ * them and its side notes. When the person has switched the beat to its plainer words (the ••• row Simpler, Shift + S or
+ * the selection menu), the paragraphs give way to the ones the writer gave (no model is asked, D-244); the beat draws no
+ * link of its own for that (D-429). A question is a call drawn as text: the prompt as a line, then the explanation.
  */
 export function BeatView({
   beat,
   textVersion,
   simpler,
-  onToggleSimpler,
   openNotes,
   onToggleNote,
   quiet = false,
@@ -44,7 +42,6 @@ export function BeatView({
   onFooterLayout,
 }: BeatViewProps) {
   const page = usePagePalette();
-  const focus = useFocusRing('onLight');
   const ink = quiet ? page.ink2 : page.ink;
   return (
     <View style={styles.beat} testID={`beat-${beat.id}`}>
@@ -87,20 +84,6 @@ export function BeatView({
           onToggle={() => onToggleNote(note.id)}
         />
       ))}
-      {beat.simple === undefined ? null : (
-        <Pressable
-          {...focus.props}
-          accessibilityRole="button"
-          accessibilityLabel={simpler ? 'Undo simpler version' : 'Say it simpler'}
-          onPress={() => onToggleSimpler(beat.id)}
-          style={[styles.simplerLink, focus.style]}
-          testID="simpler-toggle"
-        >
-          <Text variant="meta" color={page.link}>
-            {simpler ? 'Undo simpler' : 'Say it simpler'}
-          </Text>
-        </Pressable>
-      )}
       {footer === undefined || footer === null ? null : (
         <View onLayout={(event) => onFooterLayout?.(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}>
           {footer}
@@ -113,5 +96,4 @@ export function BeatView({
 const styles = StyleSheet.create({
   beat: { gap: spacing[3] },
   simpler: { padding: spacing[3], borderRadius: radius.card },
-  simplerLink: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
 });

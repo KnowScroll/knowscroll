@@ -24,7 +24,20 @@ export interface EndPlateProps {
 }
 
 /**
- * The end of the essay (folio README 5.2): the takeaway, the picture of the whole journey where the kit draws one, the
+ * The takeaway as one paragraph (D-429): the writer's captions joined with single spaces, a full stop added to a caption
+ * that does not end in a sentence mark. Presentation only; the document keeps its captions as they are.
+ */
+function summaryOf(takeaway: readonly string[]): string {
+  return takeaway
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .map((line) => (/[.!?…][)"'”’]*$/.test(line) ? line : `${line}.`))
+    .join(' ');
+}
+
+/**
+ * The end of the essay (folio README 5.2): the takeaway as a short summary ("To sum up", one paragraph in the essay's
+ * body type), the picture of the whole journey where the kit draws one, the
  * small print one tap away, then the ways on, each a button the person presses: Part 2 when one was admitted, Next idea,
  * and Close. Nothing moves on by itself.
  */
@@ -44,13 +57,11 @@ export function EndPlateView({
   return (
     <View style={[styles.plate, { borderTopColor: page.ink }]} testID="end-plate">
       <Text variant="label" color={page.link} heading={2}>
-        The short version
+        To sum up
       </Text>
-      {end.takeaway.map((line) => (
-        <Text key={line} variant="title" color={page.ink}>
-          {line}
-        </Text>
-      ))}
+      <Text variant="body" color={page.ink} testID="end-summary">
+        {summaryOf(end.takeaway)}
+      </Text>
       {end.figure === undefined ? null : (
         <FigureView
           figure={end.figure}

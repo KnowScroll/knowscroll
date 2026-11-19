@@ -422,7 +422,6 @@ export function FolioReader({
         beat={beat}
         textVersion={textVersion}
         simpler={simpler.has(beat.id)}
-        onToggleSimpler={toggleSimpler}
         openNotes={openNotes}
         onToggleNote={(noteId) =>
           setOpenNotes((all) => {
