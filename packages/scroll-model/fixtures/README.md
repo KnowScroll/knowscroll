@@ -47,3 +47,17 @@ validated, and the file carries correct measures and hash. Regenerate after a ch
 pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-kits-v2.mjs
 pnpm format
 ```
+
+## Hand-written document v3 fixtures
+
+`documents/{fence,seasons,broad-street}-v3-ci.json` are the owner's three `CONTENT.md` topics as `scroll-document.v3`
+Scrolls (#759), kicker "Fixture", compiled at revision 1 from their editorial sources in
+`packages/backend/src/modules/content/fixtures/document-v3/`. The reader's tests, the gallery and the browser specs draw
+them; dev imports the sources (never stage or live). A scroll-model test re-validates each with its measures and hash,
+and a backend test compiles each source again and checks it equals the committed file. Regenerate after a change to a
+source or to the compile:
+
+```sh
+pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-v3.mjs
+pnpm format
+```

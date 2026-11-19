@@ -79,10 +79,32 @@ function chartSentences(picture: PictureOfKind<'chart'>, state: PictureState): s
 }
 
 /** The tallies a plan has drawn at a state: those with no step, or arriving at or before it. */
-function talliesDrawn(picture: PictureOfKind<'plan'>, state: PictureState): number {
-  return picture.tallies
-    .filter((tally) => tally.step === undefined || state.step === undefined || tally.step <= state.step)
-    .reduce((total, tally) => total + tally.count, 0);
+function talliesDrawn(picture: PictureOfKind<'plan'>, state: PictureState): PictureOfKind<'plan'>['tallies'] {
+  return picture.tallies.filter(
+    (tally) => tally.step === undefined || state.step === undefined || tally.step <= state.step,
+  );
+}
+
+/**
+ * Where the drawn marks gather: the place most of them are nearest to (ties to the earlier place). A mark stands for
+ * what the caption or the text says it stands for, so the words never give a count of marks as if it were a figure.
+ */
+function busiestPlace(picture: PictureOfKind<'plan'>, tallies: PictureOfKind<'plan'>['tallies']): string | undefined {
+  const near = new Map<string, number>();
+  for (const tally of tallies) {
+    let best: { id: string; distance: number } | undefined;
+    for (const place of picture.places) {
+      const distance = Math.hypot(place.at.column - tally.at.column, place.at.row - tally.at.row);
+      if (best === undefined || distance < best.distance) best = { id: place.id, distance };
+    }
+    if (best !== undefined) near.set(best.id, (near.get(best.id) ?? 0) + tally.count);
+  }
+  let busiest: { id: string; marks: number } | undefined;
+  for (const place of picture.places) {
+    const marks = near.get(place.id) ?? 0;
+    if (marks > 0 && (busiest === undefined || marks > busiest.marks)) busiest = { id: place.id, marks };
+  }
+  return busiest === undefined ? undefined : picture.places.find((place) => place.id === busiest.id)?.label;
 }
 
 function planSentences(picture: PictureOfKind<'plan'>, state: PictureState): string[] {
@@ -91,7 +113,14 @@ function planSentences(picture: PictureOfKind<'plan'>, state: PictureState): str
   const unnamedWays = picture.ways.length - namedWays.length;
   const wayNames = [...namedWays, ...(unnamedWays > 0 ? [`${countOf(unnamedWays, 'way')} without a name`] : [])];
   const stepLabel = state.step === undefined ? undefined : (picture.steps?.[state.step] ?? `step ${state.step + 1}`);
-  const marks = countOf(talliesDrawn(picture, state), 'mark');
+  const drawn = talliesDrawn(picture, state);
+  const gathered = busiestPlace(picture, drawn);
+  const marksSentence =
+    drawn.length === 0
+      ? 'No marks yet'
+      : gathered === undefined
+        ? 'Marks are drawn'
+        : `Marks gather nearest to: ${gathered}`;
   const region = picture.regions.find((candidate) => candidate.id === state.region);
   const others = region?.among.filter((id) => id !== region.nearest).map(placeLabel) ?? [];
   // Labels keep their own capitals, so none is set in the middle of a sentence: each follows a colon or a semicolon.
@@ -100,7 +129,7 @@ function planSentences(picture: PictureOfKind<'plan'>, state: PictureState): str
     ...(wayNames.length === 0 ? [] : [withStop(`Ways: ${wayNames.join(', ')}`)]),
     ...(picture.tallies.length === 0
       ? []
-      : [withStop(stepLabel === undefined ? `${marks} in all` : `By ${stepLabel}: ${marks}`)]),
+      : [withStop(stepLabel === undefined ? marksSentence : `By ${stepLabel}. ${marksSentence}`)]),
     ...(region === undefined
       ? []
       : [
@@ -235,8 +264,9 @@ function fitSentences(sentences: readonly string[]): string {
 export function describePicture(picture: Picture, state: PictureState): string {
   return fitSentences([
     withStop(picture.title),
-    ...bodySentences(picture, state),
+    // What stands out comes before the rest, so a text cut at its bound still says what this state is about.
     ...litSentences(picture, state),
+    ...bodySentences(picture, state),
     ...(picture.caption === undefined ? [] : [withStop(picture.caption)]),
   ]);
 }

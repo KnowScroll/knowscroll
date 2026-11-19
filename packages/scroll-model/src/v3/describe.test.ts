@@ -166,7 +166,7 @@ describe('describePicture: statement', () => {
 
   it('names a lit list item as standing out and reads its note after it', () => {
     expect(describePicture(statementList, state({ lit: ['igneous'] }))).toBe(
-      'Three kinds of rock. The list: Igneous, Sedimentary, Metamorphic. Standing out: Igneous. Cooled from melted rock.',
+      'Three kinds of rock. Standing out: Igneous. Cooled from melted rock. The list: Igneous, Sedimentary, Metamorphic.',
     );
   });
 
@@ -195,9 +195,10 @@ describe('describePicture: flow', () => {
     );
   });
 
-  it('lit names the items standing out, in the order given, with notes after the names', () => {
+  it('lit names the items standing out first, in the order given, with notes after the names', () => {
+    // First, so that a text cut at its bound still says what this state is about.
     expect(describePicture(flow, state({ lit: ['tap', 'rain'] }))).toContain(
-      'Standing out: It reaches the tap, Rain falls. Rain falls: It lands on hills. A simplified route.',
+      'How water reaches a tap. Standing out: It reaches the tap, Rain falls. Rain falls: It lands on hills. In order:',
     );
   });
 
@@ -297,23 +298,37 @@ describe('describePicture: chart', () => {
 });
 
 describe('describePicture: plan', () => {
-  it('names places, ways, the marks drawn, and the routes, then the caption', () => {
+  it('names places, ways, where the marks gather, and the routes, then the caption', () => {
     expect(describePicture(plan, state())).toBe(
       'Soho in 1854. Places: Broad Street pump, Poland Street pump, Rupert Street pump. ' +
-        'Ways: Broad Street, 1 way without a name. 76 marks in all. ' +
+        'Ways: Broad Street, 1 way without a name. Marks gather nearest to: Broad Street pump. ' +
         'A route, in order: Poland Street pump; Broad Street pump. Schematic, after John Snow’s 1855 map.',
     );
   });
 
-  it('step counts only the tallies with no step or a step up to it, and names the step', () => {
-    expect(describePicture(plan, state({ step: 0 }))).toContain('By 31 Aug: 30 marks.');
-    expect(describePicture(plan, state({ step: 1 }))).toContain('By 1 Sep: 46 marks.');
-    expect(describePicture(plan, state({ step: 2 }))).toContain('By 3 Sep: 76 marks.');
+  it('step names the step and where the marks drawn by then gather', () => {
+    expect(describePicture(plan, state({ step: 0 }))).toContain(
+      'By 31 Aug. Marks gather nearest to: Broad Street pump.',
+    );
+    expect(describePicture(plan, state({ step: 2 }))).toContain(
+      'By 3 Sep. Marks gather nearest to: Broad Street pump.',
+    );
+    const heavyWest = Picture.parse({
+      ...plan,
+      tallies: [
+        ...(plan as Extract<Picture, { kind: 'plan' }>).tallies,
+        { at: { column: 1, row: 2 }, count: 40, step: 2 },
+      ],
+    });
+    expect(describePicture(heavyWest, state({ step: 1 }))).toContain('Marks gather nearest to: Broad Street pump.');
+    expect(describePicture(heavyWest, state({ step: 2 }))).toContain('Marks gather nearest to: Poland Street pump.');
   });
 
-  it('says one mark in the singular', () => {
+  it('never states a count of marks: a mark stands for what the text says, not for one of anything', () => {
     const single = Picture.parse({ ...plan, tallies: [{ at: { column: 1, row: 1 }, count: 1 }] });
-    expect(describePicture(single, state())).toContain('1 mark in all.');
+    const text = describePicture(single, state());
+    expect(text).toContain('Marks gather nearest to: Poland Street pump.');
+    expect(text).not.toMatch(/\d+ marks?\b/u);
   });
 
   it('says nothing of marks when the plan has no tallies', () => {
