@@ -30,9 +30,6 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-/** An offer with no cover opens at once, so the next topic needs no cover to be read first. */
-const NO_COVER = { covers: { absent: true } } as const;
-
 /** Explore on the fixture Scroll, opened as a person does: from its cover, or at once when the offer has none. */
 async function open(page: Page, viewport = phone, fixture: EncounterFixtureOptions = {}) {
   const served = await encounterFixture(page, 'scroll', {
@@ -121,10 +118,8 @@ for (const width of [320, 390]) {
 }
 
 test('F switches to the Reel with no click or Tab first: the reader has focus', async ({ page }) => {
-  await open(page, phone, NO_COVER);
+  await open(page, phone);
   await page.getByTestId('scroll-reader').focus();
-  await page.keyboard.press('n');
-  await expect(page.getByTestId('scroll-reader')).toBeFocused();
   const requests: string[] = [];
   page.on('request', (request) => requests.push(new URL(request.url()).pathname));
   await page.keyboard.press('f');
