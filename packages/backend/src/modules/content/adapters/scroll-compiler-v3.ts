@@ -33,8 +33,6 @@ const EditorialSourceV3Schema = z.strictObject({
   scroll: z.unknown(),
 });
 
-export type EditorialSourceV3 = z.infer<typeof EditorialSourceV3Schema>;
-
 function issuesOf(error: z.ZodError): AdmissionIssue[] {
   const issues = error.issues
     .slice(0, 32)

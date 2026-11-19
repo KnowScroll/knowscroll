@@ -45,9 +45,9 @@ Background reading:
 
 | Entry | Who may import it | Contents |
 |---|---|---|
-| `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | `ScrollDocumentV2`, `LIMITS_V2`, `computeMeasuresV2`, the kit enums and `validateDocumentV2` (`scroll-document.v2`, D-120; `validateDocumentV2` is admission, not for clients). Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
-| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScrollV2`, `assembleScrollV2` and `compileAuthoredV2` (the v2 writer's shape and checks, D-120), `AuthoredScroll` (what the writer model returns), `compileAuthored`, `authoringReference()` for the prompt, `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints, `unstatedFigures` (the figures of a text that no passage writes the way the text does, with their sign, and spelled magnitudes and measurements: D-208 and D-302) |
-| `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks |
+| `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | `ScrollDocumentV3`, `validateDocumentV3`, `parseDocumentV3`, `negotiateV3`, `describePicture`, `coverFrameOfV3` (`scroll-document.v3`, see its section), `ScrollDocumentV2`, `LIMITS_V2`, `computeMeasuresV2`, the kit enums and `validateDocumentV2` (`scroll-document.v2`, D-120; `validateDocumentV2` is admission, not for clients). Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
+| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScrollV3` and `compileEditorialV3` (the hand-written `scroll-authoring.v3`), `AuthoredScrollV2`, `assembleScrollV2` and `compileAuthoredV2` (the v2 writer's shape and checks, D-120), `AuthoredScroll` (what the writer model returns), `compileAuthored`, `authoringReference()` for the prompt, `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints, `unstatedFigures` (the figures of a text that no passage writes the way the text does, with their sign, and spelled magnitudes and measurements: D-208 and D-302) |
+| `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks; `ScrollProvenanceV3` (claims, sources, citations per beat, aside, picture and takeaway) |
 | `@knowscroll/scroll-model/admission` | backend only | `admitDocument`, `admitBlock` and `validateDocument`: every check including the full-grid proof. The public entry still re-exports the same functions for code written before this entry existed (they are the same function objects); new server code imports them from here, and client code may import neither (see the rules below). |
 | `@knowscroll/scroll-model/fixtures/<name>.json` | tests only | The labelled consumer-document fixtures (`fixtures/documents/`). Drafts, compile inputs and internal provenance fixtures are not exported. |
 
@@ -505,7 +505,7 @@ A header like v1's (`assetId`, `revision`, `language`, `explanationUnitId`, `ser
 |---|---|---|
 | `misconception` | the recipe, by code | `{kind: 'myth', claim, source: {label, reviewed}}` or `{kind: 'none'}`. The source is a human-reviewed label, never model text. |
 | `landmark` (optional) | the recipe, by code | `{key, name}`: what a locked Final call awards, like "The Leaning Axis" (D-188). Absent: the Scroll awards none. Never model text. |
-| `stage` (optional) | the model's choices, settled by code | `{kit, states[{stop, state, alt}]}`: the read stops that change the picture. `kit` is one of five (D-194) and `state` holds that kit's words only (for `earth-sky.v1` `{view, earthAt, moonAt, focus}`), settled to what the view draws. What follows by physics (Earth's tilt, the pins and Ray; a bulge, an energy flow, a lifetime, a dip) is derived from it and never stored. `alt` is derived by code. For `earth-sky.v1` a state may also carry `figures` a cited passage states (D-382). A plain Scroll has none. |
+| `stage` (optional) | the model's choices, settled by code | `{kit, states[{stop, state, alt}]}`: the read stops that change the picture. `kit` is one of nine (D-194; earth-sky, tides, greenhouse, star, transit, circulation, nerve, starlight and black-hole) and `state` holds that kit's words only (for `earth-sky.v1` `{view, earthAt, moonAt, focus}`), settled to what the view draws. What follows by physics (Earth's tilt, the pins and Ray; a bulge, an energy flow, a lifetime, a dip) is derived from it and never stored. `alt` is derived by code. For `earth-sky.v1` a state may also carry `figures` a cited passage states (D-382). A plain Scroll has none. |
 | `stops[]` | the model | `read` (optional heading, paragraph, optional line; `simple`), `call_it` (prompt, 2 or 3 options, `answer`, `explain`, `twist`, optional `commonGuess`, `simple`) and `final_call` (the same without a common guess, and with an optional `binding: {kind: 'tilt'}` that code sets from the recipe: the control the reader turns on the picture, D-187). Ids `s1`, `s2`, … by code. |
 | `asides[]` | the model | `tangent`, `limits` or `definition`, with `anchorStop` (the stop it opens next to) and `collapsed`. |
 | `recap` | the model | Up to 3 captions and `smallPrintAside`, the limits aside the "Small print" chip links to. |
@@ -523,7 +523,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `paragraph` | kept | implemented, inside a stop |
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
-| `stage` | new | implemented; runtime-verified on dev for Earth & sky (the Seasons Scrolls, web, 2 Nov, fidelity-v3); the other kits (tides, greenhouse, star and transit, circulation and nerve) were not seen on dev: seven kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
+| `stage` | new | implemented; runtime-verified on dev for Earth & sky (the Seasons Scrolls, web, 2 Nov, fidelity-v3); the other kits were not seen on dev: nine kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194; circulation and nerve, D-201; starlight and black hole), each with its physics derived by code (D-195, D-202), drawn by the stage engine (S-1c) |
 | `call_it` | new | implemented as a stop (runtime-verified on dev, 1 Nov, journeys-v3); locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
 | `final_call` | new | implemented as the last stop (S-3; runtime-verified on dev, 1 Nov, journeys-v3: the combo and the gold landmark): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
@@ -636,6 +636,120 @@ Two members were added for the stage plan (D-382, D-383): `figures` on a `stop` 
 - `compileAuthoredV2` runs the authoring rules (citations and figures, copying, where an aside sits, the stage against the recipe's variant, and that a stage Scroll never calls Earth's axis sideways: `earth_axis_sideways`), assembles, runs `validateDocumentV2`, and returns the document with the claims each part cites, or merged findings located at the writer's items.
 - `REPAIR_HINTS_V2` is the repair catalogue. It is its own because the v1 catalogue is near the harness's limit of 128 codes.
 - `authoringReferenceV2(variant)` is the prompt's description of the shape, built from the same tables as the schema.
+
+## `scroll-document.v3` (#759)
+
+Status. **Implemented** (unit tests): the document, `scroll-limits.v3`, `scroll-measures.v3`, the six picture kinds with their state rules and text versions, `validateDocumentV3`, `parseDocumentV3`, `negotiateV3`, and the hand-written editorial compile with `scroll-provenance.v3`. **Not runtime-verified**: no document v3 has been admitted, stored or read on dev, because the content module refuses one until beat coverage lands (#761). **Planned**: the document v3 writer, the control `set`, more picture kinds, and the reader's use of the format (see the `ui` and `client-core` READMEs). v1 and v2 documents, limits and measures are untouched and keep their own schemas.
+
+Where it lives. `src/v3/` is the public model (`@knowscroll/scroll-model`). The editorial compile is backend-only: `src/producer/v3/editorial.ts` (`./producer`) and `src/internal/provenance-v3.ts` (`./internal`). The fixture `validDocumentV3()` in `src/test-support/v3-fixtures.ts` is a CI fixture, never product content.
+
+### What it is
+
+A Scroll as a short essay: two or three sections of beats, with pictures declared once and shown by beats.
+
+| Part | Meaning |
+|---|---|
+| header | Like v2's: `assetId`, `revision`, `language`, `explanationUnitId`, `series`, `theme`, `kicker`, `title`, `dek` (the promise), `shape` (`argument`, `mechanism` or `story`), `framing`, `misconception`. |
+| `sections[]` | Two or three, each with a title and two to six beats. |
+| beat | One paragraph (`text`) and its plainer version (`simple`, shown on request, not counted in the reading time). Reading, place, Ask, Share and Report name a beat. A `plain` beat may carry an `emphasis` and one `control`. A `quote` beat carries a `cite` (`who`, `work`, `year`) and no control. |
+| `pictures[]` | One to three. Each is declared once, has an `id`, a `title` and an optional `caption`, and is shown by any number of beats. Every declared picture must be shown by some beat. |
+| `show` (on a beat) | `{picture, state}`: the picture that follows the beat, in one state. |
+| `links[]` (on a beat) | Up to three `{phrase, part}`: a phrase of the beat's text, found exactly once, that names a part of the picture on screen. The colour is the picture's. |
+| `control` (on a plain beat) | `scrub`, `switch` or `pick`, under the beat's own figure. At most two in a document. Nothing a reader does with one is stored or reported. |
+| `asides[]` | One to four, each beside a beat (`anchorBeat`), of kind `tangent`, `limits` or `definition`. One `limits` aside is required: it is the end plate's Small print. |
+| `takeaway` | One to three plain sentences at the end. It is not called `summary`, so discovery does not offer it in place of the dek. |
+| `askSuggestions[]` | One to three questions for the Ask sheet. |
+| `measures`, `limitsVersion`, `integrity` | Set by code. |
+
+There are no calls, no landmark, no stage, no guide and no play blocks, and no drawing kit: every picture comes from the closed set below. Every object is strict, so a reader that meets a field it does not know refuses the document.
+
+Ids (`LocalId`) are one space for pictures, sections, beats and asides. A picture may not be called `takeaway` when it comes through the editorial compile, because that is the part id the end summary is cited under.
+
+### Pictures
+
+One renderer draws all six kinds (`packages/ui/src/scroll/picture`). A writer fills a picture with words, cited figures and choices from closed lists. Nothing in a picture is a colour, a coordinate, markup or a size in pixels. An item's `tone` (`warm`, `cool`, `mark`) says what it means, and the renderer chooses the colour. A chart's `value` is a figure as the cited passage writes it (`"93.6"`, `"1,000"`).
+
+| Kind | What it is | State keys |
+|---|---|---|
+| `statement` | One number (`form: 'number'`, part `value`), one quotation (`'quote'`, part `quote`) or a short list (`'list'`, parts are its items). | `lit` |
+| `flow` | Two to six steps in order. | `upTo`, `lit` |
+| `cycle` | Three to eight items on a ring, with an optional centre. | `upTo`, `lit` |
+| `grid` | Rows by columns of short cells; a cell may be `large`. | `upTo` (rows), `lit` |
+| `chart` | Bars or a line of two to sixteen cited values. | `upTo` (points), `lit` |
+| `plan` | A schematic plan on a grid of at most 12 by 12 cells: ways, places, tallies that arrive by step, regions, routes. | `step`, `lit`, `region` |
+
+A state is `{upTo?, lit?, step?, region?}`. `upTo` draws the first n items, `lit` makes up to four parts stand out, `step` is how far a plan's tallies have arrived, and `region` shades a plan's region. An empty state shows the whole picture. A key the kind does not understand, an id that is not one of its parts, or an `upTo` past its items is `show_state_invalid`.
+
+**Planned**: `layers`, `timeline`, `radial` and `scale`. A kind is added by adding its data in `pictures.ts`, its rules and words in `picture-rules.ts`, and its drawing in the UI package.
+
+### Controls
+
+| Control | What it does |
+|---|---|
+| `scrub` | Steps through the picture's `steps` (a plan's days) or its `items`, one at a time. Needs two places to go. |
+| `switch` | Flips between the beat's state and `to`, which must be a different state the picture can be in. |
+| `pick` | Chooses one item that has a note and reads the note. Needs two such items. |
+
+Each has buttons and keys beside any drag, and a sentence for its state that code derives from the picture. A control on a beat that shows nothing is `control_without_show`; one the picture cannot honour is `control_unfit`. **Planned**: `set`, a number that the picture's own physics understands, for the writer step.
+
+### Limits (`scroll-limits.v3`)
+
+| Limit | Value |
+|---|---|
+| canonical JSON | 128 KiB |
+| sections / beats per section / beats in all | 2 to 3 / 2 to 6 / 9 to 14 |
+| words of one beat / of the first beat (the cover's lede) | 70 / 45 |
+| words of the beats together (`mainWords`) | 350 to 700 |
+| pictures / controls / links per beat / asides / ask suggestions | 1 to 3 / 2 / 3 / 1 to 4 / 3 |
+| takeaway | 1 to 3 sentences, 20 to 300 characters |
+
+`FIELD_LIMITS_V3` bounds every string in characters, so a document stays finite whatever the words are. A change to any value is a new limits version.
+
+### Measures (`scroll-measures.v3`)
+
+Computed by code and stored: `readingSeconds`, `readingMinutes`, `mainWords`, `totalWeight` and a `weight` per beat (its words and the asides beside it). The reading time is every word of the beats, asides and takeaway at 230 words a minute, plus 4 seconds for each beat that shows a figure and 10 seconds for each control. It must land between 120 and 240 seconds (`reading_length_out_of_brief`). The plainer version of a beat is not counted.
+
+### Validation
+
+`validateDocumentV3(input, {verify?})` is admission. It checks the size, the schema, the limits, then the rules below, and recomputes the measures and the hash. It is pure, never throws on hostile input, and returns `{kind: 'valid', document, notices}` or `{kind: 'invalid', issues}`. A finding is a code and a path, never the text it is about.
+
+| Group | Codes |
+|---|---|
+| size, schema, ids, stored values | `document_too_large`, `document_not_object`, `id_duplicate`, `measures_mismatch`, `reading_length_out_of_brief`, `integrity_mismatch` (shared with v1), and schema codes |
+| beats and words | `beats_too_few`, `beats_too_many`, `beat_too_long`, `first_beat_too_long`, `simple_too_long`, `main_text_too_short`, `main_text_too_long` |
+| pictures | `picture_unshown`, `picture_ids_duplicate`, `picture_ref_unknown`, `picture_cell_taken`, `picture_cell_outside`, `picture_way_bent`, `picture_steps_missing`, `picture_tally_step_invalid`, `picture_region_invalid`, `picture_value_invalid`, `show_picture_unknown`, `show_state_invalid` |
+| links | `link_phrase_not_once`, `link_part_unknown`, `link_without_picture` |
+| controls | `control_budget_exceeded`, `control_without_show`, `control_unfit` |
+| asides, takeaway | `aside_anchor_unknown`, `limits_aside_missing`, `takeaway_sentences` |
+| editorial compile only | `quote_not_in_evidence` |
+
+A link names a part of the picture on screen at its beat: the beat's own `show`, else the last picture an earlier beat of the same section showed. A new section starts with no picture. The one notice is `misconception_source_unreviewed`, for a myth whose source label is not yet reviewed; it does not refuse the document. v3 has its own code list (`V3_REASON_CODES`) because each writer's repair catalogue is limited to 128 codes.
+
+### Parsing, negotiation, words and the cover
+
+| Function | What it does |
+|---|---|
+| `parseDocumentV3(input, {verify?})` | The client path: the same checks without the measures and the hash, which `{verify: true}` turns back on off the render path. |
+| `negotiateV3(document, capabilities)` | Returns the stored document unchanged, so the hash still names what the client got, only when the client declares `scroll-document.v3`. Otherwise `unsupported-document`; there are no blocks to substitute. A client that cannot draw every kind is not offered the document, and an earlier revision may stand in (D-129). |
+| `describePicture(picture, state)` | The text version: plain sentences from the picture's data alone, never the document's prose. It says only what the state draws, names what stands out, states every value even if the picture prints none, and is cut at a sentence at 600 characters. It is the screen reader's text, the Text chip and a cover's alt text. |
+| `coverFrameOfV3(document)` | The first declared picture in the first state a beat shows it in: what a cover draws before the Scroll is opened. |
+| `beatsOfV3(document)` | Every beat in reading order. |
+
+### The editorial compile (`./producer`, `./internal`)
+
+`compileEditorialV3({authored, publication, claims, sources, production})` compiles a hand-written `scroll-authoring.v3` into a document v3 and its `scroll-provenance.v3`. The authored form is the document without ids, measures and hash; an aside names its beat by number (counted from 1 across sections); and every beat, aside, picture and the takeaway names the claims it rests on (`cites`). Code sets the ids (`s1…`, `b1…`, `a1…`), the measures and the hash. It is pure and deterministic: the same input gives the same bytes, so a repeated import changes nothing. It stops at the first stage with findings:
+
+| Stage | What it checks |
+|---|---|
+| `authoring` | The authored shape. |
+| `evidence` | Every cited claim exists. Every figure a part shows is in a passage that part cites (D-208); a figure in the kicker, title, dek, a section title or an ask suggestion is in some passage the Scroll cites. A quote beat, and a statement picture of form `quote`, match a cited passage word for word (curly and straight quotes, dashes and runs of spaces compare equal): `quote_not_in_evidence`. No other text copies nine words in a row from a cited passage (`copied_passage`); a quotation is exempt. Every claim's source exists (`authoring_reference_unknown`). A picture is not called `takeaway` (`id_duplicate`). |
+| `document` | `validateDocumentV3` on the stored document. |
+
+`scroll-provenance.v3` (`ScrollProvenanceV3`) holds the claims and sources the document cites (no others), a citation for every beat, aside, picture (by their ids) and the end summary (`takeaway`), the checks and the production record. It is stored beside the revision and never served to readers.
+
+### Planned
+
+The document v3 writer (a model's own authoring shape and repair catalogue), the control `set`, the kinds `layers`, `timeline`, `radial` and `scale`, beat coverage for storing a document v3 (#761), and the reader that draws one.
 
 ## Fixtures
 

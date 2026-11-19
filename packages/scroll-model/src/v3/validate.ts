@@ -149,10 +149,18 @@ function linkIssues(document: ScrollDocumentV3, located: readonly LocatedBeat[])
     // A show naming an undeclared picture is already `show_picture_unknown`; its links have no picture to be judged by.
     const skip = beat.show !== undefined && own === undefined;
     const picture = beat.show === undefined ? onScreen : own;
+    const spans = beat.links.map((link) => {
+      const start = beat.text.indexOf(link.phrase);
+      return [start, start + link.phrase.length] as const;
+    });
     beat.links.forEach((link, index) => {
       const linkPath = `${path}.links.${index}`;
       if (occurrences(beat.text, link.phrase) !== 1)
         issues.push({ code: 'link_phrase_not_once', path: `${linkPath}.phrase` });
+      // Two links over the same words would leave the reader nothing single to underline.
+      const [start, end] = spans[index] ?? [-1, -1];
+      if (start >= 0 && spans.some(([from, to], other) => other < index && from >= 0 && from < end && start < to))
+        issues.push({ code: 'link_phrases_overlap', path: `${linkPath}.phrase` });
       if (skip) return;
       if (picture === undefined) issues.push({ code: 'link_without_picture', path: linkPath });
       else if (!partIds(picture).includes(link.part))
@@ -197,12 +205,13 @@ function asideIssues(document: ScrollDocumentV3): IssueV3[] {
 }
 
 /**
- * How many sentences a takeaway has. A sentence ends at `.`, `!`, `?` or `…` followed by a space or the end of the
- * text, so a decimal point ("23.4") and an abbreviation without a space after it do not end one; a run of enders
- * ("?!", "...") ends one sentence. Text after the last ender, or text with no ender at all, is one more sentence.
+ * How many sentences a takeaway has. A sentence ends at `.`, `!`, `?` or `…`, with any closing quotes or brackets after
+ * it, followed by a space or the end of the text, so a decimal point ("23.4") and an abbreviation without a space after
+ * it do not end one; a run of enders ("?!", "...") ends one sentence, and so does `.”`. Text after the last ender, or
+ * text with no ender at all, is one more sentence.
  */
 export function takeawaySentenceCount(takeaway: string): number {
-  return takeaway.split(/(?<=[.!?…])\s+/u).filter((sentence) => sentence.trim().length > 0).length;
+  return takeaway.split(/(?<=[.!?…]["”’)\]]*)\s+/u).filter((sentence) => sentence.trim().length > 0).length;
 }
 
 function takeawayIssues(document: ScrollDocumentV3): IssueV3[] {

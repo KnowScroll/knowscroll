@@ -179,6 +179,15 @@ describe('content admission of the authored starter Scroll (real database)', () 
     expect((await rows(assetId)).revisions).toEqual([]);
   });
 
+  it('compiles a document v3 source and refuses it as coverage_missing, writing nothing, until beats can be covered', async () => {
+    const source = documentV3Source('seasons');
+    const assetId = source['assetId'] as string;
+    const result = await useCases.importScroll(source);
+    expect(result).toEqual({ kind: 'refused', reason: 'coverage_missing', issues: [] });
+    expect((await rows(assetId)).asset).toBeUndefined();
+    expect((await rows(assetId)).revisions).toEqual([]);
+  });
+
   it('refuses an asset ID that already names something that is not a Scroll, or was withdrawn', async () => {
     const reel = await seedAsset(database.db);
     expect(

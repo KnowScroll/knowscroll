@@ -349,12 +349,7 @@
             }
           ]
         },
-        "cites": [
-          "b-range-km",
-          "b-40n-sun-alt",
-          "b-40n-cities",
-          "b-season-days"
-        ]
+        "cites": ["b-range-km", "b-40n-sun-alt", "b-40n-cities", "b-season-days"]
       },
       {
         "picture": {
@@ -410,11 +405,7 @@
             }
           ]
         },
-        "cites": [
-          "b-40n-sun-alt",
-          "b-40n-daylight",
-          "b-40n-cities"
-        ]
+        "cites": ["b-40n-sun-alt", "b-40n-daylight", "b-40n-cities"]
       },
       {
         "picture": {
@@ -447,12 +438,7 @@
           ],
           "marks": []
         },
-        "cites": [
-          "b-tilt-nasa",
-          "b-mars-tilt",
-          "b-mars-seasons-long",
-          "b-uranus-tilt"
-        ]
+        "cites": ["b-tilt-nasa", "b-mars-tilt", "b-mars-seasons-long", "b-uranus-tilt"]
       }
     ],
     "sections": [
@@ -464,9 +450,7 @@
             "text": "Ask almost anyone why summer is hot and you'll hear that Earth is closer to the Sun. It's a good guess. It is also backwards.",
             "simple": "Most people think summer comes when Earth is closest to the Sun. That is wrong.",
             "links": [],
-            "cites": [
-              "b-distance-not-cause"
-            ],
+            "cites": ["b-distance-not-cause"],
             "show": {
               "picture": "orbit",
               "state": {}
@@ -486,18 +470,11 @@
                 "part": "jul"
               }
             ],
-            "cites": [
-              "b-range-km",
-              "b-5m-km-earthdate",
-              "b-summer-at-aphelion"
-            ],
+            "cites": ["b-range-km", "b-5m-km-earthdate", "b-summer-at-aphelion"],
             "show": {
               "picture": "orbit",
               "state": {
-                "lit": [
-                  "jan",
-                  "jul"
-                ]
+                "lit": ["jan", "jul"]
               }
             }
           },
@@ -506,9 +483,7 @@
             "text": "There's a second problem. When it is summer in Delhi it is winter in Sydney. One planet, one distance, two opposite seasons at once. Distance can't do that.",
             "simple": "The north and the south have opposite seasons at the same time, so distance cannot be the cause.",
             "links": [],
-            "cites": [
-              "b-opposite-seasons"
-            ]
+            "cites": ["b-opposite-seasons"]
           },
           {
             "kind": "plain",
@@ -520,15 +495,11 @@
                 "part": "earth"
               }
             ],
-            "cites": [
-              "b-tilt-season"
-            ],
+            "cites": ["b-tilt-season"],
             "show": {
               "picture": "leans",
               "state": {
-                "lit": [
-                  "earth"
-                ]
+                "lit": ["earth"]
               }
             }
           }
@@ -547,17 +518,11 @@
                 "part": "jun"
               }
             ],
-            "cites": [
-              "b-tilt-season",
-              "b-axis-polaris"
-            ],
+            "cites": ["b-tilt-season", "b-axis-polaris"],
             "show": {
               "picture": "orbit",
               "state": {
-                "lit": [
-                  "jun",
-                  "dec"
-                ]
+                "lit": ["jun", "dec"]
               }
             }
           },
@@ -566,15 +531,11 @@
             "text": "Leaning in does two things. The Sun climbs higher, so the same beam of light lands on a smaller patch of ground and heats it harder. And the day gets longer, so the heating lasts.",
             "simple": "When your half leans in, the Sun is higher and the day is longer, so it gets warmer.",
             "links": [],
-            "cites": [
-              "b-zenith-formula"
-            ],
+            "cites": ["b-zenith-formula"],
             "show": {
               "picture": "orbit",
               "state": {
-                "lit": [
-                  "jun"
-                ]
+                "lit": ["jun"]
               }
             },
             "control": {
@@ -593,11 +554,7 @@
                 "part": "noon"
               }
             ],
-            "cites": [
-              "b-40n-cities",
-              "b-40n-sun-alt",
-              "b-40n-daylight"
-            ],
+            "cites": ["b-40n-cities", "b-40n-sun-alt", "b-40n-daylight"],
             "show": {
               "picture": "sky",
               "state": {}
@@ -608,10 +565,7 @@
             "text": "Now take the lean away. Stand the axis upright and the seasons vanish: the same noon Sun and the same twelve-hour day, all year. Tip it further and they turn violent.",
             "simple": "With no lean there would be no seasons. With more lean they would be harsher.",
             "links": [],
-            "cites": [
-              "b-notilt-same",
-              "b-notilt-12h"
-            ],
+            "cites": ["b-notilt-same", "b-notilt-12h"],
             "show": {
               "picture": "leans",
               "state": {}
@@ -636,17 +590,11 @@
                 "part": "mars"
               }
             ],
-            "cites": [
-              "b-mars-tilt-wiki",
-              "b-mars-687",
-              "b-mars-seasons-long"
-            ],
+            "cites": ["b-mars-tilt-wiki", "b-mars-687", "b-mars-seasons-long"],
             "show": {
               "picture": "leans",
               "state": {
-                "lit": [
-                  "mars"
-                ]
+                "lit": ["mars"]
               }
             }
           },
@@ -660,16 +608,11 @@
                 "part": "uranus"
               }
             ],
-            "cites": [
-              "b-uranus-98",
-              "b-uranus-42"
-            ],
+            "cites": ["b-uranus-98", "b-uranus-42"],
             "show": {
               "picture": "leans",
               "state": {
-                "lit": [
-                  "uranus"
-                ]
+                "lit": ["uranus"]
               }
             }
           },
@@ -683,16 +626,11 @@
                 "part": "jan"
               }
             ],
-            "cites": [
-              "b-kepler-faster",
-              "b-5days-earthsky"
-            ],
+            "cites": ["b-kepler-faster", "b-5days-earthsky"],
             "show": {
               "picture": "orbit",
               "state": {
-                "lit": [
-                  "jan"
-                ]
+                "lit": ["jan"]
               }
             }
           },
@@ -701,15 +639,11 @@
             "text": "Seasons aren't about how far you are from the fire. They're about how you face it.",
             "simple": "What matters is not how far away the Sun is, but how your half of Earth faces it.",
             "links": [],
-            "cites": [
-              "b-tilt-season"
-            ],
+            "cites": ["b-tilt-season"],
             "show": {
               "picture": "leans",
               "state": {
-                "lit": [
-                  "earth"
-                ]
+                "lit": ["earth"]
               }
             }
           }
@@ -723,9 +657,7 @@
         "text": "Counted from solstice to equinox, the northern summer runs 93.65 days and the northern winter 88.99 days.",
         "beat": 11,
         "collapsed": true,
-        "cites": [
-          "b-season-days"
-        ]
+        "cites": ["b-season-days"]
       },
       {
         "kind": "limits",
@@ -733,18 +665,12 @@
         "text": "The ring shows six moments of the year, not the shape of the orbit. The heights and hours are for 40° north at the solstices; other places see other numbers.",
         "beat": 7,
         "collapsed": true,
-        "cites": [
-          "b-40n-sun-alt",
-          "b-40n-cities"
-        ]
+        "cites": ["b-40n-sun-alt", "b-40n-cities"]
       }
     ],
     "takeaway": {
       "text": "Tilt makes the seasons. Distance only trims them.",
-      "cites": [
-        "b-tilt-season",
-        "b-speed-peri"
-      ]
+      "cites": ["b-tilt-season", "b-speed-peri"]
     },
     "askSuggestions": [
       "Why is the northern winter shorter than the summer?",

@@ -80,6 +80,11 @@ function isNegative(text: string, index: number): boolean {
   return index < 2 || !/[\p{L}\p{N}]/u.test(text.charAt(index - 2));
 }
 
+/** The figures written in digits in `text`, each as a plain number text (no thousands separators), in order. */
+export function digitFiguresIn(text: string): string[] {
+  return [...text.matchAll(NUMBER)].map((match) => plainFigure(match[0]));
+}
+
 /** Every way the cited passages write `figure`. */
 export function readingsOf(figure: string, quotes: readonly string[]): readonly Occurrence[] {
   const found: Occurrence[] = [];

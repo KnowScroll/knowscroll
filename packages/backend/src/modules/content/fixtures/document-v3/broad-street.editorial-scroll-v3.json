@@ -682,30 +682,13 @@
               "step": 2
             }
           ],
-          "steps": [
-            "31 Aug",
-            "1 Sep",
-            "2 Sep",
-            "3 Sep",
-            "4 Sep",
-            "5 Sep",
-            "6 Sep",
-            "7 Sep",
-            "8 Sep",
-            "9 Sep"
-          ],
+          "steps": ["31 Aug", "1 Sep", "2 Sep", "3 Sep", "4 Sep", "5 Sep", "6 Sep", "7 Sep", "8 Sep", "9 Sep"],
           "regions": [
             {
               "id": "near-broad",
               "label": "Nearer the Broad Street pump",
               "nearest": "pump-broad",
-              "among": [
-                "pump-broad",
-                "pump-marlborough",
-                "pump-rupert",
-                "pump-north",
-                "pump-south"
-              ]
+              "among": ["pump-broad", "pump-marlborough", "pump-rupert", "pump-north", "pump-south"]
             }
           ],
           "routes": [
@@ -824,10 +807,7 @@
             }
           ]
         },
-        "cites": [
-          "c-daily-table",
-          "c-board-handle"
-        ]
+        "cites": ["c-daily-table", "c-board-handle"]
       },
       {
         "picture": {
@@ -853,10 +833,7 @@
             }
           ]
         },
-        "cites": [
-          "c-baby-40-broad",
-          "c-cesspit"
-        ]
+        "cites": ["c-baby-40-broad", "c-cesspit"]
       }
     ],
     "sections": [
@@ -868,10 +845,7 @@
             "text": "On the last night of August 1854, people in Soho began to die. It started with cramps, then a thirst nothing could reach. Many who felt fine at breakfast were dead by dark.",
             "simple": "In late August 1854, people in Soho, in London, began dying very fast of a sudden illness.",
             "links": [],
-            "cites": [
-              "c-wiki-31-aug",
-              "c-night-31-aug"
-            ],
+            "cites": ["c-wiki-31-aug", "c-night-31-aug"],
             "show": {
               "picture": "soho",
               "state": {
@@ -889,10 +863,7 @@
                 "part": "broad"
               }
             ],
-            "cites": [
-              "c-500-ten-days",
-              "c-fled-snow"
-            ],
+            "cites": ["c-500-ten-days", "c-fled-snow"],
             "show": {
               "picture": "soho",
               "state": {
@@ -905,26 +876,19 @@
             "text": "Everyone knew the cause. Disease travelled as miasma, the bad air that rose from sewers and graves. You could smell it, and Soho stank. The theory fit what noses reported.",
             "simple": "People believed that disease spread through bad-smelling air.",
             "links": [],
-            "cites": [
-              "c-miasma"
-            ]
+            "cites": ["c-miasma"]
           },
           {
             "kind": "plain",
             "text": "A doctor who lived nearby didn't believe it. John Snow had noticed that cholera attacks the gut, not the lungs. He thought the victims weren't breathing the poison. They were swallowing it.",
             "simple": "A local doctor, John Snow, thought people were drinking the poison, not breathing it.",
             "links": [],
-            "cites": [
-              "c-snow-sceptic",
-              "c-snow-gut"
-            ],
+            "cites": ["c-snow-sceptic", "c-snow-gut"],
             "show": {
               "picture": "soho",
               "state": {
                 "step": 9,
-                "lit": [
-                  "pump-broad"
-                ]
+                "lit": ["pump-broad"]
               }
             }
           }
@@ -938,9 +902,7 @@
             "text": "Snow got the list of the dead and walked their streets. For each death he drew a short black bar at the house where it happened.",
             "simple": "Snow marked each death on a map of the streets.",
             "links": [],
-            "cites": [
-              "c-map1-bars"
-            ],
+            "cites": ["c-map1-bars"],
             "show": {
               "picture": "soho",
               "state": {
@@ -963,9 +925,7 @@
                 "part": "pump-broad"
               }
             ],
-            "cites": [
-              "c-pump-nearest"
-            ],
+            "cites": ["c-pump-nearest"],
             "show": {
               "picture": "soho",
               "state": {
@@ -995,19 +955,12 @@
                 "part": "workhouse"
               }
             ],
-            "cites": [
-              "c-brewery",
-              "c-brewery-wiki",
-              "c-workhouse"
-            ],
+            "cites": ["c-brewery", "c-brewery-wiki", "c-workhouse"],
             "show": {
               "picture": "soho",
               "state": {
                 "step": 9,
-                "lit": [
-                  "brewery",
-                  "workhouse"
-                ]
+                "lit": ["brewery", "workhouse"]
               }
             }
           },
@@ -1021,18 +974,12 @@
                 "part": "cart"
               }
             ],
-            "cites": [
-              "c-hampstead-widow",
-              "c-hampstead-death"
-            ],
+            "cites": ["c-hampstead-widow", "c-hampstead-death"],
             "show": {
               "picture": "soho",
               "state": {
                 "step": 9,
-                "lit": [
-                  "hampstead",
-                  "cart"
-                ]
+                "lit": ["hampstead", "cart"]
               }
             }
           }
@@ -1046,17 +993,12 @@
             "text": "On the evening of 7 September, Snow took his findings to the parish board. They didn't believe his theory. They took the handle off the pump anyway, the next day.",
             "simple": "Snow showed the parish board his evidence, and the next day they took the handle off the pump.",
             "links": [],
-            "cites": [
-              "c-board-handle",
-              "c-handle-replaced"
-            ],
+            "cites": ["c-board-handle", "c-handle-replaced"],
             "show": {
               "picture": "soho",
               "state": {
                 "step": 9,
-                "lit": [
-                  "pump-broad"
-                ]
+                "lit": ["pump-broad"]
               }
             }
           },
@@ -1065,16 +1007,11 @@
             "text": "The legend says the dying stopped. Snow was more honest than the legend. The outbreak was already fading, he wrote, and it was impossible to tell whether the well was still poisonous.",
             "simple": "Snow said the outbreak was already ending when the handle came off.",
             "links": [],
-            "cites": [
-              "c-declining-snow",
-              "c-declining-wiki"
-            ],
+            "cites": ["c-declining-snow", "c-declining-wiki"],
             "show": {
               "picture": "attacks",
               "state": {
-                "lit": [
-                  "sep-8"
-                ]
+                "lit": ["sep-8"]
               }
             }
           },
@@ -1088,10 +1025,7 @@
                 "part": "well"
               }
             ],
-            "cites": [
-              "c-baby-40-broad",
-              "c-cesspit"
-            ],
+            "cites": ["c-baby-40-broad", "c-cesspit"],
             "show": {
               "picture": "well",
               "state": {}
@@ -1102,20 +1036,14 @@
             "text": "When the outbreak ended, the city put the handle back. Officials found no reason to adopt Snow's belief. He died four years later, his theory still unaccepted.",
             "simple": "Afterwards the handle went back, and Snow's idea was still not accepted when he died.",
             "links": [],
-            "cites": [
-              "c-handle-replaced",
-              "c-snow-died-1858"
-            ]
+            "cites": ["c-handle-replaced", "c-snow-died-1858"]
           },
           {
             "kind": "plain",
             "text": "The famous map was drawn after the handle came off. It never found the pump. It did something harder: it made people see a cause they couldn't smell.",
             "simple": "Snow's map came later. It did not find the pump, but it made people see the cause.",
             "links": [],
-            "cites": [
-              "c-second-ed-1855",
-              "c-map1-bars"
-            ],
+            "cites": ["c-second-ed-1855", "c-map1-bars"],
             "show": {
               "picture": "soho",
               "state": {
@@ -1133,18 +1061,12 @@
         "text": "The plan is a sketch after Snow's map. Each mark stands for about five deaths, and the streets are simplified. Snow counted 616 deaths from 19 August to 30 September.",
         "beat": 5,
         "collapsed": true,
-        "cites": [
-          "c-616-total",
-          "c-map1-bars"
-        ]
+        "cites": ["c-616-total", "c-map1-bars"]
       }
     ],
     "takeaway": {
       "text": "The map didn't find the answer. It won the argument.",
-      "cites": [
-        "c-second-ed-1855",
-        "c-handle-replaced"
-      ]
+      "cites": ["c-second-ed-1855", "c-handle-replaced"]
     },
     "askSuggestions": [
       "How did John Snow know the water was to blame?",

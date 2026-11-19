@@ -1,7 +1,7 @@
 import { z } from '../../zod.js';
-import { Framing, INTEGRITY_METHOD, SeriesRef, THEME_FAMILIES } from '../../document.js';
+import { Framing, INTEGRITY_METHOD, THEME_FAMILIES, type SeriesRef } from '../../document.js';
 import { OpaqueId, plainText } from '../../primitives.js';
-import { copiedRuns, numericTokens } from '../../text.js';
+import { copiedRuns } from '../../text.js';
 import { issueFromSchema } from '../../issues.js';
 import type { Claim, ProductionRecord, Source } from '../../internal/provenance.js';
 import {
@@ -24,6 +24,7 @@ import { computeMeasuresV3 } from '../../v3/measures.js';
 import { Picture } from '../../v3/pictures.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
 import { COPY_RUN_WORDS } from '../compile.js';
+import { digitFiguresIn, readingsOf, unitInPassages } from '../v2/figures.js';
 
 /**
  * `scroll-authoring.v3`: a document v3 as a person writes it by hand, before code sets what is code's (ids, measures,
@@ -126,7 +127,12 @@ function pictureTexts(picture: Picture): string[] {
       const body = picture.statement;
       if (body.form === 'number') return [...head, body.value, body.label];
       if (body.form === 'list') return [...head, ...body.items.flatMap(item)];
-      return [...head, body.who, ...(body.work === undefined ? [] : [body.work]), ...(body.year === undefined ? [] : [body.year])];
+      return [
+        ...head,
+        body.who,
+        ...(body.work === undefined ? [] : [body.work]),
+        ...(body.year === undefined ? [] : [body.year]),
+      ];
     }
     case 'flow':
       return [...head, ...picture.steps.flatMap(item)];
@@ -162,7 +168,11 @@ function beatTexts(beat: AuthoredBeatV3): string[] {
   const control = beat.kind === 'plain' && beat.control !== undefined ? [beat.control.label] : [];
   const cite =
     beat.kind === 'quote'
-      ? [beat.cite.who, ...(beat.cite.work === undefined ? [] : [beat.cite.work]), ...(beat.cite.year === undefined ? [] : [beat.cite.year])]
+      ? [
+          beat.cite.who,
+          ...(beat.cite.work === undefined ? [] : [beat.cite.work]),
+          ...(beat.cite.year === undefined ? [] : [beat.cite.year]),
+        ]
       : [];
   return [beat.text, beat.simple, ...control, ...cite];
 }
@@ -174,14 +184,12 @@ const quotationOf = (picture: Picture): string | undefined =>
 function citedParts(authored: AuthoredScrollV3): CitedPart[] {
   const beats = authored.sections.flatMap((section) => section.beats);
   return [
-    ...authored.pictures.map(
-      ({ picture, cites }, index): CitedPart => ({
-        path: `pictures.${index}`,
-        texts: pictureTexts(picture),
-        cites,
-        quotation: quotationOf(picture),
-      }),
-    ),
+    ...authored.pictures.map(({ picture, cites }, index): CitedPart => ({
+      path: `pictures.${index}`,
+      texts: pictureTexts(picture),
+      cites,
+      quotation: quotationOf(picture),
+    })),
     ...beats.map((beat, index): CitedPart => ({
       path: `beats.${index}`,
       texts: beatTexts(beat),
@@ -197,10 +205,23 @@ function citedParts(authored: AuthoredScrollV3): CitedPart[] {
   ];
 }
 
-/** The number as written, without thousands separators: `4,096` and `4096` are one figure. */
-const figure = (token: string): string => token.replaceAll(',', '');
-const figuresIn = (text: string): Set<string> =>
-  new Set(numericTokens(text).map(([start, end]) => figure(text.slice(start, end))));
+/**
+ * The figures in digits of `text` that no passage writes the same way (D-208): the same number, the same magnitude word
+ * after it ("147.1 million", never "147.1 billion"), the same sign, and no notation a figure cannot state ("8.3bn",
+ * "1.5×10⁻⁷"). Unlike the writer's rule, a figure a passage gives as one end of a range ("147.1 to 152.1 million km")
+ * is accepted on its own: a person wrote and reads every hand-written Scroll. Figures in words (D-302) are the writer's
+ * rule and come with it.
+ */
+function unstatedDigitFigures(text: string, passages: readonly string[]): string[] {
+  return digitFiguresIn(text).filter((figure) => {
+    const stated = readingsOf(figure, passages);
+    return readingsOf(figure, [text]).some(
+      (way) =>
+        way.reading === 'unknown' ||
+        !stated.some((entry) => entry.reading === way.reading && entry.negative === way.negative),
+    );
+  });
+}
 
 /** Text compared as a reader sees it: curly and straight quotes alike, dashes alike, runs of space as one. */
 const comparable = (text: string): string =>
@@ -222,8 +243,8 @@ function evidenceIssues(authored: AuthoredScrollV3, claims: ReadonlyMap<string, 
   const parts = citedParts(authored);
   const quoteOf = (claimId: string): string => claims.get(claimId) ?? '';
   const supported = (texts: readonly string[], cites: readonly string[]) => {
-    const figures = new Set(cites.flatMap((claimId) => [...figuresIn(quoteOf(claimId))]));
-    return texts.every((text) => [...figuresIn(text)].every((token) => figures.has(token)));
+    const passages = cites.map(quoteOf);
+    return texts.every((text) => unstatedDigitFigures(text, passages).length === 0);
   };
   const everyCite = [...new Set(parts.flatMap((part) => part.cites))];
   for (const part of parts) {
@@ -246,8 +267,16 @@ function evidenceIssues(authored: AuthoredScrollV3, claims: ReadonlyMap<string, 
     authored.dek,
     ...authored.sections.map((section) => section.title),
     ...authored.askSuggestions,
+    ...(authored.misconception.kind === 'myth' ? [authored.misconception.claim] : []),
+    ...(authored.framing.kind === 'hypothetical' ? [...authored.framing.assumptions, ...authored.framing.kept] : []),
+    ...(authored.framing.kind === 'perspective' ? [authored.framing.lens] : []),
   ];
   if (!supported(headings, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
+  // A chart's unit is words of its passages, as D-208 asks of a v2 chart: "light years" over a passage in kilometres is refused.
+  authored.pictures.forEach(({ picture, cites }, index) => {
+    if (picture.kind === 'chart' && picture.unit !== undefined && !unitInPassages(picture.unit, cites.map(quoteOf)))
+      issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.picture.unit` });
+  });
   return issues;
 }
 

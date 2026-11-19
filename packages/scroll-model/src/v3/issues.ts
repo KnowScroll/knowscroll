@@ -33,6 +33,7 @@ export const V3_REASON_CODES = [
   'link_phrase_not_once',
   'link_part_unknown',
   'link_without_picture',
+  'link_phrases_overlap',
   // Controls.
   'control_budget_exceeded',
   'control_without_show',
