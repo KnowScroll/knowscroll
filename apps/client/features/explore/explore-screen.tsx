@@ -85,8 +85,6 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   // "Done for now" belongs to the entry it was chosen on; any other state or entry shows its own screen.
   const [calmedEntry, setCalmedEntry] = useState<EncounterEntry>();
   useEncounterContext(scope, session, state.entry, foreground);
-  // Covers are how Explore offers a Scroll, on every platform (D-428).
-  useEffect(() => session.setCoverFeed(true), [session]);
   const [hintOpen, setHintOpen] = useState(() => scope.storage.get('explore.hint.dismissed') !== '1');
   useDocumentTitle((state.covers ? undefined : state.entry?.offer.metadata.title) ?? 'Explore');
   useFocusEffect(
