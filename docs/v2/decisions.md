@@ -5107,6 +5107,7 @@ Confirmed by: `cover-outcomes.test.ts` (the recording rule, a generation that mo
 - **No switch.** The row leaves Account → Accessibility & playback, and `coversInExplore` leaves device preferences. A value a device stored during the trial is read past and is gone the next time preferences are written. Explore asks for covers on every platform; Folio is already the reader on both.
 - **The same moves deal covers.** A move the system chooses deals a hand of covers, and a move the person names opens at once, as D-426 says. A Reel, and an offer with no `cover`, still open at once.
 - **Not removed here.** The open-on-arrival path stays in the session for those offers, and the server still sends a cover only to a client that declares `offer-cover.v1`. The old path's removal is its own deletion-only pull request (PR 5, #745).
+- **Removed in PR 5 (#755).** The session's cover-feed switch (`setCoverFeed`), the "Next topic · as a Scroll" card with its Undo and its Esc key, and the specs that existed only for them are gone: a move that deals always asks for covers, and an offer with no `cover` still opens at once.
 - **Android.** Android checks are #740.
 - **The browser fixture serves covers as the server does.** A Scroll offer carries a cover for a client that declares `offer-cover.v1`, as the server sends one for any document that can make it; a spec that wants the essay arrives on the cover and opens it with Read, as a person does. `covers: { absent: true }` serves a Scroll offer with no cover, for the fallback.
 
