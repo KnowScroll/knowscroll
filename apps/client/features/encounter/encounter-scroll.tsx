@@ -52,9 +52,6 @@ function ArticleEncounter({
   const scrollPosition = useRef<ScrollPositionHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
-  const reel = entry.context.variants.find((variant) => variant.kind === 'reel');
-  const switchToReel = () =>
-    reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel');
   const [underway, setUnderway] = useState(false);
   const endCard = useRef<ComponentRef<typeof View>>(null);
   const { height: windowHeight } = useWindowDimensions();
