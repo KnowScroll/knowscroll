@@ -21,6 +21,11 @@ export interface EncounterFixtureOptions {
    */
   readonly actions?: { saved: boolean; liked: boolean; hidden: boolean };
   /**
+   * Whether the Keep reads say the Scroll is saved (the default, as the Saved list is read) or not: a Scroll opened by
+   * its address has its Save pressed or not from this.
+   */
+  readonly kept?: boolean;
+  /**
    * Serves a Scroll opened by its address (`/scroll/<id>`): a direct open and activation with no session, and a
    * series of `parts` Scrolls that the context counts and links (each Part has the Part before and the Part after
    * it). One part is no series.
@@ -104,7 +109,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   /** The Part each entry is, once a series step has been taken to it (the first is Part 1). */
   const partOf = new Map<number, number>();
   const partAt = (n: number) => partOf.get(n) ?? 1;
-  let saved = true;
+  let saved = options.kept ?? true;
   const commands: { path: string; body: Record<string, unknown> }[] = [];
   /** Every observation event the page sent, in order. */
   const observed: { kind: string; exposureId: string; payload: Record<string, unknown> }[] = [];
