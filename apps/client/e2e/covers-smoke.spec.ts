@@ -19,7 +19,7 @@ async function shot(page: Page, name: string) {
   mkdirSync(folder, { recursive: true });
   // The figure draws in and the essay settles before it is looked at.
   await page.waitForTimeout(900);
-  await page.screenshot({ path: join(folder, `${name}.png`) });
+  await page.screenshot({ path: join(folder, `${name}.png`), fullPage: true });
 }
 
 const phone = { width: 390, height: 844 };
@@ -229,6 +229,7 @@ test.describe('a finger', () => {
 
 test('there is no switch for covers on the Accessibility screen', async ({ page }) => {
   await signedInAccount(page);
+  await page.setViewportSize(phone);
   await page.goto('/account/accessibility');
   await expect(page.getByRole('switch', { name: 'Start Reels with sound' })).toBeVisible();
   await expect(page.getByRole('switch', { name: /covers/i })).toHaveCount(0);
