@@ -7,6 +7,7 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   ActionStrip,
   Banner,
+  Button,
   BottomSheet,
   ErrorState,
   FormatSwitch,
@@ -87,7 +88,7 @@ function KeepActions({
   readonly degraded: boolean;
   /** Opens the Share sheet; without it the strip holds Save only. */
   readonly onShare?: () => void;
-  /** False where Save is a row of its own (a v2 Scroll's ••• sheet): the strip holds Share alone. */
+  /** False in a v2 Scroll's ••• sheet, where Save is the dock's: it holds a button that shares the whole Scroll. */
   readonly saveInStrip?: boolean;
 }) {
   return (
@@ -95,7 +96,10 @@ function KeepActions({
       {degraded ? (
         <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
       ) : null}
-      {onShare === undefined && !saveInStrip ? null : (
+      {!saveInStrip && onShare !== undefined ? (
+        // A v2 Scroll's sheet: Share a moment is the dock's own, so this is the whole Scroll, by its words (D-429).
+        <Button label="Share this Scroll" icon="share" onPress={onShare} />
+      ) : onShare === undefined && !saveInStrip ? null : (
         <ActionStrip
           available={[...(saveInStrip ? ['save' as const] : []), ...(onShare === undefined ? [] : ['share' as const])]}
           saved={isKept}

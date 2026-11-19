@@ -180,7 +180,7 @@ describe('the dock (D-429)', () => {
     }
   });
 
-  it('turns the glyphs into words with large text: pills that wrap, each with its word and its state', async () => {
+  it('wraps with large text, so the row grows a line instead of squeezing or clipping a control', async () => {
     await dock(
       320,
       {
@@ -195,7 +195,7 @@ describe('the dock (D-429)', () => {
     expect(screen.getByTestId('reader-dock')).toHaveStyle({ flexWrap: 'wrap' });
     expectPressed(screen.getByRole('togglebutton', { name: 'Like' }), true);
     expectPressed(screen.getByRole('togglebutton', { name: 'Save' }), false);
-    expect(screen.getByRole('button', { name: 'Share a moment' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Share a moment' })).toHaveStyle({ width: 44, height: 44 });
     expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Part 2: How tides work' })).toBeOnTheScreen();
   });

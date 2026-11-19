@@ -2,7 +2,6 @@ import { useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button } from '../../actions/button';
-import { encounterActionPlacement } from '../../actions/encounter-actions';
 import { IconButton } from '../../actions/icon-button';
 import { useDisplay } from '../../display/display';
 import type { IconName } from '../../icons/icon-paths';
@@ -224,11 +223,9 @@ export function ReaderDock({
   readonly nextPart?: NextPartPeek | undefined;
 }) {
   // At 360 px and under the gaps close up, and under 400 the page margin does; each control stays 44 px and keeps its word.
-  // With large text (the grid of the encounter actions) the words are the buttons: icon and word in a pill, wrapping onto
-  // a second row where the first is full.
-  const display = useDisplay();
-  const { breakpoint, width } = display;
-  const large = encounterActionPlacement(display).arrangement === 'grid';
+  // With large text the words grow with it and the row wraps (the way on to a row of its own), so no control is clipped
+  // or squeezed under 44 px.
+  const { breakpoint, width } = useDisplay();
   const compact = breakpoint === 'compact';
   const shareName = share?.unavailable === undefined ? 'Share a moment' : `Share a moment. ${share.unavailable}`;
   return (
@@ -236,103 +233,56 @@ export function ReaderDock({
       testID="reader-dock"
       role="group"
       accessibilityLabel="Scroll actions"
-      style={[
-        styles.dock,
-        large ? styles.dockLarge : null,
-        compact ? styles.dockCompact : width < NARROW_PHONE ? styles.dockNarrow : null,
-      ]}
+      style={[styles.dock, compact ? styles.dockCompact : width < NARROW_PHONE ? styles.dockNarrow : null]}
     >
-      {large ? (
-        <>
-          {like === undefined ? null : (
-            <Button
-              label="Like"
-              icon="like"
-              variant={like.on ? 'primary' : 'default'}
-              size="sm"
-              toggled={like.on}
-              busy={like.busy === true}
-              onPress={like.onPress}
-              testID="dock-like"
-            />
-          )}
-          {share === undefined ? null : (
-            <Button
-              label="Share"
-              accessibilityLabel={shareName}
-              icon="share"
-              size="sm"
-              disabled={share.unavailable !== undefined}
-              onPress={share.onPress}
-              testID="dock-share"
-            />
-          )}
-          {save === undefined ? null : (
-            <Button
-              label="Save"
-              icon="save"
-              variant={save.on ? 'primary' : 'default'}
-              size="sm"
-              toggled={save.on}
-              busy={save.busy === true}
-              busyLabel="Saving"
-              onPress={save.onPress}
-              testID="dock-save"
-            />
-          )}
-        </>
-      ) : (
-        <>
-          {like === undefined ? null : (
-            <DockAction
-              icon="like"
-              word="Like"
-              name="Like"
-              pressed={like.on}
-              busy={like.busy}
-              onPress={like.onPress}
-              testID="dock-like"
-            />
-          )}
-          {share === undefined ? null : (
-            <DockAction
-              icon="share"
-              word="Share"
-              name={shareName}
-              disabled={share.unavailable !== undefined}
-              onPress={share.onPress}
-              testID="dock-share"
-            />
-          )}
-          {save === undefined ? null : (
-            <DockAction
-              icon="save"
-              word="Save"
-              name="Save"
-              pressed={save.on}
-              busy={save.busy}
-              onPress={save.onPress}
-              testID="dock-save"
-            />
-          )}
-        </>
+      {like === undefined ? null : (
+        <DockAction
+          icon="like"
+          word="Like"
+          name="Like"
+          pressed={like.on}
+          busy={like.busy}
+          onPress={like.onPress}
+          testID="dock-like"
+        />
+      )}
+      {share === undefined ? null : (
+        <DockAction
+          icon="share"
+          word="Share"
+          name={shareName}
+          disabled={share.unavailable !== undefined}
+          onPress={share.onPress}
+          testID="dock-share"
+        />
+      )}
+      {save === undefined ? null : (
+        <DockAction
+          icon="save"
+          word="Save"
+          name="Save"
+          pressed={save.on}
+          busy={save.busy}
+          onPress={save.onPress}
+          testID="dock-save"
+        />
       )}
       <View style={styles.spacer} />
-      {onMore === undefined ? null : large ? (
-        <Button label="More" icon="more" size="sm" onPress={onMore} testID="dock-more" />
-      ) : (
+      {onMore === undefined ? null : (
         <DockAction icon="more" word="More" name="More" onPress={onMore} testID="dock-more" />
       )}
       {nextPart === undefined ? null : (
-        <Button
-          label={nextPart.label}
-          accessibilityLabel={`${nextPart.label}: ${nextPart.title}`}
-          icon="arrowRight"
-          iconPosition="trailing"
-          variant="primary"
-          size="sm"
-          onPress={nextPart.onPress}
-        />
+        <View style={styles.wayOn}>
+          <Button
+            label={nextPart.label}
+            accessibilityLabel={`${nextPart.label}: ${nextPart.title}`}
+            icon="arrowRight"
+            iconPosition="trailing"
+            variant="primary"
+            size="sm"
+            onPress={nextPart.onPress}
+          />
+        </View>
       )}
     </View>
   );
@@ -357,6 +307,7 @@ const styles = StyleSheet.create({
   controls: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginLeft: 'auto', maxWidth: '100%' },
   dock: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing[2],
     paddingHorizontal: layout.gutter,
@@ -367,8 +318,8 @@ const styles = StyleSheet.create({
   },
   dockCompact: { gap: spacing[1], paddingHorizontal: spacing[3] },
   dockNarrow: { gap: spacing[1] },
-  /** Large text: the pills wrap, so nothing is clipped or squeezed under 44 px. */
-  dockLarge: { flexWrap: 'wrap', rowGap: spacing[2] },
+  /** Where the row wraps (large text), the way on keeps to the end of whichever row it lands on. */
+  wayOn: { marginLeft: 'auto' },
   action: { alignItems: 'center', gap: 2 },
   spacer: { flex: 1 },
 });

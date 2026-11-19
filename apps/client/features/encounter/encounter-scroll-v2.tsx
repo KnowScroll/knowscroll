@@ -8,7 +8,6 @@ import type { OpenedScrollV2 } from '../scroll/scroll-session';
 import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
-import { EncounterStrip } from './encounter-actions';
 import type { EncounterEntry } from './encounter-history';
 import { useEncounterMetrics } from './encounter-metrics';
 import { EncounterNotices } from './encounter-notices';
@@ -155,13 +154,13 @@ export function ScrollV2Encounter({
         }}
         moreBody={(close) => (
           <View style={styles.more}>
-            <EncounterStrip
-              entry={entry}
-              state={state}
-              session={session}
-              align="start"
-              beforeOverlay={close}
-              available={['share']}
+            <Button
+              label="Share this Scroll"
+              icon="share"
+              onPress={() => {
+                close();
+                session.openShare();
+              }}
             />
             <Button
               label="Your path and more options"
