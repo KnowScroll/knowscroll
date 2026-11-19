@@ -95,6 +95,13 @@ describe('the renderer on the device', () => {
       'parseBlock',
       'parseDocument',
       'walkBlocks',
+      // A document v3 picture's own words and items (#762): pure lookups over a parsed picture, nothing that proves it.
+      'describePicture',
+      'figureValue',
+      'orderedItems',
+      'partIds',
+      'pickItems',
+      'scrubPositions',
       // The v2 reader's own: pure lookups over a parsed document, nothing that proves it.
       'stageParts',
       'stagePhysics',

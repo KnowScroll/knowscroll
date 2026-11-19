@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, spacing } from '@knowscroll/design-tokens';
-import { canonicalJson, describePicture, type Picture, type PictureState } from '@knowscroll/scroll-model';
+import type { Picture, PictureState } from '@knowscroll/scroll-model';
+import { canonicalJson, describePicture } from '../model';
 import { useFocusRing } from '../../display/focus-ring';
 import { radioGroupSemantics, radioSemantics, toggleSemantics } from '../../display/semantics';
 import { spaceActivates } from '../../display/space-key';

@@ -42,9 +42,7 @@ export function lerpPictureScene(from: PictureScene, to: PictureScene, progress:
     .map((shape) => ({ ...shape, opacity: shape.opacity * (1 - progress) }));
   const staying = to.shapes.map((shape) => {
     const before = earlier.get(shape.key);
-    return before === undefined
-      ? { ...shape, opacity: shape.opacity * progress }
-      : blendShape(before, shape, progress);
+    return before === undefined ? { ...shape, opacity: shape.opacity * progress } : blendShape(before, shape, progress);
   });
   return { ...to, shapes: [...leaving, ...staying] };
 }

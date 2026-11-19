@@ -5,7 +5,7 @@
  * it was given; it never decides anything but where a line breaks.
  */
 
-const NARROW = new Set([...'iljtf.,:;!|\'’()[] ']);
+const NARROW = new Set([..."iljtf.,:;!|'’()[] "]);
 const WIDE = new Set([...'mwMW@%']);
 
 /** The estimated width of `text` at `size` pixels. */

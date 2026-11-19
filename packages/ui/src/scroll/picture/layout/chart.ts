@@ -1,4 +1,5 @@
-import { figureValue, type PictureOfKind, type PictureState } from '@knowscroll/scroll-model';
+import type { PictureOfKind, PictureState } from '@knowscroll/scroll-model';
+import { figureValue } from '../../model';
 import type { PictureBox, PictureRole, PictureScene, PictureShape, TextShape } from '../scene';
 import { labelSize, textWidth, wrapText } from '../text';
 import { inner, RECEDED, toneRole } from './common';

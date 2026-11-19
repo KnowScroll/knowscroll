@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { spacing } from '@knowscroll/design-tokens';
-import { canonicalJson, describePicture, type Picture, type PictureState } from '@knowscroll/scroll-model';
+import type { Picture, PictureState } from '@knowscroll/scroll-model';
+import { canonicalJson, describePicture } from '../model';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
 import { useStagePictures, type SceneBlend } from '../stage/use-stage-pictures';

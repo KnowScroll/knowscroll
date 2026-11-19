@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, radius, spacing } from '@knowscroll/design-tokens';
-import { partIds, type PictureState } from '@knowscroll/scroll-model';
+import type { PictureState } from '@knowscroll/scroll-model';
+import { partIds } from '../model';
 import { dataSet } from '../../display/data-set';
 import { useFocusRing } from '../../display/focus-ring';
 import { toggleSemantics } from '../../display/semantics';

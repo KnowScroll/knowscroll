@@ -1,18 +1,14 @@
-import {
-  canonicalJson,
-  describePicture,
-  orderedItems,
-  pickItems,
-  scrubPositions,
-  type Aside,
-  type Beat as DocumentBeat,
-  type Control,
-  type Picture,
-  type PictureState,
-  type ScrollDocumentV3,
-  type SectionV3,
-  type Tone,
+import type {
+  Aside,
+  Beat as DocumentBeat,
+  Control,
+  Picture,
+  PictureState,
+  ScrollDocumentV3,
+  SectionV3,
+  Tone,
 } from '@knowscroll/scroll-model';
+import { canonicalJson, describePicture, orderedItems, pickItems, scrubPositions } from '../model';
 import { blocksOfRun, type RunBeat } from './holds';
 import type { Beat, BeatLink, FigureControl, PictureFigure, ReadingBlock, ReadingModel } from './reading-model';
 
