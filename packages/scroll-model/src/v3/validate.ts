@@ -39,7 +39,11 @@ interface LocatedBeat {
 
 function locateBeats(document: ScrollDocumentV3): LocatedBeat[] {
   return document.sections.flatMap((section, sectionIndex) =>
-    section.beats.map((beat, beatIndex) => ({ beat, path: `sections.${sectionIndex}.beats.${beatIndex}`, sectionIndex })),
+    section.beats.map((beat, beatIndex) => ({
+      beat,
+      path: `sections.${sectionIndex}.beats.${beatIndex}`,
+      sectionIndex,
+    })),
   );
 }
 
@@ -76,8 +80,10 @@ function beatTextIssues(document: ScrollDocumentV3, located: readonly LocatedBea
   located.forEach(({ beat, path }, index) => {
     const words = beatWords(beat);
     if (words > LIMITS_V3.beatWords) issues.push({ code: 'beat_too_long', path: `${path}.text` });
-    if (index === 0 && words > LIMITS_V3.firstBeatWords) issues.push({ code: 'first_beat_too_long', path: `${path}.text` });
-    if (beatWords({ text: beat.simple }) > LIMITS_V3.beatWords) issues.push({ code: 'simple_too_long', path: `${path}.simple` });
+    if (index === 0 && words > LIMITS_V3.firstBeatWords)
+      issues.push({ code: 'first_beat_too_long', path: `${path}.text` });
+    if (beatWords({ text: beat.simple }) > LIMITS_V3.beatWords)
+      issues.push({ code: 'simple_too_long', path: `${path}.simple` });
   });
   const { mainWords } = computeMeasuresV3(document);
   if (mainWords < LIMITS_V3.mainWords.min) issues.push({ code: 'main_text_too_short', path: 'sections' });
@@ -145,10 +151,12 @@ function linkIssues(document: ScrollDocumentV3, located: readonly LocatedBeat[])
     const picture = beat.show === undefined ? onScreen : own;
     beat.links.forEach((link, index) => {
       const linkPath = `${path}.links.${index}`;
-      if (occurrences(beat.text, link.phrase) !== 1) issues.push({ code: 'link_phrase_not_once', path: `${linkPath}.phrase` });
+      if (occurrences(beat.text, link.phrase) !== 1)
+        issues.push({ code: 'link_phrase_not_once', path: `${linkPath}.phrase` });
       if (skip) return;
       if (picture === undefined) issues.push({ code: 'link_without_picture', path: linkPath });
-      else if (!partIds(picture).includes(link.part)) issues.push({ code: 'link_part_unknown', path: `${linkPath}.part` });
+      else if (!partIds(picture).includes(link.part))
+        issues.push({ code: 'link_part_unknown', path: `${linkPath}.part` });
     });
     if (own !== undefined) onScreen = own;
   }
@@ -180,9 +188,11 @@ function asideIssues(document: ScrollDocumentV3): IssueV3[] {
   const beatIds = new Set(beatsOfV3(document).map((beat) => beat.id));
   const issues: IssueV3[] = [];
   document.asides.forEach((aside, index) => {
-    if (!beatIds.has(aside.anchorBeat)) issues.push({ code: 'aside_anchor_unknown', path: `asides.${index}.anchorBeat` });
+    if (!beatIds.has(aside.anchorBeat))
+      issues.push({ code: 'aside_anchor_unknown', path: `asides.${index}.anchorBeat` });
   });
-  if (!document.asides.some((aside) => aside.kind === 'limits')) issues.push({ code: 'limits_aside_missing', path: 'asides' });
+  if (!document.asides.some((aside) => aside.kind === 'limits'))
+    issues.push({ code: 'limits_aside_missing', path: 'asides' });
   return issues;
 }
 
@@ -205,7 +215,8 @@ function takeawayIssues(document: ScrollDocumentV3): IssueV3[] {
 function storedIssues(document: ScrollDocumentV3): IssueV3[] {
   const issues: IssueV3[] = [];
   const measures = computeMeasuresV3(document);
-  if (canonicalJson(measures) !== canonicalJson(document.measures)) issues.push({ code: 'measures_mismatch', path: 'measures' });
+  if (canonicalJson(measures) !== canonicalJson(document.measures))
+    issues.push({ code: 'measures_mismatch', path: 'measures' });
   if (measures.readingSeconds < READING_SECONDS_V3.min || measures.readingSeconds > READING_SECONDS_V3.max)
     issues.push({ code: 'reading_length_out_of_brief', path: 'measures.readingSeconds' });
   if (document.integrity.method !== INTEGRITY_METHOD || computeIntegrityV3(document) !== document.integrity.sha256)

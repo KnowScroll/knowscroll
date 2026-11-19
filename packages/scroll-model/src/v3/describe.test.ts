@@ -109,7 +109,13 @@ const plan = Picture.parse({
     { id: 'lane', from: { column: 4, row: 0 }, to: { column: 4, row: 7 } },
   ],
   places: [
-    { id: 'broad-pump', label: 'Broad Street pump', at: { column: 4, row: 3 }, mark: 'ring', note: 'The suspect pump.' },
+    {
+      id: 'broad-pump',
+      label: 'Broad Street pump',
+      at: { column: 4, row: 3 },
+      mark: 'ring',
+      note: 'The suspect pump.',
+    },
     { id: 'poland-pump', label: 'Poland Street pump', at: { column: 1, row: 1 }, mark: 'dot' },
     { id: 'rupert-pump', label: 'Rupert Street pump', at: { column: 6, row: 6 }, mark: 'dot' },
   ],
@@ -171,20 +177,22 @@ describe('describePicture: statement', () => {
 });
 
 describe('describePicture: flow', () => {
-  it('reads every step in order with "then" when the state is empty', () => {
+  it('reads every step in order, set off by semicolons so any capital in a label reads right', () => {
     expect(describePicture(flow, state())).toBe(
-      'How water reaches a tap. Rain falls, then A reservoir fills, then A plant cleans it, then It reaches the tap. A simplified route.',
+      'How water reaches a tap. In order: Rain falls; A reservoir fills; A plant cleans it; It reaches the tap. A simplified route.',
     );
   });
 
   it('upTo draws only the first n steps and says nothing of the rest', () => {
     const text = describePicture(flow, state({ upTo: 2 }));
-    expect(text).toBe('How water reaches a tap. Rain falls, then A reservoir fills. A simplified route.');
+    expect(text).toBe('How water reaches a tap. In order: Rain falls; A reservoir fills. A simplified route.');
     expect(text).not.toContain('plant');
   });
 
-  it('reads a single step with no "then"', () => {
-    expect(describePicture(flow, state({ upTo: 1 }))).toBe('How water reaches a tap. Rain falls. A simplified route.');
+  it('reads a single step on its own', () => {
+    expect(describePicture(flow, state({ upTo: 1 }))).toBe(
+      'How water reaches a tap. In order: Rain falls. A simplified route.',
+    );
   });
 
   it('lit names the items standing out, in the order given, with notes after the names', () => {
@@ -199,21 +207,21 @@ describe('describePicture: flow', () => {
 });
 
 describe('describePicture: cycle', () => {
-  it('reads the centre, then the ring in order and back to the first', () => {
+  it('reads the ring around its centre, in order and back to the first', () => {
     expect(describePicture(cycle, state())).toBe(
-      'The year. At the centre: The Sun. Around it, in order: Spring, Summer, Autumn, and back to Spring.',
+      'The year. Around The Sun, in order: Spring; Summer; Autumn; and back to Spring.',
     );
   });
 
   it('does not close the ring while items are still waiting', () => {
     const text = describePicture(cycle, state({ upTo: 2 }));
-    expect(text).toBe('The year. At the centre: The Sun. Around it, in order: Spring, Summer.');
+    expect(text).toBe('The year. Around The Sun, in order: Spring; Summer.');
   });
 
   it('speaks of the ring when there is no centre', () => {
     const { centre: _centre, ...ringOnly } = cycle as Extract<Picture, { kind: 'cycle' }>;
     expect(describePicture(Picture.parse(ringOnly), state())).toBe(
-      'The year. Around the ring, in order: Spring, Summer, Autumn, and back to Spring.',
+      'The year. In a ring, in order: Spring; Summer; Autumn; and back to Spring.',
     );
   });
 
@@ -293,7 +301,7 @@ describe('describePicture: plan', () => {
     expect(describePicture(plan, state())).toBe(
       'Soho in 1854. Places: Broad Street pump, Poland Street pump, Rupert Street pump. ' +
         'Ways: Broad Street, 1 way without a name. 76 marks in all. ' +
-        'A route runs from Poland Street pump to Broad Street pump. Schematic, after John Snow’s 1855 map.',
+        'A route, in order: Poland Street pump; Broad Street pump. Schematic, after John Snow’s 1855 map.',
     );
   });
 
@@ -315,16 +323,18 @@ describe('describePicture: plan', () => {
 
   it('region says which region is shaded and what it means', () => {
     expect(describePicture(plan, state({ region: 'near-broad' }))).toContain(
-      'Shaded: Broad Street patch, the part of the plan nearer to Broad Street pump than to Poland Street pump or Rupert Street pump.',
+      'Shaded: Broad Street patch, the part nearer to one place than to the others. The place: Broad Street pump. The others: Poland Street pump; Rupert Street pump.',
     );
   });
 
-  it('names a single other place without "or"', () => {
+  it('names a single other place on its own', () => {
     const pair = Picture.parse({
       ...plan,
-      regions: [{ id: 'near-broad', label: 'Broad Street patch', nearest: 'broad-pump', among: ['broad-pump', 'poland-pump'] }],
+      regions: [
+        { id: 'near-broad', label: 'Broad Street patch', nearest: 'broad-pump', among: ['broad-pump', 'poland-pump'] },
+      ],
     });
-    expect(describePicture(pair, state({ region: 'near-broad' }))).toContain('than to Poland Street pump.');
+    expect(describePicture(pair, state({ region: 'near-broad' }))).toContain('The others: Poland Street pump.');
   });
 
   it('does not shade a region the state does not name', () => {
@@ -339,9 +349,12 @@ describe('describePicture: plan', () => {
   });
 
   it('describes a route with a label in brackets', () => {
-    const labelled = Picture.parse({ ...plan, routes: [{ id: 'walk', label: 'Escape', from: 'poland-pump', to: 'broad-pump' }] });
+    const labelled = Picture.parse({
+      ...plan,
+      routes: [{ id: 'walk', label: 'Escape', from: 'poland-pump', to: 'broad-pump' }],
+    });
     expect(describePicture(labelled, state())).toContain(
-      'A route runs from Poland Street pump to Broad Street pump (Escape).',
+      'A route, in order: Poland Street pump; Broad Street pump (Escape).',
     );
   });
 });

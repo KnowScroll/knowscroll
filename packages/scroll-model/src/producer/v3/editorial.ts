@@ -1,9 +1,9 @@
 import { z } from '../../zod.js';
 import { Framing, INTEGRITY_METHOD, SeriesRef, THEME_FAMILIES } from '../../document.js';
-import { LanguageTag, OpaqueId, plainText, Revision } from '../../primitives.js';
+import { OpaqueId, plainText } from '../../primitives.js';
 import { copiedRuns, numericTokens } from '../../text.js';
 import { issueFromSchema } from '../../issues.js';
-import { Claim, ProductionRecord, Source } from '../../internal/provenance.js';
+import type { Claim, ProductionRecord, Source } from '../../internal/provenance.js';
 import {
   SCROLL_PROVENANCE_V3_SCHEMA_VERSION,
   TAKEAWAY_PART_ID,
@@ -179,14 +179,12 @@ function citedParts(authored: AuthoredScrollV3): CitedPart[] {
       cites,
       quotation: quotations.find((text) => picture.kind === 'statement' && pictureTexts(picture).includes(text)),
     })),
-    ...beats.map(
-      (beat, index): CitedPart => ({
-        path: `beats.${index}`,
-        texts: beatTexts(beat),
-        cites: beat.cites,
-        quotation: beat.kind === 'quote' ? beat.text : undefined,
-      }),
-    ),
+    ...beats.map((beat, index): CitedPart => ({
+      path: `beats.${index}`,
+      texts: beatTexts(beat),
+      cites: beat.cites,
+      quotation: beat.kind === 'quote' ? beat.text : undefined,
+    })),
     ...authored.asides.map((aside, index): CitedPart => ({
       path: `asides.${index}`,
       texts: [aside.title, aside.text],
@@ -230,7 +228,10 @@ function evidenceIssues(authored: AuthoredScrollV3, claims: ReadonlyMap<string, 
       issues.push({ code: 'authoring_cite_unknown', path: part.path });
     if (!supported(part.texts, part.cites)) issues.push({ code: 'authoring_number_not_in_evidence', path: part.path });
     const passages = part.cites.map(quoteOf);
-    if (part.quotation !== undefined && !passages.some((passage) => comparable(passage).includes(comparable(part.quotation ?? ''))))
+    if (
+      part.quotation !== undefined &&
+      !passages.some((passage) => comparable(passage).includes(comparable(part.quotation ?? '')))
+    )
       issues.push({ code: 'quote_not_in_evidence', path: part.path });
     const ownWords = part.texts.filter((text) => text !== part.quotation);
     if (ownWords.some((text) => copiedRuns(text, passages, COPY_RUN_WORDS).length > 0))
@@ -357,11 +358,3 @@ export function compileEditorialV3(input: EditorialV3Input): EditorialV3Outcome 
     },
   };
 }
-
-/** Bounds a hand-written source must stay inside before it is compiled at all. */
-export const EDITORIAL_V3_SOURCE = {
-  claims: z.array(Claim).min(1).max(48),
-  sources: z.array(Source).min(1).max(24),
-  language: LanguageTag,
-  revision: Revision,
-} as const;

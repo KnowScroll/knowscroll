@@ -21,6 +21,7 @@ export { FIELD_LIMITS, LIMITS, SCROLL_LIMITS_VERSION } from './limits.js';
 export {
   BlockTypeName,
   BlockVersionNumber,
+  LanguageTag,
   LocalId,
   MediaRef,
   OpaqueId,

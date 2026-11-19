@@ -59,3 +59,15 @@ export { authoringReferenceV2 } from './v2/reference.js';
 export { REPAIR_HINTS_V2 } from './v2/reasons.js';
 export { unstatedFigures } from './v2/figures.js';
 export { authoringIssuesV2, type AuthoringRulesInput } from './v2/rules.js';
+
+/** `scroll-authoring.v3`: a hand-written `scroll-document.v3` and its compile into the stored document (#759). */
+export {
+  AuthoredBeatV3,
+  AuthoredScrollV3,
+  compileEditorialV3,
+  SCROLL_AUTHORING_V3_VERSION,
+  type EditorialV3Input,
+  type EditorialV3Outcome,
+  type EditorialV3Stage,
+  type PublicationV3,
+} from './v3/editorial.js';

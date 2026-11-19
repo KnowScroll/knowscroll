@@ -125,7 +125,10 @@ export const MeasuresV3 = z.strictObject({
   /** The words of the beats' text: the measure decision J bounds. */
   mainWords: z.number().int().min(0),
   totalWeight: z.number().int().min(0),
-  beats: z.array(z.strictObject({ beatId: LocalId, weight: z.number().int().min(0) })).max(L.beats.max),
+  /** Bounded by what the sections can hold, not by `LIMITS_V3.beats`, so a document over that limit is refused by its rule. */
+  beats: z
+    .array(z.strictObject({ beatId: LocalId, weight: z.number().int().min(0) }))
+    .max(L.sections.max * L.beatsPerSection.max),
 });
 export type MeasuresV3 = z.infer<typeof MeasuresV3>;
 

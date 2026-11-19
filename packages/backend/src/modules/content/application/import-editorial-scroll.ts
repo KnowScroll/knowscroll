@@ -1,3 +1,4 @@
+import { READING_FACTS_V4_VERSION } from '../domain/reading-facts.js';
 import type { AdmissionIssue, ImportEditorialScrollPorts } from './ports.js';
 
 /** Whether admission made a new asset, a new revision of one, or found the same revision already there. */
@@ -13,7 +14,13 @@ export type ImportRefusal =
   /** The asset was withdrawn; admission does not bring it back. */
   | 'asset_withdrawn'
   /** The asset's first revision is held by the review gate (D-138); an editorial import does not pass it. */
-  | 'asset_under_review';
+  | 'asset_under_review'
+  /**
+   * A document v3 Scroll would form nothing in the Universe without the coverage of its beats, so none is admitted
+   * without it (#759, decision G1). Until beat coverage exists (#761), every document v3 source is refused here,
+   * after it compiled, and nothing is written.
+   */
+  | 'coverage_missing';
 
 export type ImportEditorialScrollResult =
   | {
@@ -33,9 +40,10 @@ export type ImportEditorialScrollResult =
 
 /**
  * `importEditorialScroll`: admits an authored editorial Scroll (D-005) into the inventory,
- * idempotently, from its source (`editorial-scroll.v1`: publication facts, the authored draft and
- * its claims). The operator command `dist/operator.js content import-editorial --file <path>` is
- * its only caller today.
+ * idempotently, from its source: `editorial-scroll.v1` (publication facts, the authored v1 draft and
+ * its claims) or `editorial-scroll-v3.v1` (a hand-written document v3, its recipe and its passages).
+ * The operator command `dist/operator.js content import-editorial --file <path>` is its only caller
+ * today. A document v3 source compiles and is then refused as `coverage_missing` (see that code).
  *
  * Authority: an operator in an allow-listed world (`dev`, `stage`, `ci`, `local`); the command
  *   refuses elsewhere before it reaches this use case. No person's data is read or written:
@@ -87,6 +95,9 @@ export function makeImportEditorialScroll(ports: ImportEditorialScrollPorts) {
       const compiled = ports.compile(parsed.source, next);
       if (compiled.kind === 'refused')
         return { kind: 'refused', reason: 'compile_refused', stage: compiled.stage, issues: compiled.issues };
+      // Facts v4 are a document v3's: its beats are its units, and no rule binds beats to facets yet.
+      if (compiled.readingFacts.v === READING_FACTS_V4_VERSION)
+        return { kind: 'refused', reason: 'coverage_missing', issues: [] };
       await ports.storeRevision(tx, {
         assetId: parsed.assetId,
         revision: next,

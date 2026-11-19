@@ -31,7 +31,9 @@ export function computeMeasuresV3(parts: MeasuredParts): MeasuresV3 {
     beatId: beat.id,
     weight:
       beatWords(beat) +
-      parts.asides.filter((aside) => aside.anchorBeat === beat.id).reduce((total, aside) => total + asideWords(aside), 0),
+      parts.asides
+        .filter((aside) => aside.anchorBeat === beat.id)
+        .reduce((total, aside) => total + asideWords(aside), 0),
   }));
   const mainWords = beats.reduce((total, beat) => total + beatWords(beat), 0);
   const words =

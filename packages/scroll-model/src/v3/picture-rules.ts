@@ -226,11 +226,14 @@ export interface ScrubPosition {
  * Where a scrub can go, from the beat's own state. `steps`: a plan's steps, or the picture's items revealed one more at
  * a time. `items`: the picture's items lit one at a time. A scrub needs two positions or it has nowhere to go.
  */
-export function scrubPositions(picture: Picture, base: PictureState, along: 'steps' | 'items'): readonly ScrubPosition[] {
+export function scrubPositions(
+  picture: Picture,
+  base: PictureState,
+  along: 'steps' | 'items',
+): readonly ScrubPosition[] {
   if (along === 'items')
     return orderedItems(picture).map((item) => ({ label: item.label, state: { ...base, lit: [item.id] } }));
-  if (picture.kind === 'plan')
-    return (picture.steps ?? []).map((label, step) => ({ label, state: { ...base, step } }));
+  if (picture.kind === 'plan') return (picture.steps ?? []).map((label, step) => ({ label, state: { ...base, step } }));
   const count = revealCount(picture);
   const labels =
     picture.kind === 'grid' ? picture.rows.map((row) => row.label) : orderedItems(picture).map((item) => item.label);

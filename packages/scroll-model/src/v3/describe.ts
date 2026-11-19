@@ -15,12 +15,6 @@ const withStop = (text: string): string => (/[.!?…]["”’)]?$/u.test(text) ?
 
 const countOf = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
-/** "A", "A or B", "A, B or C". */
-function joinWithOr(labels: readonly string[]): string {
-  const last = labels[labels.length - 1] ?? '';
-  return labels.length < 2 ? last : `${labels.slice(0, -1).join(', ')} or ${last}`;
-}
-
 /** A figure with its unit: a unit that opens with a letter stands apart ("12 hours"), a sign sticks ("93.6%"). */
 const figureWithUnit = (value: string, unit: string | undefined): string =>
   unit === undefined ? value : /^\p{L}/u.test(unit) ? `${value} ${unit}` : `${value}${unit}`;
@@ -47,19 +41,16 @@ function statementSentences(picture: PictureOfKind<'statement'>): string[] {
 
 function flowSentences(picture: PictureOfKind<'flow'>, state: PictureState): string[] {
   const steps = picture.steps.slice(0, drawnCount(picture, state));
-  return [withStop(steps.map((step) => step.label).join(', then '))];
+  return [withStop(`In order: ${steps.map((step) => step.label).join('; ')}`)];
 }
 
 function cycleSentences(picture: PictureOfKind<'cycle'>, state: PictureState): string[] {
   const count = drawnCount(picture, state);
   const labels = picture.items.slice(0, count).map((item) => item.label);
   // The ring only closes once every item is drawn; before that the last drawn one leads nowhere yet.
-  const closed = count === picture.items.length ? `, and back to ${labels[0] ?? ''}` : '';
-  const lead = picture.centre === undefined ? 'Around the ring, in order' : 'Around it, in order';
-  return [
-    ...(picture.centre === undefined ? [] : [withStop(`At the centre: ${picture.centre.label}`)]),
-    withStop(`${lead}: ${labels.join(', ')}${closed}`),
-  ];
+  const closed = count === picture.items.length ? `; and back to ${labels[0] ?? ''}` : '';
+  const lead = picture.centre === undefined ? 'In a ring' : `Around ${picture.centre.label}`;
+  return [withStop(`${lead}, in order: ${labels.join('; ')}${closed}`)];
 }
 
 function gridSentences(picture: PictureOfKind<'grid'>, state: PictureState): string[] {
@@ -103,20 +94,23 @@ function planSentences(picture: PictureOfKind<'plan'>, state: PictureState): str
   const marks = countOf(talliesDrawn(picture, state), 'mark');
   const region = picture.regions.find((candidate) => candidate.id === state.region);
   const others = region?.among.filter((id) => id !== region.nearest).map(placeLabel) ?? [];
+  // Labels keep their own capitals, so none is set in the middle of a sentence: each follows a colon or a semicolon.
   return [
     withStop(`Places: ${picture.places.map((place) => place.label).join(', ')}`),
     ...(wayNames.length === 0 ? [] : [withStop(`Ways: ${wayNames.join(', ')}`)]),
-    ...(picture.tallies.length === 0 ? [] : [withStop(stepLabel === undefined ? `${marks} in all` : `By ${stepLabel}: ${marks}`)]),
+    ...(picture.tallies.length === 0
+      ? []
+      : [withStop(stepLabel === undefined ? `${marks} in all` : `By ${stepLabel}: ${marks}`)]),
     ...(region === undefined
       ? []
       : [
-          withStop(
-            `Shaded: ${region.label}, the part of the plan nearer to ${placeLabel(region.nearest)} than to ${joinWithOr(others)}`,
-          ),
+          withStop(`Shaded: ${region.label}, the part nearer to one place than to the others`),
+          withStop(`The place: ${placeLabel(region.nearest)}`),
+          withStop(`The others: ${others.join('; ')}`),
         ]),
     ...picture.routes.map((route) =>
       withStop(
-        `A route runs from ${placeLabel(route.from)} to ${placeLabel(route.to)}${route.label === undefined ? '' : ` (${route.label})`}`,
+        `A route, in order: ${placeLabel(route.from)}; ${placeLabel(route.to)}${route.label === undefined ? '' : ` (${route.label})`}`,
       ),
     ),
   ];
@@ -158,7 +152,12 @@ function drawnParts(picture: Picture, state: PictureState): ReadonlyMap<string, 
           const row = rowLabel.get(cell.row);
           return row === undefined
             ? []
-            : [[cell.id, { label: `${row}, ${columnLabel.get(cell.column) ?? cell.column}`, note: cell.note }] as const];
+            : [
+                [
+                  cell.id,
+                  { label: `${row}, ${columnLabel.get(cell.column) ?? cell.column}`, note: cell.note },
+                ] as const,
+              ];
         }),
       ]);
     }

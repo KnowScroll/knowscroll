@@ -39,8 +39,9 @@ const statementList = Picture.parse({
   statement: { form: 'list', items: [item('one', 'One', { note: 'First.' }), item('two', 'Two')] },
 });
 
-const flow = (steps: object[] = [item('aa', 'A', { note: 'Note A.' }), item('bb', 'B', { note: 'Note B.' }), item('cc', 'C')]): Picture =>
-  Picture.parse({ id: 'figure', kind: 'flow', title: 'Flow', steps });
+const flow = (
+  steps: object[] = [item('aa', 'A', { note: 'Note A.' }), item('bb', 'B', { note: 'Note B.' }), item('cc', 'C')],
+): Picture => Picture.parse({ id: 'figure', kind: 'flow', title: 'Flow', steps });
 
 const cycle = Picture.parse({
   id: 'figure',
@@ -130,7 +131,9 @@ describe('orderedItems', () => {
 
   it('keeps a cell that names an unknown row or column, labelled by the id it names', () => {
     const odd = gridOf([gridCell('lost', 'ghost', 'fast'), gridCell('found', 'cheap', 'fast')]);
-    expect(orderedItems(odd).map((entry) => entry.label)).toEqual(expect.arrayContaining(['Cheap, Fast', 'ghost, Fast']));
+    expect(orderedItems(odd).map((entry) => entry.label)).toEqual(
+      expect.arrayContaining(['Cheap, Fast', 'ghost, Fast']),
+    );
   });
 });
 
@@ -198,10 +201,20 @@ describe('pictureDataIssues', () => {
       expect(pictureDataIssues(flow(), at)).toEqual([]);
       const repeated: Picture[] = [
         flow([item('aa', 'A'), item('aa', 'Again')]),
-        Picture.parse({ id: 'figure', kind: 'statement', title: 'S', statement: { form: 'list', items: [item('dup', 'A'), item('dup', 'B')] } }),
+        Picture.parse({
+          id: 'figure',
+          kind: 'statement',
+          title: 'S',
+          statement: { form: 'list', items: [item('dup', 'A'), item('dup', 'B')] },
+        }),
         Picture.parse({ ...cycle, centre: item('xx', 'Centre') }),
         gridOf([gridCell('cheap', 'cheap', 'fast')]),
-        chartOf({ points: [{ id: 'p1', label: 'A', value: '1' }, { id: 'p1', label: 'B', value: '2' }] }),
+        chartOf({
+          points: [
+            { id: 'p1', label: 'A', value: '1' },
+            { id: 'p1', label: 'B', value: '2' },
+          ],
+        }),
         planOf({ regions: [{ id: 'pump-a', label: 'R', nearest: 'pump-a', among: ['pump-a', 'pump-b'] }] }),
       ];
       for (const picture of repeated)
@@ -240,10 +253,12 @@ describe('pictureDataIssues', () => {
 
   describe('picture_cell_taken', () => {
     it('passes grid cells in different spots and fails two cells of one row and column', () => {
-      expect(pictureDataIssues(gridOf([gridCell('c1', 'cheap', 'fast'), gridCell('c2', 'cheap', 'slow')]), at)).toEqual([]);
-      expect(pictureDataIssues(gridOf([gridCell('c1', 'cheap', 'fast'), gridCell('c2', 'cheap', 'fast')]), at)).toEqual([
-        { code: 'picture_cell_taken', path: 'pictures.0.cells.1' },
-      ]);
+      expect(pictureDataIssues(gridOf([gridCell('c1', 'cheap', 'fast'), gridCell('c2', 'cheap', 'slow')]), at)).toEqual(
+        [],
+      );
+      expect(pictureDataIssues(gridOf([gridCell('c1', 'cheap', 'fast'), gridCell('c2', 'cheap', 'fast')]), at)).toEqual(
+        [{ code: 'picture_cell_taken', path: 'pictures.0.cells.1' }],
+      );
     });
 
     it('passes places on different cells and fails two places on one cell', () => {
@@ -263,9 +278,9 @@ describe('pictureDataIssues', () => {
   describe('picture_cell_outside', () => {
     it('passes cells on the plan and fails a way, a place and a tally beyond it', () => {
       expect(pictureDataIssues(planOf(), at)).toEqual([]);
-      expect(
-        pictureDataIssues(planOf({ ways: [{ id: 'street', from: cell(0, 3), to: cell(8, 3) }] }), at),
-      ).toEqual([{ code: 'picture_cell_outside', path: 'pictures.0.ways.0' }]);
+      expect(pictureDataIssues(planOf({ ways: [{ id: 'street', from: cell(0, 3), to: cell(8, 3) }] }), at)).toEqual([
+        { code: 'picture_cell_outside', path: 'pictures.0.ways.0' },
+      ]);
       expect(
         pictureDataIssues(
           planOf({ places: [{ id: 'pump-a', label: 'A', at: cell(1, 8), mark: 'dot' }], regions: [], routes: [] }),
@@ -370,7 +385,14 @@ describe('pictureStateIssues', () => {
   const invalid = [{ code: 'show_state_invalid', path: at }];
 
   it('accepts an empty state on every kind', () => {
-    for (const picture of [statementNumber, flow(), cycle, gridOf([gridCell('c1', 'cheap', 'fast')]), chartOf(), planOf()])
+    for (const picture of [
+      statementNumber,
+      flow(),
+      cycle,
+      gridOf([gridCell('c1', 'cheap', 'fast')]),
+      chartOf(),
+      planOf(),
+    ])
       expect(pictureStateIssues(picture, state(), at)).toEqual([]);
   });
 
@@ -405,7 +427,9 @@ describe('pictureStateIssues', () => {
     });
 
     it('passes the parts of a grid and a statement number, and fails a repeated id', () => {
-      expect(pictureStateIssues(gridOf([gridCell('c1', 'cheap', 'fast')]), state({ lit: ['dear', 'slow', 'c1'] }), at)).toEqual([]);
+      expect(
+        pictureStateIssues(gridOf([gridCell('c1', 'cheap', 'fast')]), state({ lit: ['dear', 'slow', 'c1'] }), at),
+      ).toEqual([]);
       expect(pictureStateIssues(statementNumber, state({ lit: ['value'] }), at)).toEqual([]);
       expect(pictureStateIssues(flow(), state({ lit: ['aa', 'aa'] }), at)).toEqual(invalid);
     });
@@ -457,7 +481,11 @@ describe('scrubPositions', () => {
         { label: 'Y', state: { lit: ['hub'], upTo: 2 } },
         { label: 'Z', state: { lit: ['hub'], upTo: 3 } },
       ]);
-      expect(scrubPositions(chartOf(), state(), 'steps').map((position) => position.label)).toEqual(['One', 'Two', 'Three']);
+      expect(scrubPositions(chartOf(), state(), 'steps').map((position) => position.label)).toEqual([
+        'One',
+        'Two',
+        'Three',
+      ]);
     });
 
     it('reveals a grid a row at a time, labelled by the row, not by a cell', () => {
@@ -482,7 +510,11 @@ describe('scrubPositions', () => {
         { lit: ['cc'] },
       ]);
       expect(scrubPositions(cycle, state(), 'items').map((position) => position.label)).toEqual(['X', 'Y', 'Z']);
-      expect(scrubPositions(chartOf(), state(), 'items').map((position) => position.label)).toEqual(['One', 'Two', 'Three']);
+      expect(scrubPositions(chartOf(), state(), 'items').map((position) => position.label)).toEqual([
+        'One',
+        'Two',
+        'Three',
+      ]);
       expect(scrubPositions(statementList, state(), 'items').map((position) => position.label)).toEqual(['One', 'Two']);
     });
 
@@ -535,7 +567,14 @@ describe('controlIssues: control_unfit', () => {
       expect(controlIssues(flow(), control({ kind: 'scrub', along: 'items' }), show(), at)).toEqual([]);
       expect(controlIssues(planOf(), control({ kind: 'scrub', along: 'steps' }), show(), at)).toEqual([]);
       expect(controlIssues(statementNumber, control({ kind: 'scrub', along: 'items' }), show(), at)).toEqual(unfit);
-      expect(controlIssues(planOf({ steps: undefined, tallies: [] }), control({ kind: 'scrub', along: 'steps' }), show(), at)).toEqual(unfit);
+      expect(
+        controlIssues(
+          planOf({ steps: undefined, tallies: [] }),
+          control({ kind: 'scrub', along: 'steps' }),
+          show(),
+          at,
+        ),
+      ).toEqual(unfit);
     });
 
     it('fails a grid of one row scrubbed by steps', () => {
@@ -562,7 +601,14 @@ describe('controlIssues: control_unfit', () => {
     });
 
     it('fails a state equal to the beat’s own, whatever order its keys are written in', () => {
-      expect(controlIssues(flow(), control({ kind: 'switch', to: { upTo: 2, lit: ['aa'] } }), show({ lit: ['aa'], upTo: 2 }), at)).toEqual(unfit);
+      expect(
+        controlIssues(
+          flow(),
+          control({ kind: 'switch', to: { upTo: 2, lit: ['aa'] } }),
+          show({ lit: ['aa'], upTo: 2 }),
+          at,
+        ),
+      ).toEqual(unfit);
     });
   });
 

@@ -147,9 +147,7 @@ export const ChartPicture = z.strictObject({
     .min(2)
     .max(16),
   /** Points the chart labels on the drawing itself ("Handle removed"). */
-  marks: z
-    .array(z.strictObject({ point: LocalId, label: plainText(1, F.itemLabelChars) }))
-    .max(3),
+  marks: z.array(z.strictObject({ point: LocalId, label: plainText(1, F.itemLabelChars) })).max(3),
 });
 
 /** A cell of a plan's coarse grid. A plan is at most 12 × 12, so a cell names a block, never a point. */
@@ -175,7 +173,9 @@ export const PlanPicture = z.strictObject({
     rows: z.number().int().min(6).max(12),
   }),
   ways: z
-    .array(z.strictObject({ id: LocalId, label: plainText(1, F.itemLabelChars).optional(), from: PlanCell, to: PlanCell }))
+    .array(
+      z.strictObject({ id: LocalId, label: plainText(1, F.itemLabelChars).optional(), from: PlanCell, to: PlanCell }),
+    )
     .max(12),
   places: z
     .array(
