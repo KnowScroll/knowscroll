@@ -8,7 +8,7 @@ import { encounterFixture, id } from './encounter-fixture';
 import { openParty, partyWorld } from './thread-party-fixture';
 
 /**
- * Share a moment (V3 G5, D-292, D-293) in the production export over labelled HTTP fixtures (no backend): the ••• sheet of a
+ * Share a moment (V3 G5, D-292, D-293) in the production export over labelled HTTP fixtures (no backend): the dock's Share of a
  * v2 Scroll offers "This stop, with its picture"; read in a thread it sends the stop into that thread, and read in Explore
  * it asks which thread. The message carries the exact revision and an anchor with a hash of the stop's words, never the
  * words. The Scroll is the labelled v2 fixture `seasons-stage-ci`. Screenshots are written only when `KS_MOMENT_SHOTS`
@@ -113,9 +113,11 @@ async function openExploreWithThreads(
   await page.getByRole('button', { name: 'Got it' }).click();
 }
 
+/** Share in the dock (D-429; it was a ••• row): the stop on screen, as a moment. */
+const dockShare = (page: Page) => page.getByTestId('reader-dock').getByRole('button', { name: /^Share a moment/ });
+
 async function openMomentSheet(page: Page) {
-  await page.getByRole('button', { name: 'More', exact: true }).click();
-  await page.getByTestId('more-share-moment').click();
+  await dockShare(page).click();
   await expect(page.getByRole('dialog', { name: 'Share a moment' })).toBeVisible();
 }
 
@@ -164,8 +166,7 @@ for (const viewport of viewports) {
       await page.getByRole('button', { name: 'Read this Scroll' }).click();
     }
     await expect(page.getByTestId('folio-scroller')).toBeVisible();
-    await page.getByRole('button', { name: 'More', exact: true }).click();
-    const share = page.getByTestId('more-share-moment');
+    const share = dockShare(page);
     await expect(share).toBeEnabled();
     await shot(page, `moment-more-${viewport.name}`);
     await share.click();
@@ -222,9 +223,7 @@ for (const viewport of viewports) {
     await shot(page, `moment-explore-none-hold-${viewport.name}`);
   });
 
-  test(`on a call stop, Share a moment is disabled and says why next to the row, at ${viewport.name}`, async ({
-    page,
-  }) => {
+  test(`on a call stop, Share in the dock is disabled and its name says why, at ${viewport.name}`, async ({ page }) => {
     await openExploreWithThreads(page, viewport, { holding: [] });
     // The third stop of the fixture is its first Call it: read once its top has reached the reading band (42 % down the
     // scroller), which is where Folio brings a stop that is jumped to.
@@ -239,9 +238,11 @@ for (const viewport of viewports) {
       'aria-valuenow',
       '0',
     );
+    await expect(dockShare(page)).toBeDisabled();
+    await expect(dockShare(page)).toHaveAccessibleName(/A call would give its answer away/);
+    // The ••• sheet has no Share a moment row any more.
     await page.getByRole('button', { name: 'More', exact: true }).click();
-    await expect(page.getByTestId('more-share-moment')).toBeDisabled();
-    await expect(page.getByTestId('more-share-moment-detail')).toContainText('A call would give its answer away');
+    await expect(page.getByTestId('more-share-moment')).toHaveCount(0);
     await shot(page, `moment-more-call-${viewport.name}`);
   });
 }

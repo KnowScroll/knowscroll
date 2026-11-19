@@ -210,7 +210,7 @@ test.describe('accessibility (axe) of the reader', () => {
       await reader(page).focus();
       await page.keyboard.press('End');
       const plate = page.getByTestId('end-plate');
-      await expect(plate.getByText('The short version')).toBeInViewport();
+      await expect(plate.getByText('To sum up')).toBeInViewport();
       await plate.getByRole('button', { name: 'Small print', exact: true }).click();
       await expect(page.getByTestId('end-small-print')).toBeVisible();
       expect(await audit()).toEqual([]);
@@ -342,7 +342,7 @@ test.describe('a pull that starts at the end, by finger, when the reader has not
 test('a mouse drag up the text at the end selects words and moves on nowhere', async ({ page }) => {
   const { commands } = await open(page, phone);
   await toTheVeryEnd(page);
-  const words = page.getByTestId('end-plate').getByText('The short version');
+  const words = page.getByTestId('end-plate').getByText('To sum up');
   const box = await words.boundingBox();
   if (box === null) throw new Error('the end plate is on the page');
   const { y: middleY, height } = await middle(page);

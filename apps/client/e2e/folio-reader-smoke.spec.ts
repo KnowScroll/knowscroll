@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { answerActions } from './actions-fixture';
 import { encounterFixture } from './encounter-fixture';
 import { exportCarries } from './export-files';
 
@@ -97,7 +98,6 @@ for (const [label, viewport] of [
     await expect(page.getByRole('button', { name: /^(Stop \d+ of|Call it \d+ of|Final call)/ })).toHaveCount(0);
     await expect(scroller(page).getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
     // The top bar and the dock are the app's own.
-    await expect(page.getByRole('button', { name: 'Ask about this' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
     await expect(page.getByRole('progressbar', { name: 'How far you have read' })).toBeVisible();
     // The beats are the document's stops, once each, in order; a call is text.
@@ -160,6 +160,87 @@ test('reading the essay reaches the recorder as coverage of the document’s own
   expect(observed.filter((event) => event.kind === 'scroll.block_interaction')).toEqual([]);
 });
 
+const dockOf = (page: Page) => page.getByTestId('reader-dock');
+
+test('the dock of a Scroll on arrival is Like, Share and Save, then ••• and Part 2, with Ask in •••', async ({
+  page,
+}) => {
+  await open(page);
+  const dock = dockOf(page);
+  // Like and Save are toggle buttons (pressed or not); Share and ••• are plain buttons; the way on is the next Part.
+  await expect(dock.getByRole('button', { name: 'Like', pressed: false })).toBeVisible();
+  await expect(dock.getByRole('button', { name: 'Share a moment' })).toBeEnabled();
+  await expect(dock.getByRole('button', { name: 'Save', pressed: false })).toBeVisible();
+  await expect(dock.getByRole('button', { name: 'More', exact: true })).toBeVisible();
+  await expect(dock.getByRole('button', { name: /^Part 2: / })).toBeVisible();
+  await expect(dock.getByRole('button', { name: 'Ask about this' })).toHaveCount(0);
+  // Left to right: Like, Share, Save, then •••, then the way on.
+  const xs = await Promise.all(
+    ['Like', 'Share a moment', 'Save', 'More', /^Part 2: /].map(async (name) => {
+      const box = await dock.getByRole('button', { name }).boundingBox();
+      return box!.x;
+    }),
+  );
+  expect(xs).toEqual([...xs].sort((a, b) => a - b));
+  // Each glyph carries its small visible word.
+  for (const word of ['Like', 'Share', 'Save', 'More'])
+    await expect(dock.getByText(word, { exact: true })).toBeVisible();
+  expect(await audit(page)).toEqual([]);
+});
+
+test('Like toggles from its button and from L, keeps its word, and tells the feed once each way', async ({ page }) => {
+  await open(page);
+  const sent = await answerActions(page);
+  const dock = dockOf(page);
+  await dock.getByRole('button', { name: 'Like', pressed: false }).click();
+  const liked = dock.getByRole('button', { name: 'Like', pressed: true });
+  await expect(liked).toBeVisible();
+  await expect(dock.getByText('Like', { exact: true })).toBeVisible();
+  expect(sent.map((command) => command.kind)).toEqual(['like']);
+  // The same control takes the like back, and L does the same from the keyboard.
+  await liked.click();
+  await expect(dock.getByRole('button', { name: 'Like', pressed: false })).toBeVisible();
+  await reader(page).focus();
+  await page.keyboard.press('l');
+  await expect(dock.getByRole('button', { name: 'Like', pressed: true })).toBeVisible();
+  expect(sent.map((command) => command.kind)).toEqual(['like', 'unlike', 'like']);
+  // Nothing in the ••• sheet is a Like.
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await expect(page.getByTestId('more-list').getByRole('button', { name: /Like/ })).toHaveCount(0);
+});
+
+test('Save toggles from its button, keeps its word, and is no longer a row of •••', async ({ page }) => {
+  await open(page);
+  const sent = await answerActions(page);
+  const dock = dockOf(page);
+  await dock.getByRole('button', { name: 'Save', pressed: false }).click();
+  await expect(dock.getByRole('button', { name: 'Save', pressed: true })).toBeVisible();
+  await expect(dock.getByText('Save', { exact: true })).toBeVisible();
+  expect(sent.map((command) => command.kind)).toEqual(['save']);
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await expect(page.getByTestId('more-save')).toHaveCount(0);
+  await expect(page.getByTestId('more-share-moment')).toHaveCount(0);
+});
+
+test('Ask about this is the first row of •••, opens Ask at the stop on screen, and A still opens it directly', async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  const first = page.getByTestId('more-list').getByRole('button').first();
+  await expect(first).toHaveAccessibleName('Ask about this');
+  await expect(page.getByTestId('more-ask')).toContainText('A');
+  await first.click();
+  const sheet = page.getByRole('dialog', { name: 'Ask for something' });
+  await expect(sheet).toBeVisible();
+  // Escape closes the sheet; then A opens the same sheet with no ••• in between.
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await reader(page).focus();
+  await page.keyboard.press('a');
+  await expect(page.getByRole('dialog', { name: 'Ask for something' })).toBeVisible();
+});
+
 test('the ••• button opens the More sheet with its rows, and Next idea on the end plate asks for the next topic', async ({
   page,
 }) => {
@@ -174,8 +255,7 @@ test('the ••• button opens the More sheet with its rows, and Next idea on 
     .getByRole('button')
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')));
   expect(titles).toEqual([
-    'Save',
-    'Share a moment',
+    'Ask about this',
     'Challenge a friend',
     'Text version',
     'Simpler (this screen)',
@@ -197,11 +277,11 @@ test('the ••• button opens the More sheet with its rows, and Next idea on 
   await page.getByTestId('more-simpler').click();
   await expect(page.getByTestId('simpler-text')).toBeVisible();
 
-  // The end plate: the short version, a way on to Part 2, Next idea and Close.
+  // The end plate: the summary, a way on to Part 2, Next idea and Close.
   await reader(page).focus();
   await page.keyboard.press('End');
   const plate = page.getByTestId('end-plate');
-  await expect(plate.getByText('The short version')).toBeInViewport();
+  await expect(plate.getByText('To sum up')).toBeInViewport();
   await expect(plate.getByRole('button', { name: /^Part 2 · / })).toBeVisible();
   await expect(plate.getByRole('button', { name: 'Close' })).toBeVisible();
   expect(navigations(commands)).toEqual([]);
@@ -235,7 +315,7 @@ for (const appearance of ['dark', 'light'] as const) {
     await reader(page).focus();
     await page.keyboard.press('t');
     await page.keyboard.press('End');
-    await expect(page.getByTestId('end-plate').getByText('The short version')).toBeInViewport();
+    await expect(page.getByTestId('end-plate').getByText('To sum up')).toBeInViewport();
     expect(await audit(page), `axe at the end in ${appearance}`).toEqual([]);
   });
 }

@@ -6,7 +6,7 @@ import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { encounterFixture, type EncounterFixtureOptions } from './encounter-fixture';
 
 /**
- * The end of a v2 Scroll in the production export: the short version, the limits one tap away as "Small print", the ways
+ * The end of a v2 Scroll in the production export: the summary, the limits one tap away as "Small print", the ways
  * on (Part 2, Next idea, Close) as buttons the person presses, and nothing that moves on by itself. The document is the
  * labelled CI fixture `seasons-stage-ci` (not product content) served by authored HTTP fixtures, so this proves what the
  * screen does, not the backend. With `KS_PAYOFF_SHOTS` set to a folder, each view also saves a screenshot there (for the
@@ -64,14 +64,14 @@ async function toTheEnd(page: Page) {
   await expect
     .poll(() => scroller.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
     .toBeLessThan(2);
-  await expect(plate(page).getByText('The short version')).toBeVisible();
+  await expect(plate(page).getByText('To sum up')).toBeVisible();
 }
 
 for (const viewport of [phone, desktop]) {
   const size = `${String(viewport.width)} × ${String(viewport.height)}`;
   const name = `${String(viewport.width)}x${String(viewport.height)}`;
 
-  test(`the end plate gives the short version and every way on as a button, and nothing moves on by itself, at ${size}`, async ({
+  test(`the end plate sums up and every way on as a button, and nothing moves on by itself, at ${size}`, async ({
     page,
   }) => {
     const served = await open(page, viewport);
@@ -86,7 +86,7 @@ for (const viewport of [phone, desktop]) {
     const before = served.commands.length;
     await page.waitForTimeout(4_000);
     expect(page.url()).toBe(url);
-    await expect(plate(page).getByText('The short version')).toBeVisible();
+    await expect(plate(page).getByText('To sum up')).toBeVisible();
     await expect(partTitle(page, 1)).toBeVisible();
     expect(served.commands.length).toBe(before);
     expect(await audit(page)).toEqual([]);
@@ -157,7 +157,8 @@ test('on a 320 px screen the end plate and the dock fit, and the page does not s
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   // The dock keeps every control on the screen at 320 px, the way on included.
   await expect(page.getByRole('button', { name: /^Part 2/ }).first()).toBeInViewport({ ratio: 1 });
-  await expect(page.getByRole('button', { name: 'Ask about this', exact: true })).toBeInViewport({ ratio: 1 });
+  for (const name of ['Like', 'Share a moment', 'Save', 'More'])
+    await expect(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 });
   await shoot(page, 'end-plate-320x640');
   expect(await audit(page)).toEqual([]);
 });

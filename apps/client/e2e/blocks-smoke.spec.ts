@@ -218,10 +218,13 @@ test('Simpler swaps only the stop’s own text: the play block and the guide sta
     await goTo(page, stopId);
     const stop = page.locator(`[data-ks-stop="${stopId}"]`);
     const simple = (doc.stops.find((candidate) => candidate.id === stopId) as { simple: string }).simple;
-    await stop.getByRole('button', { name: 'Say it simpler' }).click();
+    // The stop has no link of its own (D-429): Shift + S is the keyboard's way to its plainer words, and back.
+    await expect(stop.getByRole('button', { name: 'Say it simpler' })).toHaveCount(0);
+    await page.getByRole('group', { name: 'Scroll reader' }).focus();
+    await page.keyboard.press('Shift+S');
     await expect(stop.getByText(simple)).toBeVisible();
     await expect(stop.getByTestId(kept).first()).toBeVisible();
-    await stop.getByRole('button', { name: 'Undo simpler version' }).click();
+    await page.keyboard.press('Shift+S');
     await expect(stop.getByText(simple)).toHaveCount(0);
     await expect(stop.getByTestId(kept).first()).toBeVisible();
   }

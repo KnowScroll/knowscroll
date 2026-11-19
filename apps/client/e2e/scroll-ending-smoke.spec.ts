@@ -60,7 +60,7 @@ async function toTheEnd(page: Page) {
   await expect
     .poll(() => scroller.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
     .toBeLessThan(2);
-  await expect(plate(page).getByText('The short version')).toBeVisible();
+  await expect(plate(page).getByText('To sum up')).toBeVisible();
 }
 
 for (const viewport of [phone, desktop]) {

@@ -138,7 +138,7 @@ test('the note waits while the pointer is over it or focus is in it by the perso
   await page.clock.runFor(30_000);
   await expect(note).toBeVisible();
   // Focus moves on to another control of the reader: the hold ends, and the note's going takes nothing from that control.
-  const ask = page.getByRole('button', { name: /^Ask about this/ });
+  const ask = page.getByTestId('reader-dock').getByRole('button', { name: 'Like', exact: true });
   await ask.focus();
   await page.clock.runFor(8_000);
   await expect(note).toBeVisible();
