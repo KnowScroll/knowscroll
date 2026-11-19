@@ -5098,3 +5098,16 @@ Confirmed by: `offer-cover.test.ts`, `navigation.test.ts` (contract), `frame.tes
 - **What a cover feed costs.** Every hand is ranked on the request (the worker prepares a buffer only after an activation). On #674's design target (102,001 assets), 250 hands of more covers in a row for the heaviest reader measured 78 ms p95 and 108 ms at most, beside 87 ms p95 for a vertical decision (`docs/v2/operations/load-test-674.md`, 19 Nov).
 
 Confirmed by: `cover-outcomes.test.ts` (the recording rule, a generation that moved, another person's offer, an opened offer, the clamp, a replay, no evidence or jobs, more covers' exclusion and its stale refusal, Clear, erasure, export, the prune), `navigation.test.ts` (contract), `encounter-session.test.ts` (what the client sends, and nothing while paused), and the simulation lab.
+
+## D-428 · 2026-11-19 · Covers are how Explore offers a Scroll; the trial switch goes (#752, #745)
+
+**Builds on** D-426 and D-427. **Amends** D-426: the device switch "Show Scrolls as covers (trial)" is gone and a Scroll the system offers is always a cover.
+
+- **Why.** D-426 made covers a trial so they could be tried on dev before they became how Explore works. This is that step (#745, Phase 4), merged only after the owner's go (#752).
+- **No switch.** The row leaves Account → Accessibility & playback, and `coversInExplore` leaves device preferences. A value a device stored during the trial is read past and is gone the next time preferences are written. Explore asks for covers on every platform; Folio is already the reader on both.
+- **The same moves deal covers.** A move the system chooses deals a hand of covers, and a move the person names opens at once, as D-426 says. A Reel, and an offer with no `cover`, still open at once.
+- **Not removed here.** The open-on-arrival path stays in the session for those offers, and the server still sends a cover only to a client that declares `offer-cover.v1`. The old path's removal is its own deletion-only pull request (PR 5, #745).
+- **Android.** Android checks are #740.
+- **The browser fixture serves covers as the server does.** Every Scroll offer carries a cover for a client that declares `offer-cover.v1`; a spec that wants the essay arrives on the cover and opens it with Read, as a person does. `covers: { absent: true }` serves a Scroll offer with no cover, for the fallback.
+
+Confirmed by: `device-preferences.test.ts` (the trial value is dropped), `account-settings.test.tsx` (no covers switch), `explore-screen.test.tsx` (arrives on a cover, nothing activated until it is opened), `covers-smoke.spec.ts` (covers with nothing stored, no switch, a Scroll with no cover opens at once), `appearance-smoke.spec.ts` (a stored trial value is dropped on rewrite), and the browser specs that now open every Scroll from its cover.
