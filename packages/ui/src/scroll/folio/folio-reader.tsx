@@ -326,6 +326,8 @@ export function FolioReader({
         return run(commands.ask);
       case 'format':
         return run(commands.format);
+      case 'like':
+        return run(commands.like);
       case 'save':
         return run(commands.save);
       case 'share-moment':

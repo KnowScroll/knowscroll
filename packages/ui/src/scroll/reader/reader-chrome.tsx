@@ -2,8 +2,10 @@ import { useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button } from '../../actions/button';
+import { encounterActionPlacement } from '../../actions/encounter-actions';
 import { IconButton } from '../../actions/icon-button';
 import { useDisplay } from '../../display/display';
+import type { IconName } from '../../icons/icon-paths';
 import { Text, useTypeStyle } from '../../text/text';
 import type { NextPartPeek } from './reader-commands';
 
@@ -141,45 +143,186 @@ function TitleProbe({ title, onHeight }: { readonly title: string; readonly onHe
   );
 }
 
-/** Below this width the dock closes its gaps so that Ask, ••• and the way on fit in a row. */
+/** Below this width the dock closes its gaps so that Like, Share, Save, ••• and the way on fit in a row. */
 const NARROW_PHONE = 400;
 
+/** Like or Save as the dock offers it: a two-state control that keeps its word when pressed. */
+export interface DockToggle {
+  readonly on: boolean;
+  /** A command is in flight (Save, Like): presses are ignored. */
+  readonly busy?: boolean | undefined;
+  readonly onPress: () => void;
+}
+
+/** Share a moment as the dock offers it: the stop on screen, or why it cannot be shared. */
+export interface DockShare {
+  readonly onPress: () => void;
+  /** Why the stop on screen cannot be shared; the button is then disabled and its name says why. */
+  readonly unavailable?: string | undefined;
+}
+
+/** One dock action: its glyph in a 44 px target with its word beneath, small, which repeats the name for the eye alone. */
+function DockAction({
+  icon,
+  word,
+  name,
+  pressed,
+  busy,
+  disabled,
+  onPress,
+  testID,
+}: {
+  readonly icon: IconName;
+  readonly word: string;
+  readonly name: string;
+  readonly pressed?: boolean | undefined;
+  readonly busy?: boolean | undefined;
+  readonly disabled?: boolean | undefined;
+  readonly onPress: () => void;
+  readonly testID: string;
+}) {
+  return (
+    <View style={styles.action}>
+      <IconButton
+        icon={icon}
+        label={name}
+        variant="paper"
+        size={44}
+        pressed={pressed}
+        busy={busy}
+        disabled={disabled}
+        onPress={onPress}
+        testID={testID}
+      />
+      <View aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Text variant="uiLabel" color={disabled === true ? content.ink2 : content.ink}>
+          {word}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 /**
- * The dock at the bottom of a v2 Scroll: Ask, the ••• menu and the
- * way on. The way on is the one primary action, in the continuation yellow's place: the next Part
- * (D-184, D-425). It is absent when none was admitted.
+ * The dock at the bottom of a v2 Scroll (D-429): ♡ Like, Share and Save at the start, ••• and the way on at the end. The way on is the one
+ * primary action, in the continuation yellow's place: the next Part (D-184, D-425), absent when none was admitted. Ask is
+ * the first row of the ••• sheet (and the A and ? keys). A control the screen cannot do is left out (a thread's reader
+ * keeps no Save and has no Like); a Share that cannot work on the stop on screen is disabled and says why in its name.
+ * The words are those of the encounter actions (D-006 b), a toggle keeps its word when pressed and announces its state.
  */
 export function ReaderDock({
-  onAsk,
+  like,
+  share,
+  save,
   onMore,
   nextPart,
 }: {
-  readonly onAsk?: (() => void) | undefined;
+  readonly like?: DockToggle | undefined;
+  readonly share?: DockShare | undefined;
+  readonly save?: DockToggle | undefined;
   readonly onMore?: (() => void) | undefined;
   readonly nextPart?: NextPartPeek | undefined;
 }) {
-  // At 320 to 359 px the three controls do not fit in a row with the full wording, so Ask drops to its first word; its name does not change.
-  // At 361 to 399 px (a 390 phone) the controls fit only once the gaps close up; the wording stays.
-  const { breakpoint, width } = useDisplay();
+  // At 360 px and under the gaps close up, and under 400 the page margin does; each control stays 44 px and keeps its word.
+  // With large text (the grid of the encounter actions) the words are the buttons: icon and word in a pill, wrapping onto
+  // a second row where the first is full.
+  const display = useDisplay();
+  const { breakpoint, width } = display;
+  const large = encounterActionPlacement(display).arrangement === 'grid';
   const compact = breakpoint === 'compact';
+  const shareName = share?.unavailable === undefined ? 'Share a moment' : `Share a moment. ${share.unavailable}`;
   return (
     <View
       testID="reader-dock"
-      style={[styles.dock, compact ? styles.dockCompact : width < NARROW_PHONE ? styles.dockNarrow : null]}
+      role="group"
+      accessibilityLabel="Scroll actions"
+      style={[
+        styles.dock,
+        large ? styles.dockLarge : null,
+        compact ? styles.dockCompact : width < NARROW_PHONE ? styles.dockNarrow : null,
+      ]}
     >
-      {onAsk === undefined ? null : (
-        <Button
-          label={compact ? 'Ask' : 'Ask about this'}
-          accessibilityLabel="Ask about this"
-          icon="sparkle"
-          iconColor={content.accent}
-          variant="tint"
-          size="sm"
-          onPress={onAsk}
-        />
+      {large ? (
+        <>
+          {like === undefined ? null : (
+            <Button
+              label="Like"
+              icon="like"
+              variant={like.on ? 'primary' : 'default'}
+              size="sm"
+              toggled={like.on}
+              busy={like.busy === true}
+              onPress={like.onPress}
+              testID="dock-like"
+            />
+          )}
+          {share === undefined ? null : (
+            <Button
+              label="Share"
+              accessibilityLabel={shareName}
+              icon="share"
+              size="sm"
+              disabled={share.unavailable !== undefined}
+              onPress={share.onPress}
+              testID="dock-share"
+            />
+          )}
+          {save === undefined ? null : (
+            <Button
+              label="Save"
+              icon="save"
+              variant={save.on ? 'primary' : 'default'}
+              size="sm"
+              toggled={save.on}
+              busy={save.busy === true}
+              busyLabel="Saving"
+              onPress={save.onPress}
+              testID="dock-save"
+            />
+          )}
+        </>
+      ) : (
+        <>
+          {like === undefined ? null : (
+            <DockAction
+              icon="like"
+              word="Like"
+              name="Like"
+              pressed={like.on}
+              busy={like.busy}
+              onPress={like.onPress}
+              testID="dock-like"
+            />
+          )}
+          {share === undefined ? null : (
+            <DockAction
+              icon="share"
+              word="Share"
+              name={shareName}
+              disabled={share.unavailable !== undefined}
+              onPress={share.onPress}
+              testID="dock-share"
+            />
+          )}
+          {save === undefined ? null : (
+            <DockAction
+              icon="save"
+              word="Save"
+              name="Save"
+              pressed={save.on}
+              busy={save.busy}
+              onPress={save.onPress}
+              testID="dock-save"
+            />
+          )}
+        </>
       )}
-      {onMore === undefined ? null : <IconButton icon="more" label="More" variant="paper" size={44} onPress={onMore} />}
       <View style={styles.spacer} />
+      {onMore === undefined ? null : large ? (
+        <Button label="More" icon="more" size="sm" onPress={onMore} testID="dock-more" />
+      ) : (
+        <DockAction icon="more" word="More" name="More" onPress={onMore} testID="dock-more" />
+      )}
       {nextPart === undefined ? null : (
         <Button
           label={nextPart.label}
@@ -224,5 +367,8 @@ const styles = StyleSheet.create({
   },
   dockCompact: { gap: spacing[1], paddingHorizontal: spacing[3] },
   dockNarrow: { gap: spacing[1] },
+  /** Large text: the pills wrap, so nothing is clipped or squeezed under 44 px. */
+  dockLarge: { flexWrap: 'wrap', rowGap: spacing[2] },
+  action: { alignItems: 'center', gap: 2 },
   spacer: { flex: 1 },
 });

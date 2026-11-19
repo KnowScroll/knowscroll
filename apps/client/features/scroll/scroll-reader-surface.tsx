@@ -22,26 +22,42 @@ import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { whyNoMoment } from '@knowscroll/scroll-model';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
-import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
-import type { SaveMove } from './more-rows';
+import { ShareStopSheet, noMomentWords, type MomentThread } from '../threads/share-stop-sheet';
 import { MoreSheetBody } from './more-sheet';
 import type { OpenedScrollV2 } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
+
+/** Save as a screen offers it: whether this Scroll is kept, whether a save is in flight, and what pressing does. */
+export interface SaveMove {
+  readonly saved: boolean;
+  readonly busy: boolean;
+  readonly onPress: () => void;
+}
+
+/** Like as a screen offers it (D-429): whether this Scroll is liked, whether the command is in flight, and what pressing does. */
+export interface LikeMove {
+  readonly liked: boolean;
+  readonly busy: boolean;
+  readonly onPress: () => void;
+}
 
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
 export interface ReaderMoves {
   readonly universe: () => void;
   /** Return to the opener of a standalone reader, preserving its navigation stack and scroll position. */
   readonly back?: (() => void) | undefined;
-  /** Save, as the ••• sheet and the S key offer it; absent where the screen keeps nothing (a thread's reader). */
+  /** Save, as the dock and the S key offer it; absent where the screen keeps nothing (a thread's reader). */
   readonly save?: SaveMove | undefined;
+  /** Like, as the dock and the L key offer it; absent where the screen has none (the direct route, a thread's reader). */
+  readonly like?: LikeMove | undefined;
   readonly nextTopic?: (() => void) | undefined;
   /** The next Part: the dock, the end of the essay and the → key (D-425). */
   readonly nextPart?: NextPartPeek | undefined;
   readonly previousPart?: (() => void) | undefined;
   /** The Part before as it is named and titled: the link above the essay's title and the ← key. */
   readonly previous?: NextPartPeek | undefined;
+  /** Ask from here, anchored to the stop on screen: the first row of the ••• sheet and the A and ? keys. */
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
   readonly formatSwitch?: ReactNode;
@@ -65,8 +81,9 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
 
 /**
  * Folio's reader for a v2 Scroll, wherever it is shown (the Explore encounter, the direct `/scroll/<id>` route and a
- * thread): its top bar, the essay, its dock and the ••• sheet, with the room a screen keeps for the status bar and the
- * tab bar. The screen supplies the moves and what the sheet holds (Save, Share), because those differ by screen. On a
+ * thread): its top bar, the essay, its dock (Like, Share, Save, •••, the next Part) and the ••• sheet, with the room a
+ * screen keeps for the status bar and the tab bar. The screen supplies the moves (Like, Save, Ask), because those differ
+ * by screen; Share a moment is the reader's own. On a
  * tablet or desktop the essay is a centred column wide enough to set a held figure beside the text (D-425).
  */
 export function ScrollReaderSurface({
@@ -97,7 +114,7 @@ export function ScrollReaderSurface({
   /** "Part 1 of 3": a count only when the server counted it. */
   readonly partLabel?: string | undefined;
   /**
-   * What the screen adds under the seven rows of the ••• sheet (Like and Ask in Explore, notices about Save), given a way to
+   * What the screen adds under the rows of the ••• sheet (sharing the whole Scroll, notices about Save), given a way to
    * close it. The ••• button is always there: the rows are the reader's own.
    */
   readonly moreBody?: ((close: () => void) => ReactNode) | undefined;
@@ -122,6 +139,15 @@ export function ScrollReaderSurface({
   const [reporting, setReporting] = useState<FeedbackTarget>();
   const [smallPrintOpen, setSmallPrintOpen] = useState(false);
   // What the reader showed when ••• opened, so the rows can say which words and pictures they would switch.
+  // The stop on screen now, so the dock's Share says at once whether it can share it (a call cannot be a moment).
+  const [stopNow, setStopNow] = useState<string | undefined>(initialStopId);
+  const stopChanged = useCallback(
+    (stopId: string | undefined) => {
+      setStopNow(stopId);
+      onStopChange?.(stopId);
+    },
+    [onStopChange],
+  );
   const [readerView, setReaderView] = useState<ReaderView | undefined>();
   // Quick answers on this Scroll: asked from the selection menu, drawn under the stop, never part of the Scroll (D-253).
   const quick = useQuickAnswers(scroll);
@@ -137,7 +163,7 @@ export function ScrollReaderSurface({
   const canChallenge = challengeCallOf(scroll.document) !== undefined;
   const { breakpoint } = useDisplay();
   const { document } = scroll;
-  const noMoment = whyNoMoment(document, momentStop);
+  const noMoment = whyNoMoment(document, stopNow);
   const limits = document.asides.find((aside) => aside.id === document.recap.smallPrintAside);
   const model = useMemo(() => readingModelOfV2(document), [document]);
   const openMoment = () => {
@@ -156,7 +182,6 @@ export function ScrollReaderSurface({
     });
   };
   const openMore = () => {
-    setMomentStop(reader.current?.capture()?.stopId);
     setReaderView(reader.current?.view());
     setMoreOpen(true);
   };
@@ -171,7 +196,7 @@ export function ScrollReaderSurface({
           }
           initialStopId={initialStopId}
           handleRef={readerRef}
-          onStopChange={onStopChange}
+          onStopChange={stopChanged}
           nextPart={moves.nextPart}
           previousPart={moves.previous}
           arrival={arrival}
@@ -186,6 +211,7 @@ export function ScrollReaderSurface({
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
             challenge: canChallenge ? () => setChallenging(true) : undefined,
+            like: moves.like?.onPress,
             save: moves.save?.onPress,
             shareMoment: openMoment,
             smallPrint: limits === undefined ? undefined : () => setSmallPrintOpen(true),
@@ -238,7 +264,24 @@ export function ScrollReaderSurface({
           }
           dock={
             <View style={{ paddingBottom: bottomInset }}>
-              <ReaderDock onAsk={moves.ask} onMore={openMore} nextPart={moves.nextPart} />
+              <ReaderDock
+                like={
+                  moves.like === undefined
+                    ? undefined
+                    : { on: moves.like.liked, busy: moves.like.busy, onPress: moves.like.onPress }
+                }
+                share={{
+                  onPress: openMoment,
+                  unavailable: noMoment === undefined ? undefined : noMomentWords(noMoment),
+                }}
+                save={
+                  moves.save === undefined
+                    ? undefined
+                    : { on: moves.save.saved, busy: moves.save.busy, onPress: moves.save.onPress }
+                }
+                onMore={openMore}
+                nextPart={moves.nextPart}
+              />
             </View>
           }
         />
@@ -247,13 +290,11 @@ export function ScrollReaderSurface({
         <MoreSheetBody
           onClose={() => setMoreOpen(false)}
           input={{
-            save: moves.save,
-            noMoment,
+            ask: moves.ask,
             canChallenge,
             hasSmallPrint: limits !== undefined,
             view: readerView,
             act: {
-              shareMoment: () => setSharingMoment(true),
               challenge: () => setChallenging(true),
               toggleTextVersion: () => void reader.current?.toggleTextVersion(),
               toggleSimpler: () => void reader.current?.toggleSimpler(),
