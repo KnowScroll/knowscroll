@@ -221,10 +221,16 @@ test('Simpler swaps only the stop’s own text: the play block and the guide sta
     // The stop has no link of its own (D-429): Shift + S is the keyboard's way to its plainer words, and back.
     await expect(stop.getByRole('button', { name: 'Say it simpler' })).toHaveCount(0);
     await page.getByRole('group', { name: 'Scroll reader' }).focus();
-    await page.keyboard.press('Shift+S');
-    await expect(stop.getByText(simple)).toBeVisible();
+    // The reader takes the scroll in a moment after it: press until the stop that was jumped to is the one being read.
+    await expect(async () => {
+      await page.keyboard.press('Shift+S');
+      await expect(stop.getByText(simple)).toBeVisible({ timeout: 1_000 });
+    }).toPass();
     await expect(stop.getByTestId(kept).first()).toBeVisible();
-    await page.keyboard.press('Shift+S');
+    await expect(async () => {
+      await page.keyboard.press('Shift+S');
+      await expect(stop.getByText(simple)).toHaveCount(0, { timeout: 1_000 });
+    }).toPass();
     await expect(stop.getByText(simple)).toHaveCount(0);
     await expect(stop.getByTestId(kept).first()).toBeVisible();
   }

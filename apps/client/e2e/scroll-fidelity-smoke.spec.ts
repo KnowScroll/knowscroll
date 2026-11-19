@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { answerActions } from './actions-fixture';
+import { answerActions, type ActionsState } from './actions-fixture';
 import { encounterFixture } from './encounter-fixture';
 
 /**
@@ -34,8 +34,9 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-async function open(page: Page, viewport = phone) {
+async function open(page: Page, viewport = phone, actions?: ActionsState) {
   const served = await encounterFixture(page, 'scroll', {
+    ...(actions === undefined ? {} : { actions }),
     series: true,
     viewport,
     scrollDocument: seasons as unknown as Record<string, unknown>,
@@ -159,14 +160,20 @@ for (const viewport of [phone, desktop]) {
 test('the keys of the dock and the ••• rows act from the reader: L, S, H, C, ⇧S, P and R, each doing what its control does', async ({
   page,
 }) => {
-  await open(page, desktop);
-  await answerActions(page);
+  const state = { saved: false, liked: false, hidden: false };
+  await open(page, desktop, state);
+  await answerActions(page, state);
   await page.getByRole('group', { name: 'Scroll reader' }).focus();
   // L is Like: it sends the like action for this Scroll.
   const likes = page.waitForRequest((request) => new URL(request.url()).pathname === '/v1/actions');
   await page.keyboard.press('l');
   expect(JSON.parse((await likes).postData() ?? '{}')).toMatchObject({ kind: 'like' });
   await expect(page.getByTestId('reader-dock').getByRole('button', { name: 'Like', pressed: true })).toBeVisible();
+  // A press is ignored while the one before is settling.
+  await expect(page.getByTestId('reader-dock').getByRole('button', { name: 'Like' })).not.toHaveAttribute(
+    'aria-busy',
+    'true',
+  );
   // S alone is Save (not Simpler): it sends the save action for this Scroll, and changes no stop's words.
   const saves = page.waitForRequest((request) => new URL(request.url()).pathname === '/v1/actions');
   await page.keyboard.press('s');

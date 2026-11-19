@@ -157,8 +157,11 @@ test('on a 320 px screen the end plate and the dock fit, and the page does not s
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   // The dock keeps every control on the screen at 320 px, the way on included.
   await expect(page.getByRole('button', { name: /^Part 2/ }).first()).toBeInViewport({ ratio: 1 });
-  for (const name of ['Like', 'Share a moment', 'Save', 'More'])
-    await expect(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 });
+  // Share is dimmed at the end (a moment is one stop) and its name says why, so it is found by its first words.
+  for (const name of ['Like', /^Share a moment/, 'Save', 'More'])
+    await expect(
+      page.getByTestId('reader-dock').getByRole('button', { name, exact: typeof name === 'string' }),
+    ).toBeInViewport({ ratio: 1 });
   await shoot(page, 'end-plate-320x640');
   expect(await audit(page)).toEqual([]);
 });

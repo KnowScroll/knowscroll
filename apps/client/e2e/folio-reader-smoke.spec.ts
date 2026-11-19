@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { answerActions } from './actions-fixture';
+import { answerActions, type ActionsState } from './actions-fixture';
 import { encounterFixture } from './encounter-fixture';
 import { exportCarries } from './export-files';
 
@@ -57,12 +57,14 @@ async function open(
   page: Page,
   viewport: Viewport = phone,
   preferences: Record<string, unknown> | null = { appearance: 'light' },
+  actions?: ActionsState,
 ) {
   await choose(page, preferences);
   const served = await encounterFixture(page, 'scroll', {
     series: true,
     viewport,
     scrollDocument: seasons as unknown as Record<string, unknown>,
+    ...(actions === undefined ? {} : { actions }),
   });
   await page.goto('/explore');
   // The offer's own title heads the Scroll in the bar, whichever reader draws it.
@@ -189,17 +191,22 @@ test('the dock of a Scroll on arrival is Like, Share and Save, then ••• an
 });
 
 test('Like toggles from its button and from L, keeps its word, and tells the feed once each way', async ({ page }) => {
-  await open(page);
-  const sent = await answerActions(page);
+  const state = { saved: false, liked: false, hidden: false };
+  await open(page, phone, { appearance: 'light' }, state);
+  const sent = await answerActions(page, state);
   const dock = dockOf(page);
+  // A press is ignored while the one before is settling, so each step waits until the button is no longer busy.
+  const settled = () => expect(dock.getByRole('button', { name: 'Like' })).not.toHaveAttribute('aria-busy', 'true');
   await dock.getByRole('button', { name: 'Like', pressed: false }).click();
   const liked = dock.getByRole('button', { name: 'Like', pressed: true });
   await expect(liked).toBeVisible();
+  await settled();
   await expect(dock.getByText('Like', { exact: true })).toBeVisible();
   expect(sent.map((command) => command.kind)).toEqual(['like']);
   // The same control takes the like back, and L does the same from the keyboard.
   await liked.click();
   await expect(dock.getByRole('button', { name: 'Like', pressed: false })).toBeVisible();
+  await settled();
   await reader(page).focus();
   await page.keyboard.press('l');
   await expect(dock.getByRole('button', { name: 'Like', pressed: true })).toBeVisible();
@@ -210,8 +217,9 @@ test('Like toggles from its button and from L, keeps its word, and tells the fee
 });
 
 test('Save toggles from its button, keeps its word, and is no longer a row of •••', async ({ page }) => {
-  await open(page);
-  const sent = await answerActions(page);
+  const state = { saved: false, liked: false, hidden: false };
+  await open(page, phone, { appearance: 'light' }, state);
+  const sent = await answerActions(page, state);
   const dock = dockOf(page);
   await dock.getByRole('button', { name: 'Save', pressed: false }).click();
   await expect(dock.getByRole('button', { name: 'Save', pressed: true })).toBeVisible();
