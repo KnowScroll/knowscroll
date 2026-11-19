@@ -76,7 +76,8 @@ function declaredScrollSchemas(capabilities: unknown): readonly string[] {
  * For each asset whose current revision is a v2 or v3 document the client cannot render, the latest earlier
  * revision whose schema the client declares (a v2, else a v1, for a client that has not learned v3). A regenerated
  * Scroll keeps its asset, so the revision it replaced is the fallback for a client that has not learned the new
- * format; an asset with none is simply not offered to that client. Only discovery substitutes: an exact revision
+ * format, and a revision still held for review never stands in; an asset with none is simply not offered to that
+ * client. Only discovery substitutes: an exact revision
  * pinned by an offer or a link is never swapped (D-129).
  */
 async function olderRows(
@@ -89,6 +90,7 @@ async function olderRows(
   const found = await sql<{ asset_id: string; revision: number }>`select distinct on (r.asset_id) r.asset_id,r.revision
     from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.status='admitted'
     where r.asset_id=any(${assetIds}::uuid[]) and r.document_version=any(${schemas}::text[]) and r.revision<a.revision
+      and ${notUnderReview('r.asset_id', 'r.revision')}
     order by r.asset_id,r.revision desc`.execute(db);
   if (found.rows.length === 0) return new Map();
   const pairs = sql.join(found.rows.map((row) => sql`(${row.asset_id}::uuid,${row.revision})`));
