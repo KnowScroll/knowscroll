@@ -2,6 +2,7 @@ import type {
   CheckAssetAudience,
   FindAssetForAction,
   ReadExactEncounter,
+  ReadOfferEncounter,
   ReadSavedMetadata,
   ReadSavedPageMetadata,
 } from '../../content/public.js';
@@ -34,6 +35,13 @@ export function gateFindAsset(find: FindAssetForAction, check: CheckAssetAudienc
  * `return` to it, an offer for it and an exposure of it all refuse as an unavailable offer would.
  */
 export function gateExactEncounter(read: ReadExactEncounter, check: CheckAssetAudience): ReadExactEncounter {
+  const holds = holdsOne(check);
+  return async (scope, request) =>
+    (await holds({ scope }, scope.authority, request.assetId)) ? read(scope, request) : undefined;
+}
+
+/** The same gate on the read that commits an offer with its cover: a Scroll the caller may not reach is not offered. */
+export function gateOfferEncounter(read: ReadOfferEncounter, check: CheckAssetAudience): ReadOfferEncounter {
   const holds = holdsOne(check);
   return async (scope, request) =>
     (await holds({ scope }, scope.authority, request.assetId)) ? read(scope, request) : undefined;

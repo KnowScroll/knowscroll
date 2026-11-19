@@ -1,4 +1,5 @@
 import { oc } from '@orpc/contract';
+import { StageFrame } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import { ClientCapabilities } from './content.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
@@ -53,9 +54,31 @@ export const FormatVariantSchema = z.discriminatedUnion('status', [
 ]);
 
 /**
+ * The capability a client declares in `capabilities.documentSchemas` when it can draw a Scroll offer as
+ * a cover. A session that does not declare it is sent offers without one, exactly as before.
+ */
+export const OFFER_COVER_SCHEMA = 'offer-cover.v1';
+
+/**
+ * What a Scroll offer shows before it is opened, taken from the offered revision's own document. The
+ * title is the offer's `metadata.title` and the dek its `metadata.summary` (for a Scroll, discovery
+ * stores the document's dek as the summary), so neither is repeated here. `readStops` (the paragraphs
+ * of a v2 essay) and `figure` (the first state of its stage) exist only for a v2 Scroll that has them.
+ * Consumer-facing words and numbers only, like the rest of the offer.
+ */
+export const OfferCoverSchema = z.strictObject({
+  version: z.literal(OFFER_COVER_SCHEMA),
+  kicker: z.string().min(1).max(40),
+  readingMinutes: z.number().min(0.1).max(240),
+  readStops: z.number().int().min(1).max(64).optional(),
+  figure: StageFrame.optional(),
+});
+
+/**
  * A prepared offer is not an exposure and grants no rendering/evidence authority. Activation must
  * recheck its owner/epoch, session intent, expiry, immutable revision and current asset eligibility
  * independently. Buffered offers are not observations. Decision IDs are opaque ops correlation.
+ * A Scroll offer carries a `cover` only for a session that declared {@link OFFER_COVER_SCHEMA}.
  */
 export const EncounterOfferSchema = z.strictObject({
   offerId: UuidSchema,
@@ -64,6 +87,7 @@ export const EncounterOfferSchema = z.strictObject({
   assetRevision: Revision,
   explanationUnitId: OpaqueContentId,
   metadata: EncounterMetadataSchema,
+  cover: OfferCoverSchema.optional(),
   relation: EncounterRelationSchema,
   variants: z
     .array(FormatVariantSchema)
@@ -325,6 +349,7 @@ export const ExposureContextResponseSchema = z.strictObject({
 
 export type EncounterMetadata = z.infer<typeof EncounterMetadataSchema>;
 export type EncounterOffer = z.infer<typeof EncounterOfferSchema>;
+export type OfferCover = z.infer<typeof OfferCoverSchema>;
 export type OpenDiscoveryRequest = z.infer<typeof OpenDiscoveryRequestSchema>;
 export type OpenRevisitRequest = z.infer<typeof OpenRevisitRequestSchema>;
 export type NavigateExperienceRequest = z.infer<typeof NavigateExperienceRequestSchema>;

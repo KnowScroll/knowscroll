@@ -123,6 +123,13 @@ Transaction 2 is `commitNavigation`: `recheckPreparation`, `lockRegionSelection`
 `readVerticalCandidates` and `assembleSnapshot`, shared with the buffer worker. The input is serialised
 once, and again only if it must be trimmed to its durable budget.
 
+A Scroll offer carries a cover when the session's stored capabilities declare `offer-cover.v1`
+(`declaresCover`). `selectStillEligible` then rereads each selected candidate with `readOfferEncounter`: the
+cover comes from the same exact row as the recheck, so the offer shows the revision it will open. It is
+frozen in the stored offer descriptor, so a replay returns it unchanged. Other sessions and Reels get offers
+without the key. The Composer snapshot and buffers never hold a cover. Implemented, CI-tested against real
+PostgreSQL; not runtime-verified.
+
 A vertical move from an activated offer first looks for a Composer buffer prepared for exactly that
 session, intent revision and source offer and exposure. A valid buffer is used instead of retrieving and
 ranking; transaction 2 rechecks each selected offer as for a fresh ranking, deletes the buffer in the same

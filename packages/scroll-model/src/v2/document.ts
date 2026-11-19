@@ -191,6 +191,40 @@ export const Stage = z.discriminatedUnion('kit', [
 ]);
 export type Stage = z.infer<typeof Stage>;
 
+/** One state of a kit as a picture on its own: the kit that draws it, the state, and the words for it. */
+function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: State) {
+  return z.strictObject({ kit: z.literal(kit), state, alt: plainText(10, F.stateDescriptionChars) });
+}
+
+/**
+ * A single frame of a stage, outside its document: what a cover shows of a Scroll before it is opened. The
+ * kits on the device draw it from the state, so a frame carries no drawing.
+ */
+export const StageFrame = z.discriminatedUnion('kit', [
+  frameOf(EARTH_SKY_KIT, StageStateSchema),
+  frameOf(TIDES_KIT, TidesStateSchema),
+  frameOf(GREENHOUSE_KIT, GreenhouseStateSchema),
+  frameOf(STAR_KIT, StarStateSchema),
+  frameOf(TRANSIT_KIT, TransitStateSchema),
+  frameOf(CIRCULATION_KIT, CirculationStateSchema),
+  frameOf(NERVE_KIT, NerveStateSchema),
+  frameOf(STARLIGHT_KIT, StarlightStateSchema),
+  frameOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
+]);
+export type StageFrame = z.infer<typeof StageFrame>;
+
+/**
+ * The picture a Scroll opens on: its stage's first state, which validation pins to the first stop
+ * (`stage_first_state_missing`). A Scroll without a stage has none.
+ */
+export function firstFrameOf(document: Pick<ScrollDocumentV2, 'stage'>): StageFrame | undefined {
+  const first = document.stage?.states[0];
+  // The kit and its state come from one validated stage, so they belong together; TypeScript cannot follow that pairing.
+  return document.stage && first
+    ? ({ kit: document.stage.kit, state: first.state, alt: first.alt } as StageFrame)
+    : undefined;
+}
+
 /**
  * The landmark a Scroll awards when its Final call is locked (D-188): a stable key and the name the
  * reader sees ("The Leaning Axis"). Recipe data set by code, never model text. A Scroll without one

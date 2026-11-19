@@ -1,5 +1,6 @@
 import type { ReadEncounterAttribution, ReadPlayLevel } from '../public.js';
 import { traitsOfDocument } from '../domain/traits.js';
+import { coverOfDocument } from './offer-cover.js';
 import { createHash } from 'node:crypto';
 import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
@@ -19,6 +20,7 @@ import {
   type EncounterSnapshot,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
+  type ReadOfferEncounter,
   type ReadContinuations,
   type ResolveContinuityLink,
   type ReadEncounterTopics,
@@ -234,11 +236,23 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
     .slice(0, q.limit ?? 100)
     .map((row) => snapshot(row, laneOf.get(row.asset_id)));
 };
-export const readExactEncounter: ReadExactEncounter = async (scope, q) => {
+/** One exact admitted revision that the client can render, or nothing. */
+async function exactRow(scope: Parameters<ReadExactEncounter>[0], q: Parameters<ReadExactEncounter>[1]) {
   const row = (
     await rows(transactionOf(scope), sql`r.asset_id=${q.assetId}::uuid and r.revision=${q.assetRevision}`, 1)
   )[0];
-  return row && canRender(row, q.capabilities) ? snapshot(row) : undefined;
+  return row && canRender(row, q.capabilities) ? row : undefined;
+}
+export const readExactEncounter: ReadExactEncounter = async (scope, q) => {
+  const row = await exactRow(scope, q);
+  return row ? snapshot(row) : undefined;
+};
+/** The same read, with the cover taken from the document the row already holds: no second query. */
+export const readOfferEncounter: ReadOfferEncounter = async (scope, q) => {
+  const row = await exactRow(scope, q);
+  if (!row) return undefined;
+  const cover = row.kind === 'scroll' ? coverOfDocument(row.document) : undefined;
+  return { encounter: snapshot(row), ...(cover ? { cover } : {}) };
 };
 export const readEncounterTopics: ReadEncounterTopics = async (scope, ref) => {
   const result = await sql<{
