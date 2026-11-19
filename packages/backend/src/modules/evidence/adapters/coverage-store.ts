@@ -15,13 +15,28 @@ import {
   type CheckCoverageEvidence,
   type ObservedCoveragePorts,
 } from '../application/coverage-ports.js';
-import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from '../domain/policy.js';
+import {
+  SCROLL_QUALIFICATION_POLICY_V0,
+  SCROLL_RECORDING_QUALIFICATION_POLICY,
+  SCROLL_SHARED_QUALIFICATION_POLICY,
+} from '../domain/policy.js';
 import { REEL_QUALIFICATION_POLICY_V0, REEL_RECORDING_QUALIFICATION_POLICY } from '../domain/reel-summary.js';
 
-/** The qualification policies whose rows a legacy (initial generation) certificate may rest on, Scroll and Reel. */
-const LEGACY_POLICIES = [SCROLL_QUALIFICATION_POLICY_V0, REEL_QUALIFICATION_POLICY_V0];
+/**
+ * The qualification policies whose rows a legacy (initial generation) certificate may rest on, Scroll and Reel. The
+ * shared clock qualifies a document v3's reading in either clock domain, so both lists hold it.
+ */
+const LEGACY_POLICIES = [
+  SCROLL_QUALIFICATION_POLICY_V0,
+  SCROLL_SHARED_QUALIFICATION_POLICY,
+  REEL_QUALIFICATION_POLICY_V0,
+];
 /** The same for a recorded session. */
-const SESSION_POLICIES = [SCROLL_RECORDING_QUALIFICATION_POLICY, REEL_RECORDING_QUALIFICATION_POLICY];
+const SESSION_POLICIES = [
+  SCROLL_RECORDING_QUALIFICATION_POLICY,
+  SCROLL_SHARED_QUALIFICATION_POLICY,
+  REEL_RECORDING_QUALIFICATION_POLICY,
+];
 
 /**
  * Whether the stored evidence row still shows the reading a certificate claims: qualified under the policy it was
@@ -68,7 +83,7 @@ export const readCoverageEvidence: ObservedCoveragePorts['readEvidence'] = async
     estimated_reading_ms: number;
     summary: unknown;
   }>`select id,revision,input_watermark,policy_version,asset_id,asset_revision,qualification,q,coverage,estimated_reading_ms,summary
-    from evidence.encounter_evidence where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${generation ?? 1} and (${generation === undefined} and policy_version in('scroll-qualification.v0','reel-qualification.v0') or ${generation !== undefined} and (${qualificationId !== undefined} and id=${qualificationId ?? null}::uuid or ${qualificationId === undefined} and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${generation ?? 1}))) order by revision desc limit 1`.execute(
+    from evidence.encounter_evidence where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${generation ?? 1} and (${generation === undefined} and policy_version in('scroll-qualification.v0','scroll-qualification.shared.v1','reel-qualification.v0') or ${generation !== undefined} and (${qualificationId !== undefined} and id=${qualificationId ?? null}::uuid or ${qualificationId === undefined} and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${generation ?? 1}))) order by revision desc limit 1`.execute(
     transactionOf(scope),
   );
   const r = rows.rows[0];

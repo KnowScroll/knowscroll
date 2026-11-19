@@ -135,7 +135,11 @@ export function starterSource(): { [key: string]: unknown } {
   return JSON.parse(readFileSync(path, 'utf8')) as { [key: string]: unknown };
 }
 
-/** A hand-written document v3 fixture's source file (an `editorial-scroll-v3.v1` JSON), as the operator command reads it. */
+/**
+ * A hand-written document v3 fixture's source file (an `editorial-scroll-v3.v1` JSON): `fence`
+ * (recipe `industrial-debate`), `seasons` (`seasons`) or `broad-street` (`industrial-towns`). A fresh copy each call,
+ * so a test can change it.
+ */
 export function documentV3Source(name: 'fence' | 'seasons' | 'broad-street'): { [key: string]: unknown } {
   const path = new URL(
     `../../../packages/backend/src/modules/content/fixtures/document-v3/${name}.editorial-scroll-v3.json`,

@@ -47,6 +47,12 @@ export function parseEditorialSourceV3(raw: unknown): SourceParse {
   return { kind: 'source', assetId: parsed.data.assetId, source: parsed.data };
 }
 
+/** The library recipe a document v3 source names, for its coverage; `undefined` for any other source. */
+export function recipeOfEditorialSourceV3(source: unknown): string | undefined {
+  const parsed = EditorialSourceV3Schema.safeParse(source);
+  return parsed.success ? parsed.data.recipe : undefined;
+}
+
 /**
  * Compiles a document v3 source as revision `revision` through scroll-model's editorial compile: the evidence rules on
  * the authored form (every figure and quotation in a passage its part cites, no copying), code-set ids, measures and

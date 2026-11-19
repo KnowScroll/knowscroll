@@ -25,6 +25,12 @@ export interface ScrollQualificationPolicy {
   readonly minPeakFraction: number;
   /** The recorder build that reports enough to qualify a reading (lower builds leave it unknown). */
   readonly minInstrumentationVersion: number;
+  /**
+   * How visible time is counted. `per-unit`: every unit on screen earns the whole of each moment, so several units seen
+   * together each earn it at once. `shared`: each moment is divided between the units on screen in proportion to their
+   * weight, so a screen of four paragraphs earns each about a quarter (#761, Folio README 7.2).
+   */
+  readonly clock: 'per-unit' | 'shared';
 }
 
 export const SCROLL_QUALIFICATION_POLICY_V0: ScrollQualificationPolicy = Object.freeze({
@@ -36,6 +42,7 @@ export const SCROLL_QUALIFICATION_POLICY_V0: ScrollQualificationPolicy = Object.
   minBlockVisibleMs: 500,
   minPeakFraction: 0.5,
   minInstrumentationVersion: 1,
+  clock: 'per-unit',
 });
 
 /**
@@ -65,3 +72,25 @@ export const SCROLL_RECORDING_QUALIFICATION_POLICY: ScrollQualificationPolicy = 
   ...SCROLL_QUALIFICATION_POLICY_V0,
   version: 'scroll-qualification.recording.v1',
 });
+
+/**
+ * The shared clock (#761, decision E1): the same thresholds, and each moment of visible time is shared between the
+ * units on screen in proportion to their words, so a unit's own minimum (40 % of its words' time) and the policy's
+ * floor apply to its share. It qualifies readings of a document v3 (reading facts v4, whose units are beats) and no
+ * other: v1 and v2 readings keep the policies they had, and the numbers they gave.
+ */
+export const SCROLL_SHARED_QUALIFICATION_POLICY: ScrollQualificationPolicy = Object.freeze({
+  ...SCROLL_QUALIFICATION_POLICY_V0,
+  version: 'scroll-qualification.shared.v1',
+  clock: 'shared',
+});
+
+/** The reading-facts version whose readings the shared clock qualifies: a document v3's beats. */
+export const SHARED_CLOCK_FACTS_VERSION = 4;
+
+/** Every Scroll qualification policy, so a stored label can be read back to its record. */
+export const SCROLL_QUALIFICATION_POLICIES: readonly ScrollQualificationPolicy[] = [
+  SCROLL_QUALIFICATION_POLICY_V0,
+  SCROLL_RECORDING_QUALIFICATION_POLICY,
+  SCROLL_SHARED_QUALIFICATION_POLICY,
+];

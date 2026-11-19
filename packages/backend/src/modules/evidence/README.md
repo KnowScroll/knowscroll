@@ -177,6 +177,20 @@ Tapping through the spine does not qualify (a property test); the option a call 
 interaction kind and never reaches this module (D-063). `observedBindings` accepts facts v2 and v3 and
 checks eligibility by version (`ELIGIBLE_BY_FACTS_VERSION`, kept equal to content's rule by a test).
 
+### Reading a document v3: the shared clock (#761, D-431)
+
+Status: **implemented**, runtime-verified with the labelled fixtures on real PostgreSQL.
+
+Folio shows several beats at once, and under the per-unit clock each of them earns every moment it is on screen, so a
+skimmer qualifies a whole screen at once (Folio README 7.2). A reading of a document v3 (reading facts v4, whose units
+are beats) is qualified under `scroll-qualification.shared.v1` (`policy.clock: 'shared'`) in either clock domain: each
+moment of active visible time is divided between the beats on screen in proportion to their weight (their words), and a
+beat counts once its **share** reaches its own minimum (40 % of its words' time) and the 500 ms floor, and its peak
+visible fraction reached 0.5 (`sharedVisibleMs`). The thresholds, q and its weights are unchanged. Folio README 7.2's
+table holds: a skimmer (four beats a screen, six seconds a screen) qualifies under the per-unit clock and not under the
+shared one; a fast and a careful reader qualify under both. v1 and v2 readings keep their policies and their numbers.
+`observedBindings` accepts facts v4 only from a shared-clock row, and a shared-clock row only for facts v4.
+
 ## Tables, jobs, lock order, erasure
 
 | Table | Holds |

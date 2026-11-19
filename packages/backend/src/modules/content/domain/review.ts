@@ -23,7 +23,12 @@ export type ReleaseRefusal =
   | 'revision_rejected'
   | 'asset_withdrawn'
   /** The asset already serves this revision or a newer one; a release never moves it backwards. */
-  | 'not_newer_than_served';
+  | 'not_newer_than_served'
+  /**
+   * A document v3 revision has no active coverage head, so reading it would form nothing in the Universe (#761,
+   * decision G1). Admit its coverage first (`content readmit-coverage`).
+   */
+  | 'coverage_missing';
 
 export type ReleaseDecision =
   | { readonly kind: 'release' }

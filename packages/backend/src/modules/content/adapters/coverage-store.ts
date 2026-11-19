@@ -5,6 +5,7 @@ import {
   canonicalJson,
   canonicalSha256,
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
   utf8ByteLength,
   walkBlocks,
 } from '@knowscroll/scroll-model';
@@ -36,6 +37,7 @@ import { seedSnapshot } from '../domain/catalogue/seed.js';
 import { readCatalogueIn } from './catalogue-store.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
 import { coverageTargetOfV2 } from './coverage-target-v2.js';
+import { coverageTargetOfV3 } from './coverage-target-v3.js';
 import { coverageTargetOfReel } from './coverage-target-reel.js';
 import { ReelCoverageProvenanceSchema } from '../domain/reel-coverage.js';
 import { notUnderReview } from './review-gate-sql.js';
@@ -142,6 +144,7 @@ async function readTarget(
   const row = result.rows[0];
   if (!row) return readReelTarget(db, ref, reachable);
   if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) return coverageTargetOfV2(row, ref);
+  if (row.document_version === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) return coverageTargetOfV3(row, ref);
   const parsed = admitDocument(row.document);
   const provenance = ScrollProvenance.safeParse(row.provenance);
   if (parsed.kind !== 'valid' || !provenance.success || provenance.data.production.kind === 'fixture') return undefined;

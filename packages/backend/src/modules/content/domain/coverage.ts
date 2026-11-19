@@ -12,11 +12,14 @@ export const REEL_COVERAGE_POLICY = 'reel-static-coverage.v1' as const;
 export const COVERAGE_LOCATOR_TYPES: readonly string[] = ['paragraph', 'quote', 'callout'];
 /** The only unit a coverage locator of a v2 document may name: a read stop. A call is play, not explanation (D-127). */
 export const COVERAGE_LOCATOR_TYPES_V2: readonly string[] = ['stop'];
+/** The only unit a coverage locator of a document v3 may name: a beat (#761). A section is a heading, not a unit. */
+export const COVERAGE_LOCATOR_TYPES_V3: readonly string[] = ['beat'];
 /** The only unit a coverage locator of a Reel may name: a segment, one narration sentence (one shot) of its script. */
 export const COVERAGE_LOCATOR_TYPES_REEL: readonly string[] = ['segment'];
 
 /** The unit kinds a coverage locator may name, by the version of the reading facts the document has. */
 export function coverageLocatorTypes(readingFactsVersion: number): readonly string[] {
+  if (readingFactsVersion === 4) return COVERAGE_LOCATOR_TYPES_V3;
   return readingFactsVersion === 3 ? COVERAGE_LOCATOR_TYPES_V2 : COVERAGE_LOCATOR_TYPES;
 }
 const Hash = z.string().regex(/^[0-9a-f]{64}$/u);
@@ -38,7 +41,7 @@ export const CoverageMappingSchema = z
     explanationUnitId: Ref,
     framing: z.literal('factual'),
     framingSha256: Hash,
-    readingFactsVersion: z.union([z.literal(2), z.literal(3)]),
+    readingFactsVersion: z.union([z.literal(2), z.literal(3), z.literal(4)]),
     readingFactsSha256: Hash,
     catalogueVersion: z.literal(CONCEPT_CATALOGUE_VERSION),
     catalogueSha256: Hash,

@@ -3,7 +3,12 @@ import {
   REEL_QUALIFICATION_POLICY_V0,
   REEL_RECORDING_QUALIFICATION_POLICY,
 } from '../domain/reel-summary.js';
-import { SCROLL_QUALIFICATION_POLICY_V0, SCROLL_RECORDING_QUALIFICATION_POLICY } from '../domain/policy.js';
+import {
+  SCROLL_QUALIFICATION_POLICY_V0,
+  SCROLL_RECORDING_QUALIFICATION_POLICY,
+  SCROLL_SHARED_QUALIFICATION_POLICY,
+  SHARED_CLOCK_FACTS_VERSION,
+} from '../domain/policy.js';
 import { qualifyScrollReading } from '../domain/qualification.js';
 import { summariseReading, summariseRecordingReading, type ObservationRecord } from '../domain/reading-summary.js';
 import { ProjectScrollReadingPayloadSchema, type ProjectScrollReadingPayload } from '../events.js';
@@ -65,7 +70,7 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
       privacyEpoch: payload.privacyEpoch,
       actor: { kind: 'system', purpose: 'evidence.project-scroll-reading' },
     } as const;
-    const policy = domain === 'legacy' ? SCROLL_QUALIFICATION_POLICY_V0 : SCROLL_RECORDING_QUALIFICATION_POLICY;
+    const domainPolicy = domain === 'legacy' ? SCROLL_QUALIFICATION_POLICY_V0 : SCROLL_RECORDING_QUALIFICATION_POLICY;
     const reelPolicy = domain === 'legacy' ? REEL_QUALIFICATION_POLICY_V0 : REEL_RECORDING_QUALIFICATION_POLICY;
     const entered = await ports.withPersonalScope(authority, async (scope): Promise<ProjectScrollReadingResult> => {
       if ((await ports.fenceOwn(scope)).kind !== 'active') return { kind: 'skipped', reason: 'universe_unavailable' };
@@ -78,6 +83,8 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
       if (exposure.activatedAt === undefined) return { kind: 'skipped', reason: 'exposure_not_active' };
       const facts = await ports.readReadingFacts(scope, exposure.assetId, exposure.assetRevision);
       if (facts === undefined) return { kind: 'skipped', reason: 'facts_missing' };
+      // A document v3's beats are read on the shared clock, in either clock domain (#761, decision E1).
+      const policy = facts.v === SHARED_CLOCK_FACTS_VERSION ? SCROLL_SHARED_QUALIFICATION_POLICY : domainPolicy;
       const read = await ports.readObservations(cap, exposure.id, domain);
       if (read.kind === 'limit') return { kind: 'skipped', reason: 'observation_limit' };
       const segment = await ports.readSegment(cap, exposure.id);
