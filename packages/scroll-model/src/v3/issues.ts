@@ -1,4 +1,5 @@
 import type { ReasonCode } from '../issues.js';
+import type { V2ReasonCode } from '../v2/issues.js';
 
 /**
  * Reason codes of `scroll-document.v3`. Stable (a code never changes meaning); a finding carries only the code and a
@@ -40,13 +41,21 @@ export const V3_REASON_CODES = [
   'aside_anchor_unknown',
   'limits_aside_missing',
   'takeaway_sentences',
+  // The editorial compile: a quotation must match a passage it cites word for word.
+  'quote_not_in_evidence',
 ] as const;
 
 export type V3ReasonCode = (typeof V3_REASON_CODES)[number];
 
-/** One finding of the document v3 path: a v1 code (size, schema, ids, measures, hash) or a document v3 code. */
+/**
+ * The one v2 code a v3 finding may carry: the notice that a myth's source label is not yet reviewed. It means the same
+ * in both formats and is a notice, never a refusal, so v3 reuses it instead of keeping a second copy of the code.
+ */
+export type SharedNoticeCode = Extract<V2ReasonCode, 'misconception_source_unreviewed'>;
+
+/** One finding of the document v3 path: a v1 code (size, schema, ids, measures, hash), a document v3 code or a shared notice. */
 export interface IssueV3 {
-  readonly code: ReasonCode | V3ReasonCode;
+  readonly code: ReasonCode | V3ReasonCode | SharedNoticeCode;
   readonly path: string;
 }
 
