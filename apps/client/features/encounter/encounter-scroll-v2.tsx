@@ -113,6 +113,8 @@ export function ScrollV2Encounter({
               session.act(entry.context.actions.liked ? 'unlike' : 'like');
             },
           },
+          // The whole Scroll: the dock's Share where the stop on screen cannot be a moment, and the ••• sheet's button.
+          shareScroll: () => session.openShare(),
           nextTopic: () => session.navigate({ mode: 'vertical', direction: 'next' }),
           ...moves,
           // Ask from here (D1): the question is anchored to the stop on screen, or the last one at the end of the Scroll.

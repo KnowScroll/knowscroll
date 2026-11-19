@@ -34,13 +34,13 @@ describe('Next in the top bar', () => {
 
   it('says its word on a phone while the controls sit beside the title', async () => {
     await bar(390);
-    expect(screen.getByText('Next', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Next')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Next topic' })).toBeOnTheScreen();
   });
 
   it('says its word from tablet width up, and is its arrow alone at 320 and 360 px', async () => {
     const wide = await bar(834);
-    expect(screen.getByText('Next', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Next')).toBeOnTheScreen();
     await wide.unmount();
     for (const width of [320, 360]) {
       const small = await bar(width);
@@ -52,7 +52,7 @@ describe('Next in the top bar', () => {
 
   it('takes its word back when the controls would wrap under the title, and keeps it back for that title', async () => {
     const view = await bar(390, 'A title too long to leave room');
-    expect(screen.getByText('Next', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Next')).toBeOnTheScreen();
     // The controls were laid out wholly below the title: no room.
     await fireEvent(screen.getByTestId('reader-top-title'), 'layout', layout(0, 40));
     await fireEvent(screen.getByTestId('reader-top-controls'), 'layout', layout(48, 44));
@@ -70,14 +70,14 @@ describe('Next in the top bar', () => {
 describe('Next in the top bar, with a title that needs more than two lines beside it', () => {
   it('takes its word back, because the title would be cut', async () => {
     await bar(390, 'A title that needs three lines');
-    expect(screen.getByText('Next', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Next')).toBeOnTheScreen();
     // Two lines of the title's type, and a little: the title fits.
     await fireEvent(
       screen.getByTestId('reader-top-title-probe', { includeHiddenElements: true }),
       'layout',
       layout(0, 36),
     );
-    expect(screen.getByText('Next', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText('Next')).toBeOnTheScreen();
     await fireEvent(
       screen.getByTestId('reader-top-title-probe', { includeHiddenElements: true }),
       'layout',
@@ -102,7 +102,7 @@ describe('the dock (D-429)', () => {
   it('is Like, Share and Save, then ••• and the next Part, with a small word under each glyph and no Ask', async () => {
     await dock(390, {
       like: { on: false, onPress: jest.fn() },
-      share: { onPress: jest.fn() },
+      share: { onPress: jest.fn(), what: 'moment' },
       save: { on: false, onPress: jest.fn() },
       onMore: jest.fn(),
       nextPart,
@@ -140,34 +140,37 @@ describe('the dock (D-429)', () => {
     expect(screen.getByRole('togglebutton', { name: 'Save' })).toHaveProp('pointerEvents', 'none');
   });
 
-  it('disables Share where the stop cannot be shared, and its name says why', async () => {
+  it('shares the whole Scroll where the stop on screen cannot be a moment: never disabled, and its name says which', async () => {
     const share = jest.fn();
-    await dock(390, { share: { onPress: share, unavailable: 'A call would give its answer away.' } });
-    const button = screen.getByRole('button', { name: 'Share a moment. A call would give its answer away.' });
-    expect(button).toBeDisabled();
+    await dock(390, { share: { onPress: share, what: 'scroll' } });
+    expect(screen.queryByRole('button', { name: /^Share a moment/ })).not.toBeOnTheScreen();
+    const button = screen.getByRole('button', { name: 'Share this Scroll' });
+    expect(button).toBeEnabled();
+    // The word under the glyph stays "Share" (WCAG 2.5.3: it is in the name).
+    expect(screen.getByText('Share', { includeHiddenElements: true })).toBeOnTheScreen();
     await fireEvent.press(button);
-    expect(share).not.toHaveBeenCalled();
+    expect(share).toHaveBeenCalledTimes(1);
   });
 
-  it('shares the moment when Share is pressed', async () => {
+  it('shares the moment when Share is pressed on a stop that can be one', async () => {
     const share = jest.fn();
-    await dock(390, { share: { onPress: share } });
+    await dock(390, { share: { onPress: share, what: 'moment' } });
     await fireEvent.press(screen.getByRole('button', { name: 'Share a moment' }));
     expect(share).toHaveBeenCalledTimes(1);
   });
 
   it("leaves out what the screen cannot do: a thread's reader has no Like and no Save", async () => {
-    await dock(390, { share: { onPress: jest.fn() }, onMore: jest.fn() });
+    await dock(390, { share: { onPress: jest.fn(), what: 'moment' }, onMore: jest.fn() });
     expect(screen.queryByRole('togglebutton', { name: 'Like' })).not.toBeOnTheScreen();
     expect(screen.queryByRole('togglebutton', { name: 'Save' })).not.toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
   });
 
-  it('keeps all five controls at 320, 360 and 390 px, with the way on last', async () => {
+  it('draws Like, Share, Save, More and the way on at 320, 360 and 390 px (the layout itself is checked in the browser)', async () => {
     for (const width of [320, 360, 390]) {
       const view = await dock(width, {
         like: { on: false, onPress: jest.fn() },
-        share: { onPress: jest.fn() },
+        share: { onPress: jest.fn(), what: 'moment' },
         save: { on: false, onPress: jest.fn() },
         onMore: jest.fn(),
         nextPart,
@@ -180,12 +183,12 @@ describe('the dock (D-429)', () => {
     }
   });
 
-  it('wraps with large text, so the row grows a line instead of squeezing or clipping a control', async () => {
+  it('is a wrapping row of 44 px targets at large text, so it can grow a line instead of squeezing a control (measured in the browser)', async () => {
     await dock(
       320,
       {
         like: { on: true, onPress: jest.fn() },
-        share: { onPress: jest.fn() },
+        share: { onPress: jest.fn(), what: 'moment' },
         save: { on: false, onPress: jest.fn() },
         onMore: jest.fn(),
         nextPart,

@@ -153,11 +153,13 @@ export interface DockToggle {
   readonly onPress: () => void;
 }
 
-/** Share a moment as the dock offers it: the stop on screen, or why it cannot be shared. */
+/**
+ * Share as the dock offers it, never a dead button: a moment when the stop on screen can be shared as one, otherwise the
+ * whole Scroll. `what` says which, so the name says what pressing will do; the word on the button stays "Share".
+ */
 export interface DockShare {
   readonly onPress: () => void;
-  /** Why the stop on screen cannot be shared; the button is then disabled and its name says why. */
-  readonly unavailable?: string | undefined;
+  readonly what: 'moment' | 'scroll';
 }
 
 /** One dock action: its glyph in a 44 px target with its word beneath, small, which repeats the name for the eye alone. */
@@ -167,7 +169,6 @@ function DockAction({
   name,
   pressed,
   busy,
-  disabled,
   onPress,
   testID,
 }: {
@@ -176,7 +177,6 @@ function DockAction({
   readonly name: string;
   readonly pressed?: boolean | undefined;
   readonly busy?: boolean | undefined;
-  readonly disabled?: boolean | undefined;
   readonly onPress: () => void;
   readonly testID: string;
 }) {
@@ -189,12 +189,11 @@ function DockAction({
         size={44}
         pressed={pressed}
         busy={busy}
-        disabled={disabled}
         onPress={onPress}
         testID={testID}
       />
       <View aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <Text variant="uiLabel" color={disabled === true ? content.ink2 : content.ink}>
+        <Text variant="uiLabel" color={content.ink}>
           {word}
         </Text>
       </View>
@@ -206,7 +205,8 @@ function DockAction({
  * The dock at the bottom of a v2 Scroll (D-429): ♡ Like, Share and Save at the start, ••• and the way on at the end. The way on is the one
  * primary action, in the continuation yellow's place: the next Part (D-184, D-425), absent when none was admitted. Ask is
  * the first row of the ••• sheet (and the A and ? keys). A control the screen cannot do is left out (a thread's reader
- * keeps no Save and has no Like); a Share that cannot work on the stop on screen is disabled and says why in its name.
+ * keeps no Save and has no Like); Share is never disabled: it shares the stop on screen as a moment where it can, and
+ * otherwise the whole Scroll, and its name says which.
  * The words are those of the encounter actions (D-006 b), a toggle keeps its word when pressed and announces its state.
  */
 export function ReaderDock({
@@ -227,7 +227,7 @@ export function ReaderDock({
   // or squeezed under 44 px.
   const { breakpoint, width } = useDisplay();
   const compact = breakpoint === 'compact';
-  const shareName = share?.unavailable === undefined ? 'Share a moment' : `Share a moment. ${share.unavailable}`;
+  const shareName = share?.what === 'scroll' ? 'Share this Scroll' : 'Share a moment';
   return (
     <View
       testID="reader-dock"
@@ -247,14 +247,7 @@ export function ReaderDock({
         />
       )}
       {share === undefined ? null : (
-        <DockAction
-          icon="share"
-          word="Share"
-          name={shareName}
-          disabled={share.unavailable !== undefined}
-          onPress={share.onPress}
-          testID="dock-share"
-        />
+        <DockAction icon="share" word="Share" name={shareName} onPress={share.onPress} testID="dock-share" />
       )}
       {save === undefined ? null : (
         <DockAction

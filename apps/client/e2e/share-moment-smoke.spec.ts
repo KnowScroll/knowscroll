@@ -224,7 +224,9 @@ for (const viewport of viewports) {
     await shot(page, `moment-explore-none-hold-${viewport.name}`);
   });
 
-  test(`on a call stop, Share in the dock is disabled and its name says why, at ${viewport.name}`, async ({ page }) => {
+  test(`on a call stop, Share in the dock shares the whole Scroll instead, and says so in its name, at ${viewport.name}`, async ({
+    page,
+  }) => {
     await openExploreWithThreads(page, viewport, { holding: [] });
     // The third stop of the fixture is its first Call it: read once its top has reached the reading band (42 % down the
     // scroller), which is where Folio brings a stop that is jumped to.
@@ -239,11 +241,17 @@ for (const viewport of viewports) {
       'aria-valuenow',
       '0',
     );
-    await expect(dockShare(page)).toBeDisabled();
-    await expect(dockShare(page)).toHaveAccessibleName(/A call would give its answer away/);
-    // The ••• sheet has no Share a moment row any more.
+    // A call would give its answer away, so it is no moment: the button is not dead, it shares the Scroll (D-429).
+    const share = page.getByTestId('reader-dock').getByRole('button', { name: 'Share this Scroll' });
+    await expect(share).toBeEnabled();
+    await expect(dockShare(page)).toHaveCount(0);
+    await shot(page, `moment-more-call-${viewport.name}`);
+    await share.click();
+    await expect(page.getByRole('dialog', { name: 'Share', exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Share a moment' })).toHaveCount(0);
+    // The ••• sheet has no Share a moment row either.
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'More', exact: true }).click();
     await expect(page.getByTestId('more-share-moment')).toHaveCount(0);
-    await shot(page, `moment-more-call-${viewport.name}`);
   });
 }

@@ -231,10 +231,49 @@ test('Save toggles from its button, keeps its word, and is no longer a row of �
   await expect(page.getByTestId('more-share-moment')).toHaveCount(0);
 });
 
+test('Share is never a dead button: a moment where the stop can be one, the whole Scroll at the end', async ({
+  page,
+}) => {
+  const served = await open(page);
+  const dock = dockOf(page);
+  await expect(dock.getByRole('button', { name: 'Share a moment' })).toBeEnabled();
+  await reader(page).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByTestId('end-plate').getByText('To sum up')).toBeInViewport();
+  // The end is no stop to quote: the same button, its word unchanged, shares the Scroll and says so in its name.
+  const share = dock.getByRole('button', { name: 'Share this Scroll' });
+  await expect(share).toBeEnabled();
+  await expect(dock.getByText('Share', { exact: true })).toBeVisible();
+  await expect(dock.getByRole('button', { name: /^Share a moment/ })).toHaveCount(0);
+  await share.click();
+  await expect(
+    page.getByRole('dialog', { name: 'Share' }).getByRole('button', { name: 'Send to a conversation' }),
+  ).toBeVisible();
+  // It is the sheet ••• then "Share this Scroll" opens, and no Share a moment sheet opened.
+  await expect(page.getByRole('dialog', { name: 'Share a moment' })).toHaveCount(0);
+  expect(navigations(served.commands)).toEqual([]);
+});
+
 test('Ask about this is the first row of •••, opens Ask at the stop on screen, and A still opens it directly', async ({
   page,
 }) => {
-  await open(page);
+  const served = await open(page);
+  // Past the opening stop, so the anchor is the stop on screen and not just the first one. The reader learns where it is
+  // a moment after the scroll, so a probe (Share a moment quotes the stop being read) is asked until it has.
+  await scroller(page).evaluate((node) => {
+    node.scrollTop = (node.scrollHeight - node.clientHeight) / 2;
+  });
+  await expect
+    .poll(async () => {
+      await reader(page).focus();
+      await page.keyboard.press('h');
+      const quote = await page.getByTestId('moment-quote').innerText();
+      const probe = page.getByRole('dialog', { name: 'Share a moment' });
+      await probe.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(probe).toHaveCount(0);
+      return quote;
+    })
+    .not.toContain('It leans.');
   await page.getByRole('button', { name: 'More', exact: true }).click();
   const first = page.getByTestId('more-list').getByRole('button').first();
   await expect(first).toHaveAccessibleName('Ask about this');
@@ -242,12 +281,23 @@ test('Ask about this is the first row of •••, opens Ask at the stop on scr
   await first.click();
   const sheet = page.getByRole('dialog', { name: 'Ask for something' });
   await expect(sheet).toBeVisible();
+  // A question sent from here is anchored to the stop on screen, which is not the opening one.
+  await sheet.getByRole('button', { name: `Ask: ${seasons.askSuggestions[0]}` }).click();
+  const asked = () => served.commands.filter((command) => command.path === '/v1/content/requests');
+  await expect.poll(() => asked().length).toBe(1);
+  const { intent } = asked()[0]!.body as { intent: { anchor: { kind: string; stopId: string } } };
+  expect(intent.anchor.kind).toBe('stop');
+  expect(stopIds).toContain(intent.anchor.stopId);
+  expect(intent.anchor.stopId).not.toBe(stopIds[0]);
+  await page.getByTestId('ask-making').getByRole('button', { name: 'Keep reading' }).click();
+  await expect(page.getByTestId('ask-making')).toHaveCount(0);
   // Escape closes the sheet; then A opens the same sheet with no ••• in between.
-  await page.keyboard.press('Escape');
-  await expect(sheet).toHaveCount(0);
   await reader(page).focus();
   await page.keyboard.press('a');
-  await expect(page.getByRole('dialog', { name: 'Ask for something' })).toBeVisible();
+  const again = page.getByRole('dialog', { name: 'Ask for something' });
+  await expect(again).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(again).toHaveCount(0);
 });
 
 test('the ••• button opens the More sheet with its rows, and Next idea on the end plate asks for the next topic', async ({

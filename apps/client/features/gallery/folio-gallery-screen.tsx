@@ -151,7 +151,7 @@ export function FolioGalleryScreen() {
               <View style={{ paddingBottom: insets.bottom }}>
                 <ReaderDock
                   like={{ on: liked, onPress: () => setLiked((on) => !on) }}
-                  share={{ onPress: () => undefined }}
+                  share={{ onPress: () => undefined, what: 'moment' }}
                   save={{ on: saved, onPress: () => setSaved((on) => !on) }}
                   onMore={() => undefined}
                 />

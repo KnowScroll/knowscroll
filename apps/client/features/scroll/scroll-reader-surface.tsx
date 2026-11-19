@@ -20,9 +20,10 @@ import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contr
 import type { FeedbackTarget } from '@knowscroll/client-core';
 import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { whyNoMoment } from '@knowscroll/scroll-model';
+import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
-import { ShareStopSheet, noMomentWords, type MomentThread } from '../threads/share-stop-sheet';
+import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import { MoreSheetBody } from './more-sheet';
 import type { OpenedScrollV2 } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
@@ -57,6 +58,12 @@ export interface ReaderMoves {
   readonly previousPart?: (() => void) | undefined;
   /** The Part before as it is named and titled: the link above the essay's title and the ← key. */
   readonly previous?: NextPartPeek | undefined;
+  /**
+   * Share the whole Scroll: what the dock's Share does where the stop on screen cannot be a moment (a call, a stop too long)
+   * and what the ••• sheet's "Share this Scroll" does. A screen that has its own share sheet passes it; without it the
+   * reader opens the share sheet itself, so Share is never a dead button.
+   */
+  readonly shareScroll?: (() => void) | undefined;
   /** Ask from here, anchored to the stop on screen: the first row of the ••• sheet and the A and ? keys. */
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
@@ -81,7 +88,7 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
  * Folio's reader for a v2 Scroll, wherever it is shown (the Explore encounter, the direct `/scroll/<id>` route and a
  * thread): its top bar, the essay, its dock (Like, Share, Save, •••, the next Part) and the ••• sheet, with the room a
  * screen keeps for the status bar and the tab bar. The screen supplies the moves (Like, Save, Ask), because those differ
- * by screen; Share a moment is the reader's own. On a
+ * by screen; Share is the reader's own: a moment, or the whole Scroll. On a
  * tablet or desktop the essay is a centred column wide enough to set a held figure beside the text (D-425).
  */
 export function ScrollReaderSurface({
@@ -131,6 +138,8 @@ export function ScrollReaderSurface({
   // Share a moment (D-292): the stop on screen when the person opened More, shared as a snippet.
   const [momentStop, setMomentStop] = useState<string | undefined>();
   const [sharingMoment, setSharingMoment] = useState(false);
+  // The whole Scroll, when the screen has no share sheet of its own (a thread's reader).
+  const [sharingScroll, setSharingScroll] = useState(false);
   const [reporting, setReporting] = useState<FeedbackTarget>();
   const [smallPrintOpen, setSmallPrintOpen] = useState(false);
   // What the reader showed when ••• opened, so the rows can say which words and pictures they would switch.
@@ -176,6 +185,8 @@ export function ScrollReaderSurface({
       ...(stopId === undefined ? {} : { anchor: { kind: 'scroll' as const, blockId: stopId } }),
     });
   };
+  // Share (D-429): the stop on screen as a moment where it can be one, otherwise the whole Scroll; never a dead button.
+  const shareWhole = moves.shareScroll ?? (() => setSharingScroll(true));
   const openMore = () => {
     setReaderView(reader.current?.view());
     setMoreOpen(true);
@@ -187,7 +198,13 @@ export function ScrollReaderSurface({
           model={model}
           observer={observer}
           paused={
-            paused === true || moreOpen || challenging || sharingMoment || smallPrintOpen || reporting !== undefined
+            paused === true ||
+            moreOpen ||
+            challenging ||
+            sharingMoment ||
+            sharingScroll ||
+            smallPrintOpen ||
+            reporting !== undefined
           }
           initialStopId={initialStopId}
           handleRef={readerRef}
@@ -263,10 +280,11 @@ export function ScrollReaderSurface({
                     ? undefined
                     : { on: moves.like.liked, busy: moves.like.busy, onPress: moves.like.onPress }
                 }
-                share={{
-                  onPress: openMoment,
-                  unavailable: noMoment === undefined ? undefined : noMomentWords(noMoment),
-                }}
+                share={
+                  noMoment === undefined
+                    ? { onPress: openMoment, what: 'moment' }
+                    : { onPress: shareWhole, what: 'scroll' }
+                }
                 save={
                   moves.save === undefined
                     ? undefined
@@ -315,6 +333,14 @@ export function ScrollReaderSurface({
           stopId={momentStop}
           thread={momentThread}
           onClose={() => setSharingMoment(false)}
+        />
+      </BottomSheet>
+      <BottomSheet visible={sharingScroll} title="Share" onClose={() => setSharingScroll(false)}>
+        <ShareSheetBody
+          target={{ assetId: scroll.assetId, assetRevision: scroll.assetRevision }}
+          title={document.title}
+          kind="scroll"
+          onClose={() => setSharingScroll(false)}
         />
       </BottomSheet>
       <BottomSheet visible={reporting !== undefined} title="Report" onClose={() => setReporting(undefined)}>
