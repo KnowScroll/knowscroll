@@ -250,9 +250,10 @@ test('switching halfway through a Scroll repaints the reader and keeps its place
     await expect(sheet).toHaveCount(0);
     return quote;
   };
+  // Past the opening stop, so keeping the place is more than opening at the start. The reader learns its place from
+  // the scroll a moment after it, so ask until it has (asking at once flaked on CI with the opening stop).
+  await expect.poll(stopBeingRead).not.toContain('It leans.');
   const before = await stopBeingRead();
-  // Past the opening stop, so keeping the place is more than opening at the start.
-  expect(before).not.toContain('It leans.');
   await shot(page, 'reader-switch-before-dark');
   const commandsBefore = served.commands.length;
 
