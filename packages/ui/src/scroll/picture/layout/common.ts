@@ -2,11 +2,17 @@ import type { PictureState, Tone } from '@knowscroll/scroll-model';
 import type { PictureBox, PictureRole, TextShape } from '../scene';
 
 /**
- * How faint an item is drawn while other items of the picture are lit: plainly not the subject, and still readable.
- * Ink at this opacity keeps 4.5:1 against the plate in both appearances (about 4.6:1 on the light plate, 5.8:1 on the
- * dark one), so a receded label is still text a reader can read.
+ * How faint an item is drawn while other items of the picture are lit: plainly not the subject. A layout gives every
+ * receded part this opacity; the drawing lifts a receded text to {@link RECEDED_TEXT} (`PictureSvg`), because text this
+ * faint would fall to about 3:1 on the plate and below the 4.5:1 a reader needs. Shapes that are not text keep it.
  */
 export const RECEDED = 0.6;
+
+/**
+ * The opacity a text the layout drew at {@link RECEDED} is shown at, so a receded `ink` or `ink2` label keeps 4.5:1 on
+ * the plate in both appearances and is still lighter than the subject.
+ */
+export const RECEDED_TEXT = 0.85;
 
 /** The room every layout leaves inside the box's edges, in pixels. */
 export const MARGIN = 12;

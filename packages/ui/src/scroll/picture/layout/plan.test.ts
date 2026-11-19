@@ -1,6 +1,6 @@
 import type { PictureOfKind, PictureState } from '@knowscroll/scroll-model';
 import type { PictureBox, PictureScene, PictureShape, TextShape } from '../scene';
-import { textWidth } from '../text';
+import { MONO_ADVANCE, textWidth } from '../text';
 import { BOLD_SLACK, MARGIN, RECEDED } from './common';
 import { layoutPlan } from './plan';
 
@@ -105,11 +105,11 @@ interface Extent {
   readonly bottom: number;
 }
 
-/** The room a text takes by the same estimate the layout measures with (bold, and mono at 0.6 em). */
+/** The room a text takes by the same estimate the layout measures with (bold, and mono at its advance). */
 function textExtent(shape: TextShape): Extent {
   const width = Math.max(
     ...shape.lines.map((line) =>
-      shape.family === 'mono' ? line.length * shape.size * 0.6 : textWidth(line, shape.size * BOLD_SLACK),
+      shape.family === 'mono' ? line.length * shape.size * MONO_ADVANCE : textWidth(line, shape.size * BOLD_SLACK),
     ),
   );
   const left = shape.anchor === 'start' ? shape.x : shape.anchor === 'end' ? shape.x - width : shape.x - width / 2;

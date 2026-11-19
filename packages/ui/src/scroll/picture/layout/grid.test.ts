@@ -114,7 +114,7 @@ describe('layoutGrid', () => {
     const scene = layoutGrid(gridOf(2, 2), {}, boxOf(TEST_BOXES[1] as PictureBox, 1));
     expect(named<RectShape>(scene, 'cell-r2c2').stroke).toBe('warm');
     expect(named<TextShape>(scene, 'cell-r2c2-text').fill).toBe('warm');
-    expect(named<RectShape>(scene, 'cell-r1c1').stroke).toBe('rule');
+    expect(named<RectShape>(scene, 'cell-r1c1').stroke).toBe('ink2');
   });
 
   it('draws a lit cell with the mark stroke, thicker, and recedes everything else', () => {
