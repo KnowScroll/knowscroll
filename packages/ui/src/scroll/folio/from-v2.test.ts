@@ -11,7 +11,8 @@ import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
 import transit from '@knowscroll/scroll-model/fixtures/transit-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
-import { HOLD_LIMIT, readingModelOfV2 } from './from-v2';
+import { HOLD_LIMIT } from './holds';
+import { readingModelOfV2 } from './from-v2';
 import { beatsOf, type ReadingBlock } from './reading-model';
 
 /** The labelled CI fixtures of `scroll-model` (not product content): every kit, and the two without a picture. */

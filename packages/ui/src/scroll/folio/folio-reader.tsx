@@ -45,8 +45,7 @@ import { canPinHolds, figureHeightFor, holdsBeside, isWide, readingBandOf } from
 import { FigureView } from './figure-view';
 import { folioKeyOf, type FolioKey } from './folio-keys';
 import { HoldView } from './hold-view';
-import { beatsOf, type Beat, type FigureControl, type ReadingModel } from './reading-model';
-import type { FigureState } from '../stage/kit-figure';
+import { beatsOf, type Beat, type Figure, type FigureControl, type ReadingModel } from './reading-model';
 import { createKeptPlace } from './kept-place';
 import { stopScrolling, usePersonInput } from './person-input';
 import { useEndPull } from './use-end-pull';
@@ -434,7 +433,7 @@ export function FolioReader({
       />
     </MeasuredBeat>
   );
-  const renderFigure = (id: string, figure: FigureState, control?: FigureControl) => (
+  const renderFigure = (id: string, figure: Figure, control?: FigureControl) => (
     <View key={id} style={column}>
       <FigureView
         figure={figure}

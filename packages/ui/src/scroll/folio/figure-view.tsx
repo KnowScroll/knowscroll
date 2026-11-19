@@ -9,10 +9,11 @@ import { usePagePalette } from '../page/page-palette';
 import { FigureDrawing, useKitFigure, type FigureState } from '../stage/kit-figure';
 import { TiltControl } from '../stage/tilt-control';
 import { AXIAL_TILT_DEGREES } from '../model';
-import type { FigureControl } from './reading-model';
+import { PictureDrawing } from '../picture';
+import type { Figure, FigureControl, PictureFigure } from './reading-model';
 
 export interface FigureViewProps {
-  readonly figure: FigureState;
+  readonly figure: Figure;
   readonly height: number;
   readonly reducedMotion: boolean;
   /** The reader's text version: every figure as its words. A figure's own chip can override it. */
@@ -33,11 +34,52 @@ export interface FigureViewProps {
 }
 
 /**
- * One figure in the essay: a plate with the kit's picture, a "Text" chip that swaps the picture for its words, and the
- * control under it when it has one. Moving from one figure to the next glides or fades (`useKitFigure`), so a held
- * figure changes in place.
+ * One figure in the essay: a plate with its picture, a "Text" chip that swaps the picture for its words, and the
+ * control under it when it has one. A v2 Scroll's figure is drawn by its kit, a document v3's by the general picture
+ * renderer; both move from one state to the next in place (a glide, or a fade), so a held figure changes where it is.
  */
-export function FigureView({
+export function FigureView(props: FigureViewProps) {
+  const { figure } = props;
+  return figure.kind === 'picture' ? (
+    <PictureFigureView {...props} figure={figure} />
+  ) : (
+    <KitFigureView {...props} figure={figure} />
+  );
+}
+
+/** A document v3 picture on the plate, drawn by the general renderer. */
+function PictureFigureView({
+  figure,
+  height,
+  reducedMotion,
+  textVersion,
+  fixedHeight = false,
+  onTextVersion,
+  testID,
+}: FigureViewProps & { readonly figure: PictureFigure }) {
+  const page = usePagePalette();
+  const [ownText, setOwnText] = useState<boolean | undefined>(undefined);
+  const asText = onTextVersion === undefined ? (ownText ?? textVersion) : textVersion;
+  const drawingHeight = fixedHeight ? height - FIGURE_CHIP_ROOM : height;
+  return (
+    <View style={styles.figure} testID={testID}>
+      <View
+        style={[styles.plate, { backgroundColor: page.raised, borderColor: page.ink }]}
+        {...dataSet({ ksFigure: figure.key })}
+      >
+        <View style={asText ? { minHeight: drawingHeight } : { height: drawingHeight }}>
+          <PictureDrawing picture={figure.picture} state={figure.state} reducedMotion={reducedMotion} textVersion={asText} />
+        </View>
+        <View style={styles.chipRow}>
+          <TextChip on={asText} onPress={onTextVersion ?? (() => setOwnText(!asText))} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** A v2 Scroll's figure, drawn by its kit, with Earth's tilt under it when the Final call hands it over. */
+function KitFigureView({
   figure,
   height,
   reducedMotion,
@@ -46,7 +88,7 @@ export function FigureView({
   fixedHeight = false,
   onTextVersion,
   testID,
-}: FigureViewProps) {
+}: FigureViewProps & { readonly figure: FigureState }) {
   const page = usePagePalette();
   const [ownText, setOwnText] = useState<boolean | undefined>(undefined);
   const [tilt, setTilt] = useState<number | undefined>(undefined);
