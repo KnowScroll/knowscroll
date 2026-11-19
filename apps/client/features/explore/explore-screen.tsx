@@ -7,7 +7,6 @@ import type { AccountScope } from '@knowscroll/client-core';
 import { content, layout } from '@knowscroll/design-tokens';
 import { Skeleton } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
-import { useDevicePreferences } from '../../providers/device-preferences';
 import { useDocumentTitle } from '../../platform/document-title';
 import type { EncounterEntry } from '../encounter/encounter-history';
 import { isScrollV2 } from '../scroll/scroll-session';
@@ -76,7 +75,6 @@ function hintsFor(entry: EncounterEntry) {
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const { session, state } = useEncounterSession(scope);
-  const { preferences } = useDevicePreferences();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { breakpoint } = useDisplay();
@@ -87,7 +85,8 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   // "Done for now" belongs to the entry it was chosen on; any other state or entry shows its own screen.
   const [calmedEntry, setCalmedEntry] = useState<EncounterEntry>();
   useEncounterContext(scope, session, state.entry, foreground);
-  useEffect(() => session.setCoverFeed(preferences.coversInExplore), [session, preferences.coversInExplore]);
+  // Covers are how Explore offers a Scroll, on every platform (D-428).
+  useEffect(() => session.setCoverFeed(true), [session]);
   const [hintOpen, setHintOpen] = useState(() => scope.storage.get('explore.hint.dismissed') !== '1');
   useDocumentTitle((state.covers ? undefined : state.entry?.offer.metadata.title) ?? 'Explore');
   useFocusEffect(

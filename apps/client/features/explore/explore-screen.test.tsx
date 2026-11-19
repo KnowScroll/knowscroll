@@ -52,7 +52,10 @@ beforeEach(() => {
   Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
 });
 
-async function openExplore(setup?: (h: ReturnType<typeof harness>) => void) {
+async function openExplore(
+  setup?: (h: ReturnType<typeof harness>) => void,
+  until: () => Promise<unknown> = () => screen.findByRole('button', { name: 'More options' }),
+) {
   const h = harness();
   setup?.(h);
   const app = await render(
@@ -63,7 +66,7 @@ async function openExplore(setup?: (h: ReturnType<typeof harness>) => void) {
     </DisplayProvider>,
   );
   mockScope = h.scope;
-  await screen.findByRole('button', { name: 'More options' });
+  await until();
   // The screen drives the scope's own session; the harness only supplies the scope and the HTTP fixture.
   return { h: { ...h, session: encounterSessionFor(h.scope) }, app };
 }
@@ -145,6 +148,25 @@ describe('Explore Reel as drawn in E01', () => {
         direction: 'next',
         format: 'reel',
       });
+    } finally {
+      await app.unmount();
+      h.scope.end();
+    }
+  });
+});
+
+describe('Explore offers a Scroll as a cover (D-428)', () => {
+  it('arrives on a cover with nothing activated, and opens the Scroll only when the cover is opened', async () => {
+    // The cover's own drawing needs a laid-out height, which Jest has none of; the hand and its screen-reader line are what is on screen.
+    const { h, app } = await openExplore(
+      (fixture) => fixture.setOffers(['cover', 'cover']),
+      () => screen.findByText('Cover 1 of 2: Fixture 0'),
+    );
+    try {
+      expect(h.session.getState().covers?.offers).toHaveLength(2);
+      expect(h.calls.some((call) => call.path === '/v1/experience/activate')).toBe(false);
+      await act(() => h.session.openCover());
+      await waitFor(() => expect(h.calls.some((call) => call.path === '/v1/experience/activate')).toBe(true));
     } finally {
       await app.unmount();
       h.scope.end();
