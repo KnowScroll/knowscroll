@@ -21,6 +21,20 @@ export const RECIPE_COVERAGE_RULE = 'scroll-recipe-coverage.v1' as const;
  */
 export const RECIPE_COVERAGE_RULE_V2 = 'scroll-recipe-coverage.v2' as const;
 
+/**
+ * The same rule over the beats of a `scroll-document.v3` (#761): the eligible units are its beats that cite documented
+ * claims, quote beats included; first, middle and last for the main facet, the last two for a supporting one. Sections
+ * are not units, so one essay still covers its main facet and at most one supporting facet (Folio question 12).
+ */
+export const RECIPE_COVERAGE_RULE_V3 = 'scroll-recipe-coverage.v3' as const;
+
+/** The rule label and the stored facts version of each reading-facts version a Scroll can have. */
+function ruleOf(readingFactsVersion: number): { readonly rule: string; readonly factsVersion: 2 | 3 | 4 } {
+  if (readingFactsVersion === 4) return { rule: RECIPE_COVERAGE_RULE_V3, factsVersion: 4 };
+  if (readingFactsVersion === 3) return { rule: RECIPE_COVERAGE_RULE_V2, factsVersion: 3 };
+  return { rule: RECIPE_COVERAGE_RULE, factsVersion: 2 };
+}
+
 /** Fewer eligible blocks cannot show a reader met the lesson, so no coverage is claimed. */
 export const MIN_BODY_BLOCKS = 3;
 /** How many of the closing body blocks the supporting facet needs. */
@@ -66,9 +80,10 @@ export function planRecipeCoverage(
     if (meaningSha256 === undefined) return { kind: 'refused', code: 'facet_not_in_catalogue' };
     bindings.push({ topicId: recipe.topicId, facetId, meaningSha256, requiredBlockIds });
   }
+  const { rule, factsVersion } = ruleOf(target.readingFactsVersion);
   return {
     kind: 'planned',
-    rule: target.readingFactsVersion === 3 ? RECIPE_COVERAGE_RULE_V2 : RECIPE_COVERAGE_RULE,
+    rule,
     mapping: {
       version: COVERAGE_POLICY,
       documentSha256: target.documentSha256,
@@ -76,7 +91,7 @@ export function planRecipeCoverage(
       explanationUnitId: target.explanationUnitId,
       framing: 'factual',
       framingSha256: target.framingSha256,
-      readingFactsVersion: target.readingFactsVersion === 3 ? 3 : 2,
+      readingFactsVersion: factsVersion,
       readingFactsSha256: target.readingFactsSha256,
       catalogueVersion: CONCEPT_CATALOGUE_VERSION,
       catalogueSha256: catalogue.sha256,
