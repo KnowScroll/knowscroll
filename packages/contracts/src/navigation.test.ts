@@ -293,6 +293,45 @@ describe('Explore prerequisite wire contracts', () => {
     ).toBe(false);
   });
 
+  it('carries an optional offer cover: absent on old offers, strict when present', () => {
+    const cover = {
+      version: 'offer-cover.v1',
+      kicker: 'Wire fixture',
+      readingMinutes: 3,
+      readStops: 7,
+      figure: {
+        kit: 'earth-sky.v1',
+        state: { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'axis' },
+        alt: 'Wire fixture: the Sun on the left, Earth on the right, in June.',
+      },
+    };
+    const withCover = { ...offer, cover };
+    expect(EncounterOfferSchema.parse(withCover)).toEqual(withCover);
+    // A Scroll v1 cover has only its kicker and minutes.
+    const minimal = { ...offer, cover: { version: 'offer-cover.v1', kicker: 'Wire fixture', readingMinutes: 2 } };
+    expect(EncounterOfferSchema.parse(minimal)).toEqual(minimal);
+    // Offers stored before covers existed carry no `cover` key and must still parse, without gaining one.
+    expect(Object.hasOwn(EncounterOfferSchema.parse(offer), 'cover')).toBe(false);
+    const ready = { ...outcome, status: 'ready', offer: withCover, bufferedOffers: [] };
+    expect(NavigationOutcomeSchema.parse(ready)).toEqual(ready);
+    for (const invalid of [
+      { ...cover, price: 1 },
+      { ...cover, version: 'offer-cover.v2' },
+      { ...cover, kicker: '' },
+      { ...cover, kicker: 'k'.repeat(41) },
+      { ...cover, readingMinutes: 0 },
+      { ...cover, readStops: 0 },
+      { ...cover, readStops: 65 },
+      { ...cover, readStops: 1.5 },
+      { ...cover, figure: { ...cover.figure, extra: true } },
+      { ...cover, figure: { ...cover.figure, kit: 'tides.v1' } },
+    ])
+      expect(EncounterOfferSchema.safeParse({ ...offer, cover: invalid }).success).toBe(false);
+    expect(
+      EncounterOfferSchema.safeParse({ ...offer, cover: { kicker: 'Wire fixture', readingMinutes: 3 } }).success,
+    ).toBe(false);
+  });
+
   it('reserves the new activation discriminator so malformed or mixed offers cannot downgrade into direct activation', () => {
     const activate = { commandId: id, target: offerTarget };
     expect(ActivateExposureRequestSchema.parse(activate)).toEqual(activate);
