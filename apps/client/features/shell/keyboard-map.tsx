@@ -66,8 +66,12 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
       { keys: ['1', '2', '3'], spoken: '1, 2 or 3', action: 'In the Ask sheet: pick a suggested question' },
       { keys: ['T'], spoken: 'T', action: 'Text version: every figure as words' },
       { keys: ['F'], spoken: 'F', action: 'Switch between Reel and Scroll' },
-      { keys: ['L'], spoken: 'L', action: 'Like this Scroll, or take the like back (the ♡ in the dock)' },
-      { keys: ['S'], spoken: 'S', action: 'Save this Scroll' },
+      { keys: ['L'], spoken: 'L', action: 'In Explore: like this Scroll, or take the like back (the ♡ in the dock)' },
+      {
+        keys: ['S'],
+        spoken: 'S',
+        action: 'In Explore and on a Scroll’s own page: save this Scroll, or take it out of Saved',
+      },
       {
         keys: ['H'],
         spoken: 'H',
