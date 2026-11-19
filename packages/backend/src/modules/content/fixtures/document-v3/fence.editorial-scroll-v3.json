@@ -157,22 +157,25 @@
       {
         "picture": {
           "id": "order",
-          "kind": "flow",
+          "kind": "statement",
           "title": "An order of operations",
-          "steps": [
-            {
-              "id": "understand",
-              "label": "Understand"
-            },
-            {
-              "id": "decide",
-              "label": "Decide"
-            },
-            {
-              "id": "act",
-              "label": "Act"
-            }
-          ]
+          "statement": {
+            "form": "list",
+            "items": [
+              {
+                "id": "understand",
+                "label": "First, learn what it guards against"
+              },
+              {
+                "id": "decide",
+                "label": "Then decide"
+              },
+              {
+                "id": "act",
+                "label": "Then act"
+              }
+            ]
+          }
         },
         "cites": ["a-quote-wiki"]
       }

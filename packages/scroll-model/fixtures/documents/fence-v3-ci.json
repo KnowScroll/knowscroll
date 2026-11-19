@@ -102,21 +102,24 @@
     {
       "id": "order",
       "title": "An order of operations",
-      "kind": "flow",
-      "steps": [
-        {
-          "id": "understand",
-          "label": "Understand"
-        },
-        {
-          "id": "decide",
-          "label": "Decide"
-        },
-        {
-          "id": "act",
-          "label": "Act"
-        }
-      ]
+      "kind": "statement",
+      "statement": {
+        "form": "list",
+        "items": [
+          {
+            "id": "understand",
+            "label": "First, learn what it guards against"
+          },
+          {
+            "id": "decide",
+            "label": "Then decide"
+          },
+          {
+            "id": "act",
+            "label": "Then act"
+          }
+        ]
+      }
     }
   ],
   "sections": [
@@ -412,6 +415,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "7cafe2c75027b4d71f1b698dfae9aa29f2610bb9471196fb6f9ec1a18ea41bf0"
+    "sha256": "345b98ae71c8f75cded932b48a7b7becd90615770537239a6e83441f3bb0713b"
   }
 }

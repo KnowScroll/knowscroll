@@ -418,7 +418,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         throw new Error('document_lineage');
       const lineage = { ...exposure, degradedEssential: loaded.degradedEssential };
       const scroll: AnyOpenedScroll =
-        parsed.schema === 'v2' ? { ...lineage, document: parsed.document } : { ...lineage, document: parsed.document };
+        parsed.schema === 'v2'
+          ? { ...lineage, document: parsed.document }
+          : parsed.schema === 'v3'
+            ? { ...lineage, document: parsed.document }
+            : { ...lineage, document: parsed.document };
       return {
         ...common,
         kind: 'scroll',
