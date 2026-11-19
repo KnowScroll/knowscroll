@@ -5,7 +5,7 @@ import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { admitDocument } from '@knowscroll/scroll-model';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset } from '../support/fixtures.js';
-import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { documentV3Source, scrollUseCases, starterSource } from '../support/scroll.js';
 
 describe('content admission of the authored starter Scroll (real database)', () => {
   let database: TestDatabase<Database>;
@@ -195,6 +195,138 @@ describe('content admission of the authored starter Scroll (real database)', () 
     ).toMatchObject({
       kind: 'refused',
       reason: 'asset_withdrawn',
+    });
+  });
+
+  describe('a hand-written document v3, admitted with its topic and beat coverage in one transaction', () => {
+    /** Everything the import may write for one asset, across the tables it touches. */
+    async function writtenFor(assetId: string) {
+      const stored = await rows(assetId);
+      const topics = await database.db
+        .selectFrom('content.encounter_topics')
+        .select(['topic_id', 'role', 'weight'])
+        .where('asset_id', '=', assetId)
+        .execute();
+      const heads = await database.db
+        .selectFrom('content.coverage_heads')
+        .select(['asset_revision', 'revision'])
+        .where('asset_id', '=', assetId)
+        .execute();
+      const coverage = await database.db
+        .selectFrom('content.coverage_revisions')
+        .select(['asset_revision', 'revision', 'status', 'semantic_review_reference', 'mapping'])
+        .where('asset_id', '=', assetId)
+        .execute();
+      return { ...stored, topics, heads, coverage };
+    }
+
+    it('admits the seasons Scroll as revision 1 with its topic, facts v4 and an active head of three beats per main facet', async () => {
+      const source = documentV3Source('seasons');
+      const result = await useCases.importScroll(source);
+      expect(result).toMatchObject({ kind: 'imported', outcome: 'created', revision: 1 });
+      if (result.kind !== 'imported') return;
+      const written = await writtenFor(result.assetId);
+
+      expect(written.asset).toEqual({ kind: 'scroll', status: 'admitted', revision: 1 });
+      expect(written.revisions).toHaveLength(1);
+      expect(written.revisions[0]).toMatchObject({
+        revision: 1,
+        provenance_kind: 'authored_editorial',
+        document_version: 'scroll-document.v3',
+        document_sha256: result.documentSha256,
+      });
+      expect(written.provenance.map((entry) => entry.provenance_version)).toEqual(['scroll-provenance.v3']);
+
+      const facts = await database.db
+        .selectFrom('content.asset_revisions')
+        .select('reading_facts')
+        .where('asset_id', '=', result.assetId)
+        .executeTakeFirstOrThrow();
+      const readingFacts = facts.reading_facts as unknown as { v: number; blocks: { id: string; type: string }[] };
+      expect(readingFacts.v).toBe(4);
+      const beatIds = readingFacts.blocks.map((block) => block.id);
+      expect(beatIds).toHaveLength(12);
+      expect(readingFacts.blocks.every((block) => block.type === 'beat')).toBe(true);
+
+      // The recipe's planet is the Scroll's one primary topic, carrying the whole weight.
+      expect(written.topics).toEqual([{ topic_id: 'earth.seasons', role: 'primary', weight: 1 }]);
+
+      // One active head decided by the beat rule, never reviewed by a person or a model.
+      expect(written.heads).toEqual([{ asset_revision: 1, revision: 1 }]);
+      expect(written.coverage).toHaveLength(1);
+      expect(written.coverage[0]).toMatchObject({
+        asset_revision: 1,
+        revision: 1,
+        status: 'active',
+        semantic_review_reference: `scroll-recipe-coverage.v3:${source['explanationUnitId'] as string}`,
+      });
+      const mapping = written.coverage[0]?.mapping as unknown as {
+        readingFactsVersion: number;
+        explanationUnitId: string;
+        bindings: { topicId: string; facetId: string; requiredBlockIds: string[] }[];
+      };
+      expect(mapping.readingFactsVersion).toBe(4);
+      expect(mapping.explanationUnitId).toBe(source['explanationUnitId']);
+      // The `seasons` recipe's main facet takes the first, middle and last of twelve beats; its supporting facet the last two.
+      expect(mapping.bindings).toEqual([
+        {
+          topicId: 'earth.seasons',
+          facetId: 'earth.seasons.axial-tilt',
+          meaningSha256: expect.stringMatching(/^[0-9a-f]{64}$/u) as unknown,
+          requiredBlockIds: [beatIds[0], beatIds[5], beatIds[11]],
+        },
+        {
+          topicId: 'earth.seasons',
+          facetId: 'earth.seasons.limits',
+          meaningSha256: expect.stringMatching(/^[0-9a-f]{64}$/u) as unknown,
+          requiredBlockIds: [beatIds[10], beatIds[11]],
+        },
+      ]);
+    });
+
+    it('is idempotent: importing the same source again changes nothing', async () => {
+      const source = documentV3Source('broad-street');
+      const first = await useCases.importScroll(source);
+      expect(first).toMatchObject({ kind: 'imported', outcome: 'created', revision: 1 });
+      if (first.kind !== 'imported') return;
+      const before = await writtenFor(first.assetId);
+      expect(await useCases.importScroll(documentV3Source('broad-street'))).toMatchObject({
+        kind: 'imported',
+        outcome: 'unchanged',
+        revision: 1,
+      });
+      expect(await writtenFor(first.assetId)).toEqual(before);
+      expect(before.heads).toHaveLength(1);
+      expect(before.topics).toEqual([{ topic_id: 'history.industrial-revolution', role: 'primary', weight: 1 }]);
+    });
+
+    it('refuses a source that names a recipe the library does not know, and writes nothing', async () => {
+      // A fresh asset id, so no earlier import of the fixture can make this one "unchanged" before its recipe is read.
+      const source = { ...documentV3Source('fence'), assetId: randomUUID(), recipe: 'no-such-recipe' };
+      const result = await useCases.importScroll(source);
+      expect(result).toEqual({
+        kind: 'refused',
+        reason: 'coverage_missing',
+        issues: [{ code: 'recipe_unknown', path: 'recipe' }],
+      });
+      const assetId = source.assetId;
+      const written = await writtenFor(assetId);
+      expect(written.asset).toBeUndefined();
+      expect(written.revisions).toEqual([]);
+      expect(written.provenance).toEqual([]);
+      expect(written.topics).toEqual([]);
+      expect(written.heads).toEqual([]);
+      expect(written.coverage).toEqual([]);
+      const discovery = await database.db
+        .selectFrom('content.discovery_revisions')
+        .select('asset_id')
+        .where('asset_id', '=', assetId)
+        .execute();
+      expect(discovery).toEqual([]);
+      // Nothing is left behind to block the corrected source: the same asset is admitted whole afterwards.
+      const corrected = await useCases.importScroll({ ...source, recipe: 'industrial-debate' });
+      expect(corrected).toMatchObject({ kind: 'imported', outcome: 'created', revision: 1 });
+      expect((await writtenFor(assetId)).heads).toHaveLength(1);
     });
   });
 

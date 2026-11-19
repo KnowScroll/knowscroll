@@ -190,3 +190,78 @@ describe('recipe coverage rule v2 (the units of a scroll-document.v2)', () => {
     expect(() => validateCoverageMapping(onCall, target, catalogue)).toThrow('CONTENT_COVERAGE_LOCATOR_INVALID');
   });
 });
+
+describe('recipe coverage rule v3 (the beats of a scroll-document.v3)', () => {
+  const beat = (id: string, overrides: Partial<Block> = {}) => body(id, { type: 'beat', ...overrides });
+  const beats = (count: number) => Array.from({ length: count }, (_, index) => beat(`b${String(index + 1)}`));
+  const v3Target = (blocks: readonly Block[]): CoverageTarget => ({ ...targetOf(blocks), readingFactsVersion: 4 });
+  const withSupport = { ...recipe, supportingFacetId: 'earth.seasons.hemispheres' };
+
+  it('labels its plan scroll-recipe-coverage.v3 and stores facts version 4 in the mapping', () => {
+    const plan = planRecipeCoverage(recipe, v3Target(beats(12)), catalogue);
+    if (plan.kind !== 'planned') throw new Error('expected a plan');
+    expect(plan.rule).toBe('scroll-recipe-coverage.v3');
+    expect(plan.mapping.readingFactsVersion).toBe(4);
+  });
+
+  it('binds the main facet to the first, middle and last beat', () => {
+    // Twelve beats: the middle one is the sixth, as for any list (index floor((n - 1) / 2)).
+    expect(plannedBindings(planRecipeCoverage(recipe, v3Target(beats(12)), catalogue))[0]?.requiredBlockIds).toEqual([
+      'b1',
+      'b6',
+      'b12',
+    ]);
+  });
+
+  it('binds a supporting facet to the last two beats and nothing else', () => {
+    const bindings = plannedBindings(planRecipeCoverage(withSupport, v3Target(beats(12)), catalogue));
+    expect(bindings.map((binding) => [binding.facetId, binding.requiredBlockIds])).toEqual([
+      ['earth.seasons.axial-tilt', ['b1', 'b6', 'b12']],
+      ['earth.seasons.hemispheres', ['b11', 'b12']],
+    ]);
+  });
+
+  it('claims nothing when only two beats are eligible, however many beats there are', () => {
+    const twoEligible = beats(6).map((block, index) => (index < 2 ? block : { ...block, truthSupported: false }));
+    expect(planRecipeCoverage(recipe, v3Target(twoEligible), catalogue)).toEqual({
+      kind: 'refused',
+      code: 'too_few_body_blocks',
+    });
+    expect(planRecipeCoverage(recipe, v3Target(beats(2)), catalogue)).toEqual({
+      kind: 'refused',
+      code: 'too_few_body_blocks',
+    });
+  });
+
+  it('never binds a beat that cites a claim that is not documented', () => {
+    // b1, b6 and b12 would be picked by position, so the unsupported beats must move the picks onto supported ones.
+    const blocks = beats(12).map((block) =>
+      ['b1', 'b6', 'b12'].includes(block.id) ? { ...block, truthSupported: false } : block,
+    );
+    const bindings = plannedBindings(planRecipeCoverage(withSupport, v3Target(blocks), catalogue));
+    const bound = bindings.flatMap((binding) => binding.requiredBlockIds);
+    expect(bound).toEqual(['b2', 'b7', 'b11', 'b10', 'b11']);
+    expect(bound).not.toContain('b1');
+  });
+
+  it('does not count a unit of another document version: a stop is not a beat', () => {
+    const stops = Array.from({ length: 6 }, (_, index) => body(`s${String(index + 1)}`, { type: 'stop' }));
+    expect(planRecipeCoverage(recipe, v3Target(stops), catalogue)).toEqual({
+      kind: 'refused',
+      code: 'too_few_body_blocks',
+    });
+  });
+
+  it('plans a mapping the shared admission validator accepts, and refuses one that binds a paragraph', () => {
+    const target = v3Target(beats(12));
+    const plan = planRecipeCoverage(withSupport, target, catalogue);
+    if (plan.kind !== 'planned') throw new Error('expected a plan');
+    expect(() => validateCoverageMapping(plan.mapping, target, catalogue)).not.toThrow();
+    const mixed = v3Target([...beats(12), body('p1')]);
+    const onParagraph = {
+      ...plan.mapping,
+      bindings: [{ ...plan.mapping.bindings[0]!, requiredBlockIds: ['p1', 'b6', 'b12'] }],
+    };
+    expect(() => validateCoverageMapping(onParagraph, mixed, catalogue)).toThrow('CONTENT_COVERAGE_LOCATOR_INVALID');
+  });
+});
