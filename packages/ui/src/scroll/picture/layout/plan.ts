@@ -1,6 +1,6 @@
 import type { PictureOfKind, PictureState, PlanCell } from '@knowscroll/scroll-model';
 import type { PictureBox, PictureScene, PictureShape, TextShape } from '../scene';
-import { labelSize, textWidth, wrapText } from '../text';
+import { labelSize, MONO_ADVANCE, textWidth, wrapText } from '../text';
 import {
   BOLD_SLACK,
   inner,
@@ -27,7 +27,6 @@ const REGION_OPACITY = 0.16;
 const OVERLAP_COST = 4;
 /** Bars of a tally stack that stand side by side before the stack grows upward. */
 const BARS_PER_ROW = 4;
-const MONO_ADVANCE = 0.6;
 
 interface Point {
   readonly x: number;

@@ -4,6 +4,7 @@ import { borderWidth, radius, spacing } from '@knowscroll/design-tokens';
 import type { PictureState } from '@knowscroll/scroll-model';
 import { partIds } from '../model';
 import { dataSet } from '../../display/data-set';
+import { useDisplay } from '../../display/display';
 import { useFocusRing } from '../../display/focus-ring';
 import { toggleSemantics } from '../../display/semantics';
 import { Text } from '../../text/text';
@@ -78,6 +79,8 @@ function PictureFigureView({
   testID,
 }: FigureViewProps & { readonly figure: PictureFigure }) {
   const page = usePagePalette();
+  // A picture's labels grow with the reader's text size, within the box it is drawn in.
+  const { textScale } = useDisplay();
   const [ownText, setOwnText] = useState<boolean | undefined>(undefined);
   const [state, setState] = useShownState(figure);
   const asText = onTextVersion === undefined ? (ownText ?? textVersion) : textVersion;
@@ -95,6 +98,7 @@ function PictureFigureView({
             state={state}
             reducedMotion={reducedMotion}
             textVersion={asText}
+            textScale={textScale}
             pulsing={pulsed}
           />
         </View>

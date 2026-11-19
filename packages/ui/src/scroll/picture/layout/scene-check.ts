@@ -26,7 +26,7 @@ export interface Bounds {
 
 /** The space a text shape covers, from its first line's top to its last line's bottom. */
 export function textBounds(shape: TextShape): Bounds {
-  const width = Math.max(...shape.lines.map((line) => textWidth(line, shape.size)));
+  const width = Math.max(...shape.lines.map((line) => textWidth(line, shape.size, shape.family)));
   const left = shape.anchor === 'start' ? shape.x : shape.anchor === 'end' ? shape.x - width : shape.x - width / 2;
   return {
     left,

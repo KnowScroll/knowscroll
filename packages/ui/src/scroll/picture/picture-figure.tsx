@@ -3,6 +3,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { spacing } from '@knowscroll/design-tokens';
 import type { Picture, PictureState } from '@knowscroll/scroll-model';
 import { canonicalJson, describePicture } from '../model';
+import { dataSet } from '../../display/data-set';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
 import { useStagePictures, type SceneBlend } from '../stage/use-stage-pictures';
@@ -53,7 +54,7 @@ export function PictureDrawing({
       scene,
     };
   }, [picture, state, box, textScale]);
-  const { layers } = useStagePictures(target, reducedMotion, BLEND);
+  const { layers, transition } = useStagePictures(target, reducedMotion, BLEND);
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     if (Math.round(width) !== box.width || Math.round(height) !== box.height)
@@ -66,7 +67,16 @@ export function PictureDrawing({
       </View>
     );
   return (
-    <View role="img" aria-label={alt} accessibilityLabel={alt} style={StyleSheet.absoluteFill} onLayout={onLayout}>
+    // The drawing moves by animation frames, which the browser's animation list never shows: how the last change was
+    // drawn (`tween` or `crossfade`) is exposed so a browser test can tell a glide from a fade, and reduced motion from not.
+    <View
+      role="img"
+      aria-label={alt}
+      accessibilityLabel={alt}
+      style={StyleSheet.absoluteFill}
+      onLayout={onLayout}
+      {...dataSet({ ksFigureTransition: transition })}
+    >
       {box.width === 0
         ? null
         : layers.map((layer) => (

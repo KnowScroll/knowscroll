@@ -9,15 +9,36 @@ import { layoutGrid } from './grid';
 import { layoutPlan } from './plan';
 import { layoutStatement } from './statement';
 
+/** The smallest a caption is set; below this it would stop being readable. */
+const SMALLEST_CAPTION = 9;
+/** The lines a caption takes at a comfortable size, and the most it takes at the smallest: a narrow plate (320 px) still shows the whole caption rather than cutting it. */
+const CAPTION_LINES = 2;
+const CAPTION_LINES_AT_SMALLEST = 3;
+
+/**
+ * The caption wrapped to the box in its mono face, and the size it is set at: the label size, stepped down (to 9 px)
+ * until the whole caption fits in two lines; at 9 px it may take a third. Only a caption longer than that ends with an
+ * ellipsis (the longest the model allows, 120 characters, fits at 320 px).
+ */
+function captionLines(caption: string | undefined, box: PictureBox): { lines: string[]; size: number } {
+  const start = labelSize(box.height, box.textScale) * 0.9;
+  if (caption === undefined) return { lines: [], size: start };
+  const width = box.width - 2 * MARGIN;
+  for (let size = start; size > SMALLEST_CAPTION; size -= 0.5) {
+    const lines = wrapText(caption, width, size, CAPTION_LINES + 1, 'mono');
+    if (lines.length <= CAPTION_LINES) return { lines, size };
+  }
+  const size = Math.min(start, SMALLEST_CAPTION);
+  return { lines: wrapText(caption, width, size, CAPTION_LINES_AT_SMALLEST, 'mono'), size };
+}
+
 /**
  * Lays a picture out for a box: its kind's layout fills the box, less a line at the foot for the caption when it has
  * one. Pure and deterministic, so the same picture, state and box always give the same scene, which is what lets a
  * glide find each shape in both scenes.
  */
 export function layoutPicture(picture: Picture, state: PictureState, box: PictureBox): PictureScene {
-  const size = labelSize(box.height, box.textScale) * 0.9;
-  // Two lines, so a narrow plate (320 px) still shows the whole caption rather than cutting it.
-  const caption = picture.caption === undefined ? [] : wrapText(picture.caption, box.width - 2 * MARGIN, size, 2);
+  const { lines: caption, size } = captionLines(picture.caption, box);
   const captionRoom = caption.length === 0 ? 0 : size * (0.8 + caption.length);
   const body: PictureBox = { ...box, height: Math.max(0, box.height - captionRoom) };
   const scene = layoutKind(picture, state, body);

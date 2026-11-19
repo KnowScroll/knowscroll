@@ -315,6 +315,7 @@ for (const { label, viewport } of sizes) {
   test(`under reduced motion the held figure of seasons changes, and nothing glides, at ${label}`, async ({ page }) => {
     await open(page, 'seasons', viewport, { motion: 'reduce' });
     const keys = new Set<string>();
+    const transitions = new Set<string>();
     let gliding = 0;
     const most = await scroller(page).evaluate((node) => node.scrollHeight - node.clientHeight);
     for (let top = 0; top <= most; top += 120) {
@@ -329,14 +330,41 @@ for (const { label, viewport } of sizes) {
         return {
           key: plate.getAttribute('data-ks-figure') ?? '',
           animations: plate.getAnimations({ subtree: true }).length,
+          transition:
+            plate.querySelector('[data-ks-figure-transition]')?.getAttribute('data-ks-figure-transition') ?? '',
         };
       });
       if (held !== undefined) {
         keys.add(held.key);
+        transitions.add(held.transition);
         gliding += held.animations;
       }
     }
     expect(keys.size, 'the held figure took more than one state').toBeGreaterThanOrEqual(2);
     expect(gliding, 'animations running inside a held figure').toBe(0);
+    // The drawing moves by animation frames, which `getAnimations` never lists: its own record of how it last changed is
+    // what shows a glide, and under reduced motion every change is a cross-fade.
+    expect([...transitions], 'how the held figure changed').not.toContain('tween');
+    expect([...transitions], 'how the held figure changed').toContain('crossfade');
+  });
+}
+
+for (const { motion, drawn } of [
+  { motion: 'reduce', drawn: 'crossfade' },
+  { motion: undefined, drawn: 'tween' },
+] as const) {
+  test(`a control of seasons moves its picture to another state by a ${drawn} ${motion === undefined ? 'without' : 'under'} reduced motion`, async ({
+    page,
+  }) => {
+    await open(page, 'seasons', phone, motion === undefined ? {} : { motion });
+    const scrub = page.getByTestId('picture-control-scrub');
+    await scrub.scrollIntoViewIfNeeded();
+    // The control sits under the plate whose picture it changes, inside the same figure.
+    const drawing = scrub.locator('xpath=..').locator('[data-ks-figure-transition]');
+    const sentence = scrub.getByTestId('control-sentence');
+    const start = (await sentence.textContent()) ?? '';
+    await scrub.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(sentence).not.toHaveText(start);
+    await expect(drawing).toHaveAttribute('data-ks-figure-transition', drawn);
   });
 }

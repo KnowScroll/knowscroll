@@ -298,6 +298,8 @@ function cellShapes(
   const opacity = opacityOf(state, geometry.row, stressed);
   const toned = cell.tone !== undefined;
   const strokeWidth = (large ? 2.5 : toned ? 1.5 : 1) + (stressed ? 1.5 : 0);
+  // A plain cell's border is `ink2`, not `rule`: the hairline role is under 3:1 on the dark plate, and the border is
+  // what shows where a cell is.
   return [
     {
       type: 'rect',
@@ -309,7 +311,7 @@ function cellShapes(
       height: frame.cellHeight,
       cornerRadius: 6,
       fill: 'raised',
-      stroke: stressed ? 'mark' : toned ? toneRole(cell.tone) : large ? 'ink' : 'rule',
+      stroke: stressed ? 'mark' : toned ? toneRole(cell.tone) : large ? 'ink' : 'ink2',
       strokeWidth,
       opacity,
     },
