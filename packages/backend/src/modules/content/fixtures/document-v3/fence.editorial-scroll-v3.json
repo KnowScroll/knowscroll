@@ -89,9 +89,7 @@
             }
           ]
         },
-        "cites": [
-          "a-fence-road"
-        ]
+        "cites": ["a-fence-road"]
       },
       {
         "picture": {
@@ -154,9 +152,7 @@
             }
           ]
         },
-        "cites": [
-          "a-quote-wiki"
-        ]
+        "cites": ["a-quote-wiki"]
       },
       {
         "picture": {
@@ -178,9 +174,7 @@
             }
           ]
         },
-        "cites": [
-          "a-quote-wiki"
-        ]
+        "cites": ["a-quote-wiki"]
       }
     ],
     "sections": [
@@ -192,9 +186,7 @@
             "text": "You're walking a country road and find a fence built straight across it. No sign. No gate. Nothing on the other side that looks worth guarding. It's just in your way.",
             "simple": "You find a fence across a road, with no sign of why it is there.",
             "links": [],
-            "cites": [
-              "a-fence-road"
-            ],
+            "cites": ["a-fence-road"],
             "show": {
               "picture": "road",
               "state": {}
@@ -210,15 +202,11 @@
                 "part": "fence"
               }
             ],
-            "cites": [
-              "a-fence-road"
-            ],
+            "cites": ["a-fence-road"],
             "show": {
               "picture": "road",
               "state": {
-                "lit": [
-                  "fence"
-                ]
+                "lit": ["fence"]
               }
             }
           },
@@ -227,19 +215,14 @@
             "text": "In 1929 G. K. Chesterton gave the other answer.",
             "simple": "The writer G. K. Chesterton disagreed with them.",
             "links": [],
-            "cites": [
-              "a-year-1929"
-            ]
+            "cites": ["a-year-1929"]
           },
           {
             "kind": "quote",
             "text": "If you don't see the use of it, I certainly won't let you clear it away. Go away and think.",
             "simple": "If you don't know why it is there, don't remove it yet. Think first.",
             "links": [],
-            "cites": [
-              "a-quote-wiki",
-              "a-year-1929"
-            ],
+            "cites": ["a-quote-wiki", "a-year-1929"],
             "cite": {
               "who": "G. K. Chesterton",
               "work": "The Thing",
@@ -251,9 +234,7 @@
             "text": "Come back when you can say what it's for. Then you may destroy it.",
             "simple": "Once you can explain the fence, you may take it down.",
             "links": [],
-            "cites": [
-              "a-quote-wiki"
-            ]
+            "cites": ["a-quote-wiki"]
           },
           {
             "kind": "plain",
@@ -265,15 +246,11 @@
                 "part": "you"
               }
             ],
-            "cites": [
-              "a-quote-wiki"
-            ],
+            "cites": ["a-quote-wiki"],
             "show": {
               "picture": "road",
               "state": {
-                "lit": [
-                  "you"
-                ]
+                "lit": ["you"]
               }
             }
           }
@@ -292,15 +269,11 @@
                 "part": "fence"
               }
             ],
-            "cites": [
-              "a-fence-didnt-grow"
-            ],
+            "cites": ["a-fence-didnt-grow"],
             "show": {
               "picture": "road",
               "state": {
-                "lit": [
-                  "fence"
-                ]
+                "lit": ["fence"]
               }
             }
           },
@@ -314,15 +287,11 @@
                 "part": "you"
               }
             ],
-            "cites": [
-              "a-quote-wiki"
-            ],
+            "cites": ["a-quote-wiki"],
             "show": {
               "picture": "road",
               "state": {
-                "lit": [
-                  "you"
-                ]
+                "lit": ["you"]
               }
             }
           },
@@ -336,9 +305,7 @@
                 "part": "tear-alive"
               }
             ],
-            "cites": [
-              "a-quote-wiki"
-            ],
+            "cites": ["a-quote-wiki"],
             "show": {
               "picture": "costs",
               "state": {}
@@ -353,9 +320,7 @@
             "text": "Programmers meet this fence every week. An odd line in old code, no comment, nobody left to ask. Delete it, and three months later the one customer it was written for calls.",
             "simple": "In old code, a line nobody understands may still matter to someone.",
             "links": [],
-            "cites": [
-              "a-fence-road"
-            ]
+            "cites": ["a-fence-road"]
           }
         ]
       },
@@ -367,15 +332,11 @@
             "text": "There is a trap in this idea, and the people who love it most fall in. A fence proves that a reason existed. It doesn't prove the reason was good, or that it is still true.",
             "simple": "A fence shows someone once had a reason, not that the reason still holds.",
             "links": [],
-            "cites": [
-              "a-fence-didnt-grow"
-            ],
+            "cites": ["a-fence-didnt-grow"],
             "show": {
               "picture": "road",
               "state": {
-                "lit": [
-                  "field"
-                ]
+                "lit": ["field"]
               }
             }
           },
@@ -384,9 +345,7 @@
             "text": "Some fences guard a field that was sold forty years ago. Some were built by a man who was simply wrong. A rule nobody is allowed to question is just a fence around the fence.",
             "simple": "Some old reasons are gone, and some were wrong. A rule nobody may question is a problem too.",
             "links": [],
-            "cites": [
-              "a-quote-wiki"
-            ]
+            "cites": ["a-quote-wiki"]
           },
           {
             "kind": "plain",
@@ -402,9 +361,7 @@
                 "part": "decide"
               }
             ],
-            "cites": [
-              "a-quote-wiki"
-            ],
+            "cites": ["a-quote-wiki"],
             "show": {
               "picture": "order",
               "state": {}
@@ -415,15 +372,11 @@
             "text": "The reformer who learns the reason first isn't the slow one. He's the only one who knows what he's removing.",
             "simple": "The careful reformer is the one who knows what he is taking away.",
             "links": [],
-            "cites": [
-              "a-quote-wiki"
-            ],
+            "cites": ["a-quote-wiki"],
             "show": {
               "picture": "order",
               "state": {
-                "lit": [
-                  "act"
-                ]
+                "lit": ["act"]
               }
             }
           }
@@ -437,16 +390,12 @@
         "text": "Chesterton's rule is about not knowing. It does not say that old things are good, or that change must wait until everyone agrees. It asks for one thing first: find out what the fence was for.",
         "beat": 13,
         "collapsed": true,
-        "cites": [
-          "a-quote-wiki"
-        ]
+        "cites": ["a-quote-wiki"]
       }
     ],
     "takeaway": {
       "text": "You may remove any fence you can explain.",
-      "cites": [
-        "a-quote-wiki"
-      ]
+      "cites": ["a-quote-wiki"]
     },
     "askSuggestions": [
       "How do I find out why an old rule exists?",

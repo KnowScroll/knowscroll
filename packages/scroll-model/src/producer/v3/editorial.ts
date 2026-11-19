@@ -1,5 +1,5 @@
 import { z } from '../../zod.js';
-import { Framing, INTEGRITY_METHOD, SeriesRef, THEME_FAMILIES } from '../../document.js';
+import { Framing, INTEGRITY_METHOD, THEME_FAMILIES, type SeriesRef } from '../../document.js';
 import { OpaqueId, plainText } from '../../primitives.js';
 import { copiedRuns, numericTokens } from '../../text.js';
 import { issueFromSchema } from '../../issues.js';
@@ -126,7 +126,12 @@ function pictureTexts(picture: Picture): string[] {
       const body = picture.statement;
       if (body.form === 'number') return [...head, body.value, body.label];
       if (body.form === 'list') return [...head, ...body.items.flatMap(item)];
-      return [...head, body.who, ...(body.work === undefined ? [] : [body.work]), ...(body.year === undefined ? [] : [body.year])];
+      return [
+        ...head,
+        body.who,
+        ...(body.work === undefined ? [] : [body.work]),
+        ...(body.year === undefined ? [] : [body.year]),
+      ];
     }
     case 'flow':
       return [...head, ...picture.steps.flatMap(item)];
@@ -162,7 +167,11 @@ function beatTexts(beat: AuthoredBeatV3): string[] {
   const control = beat.kind === 'plain' && beat.control !== undefined ? [beat.control.label] : [];
   const cite =
     beat.kind === 'quote'
-      ? [beat.cite.who, ...(beat.cite.work === undefined ? [] : [beat.cite.work]), ...(beat.cite.year === undefined ? [] : [beat.cite.year])]
+      ? [
+          beat.cite.who,
+          ...(beat.cite.work === undefined ? [] : [beat.cite.work]),
+          ...(beat.cite.year === undefined ? [] : [beat.cite.year]),
+        ]
       : [];
   return [beat.text, beat.simple, ...control, ...cite];
 }
@@ -174,14 +183,12 @@ const quotationOf = (picture: Picture): string | undefined =>
 function citedParts(authored: AuthoredScrollV3): CitedPart[] {
   const beats = authored.sections.flatMap((section) => section.beats);
   return [
-    ...authored.pictures.map(
-      ({ picture, cites }, index): CitedPart => ({
-        path: `pictures.${index}`,
-        texts: pictureTexts(picture),
-        cites,
-        quotation: quotationOf(picture),
-      }),
-    ),
+    ...authored.pictures.map(({ picture, cites }, index): CitedPart => ({
+      path: `pictures.${index}`,
+      texts: pictureTexts(picture),
+      cites,
+      quotation: quotationOf(picture),
+    })),
     ...beats.map((beat, index): CitedPart => ({
       path: `beats.${index}`,
       texts: beatTexts(beat),
