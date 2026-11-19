@@ -32,8 +32,8 @@ async function audit(page: Page) {
 }
 
 /**
- * The note after Next ↑ belongs to a Scroll that opens at once. One opened from its cover has none (D-426), so the
- * note's own specs run over an offer with no cover, which opens at once, until the note goes with that path.
+ * The note after Next ↑ belongs to a Scroll that opens at once; one opened from its cover has none (D-426). So the
+ * note's own specs serve an offer with no cover, which opens at once.
  */
 const NO_COVER = { covers: { absent: true } } as const;
 

@@ -14,7 +14,7 @@ tags:
 # Explore opens a fresh encounter (a Reel, or the Scroll's cover, whichever Composer offers now; a Scroll
 # opens when the person taps Read); once one is on screen, the hint that step 2 dismissed must not come back.
 - extendedWaitUntil:
-    visible: More options|Read .*
+    visible: More options|(Read|Continue) .*
     timeout: 90000
 - runFlow:
     when:

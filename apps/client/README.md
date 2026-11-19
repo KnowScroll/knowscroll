@@ -200,7 +200,7 @@ person names (a Part, a related link, the format switch, Keep, a region) open at
 `offer-cover.v1` in `capabilities.documentSchemas`, and the server sends a cover only to a client that does. A stored
 `coversInExplore` from the earlier trial switch is read past and gone at the next write of device preferences.
 `e2e/encounter-fixture.ts` serves a cover on every Scroll
-offer, as the server does (`covers: { absent: true }` serves none), and `readCover` opens the one shown as a person does;
+offer, as the server does for any document that can make one (`covers: { absent: true }` serves none), and `readCover` opens the one shown as a person does;
 `e2e/covers-smoke.spec.ts` proves the hand, the moves, Back, touch, a Scroll with no cover, a Reel hand, axe in Light and
 Dark and 320 px at the largest text. Android checks are #740.
 

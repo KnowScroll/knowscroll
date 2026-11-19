@@ -22,8 +22,8 @@ export interface EncounterFixtureOptions {
    */
   readonly direct?: { readonly parts: number };
   /**
-   * Covers, as the server sends them: every Scroll offer carries one (`offer-cover.v1`) to a client that declared the
-   * capability, and none to a client that did not. Alone, an offer is dealt as a hand of one cover. With `hand`, every
+   * Covers, as the server sends them: a Scroll offer carries one (`offer-cover.v1`) to a client that declared the
+   * capability, and none to a client that did not (the server also sends none when a document cannot make one). Alone, an offer is dealt as a hand of one cover. With `hand`, every
    * open of discovery (and every move to a new subject) deals a new hand: that many distinct Scrolls, the first as the
    * offer and the rest as buffered offers; each Scroll activates and serves its own document. `absent` sends Scroll
    * offers with no cover, as a server that predates covers does, so the page's fallback (a Scroll with no cover opens

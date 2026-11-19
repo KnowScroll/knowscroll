@@ -180,6 +180,24 @@ test('Next idea from an essay opened from a cover deals a new hand; its Scroll o
   await expect(coverTitle(page, 4)).toBeVisible();
 });
 
+test('the format switch on an essay opened from a cover changes format at once: no cover for a move the person names', async ({
+  page,
+}) => {
+  // A series serves each Scroll with its Reel ready, so the switch moves instead of asking for one.
+  const { commands } = await openCovers(page, { fixture: { series: true } });
+  await page.getByTestId('essay-cover-read').click();
+  await expect(readerTitle(page, 1)).toBeVisible();
+  await page
+    .getByRole('radiogroup', { name: 'Format of this explanation' })
+    .first()
+    .getByRole('radio', { name: 'Reel', exact: true })
+    .click();
+  await expect.poll(() => callsTo(commands, '/v1/experience/navigate').length).toBe(1);
+  expect(callsTo(commands, '/v1/experience/navigate')[0]?.body.intent).toMatchObject({ mode: 'variant', to: 'reel' });
+  await expect.poll(() => activations(commands).length).toBe(2);
+  await expect(cover(page)).toHaveCount(0);
+});
+
 test('Enter on a cover opens it, and a tap on its title does too', async ({ page }) => {
   const { commands } = await openCovers(page);
   await page.keyboard.press('Enter');
