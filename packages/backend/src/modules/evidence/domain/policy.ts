@@ -77,12 +77,19 @@ export const SCROLL_RECORDING_QUALIFICATION_POLICY: ScrollQualificationPolicy = 
  * The shared clock (#761, decision E1): the same thresholds, and each moment of visible time is shared between the
  * units on screen in proportion to their words, so a unit's own minimum (40 % of its words' time) and the policy's
  * floor apply to its share. It qualifies readings of a document v3 (reading facts v4, whose units are beats) and no
- * other: v1 and v2 readings keep the policies they had, and the numbers they gave.
+ * other: v1 and v2 readings keep the policies they had, and the numbers they gave. Like v0 and `recording.v1`, there is
+ * one label per clock domain, so a stored label still says which domain wrote the row.
  */
 export const SCROLL_SHARED_QUALIFICATION_POLICY: ScrollQualificationPolicy = Object.freeze({
   ...SCROLL_QUALIFICATION_POLICY_V0,
   version: 'scroll-qualification.shared.v1',
   clock: 'shared',
+});
+
+/** The shared clock for a recorded session: the same rule as `scroll-qualification.shared.v1`, in the session domain. */
+export const SCROLL_SHARED_RECORDING_QUALIFICATION_POLICY: ScrollQualificationPolicy = Object.freeze({
+  ...SCROLL_SHARED_QUALIFICATION_POLICY,
+  version: 'scroll-qualification.shared.recording.v1',
 });
 
 /** The reading-facts version whose readings the shared clock qualifies: a document v3's beats. */
@@ -93,4 +100,5 @@ export const SCROLL_QUALIFICATION_POLICIES: readonly ScrollQualificationPolicy[]
   SCROLL_QUALIFICATION_POLICY_V0,
   SCROLL_RECORDING_QUALIFICATION_POLICY,
   SCROLL_SHARED_QUALIFICATION_POLICY,
+  SCROLL_SHARED_RECORDING_QUALIFICATION_POLICY,
 ];

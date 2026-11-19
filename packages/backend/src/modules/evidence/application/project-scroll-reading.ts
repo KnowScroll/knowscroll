@@ -7,6 +7,7 @@ import {
   SCROLL_QUALIFICATION_POLICY_V0,
   SCROLL_RECORDING_QUALIFICATION_POLICY,
   SCROLL_SHARED_QUALIFICATION_POLICY,
+  SCROLL_SHARED_RECORDING_QUALIFICATION_POLICY,
   SHARED_CLOCK_FACTS_VERSION,
 } from '../domain/policy.js';
 import { qualifyScrollReading } from '../domain/qualification.js';
@@ -83,8 +84,10 @@ export function makeProjectScrollReading(ports: ProjectScrollReadingPorts) {
       if (exposure.activatedAt === undefined) return { kind: 'skipped', reason: 'exposure_not_active' };
       const facts = await ports.readReadingFacts(scope, exposure.assetId, exposure.assetRevision);
       if (facts === undefined) return { kind: 'skipped', reason: 'facts_missing' };
-      // A document v3's beats are read on the shared clock, in either clock domain (#761, decision E1).
-      const policy = facts.v === SHARED_CLOCK_FACTS_VERSION ? SCROLL_SHARED_QUALIFICATION_POLICY : domainPolicy;
+      // A document v3's beats are read on the shared clock (#761, decision E1), under the label of the clock domain.
+      const sharedPolicy =
+        domain === 'legacy' ? SCROLL_SHARED_QUALIFICATION_POLICY : SCROLL_SHARED_RECORDING_QUALIFICATION_POLICY;
+      const policy = facts.v === SHARED_CLOCK_FACTS_VERSION ? sharedPolicy : domainPolicy;
       const read = await ports.readObservations(cap, exposure.id, domain);
       if (read.kind === 'limit') return { kind: 'skipped', reason: 'observation_limit' };
       const segment = await ports.readSegment(cap, exposure.id);

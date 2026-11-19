@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
 import { beatsOfV3, beatWords, validateDocumentV3, WORDS_PER_MINUTE_V3 } from '@knowscroll/scroll-model';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
 import { makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
 import { makeWithPersonalScope } from '@knowscroll/backend/infrastructure/postgres';
+import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { compileEditorialSourceV3 } from '../../../packages/backend/src/modules/content/adapters/scroll-compiler-v3.js';
 import { fixtureAuthoredV2 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
@@ -361,6 +364,93 @@ describe('The Seasons planet forms from a document v3 Part 1 and two v1 parts (r
     const second = await read(patient, v3, skimmer(facts, 4, 6_000), { activeMs: facts.estimatedReadingMs });
     expect(second.projected).toMatchObject({ kind: 'applied', qualification: 'not_qualified' });
     expect((await supportsOf(patient)).witnesses).toEqual([]);
+  });
+
+  it('qualifies a careful read in a recorded session under the session label, and its retained witness is confirmed', async () => {
+    const { nominalMs, facts } = seasons();
+    const { database, c } = world;
+    const reader = await seedPerson(database.db);
+    // Recording is paused and resumed, so the reading belongs to generation 3: a recorded session, not the original
+    // (legacy) clock domain.
+    const policy = recordingPolicyFor(database.db, { lockTimeoutMs: 5000 });
+    for (const [expectedRecordingGeneration, on] of [
+      [1, false],
+      [2, true],
+    ] as const)
+      expect(
+        await policy.set(reader.authority, {
+          version: 'recording-policy.v1',
+          commandId: randomUUID(),
+          expectedPrivacyEpoch: 1,
+          expectedRecordingGeneration,
+          on,
+        }),
+      ).toMatchObject({ kind: 'ok' });
+    const opened = await openActive(c, reader, v3, { activate: false });
+    const sessionId = randomUUID();
+    expect(
+      await c.activateExposure(reader.authority, {
+        commandId: sessionId,
+        exposureId: opened.exposureId,
+        recordingGeneration: 3,
+      }),
+    ).toMatchObject({ kind: 'activated' });
+    // A real reading of this length needs real time: backdate the activation and the session's server start, the two
+    // clocks the intake bounds an honest claim by. The session row is immutable by trigger, so the fixture lifts that
+    // one guard for its own update, on this disposable database, and restores it.
+    await activatedAgo(database.db, opened.exposureId, 30);
+    await database.db.transaction().execute(async (trx) => {
+      await sql`alter table evidence.recording_sessions disable trigger recording_session_guard`.execute(trx);
+      await sql`update evidence.recording_sessions set server_started_at = now() - interval '30 minutes'
+        where universe_id = ${reader.universeId}::uuid and exposure_id = ${opened.exposureId}::uuid`.execute(trx);
+      await sql`alter table evidence.recording_sessions enable trigger recording_session_guard`.execute(trx);
+    });
+    const screens = carefulReader(facts, nominalMs, 1);
+    const bodies = [
+      ...screens.map((screen): Pick<InteractionEvent, 'kind' | 'payload'> => ({
+        kind: 'scroll.block_coverage',
+        payload: {
+          blocks: screen.blockIds.map((blockId) => ({
+            blockId,
+            intervalsMs: [[screen.from, screen.to]],
+            peakFraction: 1,
+          })),
+        },
+      })),
+      dwell(...screens.map((screen): [number, number] => [screen.from, screen.to])),
+    ];
+    expect(
+      await c.ingestObservations(reader.authority, {
+        version: 'observation-batch.v2',
+        recordingGeneration: 3,
+        instrumentationVersion: 1,
+        events: bodies.map((body) => event(opened, body, { sessionId })),
+      }),
+    ).toMatchObject({ kind: 'ingested', accepted: bodies.length, rejected: 0 });
+    const job = {
+      v: 2 as const,
+      recordingGeneration: 3,
+      universeId: reader.universeId,
+      privacyEpoch: 1,
+      exposureId: opened.exposureId,
+    };
+    expect(await c.projectScrollReading(job)).toMatchObject({ kind: 'applied', qualification: 'qualified' });
+    expect(await c.projectActivity(job)).toMatchObject({ kind: 'applied' });
+    expect(await evidenceOf(opened.exposureId)).toMatchObject({
+      policy_version: 'scroll-qualification.shared.recording.v1',
+      qualification: 'qualified',
+    });
+
+    // Reading the trusted coverage again runs the retained-witness check on the session certificate: a witness it
+    // cannot confirm is left out, so both facets standing is the confirmation.
+    const proof = await supportsOf(reader);
+    expect(proof.supports.map((support) => support.facetId).sort()).toEqual([
+      'earth.seasons.axial-tilt',
+      'earth.seasons.limits',
+    ]);
+    expect(proof.witnesses).toHaveLength(2);
+    for (const witness of proof.witnesses)
+      expect(witness).toMatchObject({ exposureId: opened.exposureId, sourceKind: 'segment', recordingGeneration: 3 });
   });
 
   it('keeps qualifying a v2 reading in the same database under its old policy, and leaves the v2 heads as they were', async () => {

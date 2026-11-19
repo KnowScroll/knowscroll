@@ -19,13 +19,11 @@ import {
   SCROLL_QUALIFICATION_POLICY_V0,
   SCROLL_RECORDING_QUALIFICATION_POLICY,
   SCROLL_SHARED_QUALIFICATION_POLICY,
+  SCROLL_SHARED_RECORDING_QUALIFICATION_POLICY,
 } from '../domain/policy.js';
 import { REEL_QUALIFICATION_POLICY_V0, REEL_RECORDING_QUALIFICATION_POLICY } from '../domain/reel-summary.js';
 
-/**
- * The qualification policies whose rows a legacy (initial generation) certificate may rest on, Scroll and Reel. The
- * shared clock qualifies a document v3's reading in either clock domain, so both lists hold it.
- */
+/** The qualification policies whose rows a legacy (initial generation) certificate may rest on, Scroll and Reel. */
 const LEGACY_POLICIES = [
   SCROLL_QUALIFICATION_POLICY_V0,
   SCROLL_SHARED_QUALIFICATION_POLICY,
@@ -34,7 +32,7 @@ const LEGACY_POLICIES = [
 /** The same for a recorded session. */
 const SESSION_POLICIES = [
   SCROLL_RECORDING_QUALIFICATION_POLICY,
-  SCROLL_SHARED_QUALIFICATION_POLICY,
+  SCROLL_SHARED_RECORDING_QUALIFICATION_POLICY,
   REEL_RECORDING_QUALIFICATION_POLICY,
 ];
 
