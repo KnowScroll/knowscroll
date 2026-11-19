@@ -1,4 +1,10 @@
-import { parseDocument, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import {
+  parseDocument,
+  parseDocumentV2,
+  parseDocumentV3,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+} from '@knowscroll/scroll-model';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
@@ -8,6 +14,7 @@ import { notUnderReview } from './review-gate-sql.js';
 import type { AssetKind } from '../domain/provenance.js';
 import { ReadingFactsUnavailableError, type ReadingFacts } from '../domain/reading-facts.js';
 import { readingFactsOfV2 } from './reading-facts-v2.js';
+import { readingFactsOfV3 } from './reading-facts-v3.js';
 import { ReadingFactsSchema } from './reading-facts-schema.js';
 import type { AdmissionTx, ImportEditorialScrollPorts, LockedAsset } from '../application/ports.js';
 import type { AssetForAction, OpenableAsset } from '../public.js';
@@ -92,6 +99,11 @@ export async function readScrollReadingFacts(
     const v2 = parseDocumentV2(row.document);
     if (v2.kind !== 'valid') throw new ReadingFactsUnavailableError();
     return readingFactsOfV2(v2.document);
+  }
+  if (stored?.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    const v3 = parseDocumentV3(row.document);
+    if (v3.kind !== 'valid') throw new ReadingFactsUnavailableError();
+    return readingFactsOfV3(v3.document);
   }
   const document = parseDocument(row.document);
   if (document.kind !== 'valid') throw new ReadingFactsUnavailableError();

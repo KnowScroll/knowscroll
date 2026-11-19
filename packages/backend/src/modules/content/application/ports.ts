@@ -95,4 +95,19 @@ export interface ImportEditorialScrollPorts {
     facts: ReadingFacts,
   ) => Promise<boolean>;
   readonly storeRevision: (tx: AdmissionTx, revision: AdmittedRevision) => Promise<void>;
+  /** The library recipe a document v3 source names (`recipe`); `undefined` for any other source. */
+  readonly recipeOf: (source: unknown) => string | undefined;
+  /**
+   * Attributes a stored document v3 revision to its recipe's planet and admits its beat coverage, in `tx`. Called
+   * only after `storeRevision`; a `not_admitted` outcome means the caller must roll the whole admission back.
+   */
+  readonly admitCoverage: (
+    tx: AdmissionTx,
+    revision: { readonly assetId: string; readonly revision: number; readonly explanationUnitId: string },
+    recipe: string,
+  ) => Promise<EditorialCoverage>;
 }
+
+/** Whether a hand-written document v3 got its topic and coverage, and if not, why (a stable code). */
+export type EditorialCoverage =
+  { readonly kind: 'admitted' } | { readonly kind: 'not_admitted'; readonly code: string };

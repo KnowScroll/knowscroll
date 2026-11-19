@@ -1,5 +1,5 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import { parseDocumentV2, readingWords } from '@knowscroll/scroll-model';
+import { parseDocumentV2, readingWords, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
@@ -315,6 +315,26 @@ async function showRevision(
 }
 
 /**
+ * Whether a revision may be served as far as coverage goes: any v1 or v2 revision, and a document v3 revision only with
+ * an active coverage head (#761, decision G1). Read in the release transaction after the asset's lock.
+ */
+async function coveredIfDocumentV3(
+  trx: Transaction<Database>,
+  target: { readonly assetId: string; readonly revision: number },
+): Promise<boolean> {
+  const row = await sql<{ document_v3: boolean; covered: boolean }>`select
+      r.document_version = ${SCROLL_DOCUMENT_V3_SCHEMA_VERSION} as document_v3,
+      exists(select 1 from content.coverage_heads h join content.coverage_revisions c
+        on c.asset_id = h.asset_id and c.asset_revision = h.asset_revision and c.revision = h.revision
+        where h.asset_id = r.asset_id and h.asset_revision = r.revision and c.status = 'active') as covered
+    from content.asset_revisions r where r.asset_id = ${target.assetId}::uuid and r.revision = ${target.revision}`.execute(
+    trx,
+  );
+  const found = row.rows[0];
+  return found === undefined || !found.document_v3 || found.covered;
+}
+
+/**
  * Publishes exactly this revision: it becomes the asset's current revision (and a held asset becomes
  * admitted), so discovery, navigation, series reads and the Universe see it from now on. Repeating it
  * changes nothing. A `guard` (the release policy's) may refuse a release that would otherwise go ahead; it never
@@ -346,6 +366,7 @@ function releaseRevision(
       assetStatus: asset.status === 'admitted' || asset.status === 'held' ? asset.status : 'withdrawn',
     });
     if (refusal !== undefined) return { kind: 'refused', reason: refusal };
+    if (!(await coveredIfDocumentV3(trx, common))) return { kind: 'refused', reason: 'coverage_missing' };
     await trx
       .updateTable('content.assets')
       .set({ revision: request.revision, status: 'admitted' })

@@ -6,6 +6,7 @@ import { CONCEPT_CATALOGUE_VERSION } from './catalogue/types.js';
 import { LIBRARY_SYSTEMS } from './library/index.js';
 import {
   COVERAGE_POLICY,
+  coverageLocatorTypes,
   CoverageCommandSchema,
   CoverageMappingSchema,
   currentCoverageMapping,
@@ -163,6 +164,51 @@ describe('Content static coverage admission, synthetic source fixtures only', ()
       const duplicate = mapping();
       duplicate.bindings.push(duplicate.bindings[0]!);
       expect(() => currentCoverageMapping(duplicate, target, catalogue)).toThrow('CONTENT_COVERAGE_BINDING_INVALID');
+    });
+  });
+});
+
+describe('the units a coverage locator may name, by reading-facts version', () => {
+  it('names paragraphs, quotes and callouts for facts v2, read stops for v3 and beats for v4', () => {
+    expect(coverageLocatorTypes(2)).toEqual(['paragraph', 'quote', 'callout']);
+    expect(coverageLocatorTypes(3)).toEqual(['stop']);
+    expect(coverageLocatorTypes(4)).toEqual(['beat']);
+  });
+
+  describe('a mapping of a document v3', () => {
+    const beatTarget: CoverageTarget = {
+      ...target,
+      readingFactsVersion: 4,
+      blocks: [
+        { id: 'b1', type: 'beat', nested: false, truthSupported: true },
+        { id: 'p1', type: 'paragraph', nested: false, truthSupported: true },
+      ],
+    };
+    const beatMapping = (requiredBlockIds: string[]): CoverageMapping => ({
+      ...mapping(),
+      readingFactsVersion: 4,
+      bindings: [{ ...mapping().bindings[0]!, requiredBlockIds }],
+    });
+
+    it('is accepted when it binds a beat and its facts version is 4', () => {
+      expect(CoverageMappingSchema.safeParse(beatMapping(['b1'])).success).toBe(true);
+      expect(() => validateCoverageMapping(beatMapping(['b1']), beatTarget, catalogue)).not.toThrow();
+    });
+
+    it('is refused when it binds a unit that is not a beat', () => {
+      expect(() => validateCoverageMapping(beatMapping(['p1']), beatTarget, catalogue)).toThrow(
+        'CONTENT_COVERAGE_LOCATOR_INVALID',
+      );
+    });
+
+    it('is refused when its facts version is not the target’s', () => {
+      expect(() => validateCoverageMapping(mapping(), beatTarget, catalogue)).toThrow(
+        'CONTENT_COVERAGE_IDENTITY_MISMATCH',
+      );
+    });
+
+    it('is not a facts version the schema admits beyond 4', () => {
+      expect(CoverageMappingSchema.safeParse({ ...beatMapping(['b1']), readingFactsVersion: 5 }).success).toBe(false);
     });
   });
 });
