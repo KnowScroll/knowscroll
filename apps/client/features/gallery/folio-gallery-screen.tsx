@@ -88,6 +88,21 @@ function modelOfFixture(source: unknown): {
   };
 }
 
+/** The fixtures that are `scroll-document.v3` documents: the names ending in V3. */
+const v3Names = (Object.keys(documents) as DocumentName[]).filter((key) => key.endsWith('V3'));
+
+/**
+ * The toolbar's buttons. A v2 fixture's page keeps the toolbar it always had (the v2 fixtures and one button to the v3
+ * ones), so the reader below it has the room it always had; a v3 fixture's page lists the v3 fixtures instead.
+ */
+function fixtureButtons(open: DocumentName): { readonly key: DocumentName; readonly label: string }[] {
+  const v2 = (Object.keys(documents) as DocumentName[]).filter((key) => !v3Names.includes(key));
+  const buttons = v2.map((key) => ({ key, label: key }));
+  if (v3Names.includes(open)) return [...buttons, ...v3Names.map((key) => ({ key, label: key }))];
+  const [first] = v3Names;
+  return first === undefined ? buttons : [...buttons, { key: first, label: 'v3' }];
+}
+
 function isDocumentName(value: string | undefined): value is DocumentName {
   return value !== undefined && Object.hasOwn(documents, value);
 }
@@ -156,10 +171,10 @@ export function FolioGalleryScreen() {
       <View testID={folioGalleryMarker} style={[styles.ground, { paddingTop: insets.top }]}>
         {params.bare === '1' ? null : (
           <View role="toolbar" accessibilityLabel="Fixture documents" style={styles.controls}>
-            {(Object.keys(documents) as DocumentName[]).map((key) => (
+            {fixtureButtons(name).map(({ key, label }) => (
               <Button
                 key={key}
-                label={key}
+                label={label}
                 size="sm"
                 variant={key === name ? 'primary' : 'default'}
                 toggled={key === name}
