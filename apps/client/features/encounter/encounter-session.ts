@@ -199,7 +199,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let work: Work | undefined;
   let regionOrigin: { returnToMap: () => void; label: string; entry?: string; returned: boolean } | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
-  /** The device's choice to see covers in Explore (a trial switch while covers are tried, #745). */
+  /** Whether Explore deals a hand of covers: the screen turns it on whenever it is in front. */
   let coverFeed = false;
   /** The last hand dealt; it outlives its screen so Back from a cover's essay can return to it. */
   let hand: CoverHand | undefined;
@@ -1150,7 +1150,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       void run();
     },
     leaveChoices,
-    /** Turns covers in Explore on or off for this device (the trial switch, #745). Takes effect at the next move. */
+    /** Turns covers in Explore on or off. Takes effect at the next move. */
     setCoverFeed(on: boolean) {
       coverFeed = on;
     },

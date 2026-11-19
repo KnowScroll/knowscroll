@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture } from './encounter-fixture';
+import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * The Scroll reader's small fidelity fixes against the V3 frames (#497, part A) in the production export over labelled HTTP
@@ -40,6 +40,7 @@ async function open(page: Page, viewport = phone) {
     scrollDocument: seasons as unknown as Record<string, unknown>,
   });
   await page.goto('/explore');
+  await readCover(page);
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
   ).toBeVisible();
@@ -183,6 +184,7 @@ async function openTitled(page: Page, title: string, viewport = phone) {
     firstTitle: title,
   });
   await page.goto('/explore');
+  await readCover(page);
   await expect(page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: title })).toBeVisible();
   await page.getByRole('button', { name: 'Got it' }).click();
 }

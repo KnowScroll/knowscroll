@@ -9,7 +9,6 @@ describe('device preferences', () => {
       reelSound: true,
       readyNotices: true,
       appearance: 'dark',
-      coversInExplore: false,
     });
   });
 
@@ -22,9 +21,9 @@ describe('device preferences', () => {
           reelSound: false,
           readyNotices: false,
           appearance: 'light',
-          coversInExplore: true,
-          // A choice this version no longer has (a reader switch) is read past.
+          // Choices this version no longer has (a reader switch, the covers trial) are read past.
           scrollReader: 'folio',
+          coversInExplore: true,
         }),
       ),
     ).toEqual({
@@ -33,7 +32,6 @@ describe('device preferences', () => {
       reelSound: false,
       readyNotices: false,
       appearance: 'light',
-      coversInExplore: true,
     });
   });
 
@@ -49,12 +47,12 @@ describe('device preferences', () => {
     });
   });
 
-  it('keep covers in Explore off unless a stored boolean says otherwise (#747)', () => {
-    expect(defaultDevicePreferences.coversInExplore).toBe(false);
-    expect(parseDevicePreferences(JSON.stringify({ coversInExplore: true })).coversInExplore).toBe(true);
-    expect(parseDevicePreferences(JSON.stringify({ coversInExplore: false })).coversInExplore).toBe(false);
-    for (const junk of ['yes', 1, null, {}, []])
-      expect(parseDevicePreferences(JSON.stringify({ coversInExplore: junk })).coversInExplore).toBe(false);
+  it('drops the covers trial switch a device stored, so the next write no longer holds it (#752)', () => {
+    for (const stored of [true, false, 'yes'])
+      expect(parseDevicePreferences(JSON.stringify({ reelSound: false, coversInExplore: stored }))).toEqual({
+        ...defaultDevicePreferences,
+        reelSound: false,
+      });
   });
 
   describe('carrying the Talk theme (D-151) over to Appearance (#666)', () => {
@@ -64,7 +62,6 @@ describe('device preferences', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'paper' }))).toEqual({
         ...before,
         appearance: 'light',
-        coversInExplore: false,
       });
     });
 
@@ -72,7 +69,6 @@ describe('device preferences', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'sky' }))).toEqual({
         ...before,
         appearance: 'dark',
-        coversInExplore: false,
       });
     });
 

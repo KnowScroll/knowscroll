@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { encounterFixture, type EncounterFixtureOptions } from './encounter-fixture';
+import { encounterFixture, type EncounterFixtureOptions, readCover } from './encounter-fixture';
 
 /**
  * Quick answer (V3 D2, D-086, D-253) in the production export over labelled HTTP fixtures: select words in a read stop and
@@ -47,6 +47,7 @@ async function open(
     ...options,
   });
   await page.goto('/explore');
+  await readCover(page);
   // The offer's own title heads the Scroll in the bar; the essay repeats it in its opening.
   await expect(
     page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),

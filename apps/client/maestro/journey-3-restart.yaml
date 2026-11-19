@@ -11,11 +11,21 @@ tags:
 - stopApp
 - launchApp:
     stopApp: true
-# Explore opens a fresh encounter (a Reel or the Scroll, whichever Composer offers now); once one is
-# on screen, the hint that step 2 dismissed must not come back.
+# Explore opens a fresh encounter (a Reel, or the Scroll's cover, whichever Composer offers now; a Scroll
+# opens when the person taps Read); once one is on screen, the hint that step 2 dismissed must not come back.
 - extendedWaitUntil:
-    visible: More options
+    visible: More options|(Read|Continue) .*
     timeout: 90000
+- runFlow:
+    when:
+      visible:
+        id: essay-cover-read
+    commands:
+      - tapOn:
+          id: essay-cover-read
+      - extendedWaitUntil:
+          visible: More options
+          timeout: 90000
 - assertNotVisible: Got it
 - tapOn: More options
 - assertVisible: Next subject

@@ -187,19 +187,22 @@ through unknown-outcome retries. Stale intent refreshes current context and requ
 choice; ready offers activate only while Explore is foreground. The session belongs to the
 AccountScope, survives tab/component detours and ends when the scope ends.
 
-**Covers in Explore (trial, #745 to #747).** Behind the device switch "Show Scrolls as covers (trial)" (Account →
-Accessibility & playback, `coversInExplore`, off by default), the moves the system chooses (the first open, a move to a
+**Covers in Explore (#745 to #752, D-426 to D-428).** Explore always shows a Scroll the system offers as a cover, with no
+switch (Explore calls `setCoverFeed(true)` on every platform). The moves the system chooses (the first open, a move to a
 new subject, more covers) show their Scroll offers as a hand of up to three covers (`CoverHand`, drawn by
 `features/explore/cover-feed.tsx` with `EssayCover`) instead of opening the first one. Nothing in a hand is activated,
 so nothing is recorded, until Read, a tap on the cover or Enter opens the one shown. ↓ or J, a swipe up, the wheel and the
 strip turn to the next cover and ↑ or K to the one before; after the last, the next move asks for another hand (a new
 discover) and the old one is gone. Back from an essay opened from a cover returns to that cover; Back from the covers
 returns to the entry they were dealt over, and with none (the first thing dealt) it is the browser's. A hand older than
-its offers' life is replaced when a cover is opened, not refused. A Reel offer, an offer without a `cover`, a move the
-person names (a Part, a related link, the format switch, Keep, a region) and any move with the switch off open at once as
-before. The client declares `offer-cover.v1` in `capabilities.documentSchemas`, and the server sends a cover only to a
-client that does. `e2e/covers-smoke.spec.ts` proves the hand, the moves, Back, touch, the switch off, a Reel hand, axe in
-Light and Dark and 320 px at the largest text.
+its offers' life is replaced when a cover is opened, not refused. A Reel offer, an offer without a `cover` and a move the
+person names (a Part, a related link, the format switch, Keep, a region) open at once. The client declares
+`offer-cover.v1` in `capabilities.documentSchemas`, and the server sends a cover only to a client that does. A stored
+`coversInExplore` from the earlier trial switch is read past and gone at the next write of device preferences.
+`e2e/encounter-fixture.ts` serves a cover on every Scroll
+offer, as the server does for any document that can make one (`covers: { absent: true }` serves none), and `readCover` opens the one shown as a person does;
+`e2e/covers-smoke.spec.ts` proves the hand, the moves, Back, touch, a Scroll with no cover, a Reel hand, axe in Light and
+Dark and 320 px at the largest text. Android checks are #740.
 
 Presentation is split by what the person sees: `encounter-reel.tsx` (E01: stage, chrome, edge tabs),
 `encounter-scroll.tsx` and `scroll-end.tsx` (E02 and the end-of-article card), `encounter-top-bar.tsx`

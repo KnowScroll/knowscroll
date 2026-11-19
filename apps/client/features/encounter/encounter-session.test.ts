@@ -1672,7 +1672,7 @@ describe('covers in Explore (#747)', () => {
     jest.restoreAllMocks();
     for (const h of live.splice(0)) h.scope.end();
   });
-  /** A fresh session over the fixture, with the device switch on and every outcome carrying three Scroll covers. */
+  /** A fresh session over the fixture, with the cover feed on and every outcome carrying three Scroll covers. */
   function coverHarness(specs: OfferSpec[] = COVERS) {
     const h = harness();
     live.push(h);
@@ -1799,7 +1799,7 @@ describe('covers in Explore (#747)', () => {
     expect(commands(h, '/activate')).toHaveLength(0);
   });
 
-  it('with the switch off opens a Scroll as it arrives, as before', async () => {
+  it('with the cover feed off opens a Scroll as it arrives', async () => {
     const h = coverHarness();
     h.session.setCoverFeed(false);
     h.session.open({ kind: 'discover' });
