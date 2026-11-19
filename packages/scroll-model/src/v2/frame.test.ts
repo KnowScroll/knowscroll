@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assembleScrollV2 } from '../producer/v2/assemble.js';
 import { authoredV2, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
-import { firstFrameOf, StageFrame, type ScrollDocumentV2 } from './document.js';
+import { firstFrameOf, Stage, StageFrame, type ScrollDocumentV2 } from './document.js';
 
 /** The labelled CI fixture, assembled with or without a stage. Not product content. */
 function fixture(variant: 'stage' | 'plain'): ScrollDocumentV2 {
@@ -45,5 +45,15 @@ describe('a stage frame on its own', () => {
   it('refuses a kit it does not know and an extra key', () => {
     expect(StageFrame.safeParse({ ...frame(), kit: 'unknown.v1' }).success).toBe(false);
     expect(StageFrame.safeParse({ ...frame(), stop: 'the-lean' }).success).toBe(false);
+  });
+});
+
+describe('the kits a stage frame accepts', () => {
+  const kitsOf = (union: { options: readonly { shape: { kit: { value: string } } }[] }): string[] =>
+    union.options.map((option) => option.shape.kit.value).sort();
+
+  it('are exactly the kits a stage names, so a kit added to one alone fails here', () => {
+    expect(kitsOf(StageFrame)).toEqual(kitsOf(Stage));
+    expect(new Set(kitsOf(Stage)).size).toBe(Stage.options.length);
   });
 });
