@@ -9,9 +9,6 @@ import { layoutGrid } from './grid';
 import { layoutPlan } from './plan';
 import { layoutStatement } from './statement';
 
-/** One kind's layout: the picture in one state, laid out to fill a box. Pure. */
-export type KindLayout<P extends Picture> = (picture: P, state: PictureState, box: PictureBox) => PictureScene;
-
 /**
  * Lays a picture out for a box: its kind's layout fills the box, less a line at the foot for the caption when it has
  * one. Pure and deterministic, so the same picture, state and box always give the same scene, which is what lets a
@@ -19,8 +16,9 @@ export type KindLayout<P extends Picture> = (picture: P, state: PictureState, bo
  */
 export function layoutPicture(picture: Picture, state: PictureState, box: PictureBox): PictureScene {
   const size = labelSize(box.height, box.textScale) * 0.9;
-  const caption = picture.caption === undefined ? [] : wrapText(picture.caption, box.width - 2 * MARGIN, size, 1);
-  const captionRoom = caption.length === 0 ? 0 : size * 1.8;
+  // Two lines, so a narrow plate (320 px) still shows the whole caption rather than cutting it.
+  const caption = picture.caption === undefined ? [] : wrapText(picture.caption, box.width - 2 * MARGIN, size, 2);
+  const captionRoom = caption.length === 0 ? 0 : size * (0.8 + caption.length);
   const body: PictureBox = { ...box, height: Math.max(0, box.height - captionRoom) };
   const scene = layoutKind(picture, state, body);
   if (caption.length === 0) return scene;
@@ -33,10 +31,10 @@ export function layoutPicture(picture: Picture, state: PictureState, box: Pictur
         type: 'text',
         key: 'caption',
         x: MARGIN,
-        y: box.height - size * 0.7,
+        y: box.height - size * (caption.length - 0.3),
         lines: caption,
         size,
-        lineHeight: size,
+        lineHeight: size * 1.1,
         weight: 'regular',
         anchor: 'start',
         fill: 'ink2',

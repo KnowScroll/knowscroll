@@ -7,7 +7,7 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button, ErrorState, IconButton, OfflineState, ScrollArticle, Skeleton, StateBlock } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { recorderFor } from '../scroll/reading-recorder';
-import type { OpenedScroll, OpenedScrollV2 } from '../scroll/scroll-session';
+import type { OpenedScroll, OpenedScrollFolio } from '../scroll/scroll-session';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
 import { ARTICLE_ONLY, EVERY_READER } from '../scroll/scroll-readers';
 import { useScrollSession } from '../scroll/use-scroll-session';
@@ -29,8 +29,8 @@ function Frame({ children, onBack }: { readonly children: ReactNode; readonly on
  * other state has its screen: opening, unavailable, needs an update, offline, error. This is where
  * reading begins: nothing is opened before the person chose to read.
  *
- * A caller that can draw a v2 Scroll passes `v2`: the Scroll is then opened for the v2 reader and handed to
- * `v2`. Without it a v2 Scroll is "needs an app update", as it is for a caller that cannot read one.
+ * A caller that can draw an essay passes `v2`: a v2 or v3 Scroll is then opened for Folio and handed to
+ * `v2`. Without it such a Scroll is "needs an app update", as it is for a caller that cannot read one.
  */
 export function OpenScroll({
   scope,
@@ -43,7 +43,7 @@ export function OpenScroll({
   readonly assetId: string;
   readonly onBack: () => void;
   readonly children: (scroll: OpenedScroll) => ReactNode;
-  readonly v2?: ((scroll: OpenedScrollV2) => ReactNode) | undefined;
+  readonly v2?: ((scroll: OpenedScrollFolio) => ReactNode) | undefined;
 }) {
   const { session, state } = useScrollSession(scope, assetId, v2 === undefined ? ARTICLE_ONLY : EVERY_READER);
   useEffect(() => {
@@ -164,7 +164,7 @@ export function ThreadScrollArticle({
 }
 
 /**
- * A v2 Scroll opened from a thread: the essay `/scroll/<id>` draws, with the same recorder, so what is read
+ * A v2 or v3 Scroll opened from a thread: the essay `/scroll/<id>` draws, with the same recorder, so what is read
  * here is an ordinary encounter of the original Scroll. The thread supplies the way back and `endSlot`, its foot (the
  * finish of a part). Parts and related Scrolls are not offered: the next part is chosen in the thread, whose player is
  * the only thing that tells a place (D-153).
@@ -178,7 +178,7 @@ export function ThreadScrollV2({
   initialStopId,
 }: {
   readonly scope: AccountScope;
-  readonly scroll: OpenedScrollV2;
+  readonly scroll: OpenedScrollFolio;
   readonly onBack: () => void;
   readonly endSlot?: ReactNode;
   /** The thread this is read in: "Share a moment" sends into it. */

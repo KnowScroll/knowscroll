@@ -1,21 +1,32 @@
 import { setStatusBarStyle } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
+import broadStreetV3 from '@knowscroll/scroll-model/fixtures/broad-street-v3-ci.json';
 import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
+import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import greenhouse from '@knowscroll/scroll-model/fixtures/greenhouse-stage-ci.json';
 import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
+import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
 import star from '@knowscroll/scroll-model/fixtures/star-stage-ci.json';
 import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
 import transit from '@knowscroll/scroll-model/fixtures/transit-stage-ci.json';
-import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import {
+  canonicalJson,
+  describePicture,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+  type Picture,
+  type PictureState,
+  type ScrollDocumentV2,
+  type ScrollDocumentV3,
+} from '@knowscroll/scroll-model';
 import {
   Button,
   DisplayProvider,
@@ -25,11 +36,13 @@ import {
   ReaderDock,
   ReaderTopBar,
   readingModelOfV2,
+  readingModelOfV3,
   scrollPageSurface,
   stageFigureAt,
   Text,
   useDisplay,
   type FigureState,
+  type ReadingModel,
   type UnitReadingObserver,
 } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
@@ -37,7 +50,11 @@ import { useDocumentTitle } from '../../platform/document-title';
 /** Marker the browser smoke looks for; never in a production export. */
 const folioGalleryMarker = 'ks-folio-gallery';
 
-/** The labelled CI fixtures of `scroll-model` (not product content): every kit, and two Scrolls with play blocks and no picture. */
+/**
+ * The labelled CI fixtures of `scroll-model` (not product content): every kit, two Scrolls with play blocks and no
+ * picture (all `scroll-document.v2`), and the three `scroll-document.v3` documents whose pictures the general renderer
+ * draws (the names ending in V3).
+ */
 const documents = {
   seasons,
   tides,
@@ -50,8 +67,26 @@ const documents = {
   blackHole,
   scaleChart,
   sortFork,
+  fenceV3,
+  seasonsV3,
+  broadStreetV3,
 } as const;
 type DocumentName = keyof typeof documents;
+
+/** The reading model of a fixture, through the adapter of the version it is in: the one a person's reader would use. */
+function modelOfFixture(source: unknown): {
+  readonly document: { title: string; kicker: string };
+  model: ReadingModel;
+} {
+  const document = source as ScrollDocumentV2 | ScrollDocumentV3;
+  return {
+    document,
+    model:
+      document.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION
+        ? readingModelOfV3(document)
+        : readingModelOfV2(document),
+  };
+}
 
 function isDocumentName(value: string | undefined): value is DocumentName {
   return value !== undefined && Object.hasOwn(documents, value);
@@ -78,10 +113,11 @@ const observer: UnitReadingObserver = {
 };
 
 /**
- * Developer gallery of the Folio reader (`/gallery-folio`, gallery builds only): a v2 fixture document through the
- * real adapter (`readingModelOfV2`) and reader, with the app's top bar and dock and no backend. Query: `doc` (a fixture
+ * Developer gallery of the Folio reader (`/gallery-folio`, gallery builds only): a v2 or v3 fixture document through the
+ * real adapter (`readingModelOfV2` or `readingModelOfV3`) and reader, with the app's top bar and dock and no backend. Query: `doc` (a fixture
  * name), `stop` (open at that stop), `motion=reduce`, `scale=2` (200 % text), `bare=1` (no fixture toolbar: the screen as
- * a reader sees it), `figures=1` (every figure state of the document on the page, to check a kit in each appearance),
+ * a reader sees it), `figures=1` (every figure state of the document on the page, to check a kit or a picture kind in each
+ * appearance; for a v3 document that is every state its beats show, and each state a scrub, switch or pick can reach),
  * `covers=1` (the cover of a Scroll in each of its cases, one under the other).
  */
 export function FolioGalleryScreen() {
@@ -106,8 +142,7 @@ export function FolioGalleryScreen() {
     covers?: string;
   }>();
   const name: DocumentName = isDocumentName(params.doc) ? params.doc : 'seasons';
-  const document = documents[name] as unknown as ScrollDocumentV2;
-  const model = useMemo(() => readingModelOfV2(document), [document]);
+  const { document, model } = useMemo(() => modelOfFixture(documents[name]), [name]);
   useEffect(() => {
     (globalThis as { __ksFolioGallery?: unknown }).__ksFolioGallery = events;
   }, []);
@@ -164,20 +199,71 @@ export function FolioGalleryScreen() {
   );
 }
 
-/** Every distinct figure of the essay, one under the other, on the page: how each kit state looks in each appearance. */
-function FigureSheet({ model }: { readonly model: ReturnType<typeof readingModelOfV2> }) {
-  const figures = new Map<string, FigureState>();
+type FigureProps = ComponentProps<typeof FigureView>;
+
+/** A picture of a document v3 in one state, as the reader draws it: its words from the same data and a key naming the state. */
+function pictureFigureOf(picture: Picture, state: PictureState) {
+  return {
+    kind: 'picture' as const,
+    picture,
+    state,
+    alt: describePicture(picture, state),
+    key: `${picture.id}/${canonicalJson(state)}`,
+  };
+}
+
+/**
+ * Every figure state of an essay, once each: the state each figure and held beat shows, the end plate's, and, for a
+ * document v3, each state a control can reach (every position of a scrub, a switch's other state, each item a pick can
+ * light), so a picture kind can be checked in every state a reader may see it in.
+ */
+function figuresOf(model: ReadingModel): { readonly figure: FigureProps['figure']; readonly caption?: string }[] {
+  const figures = new Map<string, { figure: FigureProps['figure']; caption?: string }>();
+  const add = (figure: FigureProps['figure'], caption?: string) => {
+    if (!figures.has(figure.key)) figures.set(figure.key, caption === undefined ? { figure } : { figure, caption });
+  };
   for (const section of model.sections) {
     for (const block of section.blocks) {
-      if (block.kind === 'figure') figures.set(block.figure.key, block.figure);
-      if (block.kind === 'hold') for (const held of block.beats) figures.set(held.figure.key, held.figure);
+      if (block.kind === 'figure') {
+        add(block.figure);
+        const { figure, control } = block;
+        if (figure.kind === 'picture' && control !== undefined) {
+          const { picture } = figure;
+          if (control.kind === 'scrub')
+            for (const position of control.positions)
+              add(pictureFigureOf(picture, position.state), `${control.label}: ${position.label}`);
+          if (control.kind === 'switch')
+            add(pictureFigureOf(picture, control.to), `${control.label} (the other state)`);
+          if (control.kind === 'pick')
+            for (const item of control.items)
+              add(pictureFigureOf(picture, { lit: [item.id] }), `${control.label}: ${item.label}`);
+        }
+      }
+      if (block.kind === 'hold') for (const held of block.beats) add(held.figure);
     }
   }
-  if (model.end.figure !== undefined) figures.set(model.end.figure.key, model.end.figure);
+  if (model.end.figure !== undefined) add(model.end.figure);
+  return [...figures.values()];
+}
+
+/** Every distinct figure of the essay, one under the other, on the page: how each kit state looks in each appearance. */
+function FigureSheet({ model }: { readonly model: ReadingModel }) {
   return (
     <ScrollView {...scrollPageSurface()} contentContainerStyle={styles.sheet} testID="figure-sheet">
-      {[...figures.values()].map((figure) => (
-        <FigureView key={figure.key} figure={figure} height={240} reducedMotion textVersion={false} />
+      {figuresOf(model).map(({ figure, caption }) => (
+        <View key={figure.key} style={styles.sheetItem} testID="figure-sheet-item">
+          {caption === undefined ? null : (
+            <Text variant="label" color={content.ink2}>
+              {caption}
+            </Text>
+          )}
+          <FigureView
+            figure={figure}
+            height={figure.kind === 'picture' ? 300 : 240}
+            reducedMotion
+            textVersion={false}
+          />
+        </View>
       ))}
     </ScrollView>
   );
@@ -285,6 +371,7 @@ const styles = StyleSheet.create({
   board: { gap: spacing[6], paddingVertical: spacing[4], backgroundColor: content.paper },
   boardFrame: { gap: spacing[2] },
   boardLabel: { paddingHorizontal: layout.gutter },
+  sheetItem: { gap: spacing[1] },
   sheet: { gap: spacing[4], padding: layout.gutter, backgroundColor: content.paper },
   ground: { flex: 1, backgroundColor: content.paper },
   controls: {

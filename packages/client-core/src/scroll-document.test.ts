@@ -11,6 +11,10 @@ import {
 } from '@knowscroll/scroll-model';
 import { parseScrollDocument } from './scroll-document';
 
+const v3 = JSON.parse(
+  readFileSync(new URL('../../scroll-model/fixtures/documents/seasons-v3-ci.json', import.meta.url), 'utf8'),
+) as unknown;
+
 const v1 = JSON.parse(
   readFileSync(new URL('../../scroll-model/fixtures/documents/attention-slowly.json', import.meta.url), 'utf8'),
 ) as unknown;
@@ -89,6 +93,15 @@ describe('the device’s way into a document', () => {
     expect(parseScrollDocument(v1)).toMatchObject({ kind: 'valid', schema: 'v1' });
     expect(parseScrollDocument(documentV2())).toMatchObject({ kind: 'valid', schema: 'v2' });
     expect(parseScrollDocument(documentV2(), { verify: true })).toMatchObject({ kind: 'valid', schema: 'v2' });
+  });
+
+  it('parses a v3 document as v3, with the same trust boundary', () => {
+    expect(parseScrollDocument(v3)).toMatchObject({ kind: 'valid', schema: 'v3' });
+    expect(parseScrollDocument(v3, { verify: true })).toMatchObject({ kind: 'valid', schema: 'v3' });
+    const tampered = { ...(v3 as object), integrity: { method: 'canonical-json-sha256.v1', sha256: 'f'.repeat(64) } };
+    expect(parseScrollDocument(tampered).kind).toBe('valid');
+    expect(parseScrollDocument(tampered, { verify: true }).kind).toBe('invalid');
+    expect(parseScrollDocument({ ...(v3 as object), sections: 'no' })).toMatchObject({ kind: 'invalid' });
   });
 
   it('checks a v2 document’s measures and hash only when asked, like v1', () => {

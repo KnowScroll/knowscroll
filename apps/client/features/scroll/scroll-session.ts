@@ -9,9 +9,13 @@ import { DirectActivateExposureResponseSchema } from '@knowscroll/contracts';
 import { parseScrollDocument } from '@knowscroll/client-core';
 import type { ClientCapabilities } from '@knowscroll/contracts';
 import {
+  beatsOfV3,
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
   type ScrollDocument,
   type ScrollDocumentV2,
+  type ScrollDocumentV3,
 } from '@knowscroll/scroll-model';
 import { ARTICLE_ONLY, capabilitiesFor, readerFor, type ScrollReaderKind, type ScrollToDraw } from './scroll-readers';
 
@@ -30,19 +34,46 @@ export interface OpenedScroll {
 /** A v2 Scroll, opened for Folio's essay: the same lineage, a stop-based document. */
 export type OpenedScrollV2 = Omit<OpenedScroll, 'document'> & { readonly document: ScrollDocumentV2 };
 
-/** Either kind of opened Scroll, for the places that only need what both share (lineage, keep positions). */
-export type AnyOpenedScroll = OpenedScroll | OpenedScrollV2;
+/** A v3 Scroll, opened for Folio's essay: the same lineage, a document of beats and pictures (#762). */
+export type OpenedScrollV3 = Omit<OpenedScroll, 'document'> & { readonly document: ScrollDocumentV3 };
 
-/** Whether an opened Scroll is a v2 document, which Folio's essay draws (v1 keeps the article). */
+/**
+ * What Folio's essay draws: a v2 or a v3 Scroll. One object type with a union document (not a union of the two opened
+ * kinds), so a Scroll that `readerFor` chose Folio for is assignable to it without being told which version it is.
+ */
+export type OpenedScrollFolio = Omit<OpenedScroll, 'document'> & {
+  readonly document: ScrollDocumentV2 | ScrollDocumentV3;
+};
+
+/** Any kind of opened Scroll, for the places that only need what all share (lineage, keep positions). */
+export type AnyOpenedScroll = OpenedScroll | OpenedScrollFolio;
+
+/** Whether an opened Scroll is a v2 document: the one kind with stops, calls, a stage and a landmark. */
 export function isScrollV2(scroll: AnyOpenedScroll): scroll is OpenedScrollV2 {
   return scroll.document.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION;
 }
 
-/** The ids a position in this Scroll can name: block ids in v1, stop ids in v2. */
+/** Whether an opened Scroll is a v3 document. */
+export function isScrollV3(scroll: AnyOpenedScroll): scroll is OpenedScrollV3 {
+  return scroll.document.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION;
+}
+
+/** Whether Folio's essay draws an opened Scroll (v1 keeps the article). */
+export function isScrollFolio(scroll: AnyOpenedScroll): scroll is OpenedScrollFolio {
+  return isScrollV2(scroll) || isScrollV3(scroll);
+}
+
+/** The ids a position in this Scroll can name: block ids in v1, stop ids in v2, beat ids in v3. */
 export function positionIds(scroll: AnyOpenedScroll): readonly string[] {
-  return isScrollV2(scroll)
-    ? scroll.document.stops.map((stop) => stop.id)
-    : scroll.document.sections.flatMap((section) => section.blocks.map((block) => block.id));
+  const { document } = scroll;
+  switch (document.schemaVersion) {
+    case SCROLL_DOCUMENT_V2_SCHEMA_VERSION:
+      return document.stops.map((stop) => stop.id);
+    case SCROLL_DOCUMENT_V3_SCHEMA_VERSION:
+      return beatsOfV3(document).map((beat) => beat.id);
+    case SCROLL_DOCUMENT_SCHEMA_VERSION:
+      return document.sections.flatMap((section) => section.blocks.map((block) => block.id));
+  }
 }
 
 /**
@@ -105,7 +136,11 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
   let activationBody: { commandId: string; exposureId: string; recordingGeneration?: number } | undefined;
   let opened: { exposureId: string; assetRevision: number } | undefined;
   let loaded:
-    { document: ScrollDocument | ScrollDocumentV2; degradedEssential: OpenedScroll['degradedEssential'] } | undefined;
+    | {
+        document: ScrollDocument | ScrollDocumentV2 | ScrollDocumentV3;
+        degradedEssential: OpenedScroll['degradedEssential'];
+      }
+    | undefined;
   const readers = options.readers ?? ARTICLE_ONLY;
   const capabilities: ClientCapabilities = capabilitiesFor(readers);
 

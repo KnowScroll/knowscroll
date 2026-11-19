@@ -75,7 +75,9 @@ function LinkedPhrase({ link, onPress }: { readonly link: BeatLink; readonly onP
       accessibilityRole="button"
       accessibilityLabel={`Show ${link.phrase} in the picture`}
       onPress={press}
-      style={[{ textDecorationLine: 'underline', textDecorationColor: underlineOf(link, page.link) }, focus.style]}
+      // The ring is drawn by the web's :focus-visible stylesheet (`focus.props`); Folio is web only for now (#740), and
+      // a native inline text could not draw a view's outline anyway.
+      style={{ textDecorationLine: 'underline', textDecorationColor: underlineOf(link, page.link) }}
     >
       {link.phrase}
     </NativeText>

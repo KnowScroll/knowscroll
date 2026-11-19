@@ -8,6 +8,7 @@ import {
   ReaderTopBar,
   FolioReader,
   readingModelOfV2,
+  readingModelOfV3,
   Text,
   useDisplay,
   type NextPartPeek,
@@ -19,13 +20,13 @@ import {
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
 import { FeedbackSheetBody } from '../feedback/feedback-sheet';
-import { whyNoMoment } from '@knowscroll/scroll-model';
+import { SCROLL_DOCUMENT_V3_SCHEMA_VERSION, whyNoMoment } from '@knowscroll/scroll-model';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { challengeCallOf } from '../sharing/challenge-call';
 import { ChallengeSheet } from '../sharing/challenge-sheet';
 import { ShareStopSheet, type MomentThread } from '../threads/share-stop-sheet';
 import { MoreSheetBody } from './more-sheet';
-import type { OpenedScrollV2 } from './scroll-session';
+import { isScrollV2, type OpenedScrollFolio } from './scroll-session';
 import { quickAnswerViewOf } from './quick-answer-copy';
 import { useQuickAnswers } from './use-quick-answers';
 
@@ -85,11 +86,15 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
 }
 
 /**
- * Folio's reader for a v2 Scroll, wherever it is shown (the Explore encounter, the direct `/scroll/<id>` route and a
+ * Folio's reader for a v2 or v3 Scroll, wherever it is shown (the Explore encounter, the direct `/scroll/<id>` route and a
  * thread): its top bar, the essay, its dock (Like, Share, Save, •••, the next Part) and the ••• sheet, with the room a
  * screen keeps for the status bar and the tab bar. The screen supplies the moves (Like, Save, Ask), because those differ
  * by screen; Share is the reader's own: a moment, or the whole Scroll. On a
  * tablet or desktop the essay is a centred column wide enough to set a held figure beside the text (D-425).
+ *
+ * What names a stop, a call or a stage is a v2 field: a Quick answer, Share a moment, Challenge and the anchor of a
+ * report. A v3 Scroll has beats and pictures instead, and the contracts that carry those are not shipped yet, so for
+ * a v3 Scroll those moves are simply not offered; the essay, Like, Save, sharing the whole Scroll and the small print are.
  */
 export function ScrollReaderSurface({
   scroll,
@@ -108,7 +113,7 @@ export function ScrollReaderSurface({
   topInset,
   bottomInset,
 }: {
-  readonly scroll: OpenedScrollV2;
+  readonly scroll: OpenedScrollFolio;
   readonly observer?: UnitReadingObserver | undefined;
   readonly paused?: boolean | undefined;
   readonly initialStopId?: string | undefined;
@@ -164,12 +169,20 @@ export function ScrollReaderSurface({
     },
     [handleRef],
   );
-  const canChallenge = challengeCallOf(scroll.document) !== undefined;
   const { breakpoint } = useDisplay();
   const { document } = scroll;
-  const noMoment = whyNoMoment(document, stopNow);
-  const limits = document.asides.find((aside) => aside.id === document.recap.smallPrintAside);
-  const model = useMemo(() => readingModelOfV2(document), [document]);
+  // The Scroll as a v2 one, where a move needs its stops and calls; a v3 Scroll has none of them.
+  const withStops = isScrollV2(scroll) ? scroll : undefined;
+  const canChallenge = withStops !== undefined && challengeCallOf(withStops.document) !== undefined;
+  const noMoment = withStops === undefined ? 'no_stop' : whyNoMoment(withStops.document, stopNow);
+  const model = useMemo(
+    () =>
+      document.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION
+        ? readingModelOfV3(document)
+        : readingModelOfV2(document),
+    [document],
+  );
+  const limits = model.end.smallPrint;
   const openMoment = () => {
     setMomentStop(reader.current?.capture()?.stopId);
     setSharingMoment(true);
@@ -182,7 +195,9 @@ export function ScrollReaderSurface({
       assetRevision: scroll.assetRevision,
       title: document.title,
       format: 'scroll',
-      ...(stopId === undefined ? {} : { anchor: { kind: 'scroll' as const, blockId: stopId } }),
+      ...(stopId === undefined || withStops === undefined
+        ? {}
+        : { anchor: { kind: 'scroll' as const, blockId: stopId } }),
     });
   };
   // Share (D-429): the stop on screen as a moment where it can be one, otherwise the whole Scroll; never a dead button.
@@ -224,7 +239,7 @@ export function ScrollReaderSurface({
             challenge: canChallenge ? () => setChallenging(true) : undefined,
             like: moves.like?.onPress,
             save: moves.save?.onPress,
-            shareMoment: openMoment,
+            shareMoment: withStops === undefined ? undefined : openMoment,
             smallPrint: limits === undefined ? undefined : () => setSmallPrintOpen(true),
             report: openReport,
             askAbout:
@@ -328,12 +343,14 @@ export function ScrollReaderSurface({
         )}
       </BottomSheet>
       <BottomSheet visible={sharingMoment} title="Share a moment" onClose={() => setSharingMoment(false)}>
-        <ShareStopSheet
-          scroll={scroll}
-          stopId={momentStop}
-          thread={momentThread}
-          onClose={() => setSharingMoment(false)}
-        />
+        {withStops === undefined ? null : (
+          <ShareStopSheet
+            scroll={withStops}
+            stopId={momentStop}
+            thread={momentThread}
+            onClose={() => setSharingMoment(false)}
+          />
+        )}
       </BottomSheet>
       <BottomSheet visible={sharingScroll} title="Share" onClose={() => setSharingScroll(false)}>
         <ShareSheetBody
@@ -349,7 +366,7 @@ export function ScrollReaderSurface({
         )}
       </BottomSheet>
       <BottomSheet visible={challenging} title="Challenge a friend" onClose={() => setChallenging(false)}>
-        <ChallengeSheet scroll={scroll} onClose={() => setChallenging(false)} />
+        {withStops === undefined ? null : <ChallengeSheet scroll={withStops} onClose={() => setChallenging(false)} />}
       </BottomSheet>
     </View>
   );
