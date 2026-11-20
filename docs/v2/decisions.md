@@ -5198,7 +5198,11 @@ Confirmed by: the contracts' `experience.test.ts` and `navigation.test.ts`; back
   - **On a wide screen,** the beats start level with the figure, and the figure pins only when its beats run longer than it. Otherwise it goes up with them, beside them and in full view while it changes state.
   - **Room under the last beat** is left only when that beat is too short to reach the line before the figure lets go, and only by the difference.
 - **Letting go of a kept place re-reads the beat at the line.** At the opening the reader holds a kept place for up to 4 s, or until the person's own input, and ignores the scroll meanwhile. When it let go it did not look again, so the page could have moved while it was kept with no scroll event after. The blanks had hidden this: they changed with the screen's height, so opening a sheet moved the page and fired one. Now every way of letting go (the timer, a key, a touch, a drag) takes the beat at the reading line at once.
-- **Test change.** The browser test that counts how many beats are counted as read at once now applies all the reports made at one instant of the reader's clock before counting. Each beat has its own observer, so within one frame a beat coming in can be reported before the one going out. The recorder times visibility by the same clock and credits that order no time. The limit stays at three.
+- **Test changes.**
+  - The browser test that counts how many beats are counted as read at once now applies the reports made less than a millisecond apart on the reader's clock before counting. Each beat has its own observer, so within one frame a beat coming in can be reported before the one going out. The recorder times visibility by the same clock and credits that order no time to speak of. The limit stays at three.
+  - Two tests placed a beat by assumptions the blanks had made true:
+    - the kit test put a held beat 42 % down, where the hold's line can be lower, and now puts it at the hold's own reading line;
+    - the Ask test and the appearance switch test scrolled to half the essay, which now lands on a call, and now bring a named read stop to the reading band.
 
 Confirmed by: `folio-gallery.spec.ts`, in two tests:
 - on a phone, the figure pins, the beats travel under it at least from the first beat's place to the last one's, it takes two or more states while pinned, and it lets go;
@@ -5206,7 +5210,7 @@ Confirmed by: `folio-gallery.spec.ts`, in two tests:
 
 Also by:
 - `kit-figures-smoke.spec.ts`: each held state is drawn when its beat reaches the hold's reading line;
-- `folio-reader-smoke.spec.ts`: Ask from ••• opens at the beat on screen after a scroll made while the place was kept;
+- `folio-gallery.spec.ts` again: a scroll made while an opened stop is kept in place is read once the place is let go;
 - the rest of the browser suite;
 - screenshots at 390 and 1440 on #769.
 

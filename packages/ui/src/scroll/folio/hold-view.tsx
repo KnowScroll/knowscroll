@@ -98,7 +98,9 @@ export function HoldView({
   // of the viewport when its beats run longer than it. The column runs on under the last beat only when that beat is
   // too short to reach the line before the figure lets go, and only by the difference.
   const line = readingLineOf(viewportHeight, 0);
-  const columnRoom = beside ? { paddingBottom: Math.max(0, pinnedHeight - line - lastBeatHeight) } : null;
+  // What pins beside the text is the figure and the padding above it (`figureBeside`), so that is the box that lets go.
+  const pinnedBox = pinnedHeight + FIGURE_BESIDE_TOP;
+  const columnRoom = beside ? { paddingBottom: Math.max(0, pinnedBox - line - lastBeatHeight) } : null;
   return (
     <View
       style={[style, beside ? styles.beside : styles.narrow]}
@@ -145,6 +147,9 @@ export function HoldView({
   );
 }
 
+/** The room above a figure pinned beside its beats. */
+const FIGURE_BESIDE_TOP = spacing[4];
+
 const styles = StyleSheet.create({
   narrow: { gap: spacing[6] },
   beside: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: spacing[8] },
@@ -157,6 +162,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
     borderBottomWidth: borderWidth.regular,
   },
-  figureBeside: { flexBasis: '46%', flexGrow: 0, flexShrink: 0, alignSelf: 'flex-start', paddingTop: spacing[4] },
+  figureBeside: {
+    flexBasis: '46%',
+    flexGrow: 0,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    paddingTop: FIGURE_BESIDE_TOP,
+  },
   column: { flex: 1, minWidth: 0, gap: spacing[6] },
 });

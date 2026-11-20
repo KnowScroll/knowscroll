@@ -265,17 +265,18 @@ for (const { label, viewport } of sizes) {
       await shot(page, `reading-end-${label}`);
 
       const { visibility, stops } = await galleryEvents(page);
-      // Replay the reports in order, keeping each block's latest fraction. Reports made at the same instant of the
+      // Replay the reports in order, keeping each block's latest fraction. Reports less than a millisecond apart on the
       // reader's clock (`at`) are one observation: each beat's observer reports on its own, so within one frame a beat
       // coming in can be reported before the one going out, and the recorder, which times what is visible by `at`,
-      // credits no time to that order. The count is taken after every report of an instant.
+      // credits that order no time to speak of. The count is taken after every report of one observation.
       const latest = new Map<string, number>();
       const reached = new Set<string>();
       let most_at_once = 0;
       visibility.forEach((entry, index) => {
         latest.set(entry.blockId, entry.visibleFraction);
         if (entry.visibleFraction >= 0.5) reached.add(entry.blockId);
-        if (visibility[index + 1]?.at === entry.at) return;
+        const next = visibility[index + 1];
+        if (next !== undefined && next.at - entry.at < 1) return;
         most_at_once = Math.max(most_at_once, [...latest.values()].filter((fraction) => fraction >= 0.5).length);
       });
       expect(most_at_once).toBeLessThanOrEqual(3);
@@ -629,6 +630,25 @@ for (const { label, viewport } of sizes) {
     });
   }
 }
+
+test('a scroll made while an opened stop is kept in place is read once the place is let go', async ({ page }) => {
+  // Opening at a stop keeps it in place while the page settles, up to 4 s or until the person's own input, and the scroll
+  // is not followed meanwhile. A scroll the page makes (not the person's input) lands while it is kept; when the reader
+  // lets go, the beat at the reading line is the one being read, with no further scroll (#769, D-434).
+  const opened = Date.now();
+  await open(page, 'seasons', { width: 390, height: 844 }, { stop: 'equinox' });
+  await scroller(page).evaluate((node) => {
+    const stop = node.querySelector('[data-ks-stop="steeper-light"]');
+    if (stop === null) throw new Error('no stop steeper-light');
+    const band = Math.round(node.clientHeight * 0.42);
+    node.scrollTop += stop.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
+  });
+  await page.waitForTimeout(300);
+  // While the place is kept the reader still says it is reading the stop it opened at (when opening took less than the
+  // 4 s the place is kept, which is what makes this test about letting it go).
+  if (Date.now() - opened < 3_000) expect((await galleryEvents(page)).stops.at(-1)).toBe('equinox');
+  await expect.poll(async () => (await galleryEvents(page)).stops.at(-1), { timeout: 8_000 }).toBe('steeper-light');
+});
 
 test('a stop the document does not have opens the essay at its start and is never reported', async ({ page }) => {
   await open(page, 'seasons', { width: 390, height: 844 }, { stop: 'no-such-stop' });
