@@ -3,7 +3,7 @@ import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import picturedDocument from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import { beatsOfV3, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import { SCROLL_CAPABILITIES, SCROLL_V2_CAPABILITIES } from './capabilities';
+import { SCROLL_CAPABILITIES, SCROLL_FOLIO_CAPABILITIES } from './capabilities';
 import { ARTICLE_ONLY, EVERY_READER } from './scroll-readers';
 import {
   createScrollSession,
@@ -280,9 +280,11 @@ describe('opening a Scroll for the signed-in scope', () => {
     const { session } = sessionOver(server, true);
     session.start();
     const state = await settled(session, 'ready');
-    expect(server.calls[0]?.body).toMatchObject({ capabilities: SCROLL_V2_CAPABILITIES });
-    expect(SCROLL_V2_CAPABILITIES.documentSchemas).toContain('scroll-document.v2');
+    expect(server.calls[0]?.body).toMatchObject({ capabilities: SCROLL_FOLIO_CAPABILITIES });
+    expect(SCROLL_FOLIO_CAPABILITIES.documentSchemas).toContain('scroll-document.v2');
+    expect(SCROLL_FOLIO_CAPABILITIES.documentSchemas).toContain('scroll-document.v3');
     expect(SCROLL_CAPABILITIES.documentSchemas).not.toContain('scroll-document.v2');
+    expect(SCROLL_CAPABILITIES.documentSchemas).not.toContain('scroll-document.v3');
     if (state.status !== 'ready' || state.reader !== 'folio') throw new Error('expected a v2 Scroll for Folio');
     expect(isScrollV2(state.scroll)).toBe(true);
     if (state.scroll.document.schemaVersion !== 'scroll-document.v2') throw new Error('expected a v2 document');

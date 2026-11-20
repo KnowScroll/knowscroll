@@ -1,7 +1,20 @@
 import { expect, type Page } from '@playwright/test';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
-import type { EncounterOffer, ExposureContextResponse, ScrollResults } from '@knowscroll/contracts';
-import { callsOf, firstFrameOf, tallyOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import {
+  declaredCoverSchema,
+  type EncounterOffer,
+  type ExposureContextResponse,
+  type ScrollResults,
+} from '@knowscroll/contracts';
+import {
+  beatsOfV3,
+  callsOf,
+  coverFrameOfV3,
+  firstFrameOf,
+  tallyOf,
+  type ScrollDocumentV2,
+  type ScrollDocumentV3,
+} from '@knowscroll/scroll-model';
 
 export const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
@@ -32,8 +45,10 @@ export interface EncounterFixtureOptions {
    */
   readonly direct?: { readonly parts: number };
   /**
-   * Covers, as the server sends them: a Scroll offer carries one (`offer-cover.v1`) to a client that declared the
-   * capability, and none to a client that did not (the server also sends none when a document cannot make one). Alone, an offer is dealt as a hand of one cover. With `hand`, every
+   * Covers, as the server sends them: a Scroll offer carries one to a client that declared `offer-cover.v1` or
+   * `offer-cover.v2` (the newest it named), and none to a client that did not (the server also sends none when a document
+   * cannot make one). A v2 document's cover has its first stage frame; a document v3's, only under `offer-cover.v2`, its
+   * first picture in the state its first beat shows. Alone, an offer is dealt as a hand of one cover. With `hand`, every
    * open of discovery (and every move to a new subject) deals a new hand: that many distinct Scrolls, the first as the
    * offer and the rest as buffered offers; each Scroll activates and serves its own document. `absent` sends Scroll
    * offers with no cover, as a server that predates covers does, so the page's fallback (a Scroll with no cover opens
@@ -105,7 +120,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   /** How many hands discovery has dealt: hand `k` is the Scrolls from `k * size` on. */
   let dealt = 0;
   const handSize = options.covers?.hand;
-  let declaresCover = false;
+  let declaredCover: ReturnType<typeof declaredCoverSchema>;
   /** The Part each entry is, once a series step has been taken to it (the first is Part 1). */
   const partOf = new Map<number, number>();
   const partAt = (n: number) => partOf.get(n) ?? 1;
@@ -116,6 +131,8 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   const served = options.scrollDocument ?? document;
   // Only a v2 document has stops; the v1 fixtures have no call to play. The Final call is a call like the others.
   const playable = 'stops' in served ? (served as unknown as ScrollDocumentV2) : undefined;
+  // A document v3 has beats and a picture instead.
+  const pictured = 'sections' in served && 'pictures' in served ? (served as unknown as ScrollDocumentV3) : undefined;
   const callIts = playable === undefined ? [] : callsOf(playable);
   const isFinal = (stopId: string) => callIts.find((call) => call.id === stopId)?.kind === 'final_call';
   /** The calls the play routes hold (Ask's waiting puzzle locks them), judged as the server judges a revision. */
@@ -201,14 +218,23 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     };
   };
   const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
-  /** What a Scroll offer shows before it opens, from the document served for it (a v2 essay has a first figure). */
+  /**
+   * What a Scroll offer shows before it opens, from the document served for it and the cover the session declared: a v2
+   * essay has a first stage frame; a document v3's picture is sent only under `offer-cover.v2`, as the server does.
+   */
   const coverOf = (n: number): NonNullable<EncounterOffer['cover']> => {
-    const figure = playable === undefined ? undefined : firstFrameOf(playable);
+    const figure =
+      playable !== undefined
+        ? firstFrameOf(playable)
+        : declaredCover === 'offer-cover.v2' && pictured !== undefined
+          ? coverFrameOfV3(pictured)
+          : undefined;
+    const readStops = playable?.stops.length ?? (pictured === undefined ? undefined : beatsOfV3(pictured).length);
     return {
-      version: 'offer-cover.v1',
+      version: declaredCover ?? 'offer-cover.v1',
       kicker: `CI cover kicker ${String(n + 1)}`,
       readingMinutes: 4 + n,
-      ...(playable === undefined ? {} : { readStops: playable.stops.length }),
+      ...(readStops === undefined ? {} : { readStops }),
       ...(figure === undefined ? {} : { figure }),
     };
   };
@@ -224,7 +250,9 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       summary: 'HTTP fixture only',
       language: 'en',
     },
-    ...(options.covers?.absent !== true && declaresCover && kind === 'scroll' ? { cover: coverOf(n) } : {}),
+    ...(options.covers?.absent !== true && declaredCover !== undefined && kind === 'scroll'
+      ? { cover: coverOf(n) }
+      : {}),
     relation:
       partAt(n) > 1
         ? { kind: 'series_step', seriesId: 'ci-series', seriesRevision: 1, part: partAt(n) }
@@ -287,10 +315,9 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
     // A session declares what it can draw when it opens; a move within it carries no declaration and keeps that one.
     if (path === '/v1/experience/open')
-      declaresCover =
-        (body.capabilities as { documentSchemas?: string[] } | undefined)?.documentSchemas?.includes(
-          'offer-cover.v1',
-        ) === true;
+      declaredCover = declaredCoverSchema(
+        (body.capabilities as { documentSchemas?: string[] } | undefined)?.documentSchemas ?? [],
+      );
     if (path === '/v1/privacy/recording/read') {
       await route.fulfill({
         json: {

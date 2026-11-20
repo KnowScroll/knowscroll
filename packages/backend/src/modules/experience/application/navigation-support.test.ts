@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { NavigationPorts } from './navigation-ports.js';
-import { readWithheld } from './navigation-support.js';
+import { declaresCover, readWithheld } from './navigation-support.js';
 
 const scope = {} as PersonalScopeTx;
 const hidden = 'asset-hidden';
@@ -34,5 +34,20 @@ describe('what a move leaves out (D-055)', () => {
     const { ports: fake, readNotInterested } = ports();
     expect(await readWithheld(fake, scope, [], false)).toEqual([]);
     expect(readNotInterested).not.toHaveBeenCalled();
+  });
+});
+
+describe('whether a session draws offers as covers', () => {
+  const declaring = (...documentSchemas: string[]) => ({ documentSchemas, blocks: { fallback: [1] } });
+
+  it('does for a client that declares either cover version', () => {
+    expect(declaresCover(declaring('scroll-document.v1', 'offer-cover.v1'))).toBe(true);
+    expect(declaresCover(declaring('scroll-document.v3', 'offer-cover.v2'))).toBe(true);
+  });
+
+  it('does not for a client that declares neither, or whose stored capabilities do not parse', () => {
+    expect(declaresCover(declaring('scroll-document.v1', 'scroll-document.v3'))).toBe(false);
+    expect(declaresCover({ documentSchemas: 'offer-cover.v2' })).toBe(false);
+    expect(declaresCover(null)).toBe(false);
   });
 });

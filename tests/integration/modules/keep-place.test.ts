@@ -23,11 +23,12 @@ import {
 import { KEEP_PLACE_OPERATION, type KeepPlaceUseCases } from '@knowscroll/backend/modules/experience';
 import { keepPlaceUseCases, keepStore, type KeepPorts } from '@knowscroll/backend/modules/experience/nest-providers';
 import type { KeepEntryRef, SetKeepPlace } from '@knowscroll/contracts';
+import { beatsOfV3, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { databaseUrl, quoteIdentifier, withAdmin } from '../support/admin.js';
 import { experienceUseCases } from '../support/experience.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { starterSource } from '../support/scroll.js';
+import { documentV3Source, starterSource } from '../support/scroll.js';
 import { gate } from '../support/fixture-model.js';
 
 /** Synthetic real-PG protocol fixtures only, no served Keep/client/provider/privacy-completion claim. */
@@ -120,11 +121,16 @@ describe('durable private Keep places (real PostgreSQL)', () => {
       .execute();
     return { assetId, assetRevision: 1 };
   }
-  async function fixture(kind: 'reel' | 'scroll' = 'reel') {
+  async function fixture(kind: 'reel' | 'scroll' | 'document-v3' = 'reel') {
     const person = await seedPerson(database.db);
     let ref: { assetId: string; assetRevision: number };
     if (kind === 'reel') ref = await reel();
-    else {
+    else if (kind === 'document-v3') {
+      const assetId = randomUUID();
+      const source = { ...documentV3Source('seasons'), assetId };
+      expect(await importEditorialScrollUseCase(database.db)(source)).toMatchObject({ kind: 'imported' });
+      ref = { assetId, assetRevision: 1 };
+    } else {
       const source = starterSource(),
         assetId = randomUUID();
       source['assetId'] = assetId;
@@ -341,6 +347,39 @@ describe('durable private Keep places (real PostgreSQL)', () => {
     expect(await read(f)).toMatchObject({
       kind: 'ok',
       value: { place: { position: { kind: 'scroll', blockId: 'violet-eye', offsetWithinBlock: 123456.75 } } },
+    });
+  });
+
+  it('keeps a place on a beat of a document v3, and refuses an id that is not one of its beats', async () => {
+    const f = await fixture('document-v3');
+    const stored = (
+      await database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', f.ref.assetId)
+        .executeTakeFirstOrThrow()
+    ).document as unknown as ScrollDocumentV3;
+    const beat = beatsOfV3(stored)[3]!.id;
+    // A section is a heading over beats, not a place the reader holds.
+    const section = stored.sections[0]!.id;
+    for (const position of [
+      { kind: 'scroll', blockId: 'no-such-beat', offsetWithinBlock: 1 },
+      { kind: 'scroll', blockId: section, offsetWithinBlock: 1 },
+      { kind: 'reel', positionMs: 1 },
+    ])
+      expect(await cases().setPlace(f.person.authority, { ...command(f.entry), position })).toEqual({
+        kind: 'refused',
+        code: 'UNPROCESSABLE_REQUEST',
+      });
+    expect(
+      await cases().setPlace(f.person.authority, {
+        ...command(f.entry),
+        position: { kind: 'scroll', blockId: beat, offsetWithinBlock: 42.5 },
+      }),
+    ).toMatchObject({ kind: 'ok' });
+    expect(await read(f)).toMatchObject({
+      kind: 'ok',
+      value: { place: { position: { kind: 'scroll', blockId: beat, offsetWithinBlock: 42.5 } } },
     });
   });
 

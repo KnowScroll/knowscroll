@@ -93,11 +93,16 @@ interim ID-only adapter and allowlists only kind/title/summary/language and avai
 No internal source, provenance, model or ranking data is a consumer field. Decision IDs are opaque
 ops correlation only.
 
-A Scroll offer may carry a `cover` (`OfferCoverSchema`, `version: 'offer-cover.v1'`): the kicker, the reading
-minutes and, for a v2 Scroll, `readStops` and a `figure` (a `StageFrame`, the first state of its stage). The
-title and dek stay in `metadata`. The server sends it only to a session whose `capabilities.documentSchemas`
-declare `offer-cover.v1` (`OFFER_COVER_SCHEMA`); other sessions and every Reel get offers without the key. An
-offer stored without a cover still parses. Implemented, CI-tested; not runtime-verified.
+A Scroll offer may carry a `cover` (`OfferCoverSchema`): the kicker, the reading
+minutes and, for an essay, `readStops` (a v2's paragraphs, a document v3's beats) and a `figure`. `offer-cover.v1`
+(`OFFER_COVER_SCHEMA`) has a stage frame as its figure (the first state of a v2 stage). `offer-cover.v2`
+(`OFFER_COVER_V2_SCHEMA`) is the same cover whose figure is a stage frame or a `PictureFrame` (`{ picture, state }`,
+the first picture of a document v3 in the state its first beat shows). The title and dek stay in `metadata`. The
+server sends the newest version a session declared in `capabilities.documentSchemas` (`declaredCoverSchema`); a
+session that declared only v1 never meets a picture frame, and other sessions and every Reel get offers without the
+key. An offer stored without a cover still parses. `ExposureDocumentResponseSchema.document` is a v1, v2 or v3
+document, as the schema names it (`ScrollDocumentV3`, re-exported from scroll-model). Implemented, CI-tested; not
+runtime-verified.
 
 Cover outcomes (#745, #748). `OpenDiscoveryRequestSchema` takes optional `after: { decisionId, format }` (more covers: another hand
 after the one that decision dealt, in that format; it needs `session`) and optional `passes`. `ActivateOfferRequestSchema` takes

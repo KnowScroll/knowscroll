@@ -27,6 +27,8 @@ import { callsOfRevision, picks, playFor } from '../support/play.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { markScrollV1 } from '../support/scroll-v2.js';
+import { seedDocumentV3 } from '../support/scroll-v3.js';
+import { beatsOfV3 } from '@knowscroll/scroll-model';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -215,6 +217,24 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
       outcome: { option: picks(first!).wrong, correct: false, newlyLocked: false, results: { sparks: 0, combo: 0 } },
     });
     expect((await rows(person)).calls).toBe(1);
+  });
+
+  it('finds no call in a document v3, which has none: a beat is not a call, and nothing is stored or crashes', async () => {
+    const v3 = await seedDocumentV3(database.db, 'seasons-v3-ci');
+    const person = await recordingPerson(database);
+    await openActive(c, person, { assetId: v3.assetId, revision: 1 });
+    for (const beat of beatsOfV3(v3.document).slice(0, 3))
+      expect(
+        await play.lockCall(person.authority, {
+          commandId: randomUUID(),
+          assetId: v3.assetId,
+          revision: 1,
+          stopId: beat.id,
+          option: 0,
+          recordingGeneration: 1,
+        }),
+      ).toEqual({ kind: 'refused', reason: 'call_not_found' });
+    expect(await rows(person)).toEqual({ landmarks: 0, calls: 0, results: 0 });
   });
 
   it('refuses a forged option of any call, a stop that is not a call and another revision, and stores nothing', async () => {

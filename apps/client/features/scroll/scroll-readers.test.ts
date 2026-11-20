@@ -2,7 +2,7 @@ import spring from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocument, ScrollDocumentV2, ScrollDocumentV3 } from '@knowscroll/scroll-model';
-import { SCROLL_CAPABILITIES, SCROLL_V2_CAPABILITIES } from './capabilities';
+import { SCROLL_CAPABILITIES, SCROLL_FOLIO_CAPABILITIES } from './capabilities';
 import { ARTICLE_ONLY, capabilitiesFor, EVERY_READER, readerFor } from './scroll-readers';
 
 const article = { document: spring as unknown as ScrollDocument };
@@ -29,8 +29,14 @@ describe('which reader draws a Scroll (scroll-readers.ts)', () => {
     expect(readerFor(essay, EVERY_READER)?.scroll).toBe(essay);
   });
 
-  it('declares v2 only for a screen that draws it', () => {
-    expect(capabilitiesFor(EVERY_READER)).toBe(SCROLL_V2_CAPABILITIES);
+  it('declares v2 and v3 only for a screen that draws them', () => {
+    expect(capabilitiesFor(EVERY_READER)).toBe(SCROLL_FOLIO_CAPABILITIES);
     expect(capabilitiesFor(ARTICLE_ONLY)).toBe(SCROLL_CAPABILITIES);
+    expect(SCROLL_FOLIO_CAPABILITIES.documentSchemas).toEqual([
+      'scroll-document.v1',
+      'scroll-document.v2',
+      'scroll-document.v3',
+    ]);
+    expect(SCROLL_CAPABILITIES.documentSchemas).toEqual(['scroll-document.v1']);
   });
 });

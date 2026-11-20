@@ -13,7 +13,7 @@ import {
 } from '@knowscroll/design-tokens';
 import { Button, IconButton, RequestStatusChip, Text, useTypeStyle } from '@knowscroll/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import type { OpenedScrollFolio } from '../scroll/scroll-session';
 import { AskSheet } from './ask-sheet';
 import { RequestChoices } from './request-choices';
 import { canTryAgain, unavailableMessage } from './request-copy';
@@ -21,7 +21,7 @@ import { suggestions, type RequestSession } from './request-session';
 
 /**
  * E04/E06 bounded composer inside the encounter's single accessible overlay host. A question asked from a Scroll with
- * stops (`ask`, D1) is drawn by the Ask sheet instead; `ask` carries the Scroll it is asked from.
+ * stops or beats (`ask`, D1) is drawn by the Ask sheet instead; `ask` carries the Scroll it is asked from.
  */
 export function RequestPanel({
   session,
@@ -30,7 +30,7 @@ export function RequestPanel({
 }: {
   readonly session: RequestSession;
   readonly onClose: () => void;
-  readonly ask?: { readonly scroll: OpenedScrollV2 } | undefined;
+  readonly ask?: { readonly scroll: OpenedScrollFolio } | undefined;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const type = useTypeStyle('body');

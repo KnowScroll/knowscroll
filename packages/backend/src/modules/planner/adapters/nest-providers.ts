@@ -64,7 +64,7 @@ const PLANNER_PORTS = Symbol('planner.ports');
 const hash = (value: unknown) => requestHash('personal-planner.v0', value as Parameters<typeof requestHash>[1]);
 const capabilities = {
   ...FULL_V1_CAPABILITIES,
-  documentSchemas: ['scroll-document.v1', 'scroll-document.v2', 'reel-document.v1'],
+  documentSchemas: ['scroll-document.v1', 'scroll-document.v2', 'scroll-document.v3', 'reel-document.v1'],
 };
 const now = () => new Date();
 const key = (commandId: string, requestHash: string) => ({

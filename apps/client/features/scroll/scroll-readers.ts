@@ -6,7 +6,7 @@ import {
   type ScrollDocumentV2,
   type ScrollDocumentV3,
 } from '@knowscroll/scroll-model';
-import { SCROLL_CAPABILITIES, SCROLL_V2_CAPABILITIES } from './capabilities';
+import { SCROLL_CAPABILITIES, SCROLL_FOLIO_CAPABILITIES } from './capabilities';
 
 /**
  * The readers that draw a Scroll: the article draws `scroll-document.v1`; Folio's essay draws `scroll-document.v2` and
@@ -54,5 +54,5 @@ export function readerFor<Scroll extends WithDocument>(
  * only in a version one of them draws.
  */
 export function capabilitiesFor(offered: readonly ScrollReaderKind[]): ClientCapabilities {
-  return offered.includes('folio') ? SCROLL_V2_CAPABILITIES : SCROLL_CAPABILITIES;
+  return offered.includes('folio') ? SCROLL_FOLIO_CAPABILITIES : SCROLL_CAPABILITIES;
 }

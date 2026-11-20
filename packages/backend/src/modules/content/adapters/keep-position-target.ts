@@ -1,5 +1,11 @@
 import { KeepAssetRefSchema, ReelDocumentSchema } from '@knowscroll/contracts';
-import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, validateDocumentV2 } from '@knowscroll/scroll-model';
+import {
+  beatsOfV3,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+  validateDocumentV2,
+  validateDocumentV3,
+} from '@knowscroll/scroll-model';
 import { admitDocument } from '@knowscroll/scroll-model/admission';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { LockKeepPositionTarget } from '../public.js';
@@ -53,6 +59,18 @@ export const lockKeepPositionTarget: LockKeepPositionTarget = async (scope, owne
     )
       return undefined;
     return { kind: 'scroll', topLevelBlockIds: result.document.stops.map((stop) => stop.id) };
+  }
+  if (head.kind === 'scroll' && row.document_version === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    // A document v3's places are its beats.
+    const result = validateDocumentV3(row.document);
+    if (
+      result.kind !== 'valid' ||
+      result.document.assetId.toLowerCase() !== ref.assetId.toLowerCase() ||
+      result.document.revision !== ref.assetRevision ||
+      result.document.integrity.sha256 !== row.document_sha256
+    )
+      return undefined;
+    return { kind: 'scroll', topLevelBlockIds: beatsOfV3(result.document).map((beat) => beat.id) };
   }
   if (head.kind === 'scroll' && row.document_version === 'scroll-document.v1') {
     // Stored admission validation verifies integrity/measures/bounds and excludes renditions.

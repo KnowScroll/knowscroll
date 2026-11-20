@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { AccountScope } from '@knowscroll/client-core';
 import { newCommandId } from '../../platform/command-id';
 import { createRequestSession } from '../requests/request-session';
-import { isScrollV2, type OpenedScrollFolio } from './scroll-session';
+import { positionIds, type OpenedScrollFolio } from './scroll-session';
 
 /**
  * Ask from here on a Scroll's own address (`/scroll/<id>`), where there is no encounter. It is the same Ask as Explore's
@@ -11,8 +11,8 @@ import { isScrollV2, type OpenedScrollFolio } from './scroll-session';
  * exposure (a direct encounter has no experience session), which the server checks like any other. The session lives as
  * long as this reader, so a question that is still being made is announced here when it is ready.
  *
- * `currentStop` names the stop on screen when Ask opens; the last stop stands in at the end of the Scroll. A v3 Scroll has
- * no stops for a question to anchor to, so its Ask never opens.
+ * `currentStop` names the stop on screen when Ask opens (the beat, for a v3 Scroll); the last one stands in at the end of
+ * the Scroll.
  */
 export function useDirectAsk(scope: AccountScope, scroll: OpenedScrollFolio, currentStop: () => string | undefined) {
   const router = useRouter();
@@ -44,7 +44,7 @@ export function useDirectAsk(scope: AccountScope, scroll: OpenedScrollFolio, cur
   useEffect(() => () => session.visible(false), [session]);
   const ask = useCallback(
     (stopId: string | undefined) => {
-      const anchor = stopId ?? (isScrollV2(scroll) ? scroll.document.stops.at(-1)?.id : undefined);
+      const anchor = stopId ?? positionIds(scroll).at(-1);
       if (anchor === undefined || !session.show('ask', { stopId: anchor })) return false;
       setOpen(true);
       return true;

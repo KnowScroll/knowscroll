@@ -5,7 +5,9 @@ import { spikeRecipeV2 } from '../production/spike-v2/topics.js';
 import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
 import { compileGeneratedScrollV2, publicationV2 } from '../production/writer-v2.js';
 import { fixtureSnapshot } from '../public.js';
-import { proseBlocksOf, topicIdsOf } from './library-passages.js';
+import { readFileSync } from 'node:fs';
+import { beatsOfV3, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { callsOfStored, proseBlocksOf, topicIdsOf } from './library-passages.js';
 
 /** A labelled CI fixture: the recorded v2 writer answer for the seasons recipe, compiled as production would. */
 function fixtureDocument() {
@@ -38,6 +40,20 @@ describe('the prose of a stored Scroll, for a room’s daily items', () => {
     for (const heading of headings) expect(blocks.some((block) => block.text.includes(heading))).toBe(false);
     for (const call of document.stops.flatMap((stop) => (stop.kind === 'read' ? [] : [stop.prompt])))
       expect(blocks.some((block) => block.text.includes(call))).toBe(false);
+  });
+
+  it('gives a document v3 one block per beat, its text, and no calls', () => {
+    const document = JSON.parse(
+      readFileSync(
+        new URL('../../../../../scroll-model/fixtures/documents/seasons-v3-ci.json', import.meta.url),
+        'utf8',
+      ),
+    ) as ScrollDocumentV3;
+    const beats = beatsOfV3(document);
+    expect(proseBlocksOf(document)).toEqual(beats.map((beat) => ({ blockId: beat.id, text: beat.text })));
+    expect(beats.length).toBeGreaterThanOrEqual(9);
+    expect(callsOfStored(document)).toEqual([]);
+    expect(proseBlocksOf({ ...document, sections: 'nope' })).toEqual([]);
   });
 
   it('gives nothing for a document that does not parse', () => {

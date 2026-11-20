@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beatsOfV3 } from '@knowscroll/scroll-model';
 import type { ChallengeCard, ConversationMessage, DirectConversationRef } from '@knowscroll/contracts';
 import { eraseCurrentAccount, eraseCurrentExploration, personalStores } from '@knowscroll/backend/erasure-registry';
 import { applyQueueDeclarations, createBoss } from '@knowscroll/backend/infrastructure/jobs';
@@ -18,6 +19,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { callsOfRevision } from '../support/play.js';
 import { consumptionRows, friendCommand, pairRevision, seedFriends, talkCases, type Friend } from '../support/talk.js';
 import { TIDES_CALL, seedCallScroll, type SeededCallScroll } from '../support/thread-calls.js';
+import { seedDocumentV3 } from '../support/scroll-v3.js';
 
 const direct = 'direct-conversation.v1' as const;
 const socialErasure = personalStores.find((declaration) => declaration.module === 'social')!;
@@ -129,6 +131,25 @@ describe('Challenge a friend (real PostgreSQL)', () => {
       const json = JSON.stringify(await messagesOf(b, bRef));
       expect(json).not.toContain(TIDES_CALL.explain);
       expect(json).not.toContain(TIDES_CALL.twist);
+    });
+
+    it('refuses a challenge on a document v3, which has no calls, even at one of its beats; the Scroll itself still shares as a card', async () => {
+      const { a, b, aRef, bRef } = await pair();
+      const v3 = await seedDocumentV3(database.db, 'seasons-v3-ci');
+      const scroll = { assetId: v3.assetId, call: TIDES_CALL };
+      const beat = beatsOfV3(v3.document)[0]!.id;
+      expect(await challenge(a, aRef, scroll, beat)).toEqual({ kind: 'refused', code: 'invalid_input' });
+      expect(await messagesOf(a, aRef)).toEqual([]);
+      const shared = unwrap(
+        await talk().send(a.authority, {
+          version: direct,
+          commandId: randomUUID(),
+          conversation: aRef,
+          body: { kind: 'content', target: { assetId: v3.assetId, assetRevision: 1 } },
+        }),
+      );
+      expect(await cardOf(b, bRef, shared.messageId)).toBeUndefined();
+      expect(await messagesOf(b, bRef)).toHaveLength(1);
     });
 
     it('refuses a stop that is not a call of the revision, and a card for content that is not there', async () => {

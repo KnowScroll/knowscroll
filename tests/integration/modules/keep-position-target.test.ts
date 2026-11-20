@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beatsOfV3, validateDocumentV3 } from '@knowscroll/scroll-model';
 import { admitDocument } from '@knowscroll/scroll-model/admission';
 import {
   createDatabase,
@@ -20,7 +21,7 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { starterSource } from '../support/scroll.js';
+import { documentV3Source, starterSource } from '../support/scroll.js';
 import { gate } from '../support/fixture-model.js';
 
 /** Synthetic PostgreSQL fixtures only. No media bytes, provider, Keep storage or HTTP journey. */
@@ -166,6 +167,25 @@ describe('Content Keep position target (real PostgreSQL)', () => {
     ]) {
       expect(encoded).not.toContain(secret);
     }
+  });
+
+  it('returns the beats of a document v3 as its places, in reading order, and nothing of its text or pictures', async () => {
+    const person = await seedPerson(database.db);
+    const source = { ...documentV3Source('seasons'), assetId: randomUUID() };
+    expect(await importEditorialScrollUseCase(database.db)(source)).toMatchObject({ kind: 'imported' });
+    const row = await database.db
+      .selectFrom('content.asset_revisions')
+      .select('document')
+      .where('asset_id', '=', source.assetId)
+      .executeTakeFirstOrThrow();
+    const admitted = validateDocumentV3(row.document);
+    if (admitted.kind !== 'valid') throw new Error('CI document v3 invalid');
+    const ids = beatsOfV3(admitted.document).map((beat) => beat.id);
+    const projection = await read(person, { assetId: source.assetId, assetRevision: 1 });
+    expect(projection).toEqual({ kind: 'scroll', topLevelBlockIds: ids });
+    expect(JSON.stringify(projection)).not.toContain(admitted.document.sections[0]!.id);
+    // A revision that is not the current head is no place to keep.
+    expect(await read(person, { assetId: source.assetId, assetRevision: 2 })).toBeUndefined();
   });
 
   it('reads the exact validated Reel duration/media binding, with no reading-facts estimate or media key in output', async () => {

@@ -581,14 +581,29 @@ Status: **implemented**; runtime-verified on real PostgreSQL with labelled fixtu
 - **Provenance** (`scroll-provenance.v2`, `asset_provenance`): the claims a Scroll cites, their sources,
   the production record and, for every stop, aside and the recap, the claims it cites. No new table.
 - **Delivery.** `renderScroll` parses a stored revision on the client path by its schema and serves a
-  v2 document whole to a client that declares `scroll-document.v2` (`cannot_render` otherwise).
-  Discovery (`readDiscoveryCandidates`) offers a client that cannot render a v2 current revision the
-  latest earlier v1 revision of the asset, or nothing. Exact reads, offers and links are never swapped.
-  Direct open of a v2 asset by an old client ends in the document read's `cannot_render`.
-  `renderableFormats`, region candidates and the Planner's capabilities accept either schema.
-  Keep position targets use a v2 Scroll's stop ids.
+  v2 document whole to a client that declares `scroll-document.v2`, and a document v3 whole to a client that
+  declares `scroll-document.v3` (`negotiateV3`); any other client gets `cannot_render`.
+  Discovery (`readDiscoveryCandidates`) offers a client that cannot render the current revision (a v2 or a v3)
+  the **latest earlier revision whose schema it declares** (`olderRows`: a v2, else a v1, for a client that has
+  not learned v3), or nothing (decision H1, D-129). The substitute is read from the same query shape as every
+  candidate, so the review gate still hides a held revision. Exact reads, offers and links are never swapped:
+  a pinned document v3 revision is `cannot_render` and not read for a client that did not declare it.
+  Direct open of a v2 or v3 asset by an old client ends in the document read's `cannot_render`.
+  `renderableFormats`, region candidates, the Planner's capabilities and the canary accept every Scroll schema.
+  Keep position targets use a v2 Scroll's stop ids and a document v3's beat ids.
+- **Beats as places (document v3, #763).** A beat id is accepted wherever a stop id is: the kept place, Ask
+  (`scroll-ask-facts.ts` gives the beat's text and the Scroll's suggestions), Quick answer (the beats up to and
+  including the reader's, and that beat's `simple`), Share a moment and Report. A beat's text is its passage for
+  a room's daily items (`proseBlocksOf`). A document v3 has **no calls** (decision I1): `ReadScrollPlayFacts`
+  is `undefined` for it, `callsOfStored` and a room's Launch (`ReadLibraryCalls`) list none, so a lock, a
+  Talk challenge and the Launch deck find nothing and never fail. Traits (`traitsOfDocument`) read it as a
+  `stage` Scroll with its misconception claim; no ranking constant changes.
 - **Series total** (`readSeriesTotal`): the exposure context's `series.total` is the count of
   `series_units` of the series revision (D-130).
+- **Snippet anchors for document v3 (#763).** A beat is a moment the same way (`momentOfBeat` in scroll-model, with
+  the same `momentAnchorOf` and `anchorIsMoment`): the beat's id is the block, its whole text the range. A beat of
+  a document v3 is never refused for being a call, because it has none. After a correction the anchor is `changed`,
+  as for v2.
 - **Snippet anchors for v2 (D-292).** A v2 Scroll has stops, not blocks. `snippet-anchors.ts` validates a snippet of one as a *moment*: exactly one whole read stop (`momentOf`, `anchorIsMoment` in scroll-model), in the v1 `scroll_passage` shape with the stop's id as the block, the whole text as the range and the hash of the words. A call stop, part of a stop, a changed hash and a block anchor are `invalid`. The quote is read from the exact revision and stored with the message. After a correction a moment is `changed` (no anchor map for stops). *Implemented; runtime-verified locally on real PostgreSQL, not yet on dev.*
 
 ## Discovery candidates and continuity
@@ -603,10 +618,13 @@ The present access model is shared admitted assets; no private-content access po
 
 `ReadOfferEncounter` (`readOfferEncounter` in `adapters/discovery-store.ts`) is `ReadExactEncounter` plus the
 offer's cover, taken from the document of the row it already read (no second query). `coverOfDocument`
-(`adapters/offer-cover.ts`) reads the kicker and reading minutes from a Scroll document of either version and,
-for a v2 Scroll, the number of read stops and the first stage frame (`firstFrameOf`). It checks the result
-against `OfferCoverSchema`; a Reel, an unexpected stored shape or an over-long kicker gives no cover, never an
-error. Implemented, CI-tested; not runtime-verified.
+(`adapters/offer-cover.ts`) reads the kicker and reading minutes from a Scroll document of any version and,
+for a v2 Scroll, the number of read stops and the first stage frame (`firstFrameOf`); for a document v3 the number
+of beats and, under `offer-cover.v2` only, its first picture in the state its first beat shows (`coverFrameOfV3`,
+a `PictureFrame`). The cover version is the newest the session declared (`declaredCoverSchema`): a session that
+declared only `offer-cover.v1` gets a v3's count and no figure (a picture frame is not a stage frame), and one that
+declared neither gets no cover. It checks the result against `OfferCoverSchema`; a Reel, an unexpected stored shape
+or an over-long kicker gives no cover, never an error. Implemented, CI-tested; not runtime-verified.
 
 | Table (`0016`)                | Purpose, query, indexes                                                                                                                                                                                                            | Growth, retention, erasure                                                                                                                                                           |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -974,8 +992,8 @@ Content owns the order, the production and the access rule; the `scenarios` modu
 | `RECORD_MADE_TO_ORDER_SCROLL` | inside the caller's personal transaction | record an order (idempotent per order ID); returns its recipe and asset |
 | `READ_MADE_TO_ORDER_PRODUCTION` | on the pool | the standing of one order: not started, running, published (asset revision and title), retryable (next take) or stopped |
 | `READ_MADE_TO_ORDER_PRODUCTION_IN` | inside the caller's personal transaction | the same standing, for a use case that already holds a transaction (a person's ask waiting on its order): no second connection |
-| `READ_SCROLL_QUICK_ANSWER_FACTS` | inside the caller's transaction | for a Quick answer (D-253): the title and the words of the read stops from the start of the exact v2 revision up to and including the stop the words were selected in, plus that stop's plainer words; never a later stop and never a call; absent for an anchor that is not a read stop, a held or rejected revision, a revision of a withdrawn asset (D-418), or a v1 document |
-| `READ_SCROLL_ASK_FACTS` | inside the caller's transaction | for "Ask from here": the title, the words of one stop and the questions the Scroll suggests, from the exact immutable v2 revision; absent for a stop that is not there, a held or rejected revision, a revision of a withdrawn asset (D-418), or a v1 document |
+| `READ_SCROLL_QUICK_ANSWER_FACTS` | inside the caller's transaction | for a Quick answer (D-253): the title and the words of the read stops (a document v3's beats) from the start of the exact v2 or v3 revision up to and including the stop the words were selected in, plus that stop's plainer words; never a later stop and never a call; absent for an anchor that is not a read stop or beat, a held or rejected revision, a revision of a withdrawn asset (D-418), or a v1 document |
+| `READ_SCROLL_ASK_FACTS` | inside the caller's transaction | for "Ask from here": the title, the words of one stop (or beat) and the questions the Scroll suggests, from the exact immutable v2 or v3 revision; absent for a stop or beat that is not there, a held or rejected revision, a revision of a withdrawn asset (D-418), or a v1 document |
 | `READ_SCROLL_SOURCE_PAGES` | inside the caller's transaction | up to three research pages chosen by code for a branch: the provenance sources of the root Scroll, else the same explanation's other Scroll, else the library recipe's pages |
 | `READ_SCROLL_EVIDENCE` | inside the caller's transaction | up to 24 claims (passages of public sources) that the root Scroll's provenance records, else the same explanation's other Scroll's: what a what-if's short answer may cite (D-212). Stored text only, under the same review gate as the source pages; nothing is fetched |
 | `CHECK_ASSET_AUDIENCE` | Experience and Social, wherever an ID reaches or quotes a Scroll: open, document read, save, like, hide, navigation, the saved list and page, snippets, the data export | given `ReadOn` (the caller's open transaction, or the pool for the lock-free document read) and the IDs, answers the subset the caller may reach; an ordered Scroll is in it only if an ordering module's audience says so: `READ_ORDER_AUDIENCE` (the scenarios module: members of the branch's thread, now) or `READ_ASK_ORDER_AUDIENCE` (the supply module: the person whose own, not cancelled, request made it). Each answers only for the orders it made, and the answers are joined. Any other asset always is |

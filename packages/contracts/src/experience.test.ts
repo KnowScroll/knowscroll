@@ -1,0 +1,37 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { ExposureDocumentResponseSchema } from './index.js';
+
+/** scroll-model's labelled CI fixtures: a Scroll v1, a v2 with a stage and a document v3. Not product content. */
+const fixture = (name: string): { [key: string]: unknown } =>
+  JSON.parse(readFileSync(new URL(`../../scroll-model/fixtures/documents/${name}.json`, import.meta.url), 'utf8')) as {
+    [key: string]: unknown;
+  };
+
+const response = (document: unknown) => ({
+  exposureId: '0199f0a0-0000-7000-8000-000000000001',
+  assetId: '0199f0a0-0000-7000-8000-000000000002',
+  assetRevision: 1,
+  document,
+  degradedEssential: [],
+});
+
+describe('the served document of an exposure', () => {
+  it.each([
+    ['a Scroll v1', 'attention-slowly'],
+    ['a Scroll v2', 'seasons-stage-ci'],
+    ['a document v3', 'seasons-v3-ci'],
+  ])('accepts %s, whole, as its own schema names it', (_name, file) => {
+    const document = fixture(file);
+    const parsed = ExposureDocumentResponseSchema.parse(response(document));
+    expect(parsed.document).toEqual(document);
+  });
+
+  it('does not strip or admit anything of a document v3: an unknown field is refused, not dropped', () => {
+    const document = fixture('seasons-v3-ci');
+    expect(ExposureDocumentResponseSchema.safeParse(response({ ...document, claims: ['secret'] })).success).toBe(false);
+    expect(
+      ExposureDocumentResponseSchema.safeParse(response({ ...document, schemaVersion: 'scroll-document.v4' })).success,
+    ).toBe(false);
+  });
+});

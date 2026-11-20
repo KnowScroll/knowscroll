@@ -1,9 +1,12 @@
 import { sql, type Kysely } from 'kysely';
 import {
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+  beatsOfV3,
   callsOf,
   parseDocument,
   parseDocumentV2,
+  parseDocumentV3,
   projectText,
   walkBlocks,
 } from '@knowscroll/scroll-model';
@@ -32,8 +35,17 @@ type Block = LibraryPassageSource['blocks'][number];
 /** The most Scrolls one read looks at: a bound on the documents parsed, not on the answer. */
 const READ_LIMIT_MAX = 100;
 
-/** The prose blocks of a stored Scroll document, whichever schema it has. Anything that does not parse has none. */
+/**
+ * The prose blocks of a stored Scroll document, whichever schema it has: a v1 paragraph, a v2 read stop, a v3 beat (its
+ * text, a quotation's included). Anything that does not parse has none.
+ */
 export function proseBlocksOf(stored: unknown): readonly Block[] {
+  if ((stored as { schemaVersion?: unknown } | null)?.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    const parsed = parseDocumentV3(stored);
+    return parsed.kind === 'valid'
+      ? beatsOfV3(parsed.document).map((beat) => ({ blockId: beat.id, text: beat.text }))
+      : [];
+  }
   if ((stored as { schemaVersion?: unknown } | null)?.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
     const parsed = parseDocumentV2(stored);
     if (parsed.kind !== 'valid') return [];
@@ -110,7 +122,7 @@ export const makeReadLibraryPassageText =
       : proseBlocksOf(row.document).find((block) => block.blockId === ref.blockId)?.text;
   };
 
-/** The calls of a stored Scroll document: those of a `scroll-document.v2`. A v1 document, and one that does not parse, has none. */
+/** The calls of a stored Scroll document: those of a `scroll-document.v2`. A v1 or v3 document, and one that does not parse, has none. */
 export function callsOfStored(stored: unknown): LibraryCallSource['calls'] {
   if ((stored as { schemaVersion?: unknown } | null)?.schemaVersion !== SCROLL_DOCUMENT_V2_SCHEMA_VERSION) return [];
   const parsed = parseDocumentV2(stored);

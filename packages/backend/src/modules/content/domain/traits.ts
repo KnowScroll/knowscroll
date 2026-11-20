@@ -22,6 +22,7 @@ export interface EncounterTraits {
 }
 
 const V2_SCHEMA = 'scroll-document.v2';
+const V3_SCHEMA = 'scroll-document.v3';
 
 /** The least a Scroll with calls needs to be a game: two calls, one of them the Final call. */
 const GAME_MIN_CALLS = 2;
@@ -52,7 +53,8 @@ export function traitsOfDocument(document: unknown): EncounterTraits {
   if (!isRecord(document)) return { playLevel: 'plain' };
   const measures = document['measures'];
   const readingMinutes = isRecord(measures) ? positiveNumber(measures['readingMinutes']) : undefined;
-  if (document['schemaVersion'] !== V2_SCHEMA)
+  const schema = document['schemaVersion'];
+  if (schema !== V2_SCHEMA && schema !== V3_SCHEMA)
     return { playLevel: 'plain', ...(readingMinutes !== undefined ? { readingMinutes } : {}) };
   const misconception = document['misconception'];
   const claim =
@@ -60,7 +62,8 @@ export function traitsOfDocument(document: unknown): EncounterTraits {
       ? misconception['claim']
       : undefined;
   return {
-    playLevel: playLevelOfV2(document),
+    // A document v3 has no calls and always a picture, so it is a stage Scroll and never a game.
+    playLevel: schema === V3_SCHEMA ? 'stage' : playLevelOfV2(document),
     ...(readingMinutes !== undefined ? { readingMinutes } : {}),
     ...(claim !== undefined ? { misconceptionClaim: claim } : {}),
   };

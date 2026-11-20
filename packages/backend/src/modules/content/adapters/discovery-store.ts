@@ -2,11 +2,15 @@ import type { ReadEncounterAttribution, ReadPlayLevel } from '../public.js';
 import { traitsOfDocument } from '../domain/traits.js';
 import { coverOfDocument } from './offer-cover.js';
 import { createHash } from 'node:crypto';
-import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
+import { ClientCapabilities, declaredCoverSchema, ReelDocumentSchema } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
-import { SCROLL_DOCUMENT_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import {
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+} from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { canRenderScroll, isScrollDocumentV2 } from './render-scroll.js';
+import { canRenderScroll, isScrollDocumentV2, isScrollDocumentV3 } from './render-scroll.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { distance, notOrdered, rotationCursor } from './discovery-sql.js';
@@ -55,16 +59,38 @@ function canRender(row: Row, capabilities: unknown): boolean {
   }
   return canRenderScroll(row.document, capabilities);
 }
+/** The Scroll schemas, oldest first; an earlier revision of one of them may stand in for a revision a client cannot render. */
+const SCROLL_SCHEMAS = [
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+];
+
+/** The Scroll schemas a client declares; none when its capabilities do not parse. */
+function declaredScrollSchemas(capabilities: unknown): readonly string[] {
+  const parsed = ClientCapabilities.safeParse(capabilities);
+  return parsed.success ? SCROLL_SCHEMAS.filter((schema) => parsed.data.documentSchemas.includes(schema)) : [];
+}
+
 /**
- * The latest earlier v1 revision of each asset whose current revision is a v2 document the client
- * cannot render. A regenerated Scroll keeps its asset, so the v1 revision it replaced is the fallback
- * for a client that has not learned v2; an asset with none is simply not offered to that client.
+ * For each asset whose current revision is a v2 or v3 document the client cannot render, the latest earlier
+ * revision whose schema the client declares (a v2, else a v1, for a client that has not learned v3). A regenerated
+ * Scroll keeps its asset, so the revision it replaced is the fallback for a client that has not learned the new
+ * format, and a revision still held for review never stands in; an asset with none is simply not offered to that
+ * client. Only discovery substitutes: an exact revision
+ * pinned by an offer or a link is never swapped (D-129).
  */
-async function olderV1Rows(db: Kysely<Database>, assetIds: readonly string[]): Promise<ReadonlyMap<string, Row>> {
-  if (assetIds.length === 0) return new Map();
+async function olderRows(
+  db: Kysely<Database>,
+  assetIds: readonly string[],
+  capabilities: unknown,
+): Promise<ReadonlyMap<string, Row>> {
+  const schemas = declaredScrollSchemas(capabilities);
+  if (assetIds.length === 0 || schemas.length === 0) return new Map();
   const found = await sql<{ asset_id: string; revision: number }>`select distinct on (r.asset_id) r.asset_id,r.revision
     from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.status='admitted'
-    where r.asset_id=any(${assetIds}::uuid[]) and r.document_version=${SCROLL_DOCUMENT_SCHEMA_VERSION} and r.revision<a.revision
+    where r.asset_id=any(${assetIds}::uuid[]) and r.document_version=any(${schemas}::text[]) and r.revision<a.revision
+      and ${notUnderReview('r.asset_id', 'r.revision')}
     order by r.asset_id,r.revision desc`.execute(db);
   if (found.rows.length === 0) return new Map();
   const pairs = sql.join(found.rows.map((row) => sql`(${row.asset_id}::uuid,${row.revision})`));
@@ -220,10 +246,15 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
   const laneOf = new Map(found.map((entry) => [entry.assetId, entry.lane]));
   if (!assetIds.length) return [];
   const candidates = await rows(db, sql`r.revision=a.revision and r.asset_id=any(${assetIds}::uuid[])`, 100);
-  const unsupportedV2 = candidates
-    .filter((row) => row.kind === 'scroll' && isScrollDocumentV2(row.document) && !canRender(row, q.capabilities))
+  const unsupported = candidates
+    .filter(
+      (row) =>
+        row.kind === 'scroll' &&
+        (isScrollDocumentV2(row.document) || isScrollDocumentV3(row.document)) &&
+        !canRender(row, q.capabilities),
+    )
     .map((row) => row.asset_id);
-  const fallbacks = await olderV1Rows(db, unsupportedV2);
+  const fallbacks = await olderRows(db, unsupported, q.capabilities);
   const byAsset = new Map(candidates.map((row) => [row.asset_id, row]));
   return assetIds
     .flatMap((asset_id) => {
@@ -251,7 +282,9 @@ export const readExactEncounter: ReadExactEncounter = async (scope, q) => {
 export const readOfferEncounter: ReadOfferEncounter = async (scope, q) => {
   const row = await exactRow(scope, q);
   if (!row) return undefined;
-  const cover = row.kind === 'scroll' ? coverOfDocument(row.document) : undefined;
+  const declared = ClientCapabilities.safeParse(q.capabilities);
+  const version = declared.success ? declaredCoverSchema(declared.data.documentSchemas) : undefined;
+  const cover = row.kind === 'scroll' && version !== undefined ? coverOfDocument(row.document, version) : undefined;
   return { encounter: snapshot(row), ...(cover ? { cover } : {}) };
 };
 export const readEncounterTopics: ReadEncounterTopics = async (scope, ref) => {

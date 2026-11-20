@@ -1,4 +1,4 @@
-import { ClientCapabilities, OFFER_COVER_SCHEMA } from '@knowscroll/contracts';
+import { ClientCapabilities, declaredCoverSchema } from '@knowscroll/contracts';
 import type { OpenDiscoveryRequest, ProblemCode, RegionEncounterOpenRequest } from '@knowscroll/contracts';
 import type { EncounterRef } from '../../content/public.js';
 import type { GeographyRegionConstraint } from '../../geography/public.js';
@@ -24,12 +24,13 @@ export const sameRegion = (p: NavigationPorts, a: GeographyRegionConstraint, b: 
   p.hashRequest('region-constraint', json(a)) === p.hashRequest('region-constraint', json(b));
 
 /**
- * Whether a session's stored capabilities say its client draws Scroll offers as covers (`offer-cover.v1`). A
- * client that did not say so is sent offers exactly as before, so an older app never meets the field.
+ * Whether a session's stored capabilities say its client draws Scroll offers as covers (`offer-cover.v1` or
+ * `offer-cover.v2`; content picks which one it is sent). A client that did not say so is sent offers exactly as
+ * before, so an older app never meets the field.
  */
 export function declaresCover(capabilities: unknown): boolean {
   const parsed = ClientCapabilities.safeParse(capabilities);
-  return parsed.success && parsed.data.documentSchemas.includes(OFFER_COVER_SCHEMA);
+  return parsed.success && declaredCoverSchema(parsed.data.documentSchemas) !== undefined;
 }
 
 /**

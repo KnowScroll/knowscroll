@@ -1,6 +1,6 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { ClientCapabilities, LocalId, ScrollDocument, ScrollDocumentV2 } from './content.js';
+import { ClientCapabilities, LocalId, ScrollDocument, ScrollDocumentV2, ScrollDocumentV3 } from './content.js';
 import {
   LegacySavedItemSchema,
   SavedPageRequestSchema,
@@ -244,8 +244,8 @@ export const ExposureDocumentResponseSchema = z.object({
   exposureId: UuidSchema,
   assetId: AssetIdSchema,
   assetRevision: z.number().int().min(1),
-  /** A v1 document, or a v2 document for a client that declared `scroll-document.v2` (the schema names which). */
-  document: z.union([ScrollDocument, ScrollDocumentV2]),
+  /** A v1 document, or a v2 or v3 document for a client that declared that schema (the schema names which). */
+  document: z.union([ScrollDocument, ScrollDocumentV2, ScrollDocumentV3]),
   degradedEssential: z.array(z.object({ blockId: LocalId, originalType: z.string() })).max(80),
 });
 

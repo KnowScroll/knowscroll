@@ -17,6 +17,7 @@ import {
   type Framing,
   type ScrollDocument,
   type ScrollDocumentV2,
+  type ScrollDocumentV3,
 } from '@knowscroll/scroll-model';
 import type { AccountAccess, PersonalAuthority, PersonalScopeTx, ReadOn } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
@@ -301,9 +302,9 @@ export type RenderScrollResult =
       readonly kind: 'rendition';
       /**
        * The document negotiated for the client: unsupported blocks replaced by fallbacks, never provenance.
-       * A `scroll-document.v2` is served whole, to a client that declared the schema.
+       * A `scroll-document.v2` or `scroll-document.v3` is served whole, to a client that declared the schema.
        */
-      readonly document: ScrollDocument | ScrollDocumentV2;
+      readonly document: ScrollDocument | ScrollDocumentV2 | ScrollDocumentV3;
       /** Essential blocks the client will see only as fallback text. */
       readonly degradedEssential: readonly { readonly blockId: string; readonly originalType: string }[];
     }

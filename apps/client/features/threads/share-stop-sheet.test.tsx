@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import pictured from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import { createApiClient, type AccountScope } from '@knowscroll/client-core';
 import { problemDetails, type ProblemCode } from '@knowscroll/contracts';
-import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { momentAnchorOf, momentOf } from '@knowscroll/scroll-model';
+import type { ScrollDocumentV2, ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { beatsOfV3, momentAnchorOf, momentOf, momentOfBeat } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '@knowscroll/ui';
-import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import type { OpenedScrollFolio, OpenedScrollV2 } from '../scroll/scroll-session';
 import { ShareStopSheet } from './share-stop-sheet';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -115,6 +116,45 @@ beforeEach(() => {
   mockSends.length = 0;
   mockReads.length = 0;
   mockState.outcome = 'ok';
+});
+
+describe('Share a moment on a document v3 Scroll', () => {
+  const document3 = pictured as unknown as ScrollDocumentV3;
+  const scroll3 = { assetId: ASSET, assetRevision: 3, document: document3 } as unknown as OpenedScrollFolio;
+  const beat = beatsOfV3(document3)[1]!;
+
+  it('names the beat: the anchor carries its id and a hash of its words, and no words', async () => {
+    await show({ scroll: scroll3, stopId: beat.id, thread: here });
+    const moment = momentOfBeat(document3, beat.id)!;
+    expect(await screen.findByTestId('moment-quote')).toHaveTextContent(`“${beat.text}”`);
+    await fireEvent.press(screen.getByRole('button', { name: 'Share this moment' }));
+    expect(await screen.findByText('Shared.')).toBeOnTheScreen();
+    expect(mockSends).toHaveLength(1);
+    expect(mockSends[0]!.body).toEqual({
+      kind: 'snippet',
+      target: { assetId: ASSET, assetRevision: 3 },
+      anchor: momentAnchorOf(moment),
+    });
+    expect(momentAnchorOf(moment).blockId).toBe(beat.id);
+    expect(JSON.stringify(mockSends[0]!.body)).not.toContain(beat.text.slice(0, 15));
+  });
+
+  it('shows no picture for the moment, before a thread is chosen or after', async () => {
+    await show({ scroll: scroll3, stopId: beat.id });
+    expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
+    expect(screen.getByTestId('moment-quote')).toHaveTextContent(`“${beat.text}”`);
+    expect(screen.queryByTestId('moment-picture')).toBeNull();
+    expect(screen.queryByTestId('stage')).toBeNull();
+    await fireEvent.press((await screen.findAllByTestId('moment-thread'))[0]!);
+    expect(await screen.findByTestId('moment-share')).toBeOnTheScreen();
+    expect(screen.queryByTestId('moment-picture')).toBeNull();
+  });
+
+  it('says there is no stop to share when no beat is on screen', async () => {
+    await show({ scroll: scroll3, stopId: undefined });
+    expect(await screen.findByTestId('moment-not-shareable')).toHaveTextContent(/Go to a stop to share it/);
+    expect(screen.queryByTestId('moment-preview')).toBeNull();
+  });
 });
 
 describe('Share a moment', () => {
