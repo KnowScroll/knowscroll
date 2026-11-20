@@ -20,9 +20,6 @@ export type RenderHeldBeat = (
   },
 ) => ReactNode;
 
-/** Room under each held beat, as a share of the viewport, so each one is read while the figure shows its state. */
-const BEAT_ROOM = 0.18;
-
 /** The beat of the hold the figure shows now, following the scroll. A beat not yet placed has not been reached. */
 function useShownBeat(offset: ScrollOffset, places: Places, beatIds: readonly string[], pinnedHeight: number): number {
   const [shown, setShown] = useState(0);
@@ -79,11 +76,13 @@ export function HoldView({
   const [pinnedHeight, setPinnedHeight] = useState(figureHeight);
   const [columnTop, setColumnTop] = useState(0);
   const [beatTops, setBeatTops] = useState<readonly number[]>([]);
+  const [lastBeatHeight, setLastBeatHeight] = useState(0);
   const beatIds = useMemo(() => hold.beats.map((held) => held.beat.id), [hold]);
   const shown = useShownBeat(offset, places, beatIds, beside ? 0 : pinnedHeight);
   const current = hold.beats[Math.min(shown, hold.beats.length - 1)] ?? hold.beats[0];
   const placeBeat = (index: number) => (event: LayoutChangeEvent) => {
-    const { y } = event.nativeEvent.layout;
+    const { y, height } = event.nativeEvent.layout;
+    if (index === hold.beats.length - 1) setLastBeatHeight(height);
     setBeatTops((tops) => {
       if (tops[index] === y) return tops;
       const next = [...tops];
@@ -92,13 +91,16 @@ export function HoldView({
     });
   };
   if (current === undefined) return null;
-  const room = Math.round(viewportHeight * BEAT_ROOM);
-  // Beside the text, the figure pins when the hold reaches the top: the beats start at the reading line, so the first is
-  // read while the figure pins, and the column runs on far enough for the last to be read before the figure lets go.
+  // Held beats are laid out like any other beats of the essay, with no blank above, between or under them (#769,
+  // D-434): the figure takes a beat's state when the beat reaches the reading line, so no room is needed for that. On
+  // a phone the figure pins above the column and holds until the column's end has passed under it, after the last
+  // beat has reached the line. Beside the text the beats start level with the figure, and the figure pins at the top
+  // of the viewport when its beats run longer than it. The column runs on under the last beat only when that beat is
+  // too short to reach the line before the figure lets go, and only by the difference.
   const line = readingLineOf(viewportHeight, 0);
-  const columnRoom = beside
-    ? { paddingTop: line, paddingBottom: Math.max(room, room + pinnedHeight - line) }
-    : { paddingBottom: room };
+  // What pins beside the text is the figure and the padding above it (`figureBeside`), so that is the box that lets go.
+  const pinnedBox = pinnedHeight + FIGURE_BESIDE_TOP;
+  const columnRoom = beside ? { paddingBottom: Math.max(0, pinnedBox - line - lastBeatHeight) } : null;
   return (
     <View
       style={[style, beside ? styles.beside : styles.narrow]}
@@ -129,11 +131,7 @@ export function HoldView({
       </PinnedFigure>
       <View style={[styles.column, columnRoom]} onLayout={(event) => setColumnTop(event.nativeEvent.layout.y)}>
         {hold.beats.map((held, index) => (
-          <View
-            key={held.beat.id}
-            onLayout={placeBeat(index)}
-            style={index < hold.beats.length - 1 ? { marginBottom: room } : null}
-          >
+          <View key={held.beat.id} onLayout={placeBeat(index)}>
             {renderBeat(held.beat, {
               quiet: index !== shown,
               figureWords: index === 0 ? undefined : held.figure.alt,
@@ -149,8 +147,11 @@ export function HoldView({
   );
 }
 
+/** The room above a figure pinned beside its beats. */
+const FIGURE_BESIDE_TOP = spacing[4];
+
 const styles = StyleSheet.create({
-  narrow: { gap: spacing[4] },
+  narrow: { gap: spacing[6] },
   beside: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: spacing[8] },
   // Pinned on a phone, the figure is a panel the width of the screen, edged below, so the text passing under it reads
   // as going under, not as cut off.
@@ -161,6 +162,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
     borderBottomWidth: borderWidth.regular,
   },
-  figureBeside: { flexBasis: '46%', flexGrow: 0, flexShrink: 0, alignSelf: 'flex-start', paddingTop: spacing[4] },
-  column: { flex: 1, minWidth: 0, gap: spacing[4] },
+  figureBeside: {
+    flexBasis: '46%',
+    flexGrow: 0,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    paddingTop: FIGURE_BESIDE_TOP,
+  },
+  column: { flex: 1, minWidth: 0, gap: spacing[6] },
 });

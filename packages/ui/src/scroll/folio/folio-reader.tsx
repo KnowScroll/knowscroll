@@ -179,21 +179,26 @@ export function FolioReader({
   // With every picture as its words, a figure is as tall as its words and nothing needs to stay in view: holds lie flat.
   const pinHolds = !textVersion && canPinHolds(viewportHeight, figureHeight, beside, textScale);
 
-  // The beat being read follows the scroll; the screen hears of it only when it changes.
-  useEffect(
-    () =>
-      offset.subscribe(() => {
-        if (kept.holding()) return;
-        const { top, viewport: height } = offset.current();
-        const line = top + readingBandOf(height).top;
-        setReading(beatAtLine(order, places, line));
-        // The end: the end plate reached the reading line, or the page can scroll no further (a short end plate on a tall
-        // screen never reaches the line).
-        const bottom = top + height >= contentHeight.current - 2;
-        setAtEnd(line >= (places.topOf(END) ?? Infinity) || (bottom && top > 0));
-      }),
-    [kept, offset, order, places],
-  );
+  // The beat being read follows the scroll; the screen hears of it only when it changes. While a place is kept the
+  // scroll is the page settling, not the person reading, so it is not followed.
+  const followScroll = useCallback(() => {
+    if (kept.holding()) return;
+    const { top, viewport: height } = offset.current();
+    const line = top + readingBandOf(height).top;
+    setReading(beatAtLine(order, places, line));
+    // The end: the end plate reached the reading line, or the page can scroll no further (a short end plate on a tall
+    // screen never reaches the line).
+    const bottom = top + height >= contentHeight.current - 2;
+    setAtEnd(line >= (places.topOf(END) ?? Infinity) || (bottom && top > 0));
+  }, [kept, offset, order, places, setReading, setAtEnd]);
+  useEffect(() => offset.subscribe(followScroll), [offset, followScroll]);
+  // Letting a kept place go reads the beat at the line again: the page may have been scrolled while it was kept, and no
+  // scroll event need follow (#769).
+  const releaseKept = useCallback(() => {
+    if (!kept.holding()) return;
+    kept.release();
+    followScroll();
+  }, [kept, followScroll]);
   useEffect(() => {
     onStopChange?.(atEnd ? undefined : reading);
   }, [reading, atEnd, onStopChange]);
@@ -211,9 +216,9 @@ export function FolioReader({
   );
 
   useEffect(() => {
-    const timer = setTimeout(kept.release, RESTORE_MS);
+    const timer = setTimeout(releaseKept, RESTORE_MS);
     return () => clearTimeout(timer);
-  }, [kept]);
+  }, [releaseKept]);
   const restore = useCallback(() => {
     const stop = kept.stop();
     if (stop === undefined) return;
@@ -258,10 +263,10 @@ export function FolioReader({
   const toggleTextVersion = useCallback(() => {
     if (reading !== undefined && !atEnd && offset.current().top > 0) {
       kept.keep(reading);
-      setTimeout(kept.release, RESTORE_MS);
+      setTimeout(releaseKept, RESTORE_MS);
     }
     setTextVersion((now) => !now);
-  }, [atEnd, kept, offset, reading, setTextVersion]);
+  }, [atEnd, kept, offset, reading, releaseKept, setTextVersion]);
   useImperativeHandle(
     handleRef,
     () => ({
@@ -305,7 +310,7 @@ export function FolioReader({
 
   const onKey = (key: FolioKey): boolean => {
     // A key the person presses is their own input: a place kept at the opening has done its job.
-    kept.release();
+    releaseKept();
     const { top, viewport: height } = offset.current();
     switch (key.action) {
       case 'next-stop':
@@ -383,15 +388,15 @@ export function FolioReader({
   );
   // The person's own input lets a kept place go, and stops a scroll the reader started; the page moving never does.
   const onPersonInput = useCallback(() => {
-    kept.release();
+    releaseKept();
     if (!scrolling.current) return;
     scrolling.current = false;
     stopScrolling(scroller);
-  }, [kept]);
+  }, [releaseKept]);
   usePersonInput(scroller, onPersonInput);
   const pull = useEndPull(scroller, commands.nextTopic);
   const onScrollBeginDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    kept.release();
+    releaseKept();
     viewport.scrollProps.onScrollBeginDrag?.(event);
   };
   const onLayout = (event: LayoutChangeEvent) => {

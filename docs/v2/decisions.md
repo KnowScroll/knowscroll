@@ -5187,3 +5187,30 @@ Confirmed by: the layout tests in `picture/layout/*.test.ts` (every shape inside
 - **Ranking unchanged.** The Composer's traits read a document v3 as a Scroll with a picture (`stage`) and its misconception; no weight changed.
 
 Confirmed by: the contracts' `experience.test.ts` and `navigation.test.ts`; backend unit tests of `render-scroll`, `offer-cover`, `traits`, `vertical-candidates`, `library-passages` and the canary; on real PostgreSQL `scroll-v3-serving.test.ts` (served to a v3 app, the latest earlier v2 or v1 revision to an older one, nothing for a v3-only asset, a pinned v3 revision `cannot_render`, the three cover modes, beats as anchors, no calls) and the keep-place, play and challenge tests; the client's unit tests; and the browser spec `document-v3-serving-smoke.spec.ts` (a picture cover that opens into the essay, Ask and Quick answer by beat, the kept place after a reload, Share a moment with no picture, Report, with the accessibility scan).
+
+## D-434 · 2026-11-20 · Held beats are spaced like the rest of the essay (#769)
+
+**Amends** D-423's hold: the figure still holds while two or three beats pass, but the beats no longer carry room to make the hold long.
+
+- **What the owner saw.** Trying the document v3 fixtures on dev (20 November): "spacing issues … in both mobile and desktop". Each beat of a hold had a blank of 18 % of the viewport under it (about 150 px on a phone). Beside the figure, on a wide screen, the beats also started at the reading line, 30 % down the viewport, with a blank above them. v2 Scrolls had the same blanks; document v3 has more holds, so they showed.
+- **Now.** Beats in a hold sit 24 px apart, like any other blocks of the essay. The figure takes a beat's state when the beat's top reaches the reading line (`heldBeatAt`, `readingLineOf`), as before.
+  - **On a phone,** the figure pins above the beats until they have passed under it.
+  - **On a wide screen,** the beats start level with the figure, and the figure pins only when its beats run longer than it. Otherwise it goes up with them, beside them and in full view while it changes state.
+  - **Room under the last beat** is left only when that beat is too short to reach the line before the figure lets go, and only by the difference.
+- **Letting go of a kept place re-reads the beat at the line.** At the opening the reader holds a kept place for up to 4 s, or until the person's own input, and ignores the scroll meanwhile. When it let go it did not look again, so the page could have moved while it was kept with no scroll event after. The blanks had hidden this: they changed with the screen's height, so opening a sheet moved the page and fired one. Now every way of letting go (the timer, a key, a touch, a drag) takes the beat at the reading line at once.
+- **Test changes.**
+  - The browser test that counts how many beats are counted as read at once now applies the reports made less than a millisecond apart on the reader's clock before counting. Each beat has its own observer, so within one frame a beat coming in can be reported before the one going out. The recorder times visibility by the same clock and credits that order no time to speak of. The limit stays at three.
+  - Two tests placed a beat by assumptions the blanks had made true:
+    - the kit test put a held beat 42 % down, where the hold's line can be lower, and now puts it at the hold's own reading line;
+    - the Ask test and the appearance switch test scrolled to half the essay, which now lands on a call, and now bring a named read stop to the reading band.
+
+Confirmed by: `folio-gallery.spec.ts`, in two tests:
+- on a phone, the figure pins, the beats travel under it at least from the first beat's place to the last one's, it takes two or more states while pinned, and it lets go;
+- on a desktop, it stays beside its beats, which start level with it, and takes two or more states while in full view.
+
+Also by:
+- `kit-figures-smoke.spec.ts`: each held state is drawn when its beat reaches the hold's reading line;
+- `folio-gallery.spec.ts` again: a scroll made while an opened stop is kept in place is read once the place is let go;
+- the rest of the browser suite;
+- screenshots at 390 and 1440 on #769.
+

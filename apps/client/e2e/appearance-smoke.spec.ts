@@ -258,9 +258,14 @@ test('switching halfway through a Scroll repaints the reader and keeps its place
   const folio = page.getByTestId('folio-page');
   const scroller = page.getByTestId('folio-scroller');
   await expect(folio).toHaveCSS('background-color', FOLIO_GROUND.dark);
-  // Halfway: the essay scrolled to the middle. Where a reader is is the stop being read, which Share a moment quotes.
+  // Partway: a read stop well into the essay brought to the top of the reading band (42 % down the screen). Where a
+  // reader is is the stop being read, which Share a moment quotes. (Half the essay's height used to land on a read stop;
+  // with held beats spaced like the rest, #769, it lands on a call, which is never a moment.)
   await scroller.evaluate((node) => {
-    node.scrollTop = (node.scrollHeight - node.clientHeight) / 2;
+    const stop = node.querySelector('[data-ks-stop="steeper-light"]');
+    if (stop === null) throw new Error('no stop steeper-light');
+    const band = Math.round(node.clientHeight * 0.42);
+    node.scrollTop += stop.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
   });
   const stopBeingRead = async () => {
     await page.getByRole('group', { name: 'Scroll reader' }).focus();

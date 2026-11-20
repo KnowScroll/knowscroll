@@ -65,16 +65,25 @@ async function audit(page: Page) {
 }
 
 /**
- * Scrolls the essay until the beat of a stop is the one being read: its top at the top of the reading band (42 % down
- * the screen), where a held figure has taken the beat's state. The page is then given the moment the held figure needs
- * to move.
+ * Scrolls the essay until the beat of a stop is the one being read. A beat in a hold is read at the hold's reading line,
+ * where its figure takes the beat's state: 30 % of the room under a figure pinned above the beats, or 30 % down the
+ * screen when the figure is beside them (`readingLineOf`, `packages/ui/src/scroll/folio/hold-geometry.ts`). Its top is
+ * set a few pixels above that line; held beats are spaced like any others (#769), so the next one is still below it.
+ * Any other beat is set at the top of the reading band, 42 % down the screen. The page is then given the moment the
+ * held figure needs to move.
  */
 async function showState(page: Page, stopId: string) {
   await scroller(page).evaluate((node, id) => {
     const beat = node.querySelector(`[data-testid="beat-${id}"]`);
     if (beat === null) throw new Error(`no beat ${id}`);
-    const band = Math.round(node.clientHeight * 0.42);
-    node.scrollTop += beat.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
+    const held = beat.closest('[data-testid^="hold-"]')?.querySelector('[data-testid="held-figure"]');
+    let line = Math.round(node.clientHeight * 0.42) - 1;
+    if (held !== null && held !== undefined) {
+      const figure = held.getBoundingClientRect();
+      const pinned = figure.left >= beat.getBoundingClientRect().right ? 0 : figure.height;
+      line = Math.floor(pinned + (node.clientHeight - pinned) * 0.3) - 4;
+    }
+    node.scrollTop += beat.getBoundingClientRect().top - node.getBoundingClientRect().top - line;
   }, stopId);
   // The picture has settled once no move is under way: the motion token's 320 ms, with room to spare.
   await page.waitForTimeout(500);

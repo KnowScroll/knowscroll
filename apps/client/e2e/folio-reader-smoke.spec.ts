@@ -258,10 +258,16 @@ test('Ask about this is the first row of •••, opens Ask at the stop on scr
   page,
 }) => {
   const served = await open(page);
-  // Past the opening stop, so the anchor is the stop on screen and not just the first one. The reader learns where it is
-  // a moment after the scroll, so a probe (Share a moment quotes the stop being read) is asked until it has.
+  // Past the opening stop, so the anchor is the stop on screen and not just the first one: a read stop well into the
+  // essay is brought to the top of the reading band (42 % down the screen), where it is the stop being read. (Half the
+  // essay's height used to land on one; with held beats spaced like the rest, #769, it lands on a call, which is never
+  // a moment.) The reader learns where it is a moment after the scroll, so a probe (Share a moment quotes the stop being
+  // read) is asked until it has.
   await scroller(page).evaluate((node) => {
-    node.scrollTop = (node.scrollHeight - node.clientHeight) / 2;
+    const stop = node.querySelector('[data-ks-stop="steeper-light"]');
+    if (stop === null) throw new Error('no stop steeper-light');
+    const band = Math.round(node.clientHeight * 0.42);
+    node.scrollTop += stop.getBoundingClientRect().top - node.getBoundingClientRect().top - band + 1;
   });
   await expect
     .poll(async () => {
