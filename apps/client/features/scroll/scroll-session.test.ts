@@ -1,9 +1,18 @@
 import { createRecordingPolicySession, createApiClient, ScopeEndedError } from '@knowscroll/client-core';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
+import picturedDocument from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
+import { beatsOfV3, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { SCROLL_CAPABILITIES, SCROLL_V2_CAPABILITIES } from './capabilities';
 import { ARTICLE_ONLY, EVERY_READER } from './scroll-readers';
-import { createScrollSession, isScrollV2, positionIds, type ScrollSessionState } from './scroll-session';
+import {
+  createScrollSession,
+  isScrollFolio,
+  isScrollV2,
+  isScrollV3,
+  positionIds,
+  type ScrollSessionState,
+} from './scroll-session';
 
 /**
  * Opening a Scroll (open → document → activate) over a labelled fixture `fetch`: no network, no API.
@@ -276,6 +285,7 @@ describe('opening a Scroll for the signed-in scope', () => {
     expect(SCROLL_CAPABILITIES.documentSchemas).not.toContain('scroll-document.v2');
     if (state.status !== 'ready' || state.reader !== 'folio') throw new Error('expected a v2 Scroll for Folio');
     expect(isScrollV2(state.scroll)).toBe(true);
+    if (state.scroll.document.schemaVersion !== 'scroll-document.v2') throw new Error('expected a v2 document');
     expect(positionIds(state.scroll)).toEqual(state.scroll.document.stops.map((stop) => stop.id));
   });
 
@@ -321,5 +331,23 @@ describe('opening a Scroll for the signed-in scope', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(states).toEqual(['opening']);
     expect(new ScopeEndedError().code).toBe('SCOPE_ENDED');
+  });
+});
+
+describe('a v3 Scroll (document v3)', () => {
+  const opened = {
+    exposureId: EXPOSURE,
+    assetId: ASSET,
+    assetRevision: 1,
+    document: picturedDocument as unknown as ScrollDocumentV3,
+    degradedEssential: [],
+  };
+
+  it('is Folio’s, not v2’s, and its places are its beat ids', () => {
+    expect(isScrollV3(opened)).toBe(true);
+    expect(isScrollV2(opened)).toBe(false);
+    expect(isScrollFolio(opened)).toBe(true);
+    expect(positionIds(opened)).toEqual(beatsOfV3(opened.document).map((beat) => beat.id));
+    expect(positionIds(opened).length).toBeGreaterThan(0);
   });
 });

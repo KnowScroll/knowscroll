@@ -9,7 +9,7 @@ import { Skeleton } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import type { EncounterEntry } from '../encounter/encounter-history';
-import { isScrollV2 } from '../scroll/scroll-session';
+import { isScrollFolio } from '../scroll/scroll-session';
 import { DirectionPicker } from '../encounter/direction-picker';
 import { EncounterEnding } from '../encounter/encounter-ending';
 import { EncounterSheets } from '../encounter/encounter-sheets';
@@ -68,9 +68,9 @@ const HINTS = {
   },
 } as const;
 
-/** What the first-arrival note says for the encounter on screen: a v2 Scroll's essay has figures and Parts, an article neither. */
+/** What the first-arrival note says for the encounter on screen: a v2 or v3 Scroll's essay has figures and Parts, an article neither. */
 function hintsFor(entry: EncounterEntry) {
-  return entry.kind === 'scroll' && isScrollV2(entry.scroll) ? HINTS.essay : HINTS[entry.kind];
+  return entry.kind === 'scroll' && isScrollFolio(entry.scroll) ? HINTS.essay : HINTS[entry.kind];
 }
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {

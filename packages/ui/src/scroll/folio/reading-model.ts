@@ -1,9 +1,9 @@
-import type { Aside, Guide, Interactive } from '@knowscroll/scroll-model';
+import type { Aside, Guide, Interactive, Picture, PictureState, QuoteCite, Tone } from '@knowscroll/scroll-model';
 import type { FigureState } from '../stage/kit-figure';
 
 /**
  * What the Folio reader draws: an essay as sections of beats and figures. The reader knows no document version;
- * an adapter per version builds this (`from-v2.ts`). Ids are the document's own unit ids, so reading evidence, a
+ * an adapter per version builds this (`from-v2.ts`, `from-v3.ts`). Ids are the document's own unit ids, so reading evidence, a
  * kept place, Ask and Quick answer go on naming what they name today.
  */
 export interface ReadingModel {
@@ -25,12 +25,26 @@ export interface ReadingSection {
 
 export type ReadingBlock = BeatBlock | FigureBlock | HoldBlock;
 
+/**
+ * A phrase of a beat that names a part of the figure on screen (document v3). The reader underlines it in the part's
+ * colour (`tone`, else the page's link colour) and pulses the part when it is pressed.
+ */
+export interface BeatLink {
+  readonly phrase: string;
+  readonly part: string;
+  readonly tone?: Tone | undefined;
+}
+
 /** One unit of reading: what is read in one go, and what reading evidence names. */
 export interface Beat {
-  /** The document's unit id: a v2 stop id. */
+  /** The document's unit id: a v2 stop id, or a document v3 beat id. */
   readonly id: string;
-  /** A question is a call drawn as text: its prompt, then its explanation. */
-  readonly kind: 'prose' | 'question';
+  /** A question is a call drawn as text: its prompt, then its explanation. A quote is a quotation set apart. */
+  readonly kind: 'prose' | 'question' | 'quote';
+  /** Who said a quotation, where and when. */
+  readonly cite?: QuoteCite | undefined;
+  /** Phrases that name parts of the figure on screen. */
+  readonly links?: readonly BeatLink[] | undefined;
   readonly heading?: string | undefined;
   readonly text: readonly BeatText[];
   /** The same idea in plainer words, shown on request. */
@@ -52,15 +66,41 @@ export interface BeatBlock {
   readonly beat: Beat;
 }
 
-/** A control under a figure. Earth's tilt is the only one today (D-187). */
-export interface FigureControl {
-  readonly kind: 'tilt';
+/** A picture of a document v3 in one state, its words (derived by code) and a key naming that state. */
+export interface PictureFigure {
+  readonly kind: 'picture';
+  readonly picture: Picture;
+  readonly state: PictureState;
+  readonly alt: string;
+  readonly key: string;
 }
+
+/** What a figure draws: a kit's picture (a v2 Scroll) or a general picture (a document v3). */
+export type Figure = FigureState | PictureFigure;
+
+/**
+ * A control under a figure. `tilt` is Earth's axis on a v2 kit picture (D-187). The others belong to a document v3
+ * picture: `scrub` steps through positions, `switch` flips to one other state, `pick` reads the note of an item.
+ * Each has buttons and keys, and a sentence for its state; nothing a reader does with one is reported (D-209).
+ */
+export type FigureControl =
+  | { readonly kind: 'tilt' }
+  | {
+      readonly kind: 'scrub';
+      readonly label: string;
+      readonly positions: readonly { readonly label: string; readonly state: PictureState }[];
+    }
+  | { readonly kind: 'switch'; readonly label: string; readonly to: PictureState }
+  | {
+      readonly kind: 'pick';
+      readonly label: string;
+      readonly items: readonly { readonly id: string; readonly label: string; readonly note: string }[];
+    };
 
 export interface FigureBlock {
   readonly kind: 'figure';
   readonly id: string;
-  readonly figure: FigureState;
+  readonly figure: Figure;
   readonly control?: FigureControl | undefined;
 }
 
@@ -73,13 +113,13 @@ export interface HoldBlock {
 
 export interface HeldBeat {
   readonly beat: Beat;
-  readonly figure: FigureState;
+  readonly figure: Figure;
 }
 
 /** The end of the essay: the takeaway and the picture of the whole journey. The ways on are the screen's. */
 export interface EndPlate {
   readonly takeaway: readonly string[];
-  readonly figure?: FigureState | undefined;
+  readonly figure?: Figure | undefined;
   readonly smallPrint?: { readonly title: string; readonly text: string } | undefined;
 }
 

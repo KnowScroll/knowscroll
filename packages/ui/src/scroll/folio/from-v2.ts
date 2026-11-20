@@ -1,11 +1,9 @@
 import type { ReadStop, ScrollDocumentV2, Stop } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
-import type { FigureState } from '../stage/kit-figure';
 import { stageFigureAt } from '../stage/stage-figure';
-import type { Beat, BeatText, HeldBeat, ReadingBlock, ReadingModel } from './reading-model';
-
-/** A figure holds for at most this many beats: more would turn the page back into a slot under a picture. */
-export const HOLD_LIMIT = 3;
+import { blocksOfRun, type RunBeat } from './holds';
+import type { Figure } from './reading-model';
+import type { Beat, BeatText, ReadingBlock, ReadingModel } from './reading-model';
 
 type CallStop = Exclude<Stop, ReadStop>;
 
@@ -45,47 +43,10 @@ function questionBeat(document: ScrollDocumentV2, stop: CallStop): Beat {
 }
 
 /** Whether the kit draws a move between two figures as one picture changing, the test for sharing a hold. */
-function sameView(from: FigureState, to: FigureState): boolean {
+function sameView(from: Figure, to: Figure): boolean {
   if (from.kind !== 'state' || to.kind !== 'state' || from.kit !== to.kit) return false;
   const kit = KIT_PICTURES[from.kit];
   return kit.canTween(kit.sceneOf(from.state), kit.sceneOf(to.state));
-}
-
-/** A read beat in a run on one view: the figure it shows, and whether the beat itself changed it. */
-interface RunBeat extends HeldBeat {
-  readonly changes: boolean;
-}
-
-/** One stretch of a run, drawn as a hold when two or more of its beats change the figure, else as beats and figures. */
-function blocksOfChunk(chunk: readonly RunBeat[]): ReadingBlock[] {
-  const [first] = chunk;
-  if (first !== undefined && chunk.filter((held) => held.changes).length >= 2) {
-    return [{ kind: 'hold', id: `hold-${first.beat.id}`, beats: chunk.map(({ beat, figure }) => ({ beat, figure })) }];
-  }
-  return chunk.flatMap((held): ReadingBlock[] =>
-    held.changes
-      ? [
-          { kind: 'beat', beat: held.beat },
-          { kind: 'figure', id: `figure-${held.beat.id}`, figure: held.figure },
-        ]
-      : [{ kind: 'beat', beat: held.beat }],
-  );
-}
-
-/**
- * A run of read beats on one view, starting at a change: cut into stretches of at most `HOLD_LIMIT`. Beats after the
- * last change are not held: a figure that would not change again is not worth pinning.
- */
-function blocksOfRun(run: readonly RunBeat[]): ReadingBlock[] {
-  let last = run.length - 1;
-  while (last >= 0 && run[last]?.changes === false) last -= 1;
-  const held = run.slice(0, last + 1);
-  const after = run.slice(last + 1).map((rest): ReadingBlock => ({ kind: 'beat', beat: rest.beat }));
-  const blocks: ReadingBlock[] = [];
-  for (let start = 0; start < held.length; start += HOLD_LIMIT) {
-    blocks.push(...blocksOfChunk(held.slice(start, start + HOLD_LIMIT)));
-  }
-  return [...blocks, ...after];
 }
 
 /**

@@ -93,6 +93,7 @@ export default defineConfig({
         'scroll-blocks.spec.ts',
         'space-gallery.spec.ts',
         'folio-gallery.spec.ts',
+        'folio-v3-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${gallery}` },
     },

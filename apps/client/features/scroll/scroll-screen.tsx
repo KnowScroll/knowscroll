@@ -30,7 +30,7 @@ import { savedRemovalFor } from '../saved/saved-query';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
-import type { OpenedScroll, OpenedScrollV2 } from './scroll-session';
+import { isScrollV2, type OpenedScroll, type OpenedScrollFolio } from './scroll-session';
 import { RequestNotice } from '../encounter/encounter-notices';
 import { EncounterOverlay } from '../encounter/encounter-overlay';
 import { RequestPanel } from '../requests/request-panel';
@@ -252,13 +252,14 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
 }
 
 /**
- * A v2 Scroll on its own address: Folio's essay with the same recorder and the same remembered place
- * as the article, by stop (a stop id is the position's block id). The Parts are the ones the server
+ * A v2 or v3 Scroll on its own address: Folio's essay with the same recorder and the same remembered place
+ * as the article, by stop (a stop id is the position's block id) or by beat for a v3 Scroll. Ask from here
+ * anchors to a stop, so a v3 Scroll has no Ask until its contract does. The Parts are the ones the server
  * admitted for this Scroll, opened by address (D-184). Ask from
  * here is the same as in Explore (D1): there is no encounter, so its source is this Scroll's own
  * exposure. Next ↑ goes to Explore for a new topic.
  */
-function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScrollV2 }) {
+function ReadyScrollFolio({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScrollFolio }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const back = useBack();
@@ -384,8 +385,7 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
             />
           ),
           format: () => siblings.select('reel'),
-          ask: ask.openAsk,
-          makeScroll: ask.openAbout,
+          ...(isScrollV2(scroll) ? { ask: ask.openAsk, makeScroll: ask.openAbout } : {}),
           back,
           done: back,
         }}
@@ -420,7 +420,11 @@ function ReadyScrollV2({ scope, scroll }: { readonly scope: AccountScope; readon
       </View>
       {ask.open ? (
         <EncounterOverlay label="Ask" presentation="sheet" onClose={ask.close}>
-          <RequestPanel session={ask.session} onClose={ask.close} ask={{ scroll }} />
+          <RequestPanel
+            session={ask.session}
+            onClose={ask.close}
+            {...(isScrollV2(scroll) ? { ask: { scroll } } : {})}
+          />
         </EncounterOverlay>
       ) : null}
       <EvidencePanel scope={scope} exposureId={scroll.exposureId} />
@@ -441,7 +445,7 @@ function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; read
       return state.reader === 'article' ? (
         <ReadyScroll scope={scope} scroll={state.scroll} />
       ) : (
-        <ReadyScrollV2 key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />
+        <ReadyScrollFolio key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />
       );
     case 'opening':
     case 'loading':

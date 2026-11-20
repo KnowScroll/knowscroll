@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, useDisplay, type ReaderHandle } from '@knowscroll/ui';
 import { ScrollReaderSurface } from '../scroll/scroll-reader-surface';
-import type { OpenedScrollV2 } from '../scroll/scroll-session';
+import { isScrollV2, type OpenedScrollFolio } from '../scroll/scroll-session';
 import { EVERY_READER, readerFor } from '../scroll/scroll-readers';
 import { continuationIntent } from './continuation-intent';
 import { readerContinuations } from './continuation-moves';
@@ -17,7 +17,7 @@ import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterFormatSwitch } from './encounter-top-bar';
 import { arrivalToSay, markArrivalSaid } from './part-arrival';
 
-export type ScrollV2Entry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedScrollV2 };
+export type ScrollV2Entry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonly scroll: OpenedScrollFolio };
 
 /** Whether a v2 reader draws a Scroll entry (`readerFor`). The entry itself is kept: the session tracks entries by identity. */
 export function isScrollV2Entry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is ScrollV2Entry {
@@ -49,6 +49,8 @@ export function ScrollV2Encounter({
   const router = useRouter();
   const { breakpoint } = useDisplay();
   const narrow = breakpoint === 'compact' || breakpoint === 'phone';
+  // Ask names a stop; a v3 Scroll has beats and no stops.
+  const withStops = isScrollV2(entry.scroll) ? entry.scroll : undefined;
   const metrics = useEncounterMetrics();
   const reader = useRef<ReaderHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
@@ -117,18 +119,26 @@ export function ScrollV2Encounter({
           shareScroll: () => session.openShare(),
           nextTopic: () => session.navigate({ mode: 'vertical', direction: 'next' }),
           ...moves,
-          // Ask from here (D1): the question is anchored to the stop on screen, or the last one at the end of the Scroll.
-          ask: () => {
-            const stopId = reader.current?.capture()?.stopId ?? entry.scroll.document.stops.at(-1)?.id;
-            if (stopId === undefined) session.openRequest();
-            else session.openRequest('ask', { stopId });
-          },
-          // "Make it a full Scroll" under a Quick answer opens Ask from here at the stop, with the selected words as the first
-          // draft of the question the person may change (D-244, D-253).
-          makeScroll: (stopId, passage, question) => {
-            session.openRequest('ask', { stopId });
-            session.requests.edit({ about: true, text: (question ?? `Tell me more about “${passage}”`).slice(0, 280) });
-          },
+          // Ask from here (D1) names a stop, so a v3 Scroll, which has beats, offers none until its contract does.
+          ...(withStops === undefined
+            ? {}
+            : {
+                // The question is anchored to the stop on screen, or the last one at the end of the Scroll.
+                ask: () => {
+                  const stopId = reader.current?.capture()?.stopId ?? withStops.document.stops.at(-1)?.id;
+                  if (stopId === undefined) session.openRequest();
+                  else session.openRequest('ask', { stopId });
+                },
+                // "Make it a full Scroll" under a Quick answer opens Ask from here at the stop, with the selected words as
+                // the first draft of the question the person may change (D-244, D-253).
+                makeScroll: (stopId: string, passage: string, question?: string) => {
+                  session.openRequest('ask', { stopId });
+                  session.requests.edit({
+                    about: true,
+                    text: (question ?? `Tell me more about “${passage}”`).slice(0, 280),
+                  });
+                },
+              }),
           formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
           format: switchToReel,
           done: back,

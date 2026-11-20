@@ -55,6 +55,7 @@ export function HoldView({
   onTextVersion,
   renderBeat,
   places,
+  pulsing,
   style,
 }: {
   readonly hold: HoldBlock;
@@ -69,6 +70,8 @@ export function HoldView({
   /** The held figure's chip turns the reader's text version on: its words would not fit a pinned plate (holds lie flat). */
   readonly onTextVersion?: (() => void) | undefined;
   readonly renderBeat: RenderHeldBeat;
+  /** The part a linked phrase was just pressed for; a held picture that has it emphasises it. */
+  readonly pulsing?: string | undefined;
   readonly style?: StyleProp<ViewStyle>;
 }) {
   const page = usePagePalette();
@@ -119,6 +122,7 @@ export function HoldView({
             textVersion={textVersion}
             onTextVersion={onTextVersion}
             fixedHeight
+            pulsing={pulsing}
             testID="held-figure"
           />
         </View>
