@@ -9,8 +9,8 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 
 /**
  * The Folio reader in a real browser (the gallery export, `/gallery-folio`, labelled CI fixture documents): every stop as
- * a beat in order, a call drawn as text, a held figure that pins and changes state while its beats pass (phone, and beside
- * them on a wide screen), what the reader reports as read, the keys, reduced motion, small screens and 200 % text, axe,
+ * a beat in order, a call drawn as text, a held figure that changes state while its beats pass (pinned above them on a
+ * phone, beside them on a wide screen), what the reader reports as read, the keys, reduced motion, small screens and 200 % text, axe,
  * Earth's tilt control, and opening at a stop. Screenshots are written only when `KS_FOLIO_SHOTS` names a folder
  * (outside the repository).
  */
@@ -137,11 +137,13 @@ for (const { label, viewport } of sizes) {
 /** Where the first hold's figure and beats are at one step of the scroll. */
 interface HoldRow {
   scrollTop: number;
+  viewport: number;
   figureTop: number;
   figureBottom: number;
   figureLeft: number;
   key: string;
   firstBeatTop: number;
+  lastBeatTop: number;
   beatsRight: number;
 }
 
@@ -158,21 +160,26 @@ async function holdRow(page: Page): Promise<HoldRow> {
     if (first === undefined) throw new Error('the hold has beats');
     return {
       scrollTop: root.scrollTop,
+      viewport: root.clientHeight,
       figureTop: figure.top - frame.top,
       figureBottom: figure.bottom - frame.top,
       figureLeft: figure.left,
       key: plate.getAttribute('data-ks-figure') ?? '',
       firstBeatTop: first.top - frame.top,
+      lastBeatTop: (beats.at(-1) ?? first).top - frame.top,
       beatsRight: Math.max(...beats.map((box) => box.right)),
     };
   });
 }
 
-/** Steps the scroller down in 120 px steps from the top until the first hold's figure has left, and records each step. */
+/** How far each step of `throughTheFirstHold` scrolls. */
+const HOLD_STEP = 60;
+
+/** Steps the scroller down from the top until the first hold's figure has left, and records each step. */
 async function throughTheFirstHold(page: Page, label: string): Promise<HoldRow[]> {
   const rows: HoldRow[] = [];
   const most = await scroller(page).evaluate((node) => node.scrollHeight - node.clientHeight);
-  for (let top = 0; top <= most; top += 120) {
+  for (let top = 0; top <= most; top += HOLD_STEP) {
     await scrollTo(page, top);
     // The held figure follows the scroll through React state: give it a frame or two.
     await page.waitForTimeout(200);
@@ -184,51 +191,61 @@ async function throughTheFirstHold(page: Page, label: string): Promise<HoldRow[]
   return rows;
 }
 
-for (const { label, viewport } of sizes) {
-  test(`the first hold of circulation pins its figure, changes its state and releases it, at ${label}`, async ({
-    page,
-  }) => {
-    await open(page, 'circulation', viewport);
-    await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
-    const rows = await throughTheFirstHold(page, label);
-    const first = rows[0];
-    const last = rows.at(-1);
-    if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
+test('the first hold of circulation pins its figure above its beats, changes its state and releases it, at phone', async ({
+  page,
+}) => {
+  await open(page, 'circulation', sizes[0].viewport);
+  await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
+  const rows = await throughTheFirstHold(page, 'phone');
+  const first = rows[0];
+  const last = rows.at(-1);
+  if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
 
-    // The figure is the pinned figure when it sits at the top of the scroller (its panel's padding is under 24 px).
-    const pinnedTop = Math.min(...rows.map((row) => row.figureTop).filter((top) => top >= -2));
-    const pinned = rows.filter((row) => Math.abs(row.figureTop - pinnedTop) <= 3);
-    // It arrived from below, so it was pinned by the scroll and not drawn there.
-    expect(first.figureTop).toBeGreaterThan(pinnedTop + 40);
-    expect(pinnedTop).toBeLessThan(24);
-    expect(pinned.length).toBeGreaterThanOrEqual(3);
-    // Across the pinned steps the beat moves up and the figure does not.
-    const beatTravel = pinned[0] === undefined ? 0 : pinned[0].firstBeatTop - (pinned.at(-1)?.firstBeatTop ?? 0);
-    expect(beatTravel).toBeGreaterThanOrEqual(240);
-    for (const row of pinned) expect(Math.abs(row.figureTop - pinnedTop)).toBeLessThanOrEqual(3);
-    // And when the hold is over it scrolls away: its bottom is above the top of the scroller.
-    expect(last.figureBottom).toBeLessThan(0);
+  // The figure is the pinned figure when it sits at the top of the scroller (its panel's padding is under 24 px).
+  const pinnedTop = Math.min(...rows.map((row) => row.figureTop).filter((top) => top >= -2));
+  const pinned = rows.filter((row) => Math.abs(row.figureTop - pinnedTop) <= 3);
+  // It arrived from below, so it was pinned by the scroll and not drawn there.
+  expect(first.figureTop).toBeGreaterThan(pinnedTop + 40);
+  expect(pinnedTop).toBeLessThan(24);
+  expect(pinned.length).toBeGreaterThanOrEqual(3);
+  // Across the pinned steps the beats move up and the figure does not, and they move far enough for the last beat to
+  // come to where the first was when the figure pinned (held beats are spaced like any others, #769, D-434, so how far
+  // that is depends on the beats, not on room left between them). One step of slack, since the scroll is sampled.
+  const beatTravel = pinned[0] === undefined ? 0 : pinned[0].firstBeatTop - (pinned.at(-1)?.firstBeatTop ?? 0);
+  const firstToLast = pinned[0] === undefined ? Infinity : pinned[0].lastBeatTop - pinned[0].firstBeatTop;
+  expect(firstToLast).toBeGreaterThan(0);
+  expect(beatTravel).toBeGreaterThanOrEqual(firstToLast - HOLD_STEP);
+  for (const row of pinned) expect(Math.abs(row.figureTop - pinnedTop)).toBeLessThanOrEqual(3);
+  // Two or more states while it is pinned.
+  expect(new Set(pinned.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
+  // And when the hold is over it scrolls away: its bottom is above the top of the scroller.
+  expect(last.figureBottom).toBeLessThan(0);
+  // Above its beats on a phone: the figure is as wide as the column, not beside it.
+  for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
+});
 
-    if (label === 'desktop') {
-      // Beside its beats: the figure's left edge is to the right of every beat's right edge.
-      for (const row of rows) expect(row.figureLeft).toBeGreaterThan(row.beatsRight);
-    } else {
-      // Above its beats on a phone: the figure is as wide as the column, not beside it.
-      for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
-    }
-  });
-}
+test('the first hold of circulation keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
+  page,
+}) => {
+  await open(page, 'circulation', sizes[1].viewport);
+  await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
+  const rows = await throughTheFirstHold(page, 'desktop');
+  const first = rows[0];
+  const last = rows.at(-1);
+  if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
 
-for (const { label, viewport } of sizes) {
-  test(`the held figure of circulation takes at least two states while it is pinned, at ${label}`, async ({ page }) => {
-    await open(page, 'circulation', viewport);
-    const rows = await throughTheFirstHold(page, `states-${label}`);
-    const pinnedTop = Math.min(...rows.map((row) => row.figureTop).filter((top) => top >= -2));
-    const pinned = rows.filter((row) => Math.abs(row.figureTop - pinnedTop) <= 3);
-    expect(pinned.length).toBeGreaterThanOrEqual(3);
-    expect(new Set(pinned.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
-  });
-}
+  // Beside its beats: the figure's left edge is to the right of every beat's right edge, and the beats start level
+  // with it, with no blank above them (#769, D-434).
+  for (const row of rows) expect(row.figureLeft).toBeGreaterThan(row.beatsRight);
+  for (const row of rows) expect(Math.abs(row.firstBeatTop - row.figureTop)).toBeLessThanOrEqual(24);
+  // It arrives from below and takes two or more states while the whole figure is in view. These beats are shorter than
+  // the figure, so it need not pin: it goes up with them.
+  expect(first.figureTop).toBeGreaterThan(40);
+  const inView = rows.filter((row) => row.figureTop >= -3 && row.figureBottom <= row.viewport + 3);
+  expect(new Set(inView.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
+  // And when the hold is over it scrolls away: its bottom is above the top of the scroller.
+  expect(last.figureBottom).toBeLessThan(0);
+});
 
 for (const { label, viewport } of sizes) {
   for (const name of ['circulation', 'seasons'] as const) {
@@ -248,15 +265,19 @@ for (const { label, viewport } of sizes) {
       await shot(page, `reading-end-${label}`);
 
       const { visibility, stops } = await galleryEvents(page);
-      // Replay the reports in order, keeping each block's latest fraction.
+      // Replay the reports in order, keeping each block's latest fraction. Reports made at the same instant of the
+      // reader's clock (`at`) are one observation: each beat's observer reports on its own, so within one frame a beat
+      // coming in can be reported before the one going out, and the recorder, which times what is visible by `at`,
+      // credits no time to that order. The count is taken after every report of an instant.
       const latest = new Map<string, number>();
       const reached = new Set<string>();
       let most_at_once = 0;
-      for (const entry of visibility) {
+      visibility.forEach((entry, index) => {
         latest.set(entry.blockId, entry.visibleFraction);
         if (entry.visibleFraction >= 0.5) reached.add(entry.blockId);
+        if (visibility[index + 1]?.at === entry.at) return;
         most_at_once = Math.max(most_at_once, [...latest.values()].filter((fraction) => fraction >= 0.5).length);
-      }
+      });
       expect(most_at_once).toBeLessThanOrEqual(3);
       for (const stop of document.stops.filter((entry) => entry.kind === 'read'))
         expect(reached.has(stop.id), `read stop ${stop.id} reached half visibility`).toBe(true);
