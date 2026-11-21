@@ -471,9 +471,19 @@ test('the first hold of broad-street keeps its plan beside its beats, in full vi
   // Beside its beats: the figure's left edge is to the right of every beat's right edge, and the beats start level
   // with it, with no blank above them (#769, D-434).
   for (const row of rows) expect(row.figureLeft).toBeGreaterThan(row.beatsRight);
-  for (const row of rows) expect(Math.abs(row.firstBeatTop - row.figureTop)).toBeLessThanOrEqual(24);
-  // It arrives from below and takes two or more states while the whole figure is in view. These beats are shorter than
-  // the figure, so it need not pin: it goes up with them.
+  expect(Math.abs(first.firstBeatTop - first.figureTop)).toBeLessThanOrEqual(24);
+  // These three beats run a little longer than the plan, so it pins near the top while the rest of them pass beside it
+  // (D-434): over some step the beats move up a whole step and the figure, at the top, moves much less. Circulation's
+  // shorter hold rises with its beats instead.
+  const held = rows.slice(1).some((row, index) => {
+    const before = rows[index];
+    if (before === undefined) return false;
+    const beatMoved = before.firstBeatTop - row.firstBeatTop;
+    const figureMoved = before.figureTop - row.figureTop;
+    return row.figureTop >= -8 && row.figureTop < 24 && beatMoved >= HOLD_STEP - 5 && figureMoved <= HOLD_STEP / 2;
+  });
+  expect(held).toBe(true);
+  // It arrives from below and takes two or more states while the whole figure is in view.
   expect(first.figureTop).toBeGreaterThan(40);
   const whole = rows.filter((row) => row.figureTop >= -3 && row.figureBottom <= row.viewport + 3);
   expect(new Set(whole.map((row) => row.key)).size).toBeGreaterThanOrEqual(heldPlan.states.size);
