@@ -11,6 +11,7 @@ import {
 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { canRenderScroll, isScrollDocumentV2, isScrollDocumentV3 } from './render-scroll.js';
+import { notRetired } from './retirement-sql.js';
 import { notUnderReview } from './review-gate-sql.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { distance, notOrdered, rotationCursor } from './discovery-sql.js';
@@ -73,12 +74,14 @@ function declaredScrollSchemas(capabilities: unknown): readonly string[] {
 }
 
 /**
- * For each asset whose current revision is a v2 or v3 document the client cannot render, the latest earlier
- * revision whose schema the client declares (a v2, else a v1, for a client that has not learned v3). A regenerated
- * Scroll keeps its asset, so the revision it replaced is the fallback for a client that has not learned the new
- * format, and a revision still held for review never stands in; an asset with none is simply not offered to that
- * client. Only discovery substitutes: an exact revision
- * pinned by an offer or a link is never swapped (D-129).
+ * For each asset whose current revision is a v2 document the client cannot render, the latest earlier revision whose
+ * schema the client declares (a v1, for a client that has not learned v2). A regenerated Scroll keeps its asset, so the
+ * revision it replaced is the fallback for a client that has not learned the new format, and a revision still held for
+ * review never stands in; an asset with none is simply not offered to that client. Only discovery substitutes: an
+ * exact revision pinned by an offer or a link is never swapped (D-129).
+ *
+ * An asset whose current revision is a document v3 has no fallback at all: its earlier revisions are retired (D-435,
+ * `notRetired`), so a client that cannot read the v3 is offered nothing for it, however old it is.
  */
 async function olderRows(
   db: Kysely<Database>,
@@ -90,7 +93,7 @@ async function olderRows(
   const found = await sql<{ asset_id: string; revision: number }>`select distinct on (r.asset_id) r.asset_id,r.revision
     from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.status='admitted'
     where r.asset_id=any(${assetIds}::uuid[]) and r.document_version=any(${schemas}::text[]) and r.revision<a.revision
-      and ${notUnderReview('r.asset_id', 'r.revision')}
+      and ${notUnderReview('r.asset_id', 'r.revision')} and ${notRetired('r.asset_id', 'r.revision')}
     order by r.asset_id,r.revision desc`.execute(db);
   if (found.rows.length === 0) return new Map();
   const pairs = sql.join(found.rows.map((row) => sql`(${row.asset_id}::uuid,${row.revision})`));
@@ -130,7 +133,7 @@ function snapshot(row: Row, lane?: DiscoveryLane): EncounterSnapshot {
     ...(lane === undefined ? {} : { lane }),
   };
 }
-/** One bounded join, no provenance or personal history; exact lookup may read an older admitted revision. */
+/** One bounded join, no provenance or personal history; exact lookup may read an older admitted revision, but not a retired one (D-435). */
 async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit: number): Promise<readonly Row[]> {
   const result =
     await sql<Row>`select r.asset_id,r.revision as asset_revision,a.kind,r.explanation_unit_id,r.title,d.summary,r.language,d.facets,d.attribution_version,r.document_sha256,r.document,
@@ -138,7 +141,7 @@ async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit:
     coalesce((select jsonb_agg(s.value order by s.kind) from (select distinct on (aa.kind) aa.kind,jsonb_build_object('assetId',rr.asset_id,'assetRevision',rr.revision,'kind',aa.kind) as value from content.asset_revisions rr join content.assets aa on aa.id=rr.asset_id and aa.revision=rr.revision and aa.status='admitted' where rr.explanation_unit_id=r.explanation_unit_id and aa.kind<>a.kind order by aa.kind,rr.asset_id limit 2) s),'[]') as siblings,
     (select jsonb_build_object('seriesId',u.series_id,'seriesRevision',u.series_revision,'part',u.part,'total',(select count(*) from content.series_units t where t.series_id=u.series_id and t.series_revision=u.series_revision)) from content.series_units u where u.asset_id=r.asset_id and u.asset_revision=r.revision order by u.series_revision desc,u.series_id limit 1) as series
     from content.assets a join content.asset_revisions r on r.asset_id=a.id join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision
-    where a.status='admitted' and ${notUnderReview('r.asset_id', 'r.revision')} and ${filter} order by r.asset_id,r.revision limit ${limit}`.execute(
+    where a.status='admitted' and ${notUnderReview('r.asset_id', 'r.revision')} and ${notRetired('r.asset_id', 'r.revision')} and ${filter} order by r.asset_id,r.revision limit ${limit}`.execute(
       db,
     );
   return result.rows;

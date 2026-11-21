@@ -59,6 +59,29 @@ export const NON_PROSE_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The keys of a stored document v3 whose values are not words (D-435): the keys above and the references one part of a v3 makes to another: the beat an
+ * aside sits beside, the picture a beat shows, the part a linked phrase names, and the ids that a grid's cells, a chart's marks, a plan's regions and routes
+ * and a state's lit parts hold (`SM/v3/document.ts`, `SM/v3/pictures.ts`). They are a set of their own and not part of {@link NON_PROSE_KEYS} because a
+ * document v1 or v2 has keys of the same names that hold words (a diagram's parts, a kit's labels): adding them to the shared list would change what a v1 or
+ * v2 document's prose is, and the scan of those is as it was.
+ */
+export const NON_PROSE_KEYS_V3: ReadonlySet<string> = new Set([
+  ...NON_PROSE_KEYS,
+  'anchorBeat',
+  'picture',
+  'part',
+  'row',
+  'column',
+  'point',
+  'nearest',
+  'among',
+  'from',
+  'to',
+  'lit',
+  'region',
+]);
+
+/**
  * The years that read as the present or the near future: a Scroll that names one of 2023 to 2100 is about something recent or projected,
  * which is current events and ages out. Numeric policy values, versioned with the file.
  */

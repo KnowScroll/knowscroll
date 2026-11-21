@@ -52,13 +52,24 @@ export interface CheckerIdentity {
   readonly sources: readonly string[];
 }
 
-/** The characters of the hash a version keeps: the harness limits a version to 32 characters, and the prefix takes 22. */
+/** The characters of the hash a version keeps: the harness limits a version to 32 characters, and a prefix takes at most 24 of them. */
 const VERSION_HASH_CHARS = 8;
 
-/** `library-support-check.` and the first eight hex digits of the SHA-256 of the identity. The same identity gives the same version in every process. */
-export function checkerVersionOf(identity: CheckerIdentity): string {
+/** The prefix of the version of the check of a stored document v2 Scroll (D-415). */
+export const V2_VERSION_PREFIX = 'library-support-check.';
+
+/** The most characters a version may have: the production harness refuses a longer role or policy version. */
+export const MAX_VERSION_CHARS = 32;
+
+/**
+ * The prefix (`library-support-check.` unless another is given) and the first eight hex digits of the SHA-256 of the identity. The same identity gives the
+ * same version in every process. A prefix longer than 24 characters is refused, because the version would pass the harness's limit.
+ */
+export function checkerVersionOf(identity: CheckerIdentity, prefix: string = V2_VERSION_PREFIX): string {
+  if (prefix.length + VERSION_HASH_CHARS > MAX_VERSION_CHARS)
+    throw new Error('LIBRARY_SUPPORT_VERSION_PREFIX_TOO_LONG');
   const hash = createHash('sha256')
     .update(JSON.stringify([identity.instructions, identity.rules, identity.policy, identity.sources]))
     .digest('hex');
-  return `library-support-check.${hash.slice(0, VERSION_HASH_CHARS)}`;
+  return `${prefix}${hash.slice(0, VERSION_HASH_CHARS)}`;
 }
