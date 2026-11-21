@@ -562,6 +562,23 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
         signed({ ...document, stage: { kit: stage.kit, states: stage.states.map((entry) => ({ ...entry, state })) } }),
       );
     expect(typo({ view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'earh' })).not.toEqual([]);
+    // The finding names the wrong word where it stands, as before legacy stages existed, never the kit id.
+    const misspelt = validateDocumentV2(
+      signed({
+        ...document,
+        stage: {
+          kit: stage.kit,
+          states: stage.states.map((entry) => ({
+            ...entry,
+            state: { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'earh' },
+          })),
+        },
+      }),
+    );
+    expect(misspelt.kind).toBe('invalid');
+    const found = misspelt.kind === 'invalid' ? misspelt.issues : [];
+    expect(found).toContainEqual({ code: 'schema_invalid_value', path: 'stage.states.0.state.focus' });
+    expect(found.map((issue) => issue.path)).not.toContain('stage.kit');
     // The words of one kit under the name of another.
     expect(typo({ view: 'bulges', moonAt: 'full', focus: 'none' })).not.toEqual([]);
     expect(codes(signed({ ...document, stage: { kit: 'tides.v1', states: stage.states } }))).not.toEqual([]);

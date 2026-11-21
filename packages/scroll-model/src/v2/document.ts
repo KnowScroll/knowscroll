@@ -193,7 +193,9 @@ const KIT_ID_FORM = /^[a-z][a-z0-9-]{1,39}\.v[0-9]{1,3}$/;
 const LegacyKit = z
   .string()
   .regex(KIT_ID_FORM, { message: 'id_format' })
-  .refine((kit) => !isStageKitId(kit), { message: 'kit_is_live' });
+  // Aborting matters: a non-aborting refusal here would leave this arm the union's only live candidate when a live kit's
+  // own arm aborts on a wrong word, and Zod would then report this arm's `kit_is_live` at `stage.kit` instead of the word.
+  .refine((kit) => !isStageKitId(kit), { message: 'kit_is_live', abort: true });
 
 /** A state of a legacy stage: a plain object, whatever its kit once put in it. */
 const LegacyState = z.record(z.string(), z.unknown());
