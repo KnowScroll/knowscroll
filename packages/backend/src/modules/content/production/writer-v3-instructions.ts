@@ -20,6 +20,13 @@ export interface WriterV3Plan {
 
 const minutes = (seconds: number): number => seconds / 60;
 
+/**
+ * The words the writer is asked for: inside `LIMITS_V3.mainWords` (350 to 700) but high enough that the essay reaches the
+ * two-minute floor of its reading time. At 230 words a minute, 350 words read in 91 seconds; the 4 seconds each shown
+ * figure adds rarely make up the rest, so a Scroll near the word floor is refused for `reading_length_out_of_brief`.
+ */
+const TARGET_WORDS = { min: 450, max: 650 } as const;
+
 const SHAPE_LINES: Readonly<Record<ScrollV3Plan['shape'], string>> = {
   argument:
     'This Scroll argues one claim: say it early, give the reasons a reader can follow, meet the best objection, and land it.',
@@ -57,7 +64,7 @@ function essayLines(plan: WriterV3Plan): string[] {
     `- ${SHAPE_LINES[plan.shape]}`,
     ...sectionLines(plan),
     ...mythLines(plan),
-    `- ${String(L.beats.min)} to ${String(L.beats.max)} paragraphs in all, ${String(L.beatsPerSection.min)} to ${String(L.beatsPerSection.max)} in each section, ${String(L.mainWords.min)} to ${String(L.mainWords.max)} words of paragraph text in all, so it reads in ${String(minutes(READING_SECONDS_V3.min))} to ${String(minutes(READING_SECONDS_V3.max))} minutes. A paragraph is one idea in at most ${String(L.beatWords)} words; the first is at most ${String(L.firstBeatWords)}.`,
+    `- ${String(L.beats.min)} to ${String(L.beats.max)} paragraphs in all, ${String(L.beatsPerSection.min)} to ${String(L.beatsPerSection.max)} in each section, ${String(TARGET_WORDS.min)} to ${String(TARGET_WORDS.max)} words of paragraph text in all, so it reads in ${String(minutes(READING_SECONDS_V3.min))} to ${String(minutes(READING_SECONDS_V3.max))} minutes (fewer than ${String(TARGET_WORDS.min)} words is too short a read). A paragraph is one idea in at most ${String(L.beatWords)} words; the first is at most ${String(L.firstBeatWords)}.`,
     '- The first paragraph is the opening of the cover: it must stand alone. State the surprising thing plainly in it, and never open it with a word that points back ("this", "that", "it", "they", "so", "but", "and").',
     '- Voice: "you", short plain sentences, concrete things before abstract ones, one idea a paragraph. Warm and exact. No metaphor where a plain statement would do. Never call the reader wrong.',
     '- "simple": every paragraph and quote has a plainer version, the same idea in shorter, easier words, never adding a fact.',
