@@ -107,7 +107,12 @@ function v2Plan(input: WriterPlanInput, plan: NonNullable<ProductionSubject['scr
   };
 }
 
-/** The writer plan of a job: the v2 writer for a recipe the library plan marks `scrollV2`, the v1 writer for every other. */
+/**
+ * The writer plan of a job: the v2 writer for a recipe the library plan marks `scrollV2`, the v1 writer for every other.
+ * A recipe marked `scrollV3` has no writer yet: it is refused before any request, so the v1 writer never writes a recipe
+ * planned as a document v3 and spends paid requests on the wrong format. The v3 writer replaces the refusal.
+ */
 export function writerPlanFor(input: WriterPlanInput): WriterPlan {
+  if (input.subject.scrollV3 !== undefined) throw new Error('SCROLL_V3_WRITER_NOT_IMPLEMENTED');
   return input.subject.scrollV2 === undefined ? v1Plan(input) : v2Plan(input, input.subject.scrollV2);
 }

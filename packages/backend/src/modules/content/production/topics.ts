@@ -5,7 +5,7 @@ import {
   isGeneratedRecipeKey,
   type GeneratedRecipeKey,
 } from '../domain/library/generated.js';
-import type { ScrollV2Plan } from '../domain/library/plan.js';
+import type { ScrollV2Plan, ScrollV3Plan } from '../domain/library/plan.js';
 
 /** The current production recipe. A topic has one job per version; a new recipe is a new version. */
 export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
@@ -24,6 +24,13 @@ export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
  * `versions.test.ts` pins the pair, so a writer bump cannot go in without this one.
  */
 export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v22';
+/**
+ * The production recipe of a recipe the plan marks `scrollV3`: the same job with the document v3 writer. Like the v2 version it
+ * is a version of its own, so a recipe already served as a v2 Scroll is a new job here and its Scroll becomes a new revision of
+ * the same asset. It must change whenever the v3 writer's instructions (`WRITER_V3_PROMPT_VERSION`) or the job's steps change,
+ * which gives every recipe fresh takes; `versions.test.ts` pins the pair.
+ */
+export const SCROLL_PRODUCTION_V3_VERSION = 'scroll-production-v3.v1';
 /** One writer call and at most one repair, per take. */
 export const REQUEST_BOUND_PER_TOPIC = 2;
 /**
@@ -32,6 +39,11 @@ export const REQUEST_BOUND_PER_TOPIC = 2;
  * the two drafts the writer can produce, each with at most one repair of an unusable reply (D-198).
  */
 export const REQUEST_BOUND_V2_PER_TOPIC = 6;
+/**
+ * A document v3 library recipe's take sends at most as many paid requests as a v2 one for now. The writer pull request sets
+ * this once the pipeline is chosen (the answer check of a v3 has no calls and sends none).
+ */
+export const REQUEST_BOUND_V3_PER_TOPIC = 6;
 /**
  * The answer to a person's question sends at most fourteen paid requests a take: the writer's first draft and the validator's
  * repair of it (2), the revision a support check earns (1) and its repair, for a length out of range, an opening paragraph taken out whole or a copied run the trim could not place (1), and the support check for
@@ -76,23 +88,34 @@ export function scrollV2PlanOf(key: string): ScrollV2Plan | undefined {
 }
 
 /**
+ * What the plan decides for a document v3 recipe, or `undefined` for a recipe that is not one. No stored (`gen-`) recipe is a
+ * v3 recipe yet: a later change lets a proposed recipe carry the plan, and this is the one place that will read it.
+ */
+export function scrollV3PlanOf(key: string): ScrollV3Plan | undefined {
+  if (isGeneratedRecipeKey(key)) return undefined;
+  const topic = parseScrollTopic(key);
+  return topic === undefined ? undefined : TOPICS[topic].scrollV3;
+}
+
+/**
  * Why the plan does not let a recipe be produced at all, or `undefined`. A v2 recipe whose
  * misconception source label no person has reviewed is a plan problem: the library admits only
  * reviewed labels, so no request is spent on it until the plan says `reviewed` (D-129).
  */
 export function planRefusalOf(key: string): 'misconception_source_unreviewed' | undefined {
-  const misconception = scrollV2PlanOf(key)?.misconception;
+  const misconception = (scrollV2PlanOf(key) ?? scrollV3PlanOf(key))?.misconception;
   return misconception?.kind === 'myth' && !misconception.source.reviewed
     ? 'misconception_source_unreviewed'
     : undefined;
 }
 
 /**
- * The production recipe version of a job key: v15 for a recipe the plan marks v2, v14 for every
- * other recipe and for a Scroll ordered from code. Every place that names a job by recipe and
- * version asks here, so a v1 recipe's jobs are untouched.
+ * The production recipe version of a job key: the document v3 version for a recipe the plan marks `scrollV3`, the v2 version for
+ * one it marks `scrollV2`, v14 for every other recipe and for a Scroll ordered from code. Every place that names a job by
+ * recipe and version asks here, so a v1 or v2 recipe's jobs are untouched.
  */
 export function productionVersionOf(key: string): string {
+  if (scrollV3PlanOf(key) !== undefined) return SCROLL_PRODUCTION_V3_VERSION;
   return scrollV2PlanOf(key) === undefined ? SCROLL_PRODUCTION_VERSION : SCROLL_PRODUCTION_V2_VERSION;
 }
 
@@ -101,9 +124,14 @@ export function productionVersionOf(key: string): string {
  * answers, so a caller that has read the order passes its mode: the answer to a question is checked (D-250).
  */
 export function requestBoundOf(key: string, mode?: string): number {
+  if (scrollV3PlanOf(key) !== undefined) return REQUEST_BOUND_V3_PER_TOPIC;
   if (scrollV2PlanOf(key) !== undefined) return REQUEST_BOUND_V2_PER_TOPIC;
   return mode === 'question' ? REQUEST_BOUND_ASK_ORDER : REQUEST_BOUND_PER_TOPIC;
 }
 
 /** Every production version a job row may carry. */
-export const PRODUCTION_VERSIONS: readonly string[] = [SCROLL_PRODUCTION_VERSION, SCROLL_PRODUCTION_V2_VERSION];
+export const PRODUCTION_VERSIONS: readonly string[] = [
+  SCROLL_PRODUCTION_VERSION,
+  SCROLL_PRODUCTION_V2_VERSION,
+  SCROLL_PRODUCTION_V3_VERSION,
+];
