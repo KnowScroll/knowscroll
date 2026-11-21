@@ -48,6 +48,21 @@ describe('the cover of a stored Scroll document', () => {
     expect(OfferCoverSchema.safeParse(cover).success).toBe(true);
   });
 
+  it('has no figure, and no throw, for a stored v2 Scroll whose stage is of a kit the code no longer defines', () => {
+    const states = (withStage.stage?.states ?? []).map((entry) => ({ ...entry, state: { old: 'word' } }));
+    const stored = { ...withStage, stage: { kit: 'gone.v1', states } } as unknown as ScrollDocumentV2;
+    expect(firstFrameOf(stored)).toBeUndefined();
+    for (const version of [V1, V2] as const) {
+      const cover = coverOfDocument(stored, version);
+      expect(cover).toMatchObject({
+        version,
+        kicker: withStage.kicker,
+        readStops: withStage.stops.filter((stop) => stop.kind === 'read').length,
+      });
+      expect(cover).not.toHaveProperty('figure');
+    }
+  });
+
   it('has no figure for a v2 Scroll without a stage, but still its read stops', () => {
     const cover = coverOfDocument(withoutStage, V1);
     expect(cover).toMatchObject({

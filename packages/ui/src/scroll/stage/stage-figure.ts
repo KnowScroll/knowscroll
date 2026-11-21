@@ -1,7 +1,19 @@
 import type { Stage, Stop } from '@knowscroll/scroll-model';
-import { KIT_PICTURES } from '../kit';
+import { isKitPictureId, KIT_PICTURES, type KitPictureId } from '../kit';
 import type { FigureState } from './kit-figure';
 import { stageEntryAt } from './stage-state';
+
+/** A stage of a kit this build draws. */
+export type DrawableStage = Stage & { readonly kit: KitPictureId };
+
+/**
+ * The stage when this build can draw its kit, otherwise nothing. A stored stage may name a kit that has been removed
+ * since (its revision stays readable), and there is no picture to make of one: the Scroll reads as text. Every reader
+ * of a stage goes through this before it looks the kit up.
+ */
+export function drawableStage(stage: Stage | undefined): DrawableStage | undefined {
+  return stage !== undefined && isKitPictureId(stage.kit) ? (stage as DrawableStage) : undefined;
+}
 
 /**
  * The figure a `scroll-document.v2` stage shows at a stop: the state that holds there, named by the stop that set it.
@@ -9,7 +21,7 @@ import { stageEntryAt } from './stage-state';
  * sky needs two months on its orbit); otherwise the state at the stop. Pure.
  */
 export function stageFigureAt(
-  stage: Stage,
+  stage: DrawableStage,
   stops: readonly Pick<Stop, 'id'>[],
   stopId: string,
   recap = false,

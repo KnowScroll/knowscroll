@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { spacing } from '@knowscroll/design-tokens';
 import { Text } from '../../text/text';
 import { KIT_PICTURES } from '../kit';
-import { useStagePictures, type StagePictures, type StageTransition } from './use-stage-pictures';
+import { useStagePictures, type StagePictures, type StageTransition } from '../picture/use-stage-pictures';
 
 /** The kits a figure can be drawn with, by the id a document names them by. */
 export type KitId = keyof typeof KIT_PICTURES;

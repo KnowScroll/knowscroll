@@ -34,4 +34,13 @@ describe('the served document of an exposure', () => {
       ExposureDocumentResponseSchema.safeParse(response({ ...document, schemaVersion: 'scroll-document.v4' })).success,
     ).toBe(false);
   });
+
+  it('serves a stored Scroll v2 whose stage is of a kit the code no longer defines, whole, and still refuses a live kit’s wrong state', () => {
+    const document = fixture('seasons-stage-ci') as { stage: { kit: string; states: { state: unknown }[] } };
+    const states = document.stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } }));
+    const legacy = { ...document, stage: { kit: 'gone.v1', states } };
+    expect(ExposureDocumentResponseSchema.parse(response(legacy)).document).toEqual(legacy);
+    const typo = { ...document, stage: { kit: 'tides.v1', states } };
+    expect(ExposureDocumentResponseSchema.safeParse(response(typo)).success).toBe(false);
+  });
 });

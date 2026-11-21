@@ -1,4 +1,4 @@
-import type { ScrollDocumentV2 } from '../../v2/document.js';
+import { isLiveStage, type ScrollDocumentV2 } from '../../v2/document.js';
 import type { IssueV2 } from '../../v2/issues.js';
 import { EARTH_SKY_KIT, recapMonths, type StageFigureSlot } from '../../v2/kit.js';
 import type { AuthoringEvidence } from '../authoring-bind.js';
@@ -255,7 +255,8 @@ export function stagePlanIssues(document: ScrollDocumentV2, plan: StagePlanV2 | 
   const stage = document.stage;
   if (plan === undefined || stage === undefined) return [];
   const issues: IssueV2[] = [];
-  const months = stage.kit === EARTH_SKY_KIT ? recapMonths(stage.states.map((entry) => entry.state)) : [];
+  const months =
+    isLiveStage(stage) && stage.kit === EARTH_SKY_KIT ? recapMonths(stage.states.map((entry) => entry.state)) : [];
   if (plan.orbitMonths !== undefined && months.length < plan.orbitMonths)
     issues.push({ code: 'stage_months_too_few', path: 'stage.states' });
   if (plan.reveal === true) {

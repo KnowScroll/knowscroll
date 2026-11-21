@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import type { LiveStage, ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
 import { Stage, type StageProps } from './stage';
 import { stageEntryAt } from './stage-state';
@@ -68,7 +68,7 @@ describe('the stage at the end of a Scroll (V3 F10)', () => {
 describe('the recap of a Scroll whose picture stood on the orbit at two months, and at one (V3 F10, D-368)', () => {
   /** The fixture with its picture on the orbit only at the months given: every other orbit state is set back to the Sun and Earth view. */
   function standingAt(months: readonly string[]) {
-    const held = document.stage;
+    const held = document.stage as LiveStage | undefined;
     if (held?.kit !== 'earth-sky.v1') throw new Error('the fixture has an Earth & sky stage');
     const reduced = {
       stops: document.stops,
@@ -115,5 +115,16 @@ describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
     await view.rerender(<Stage {...own} recap />);
     expect(screen.getByLabelText(expected)).toBeOnTheScreen();
     expect(screen.queryByLabelText(/The picture you built/)).not.toBeOnTheScreen();
+  });
+});
+
+describe('a stored stage of a kit this build does not draw', () => {
+  it('draws nothing, and does not throw looking the kit up', async () => {
+    const gone = {
+      kit: 'gone.v1',
+      states: [{ stop: 'the-lean', state: { old: 'word' }, alt: 'What the removed kit drew.' }],
+    } as unknown as StageProps['document']['stage'];
+    await render(<Stage {...props} document={{ stops: document.stops, stage: gone }} />);
+    expect(screen.queryByTestId('stage')).toBeNull();
   });
 });

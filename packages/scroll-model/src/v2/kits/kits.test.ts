@@ -121,7 +121,8 @@ describe.each(STAGE_KIT_IDS)('the generic rules of the kit %s', (id) => {
         other,
       ).toBe(false);
     }
-    expect(Stage.safeParse({ ...stage, kit: 'invented.v1' }).success).toBe(false);
+    // A kit id the code does not define is a legacy stage (stored stages outlive their kits); one that is no id at all is not.
+    expect(Stage.safeParse({ ...stage, kit: 'invented' }).success).toBe(false);
   });
 });
 

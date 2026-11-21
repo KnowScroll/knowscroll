@@ -8,4 +8,5 @@ export { FigureView } from './figure-view';
 export { type FigureState } from '../stage/kit-figure';
 export { EssayCover, type EssayCoverProps } from './essay-cover';
 export { EssayOpening, type EssayOpeningProps } from './essay-opening';
-export { stageFigureAt } from '../stage/stage-figure';
+export { drawableStage, stageFigureAt } from '../stage/stage-figure';
+export { isKitPictureId } from '../kit';

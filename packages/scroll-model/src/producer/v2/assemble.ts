@@ -24,7 +24,7 @@ import {
   type Stop,
 } from '../../v2/document.js';
 import { EARTH_SKY_KIT, type StageFigure } from '../../v2/kit.js';
-import { applyKitPatch, kitDefinition, type StageKitId, type WordState } from '../../v2/kits/index.js';
+import { applyKitPatch, isStageKitId, kitDefinition, type StageKitId, type WordState } from '../../v2/kits/index.js';
 import { FIELD_LIMITS_V2 as F, SCROLL_LIMITS_V2_VERSION } from '../../v2/limits.js';
 import { computeMeasuresV2 } from '../../v2/measures.js';
 import { computeIntegrityV2 } from '../../v2/validate.js';
@@ -330,7 +330,8 @@ function buildStage(
     states.push({ stop: stop.id, state: settled, alt: kit.describe(settled) });
   });
   // The kit's own functions made every state, so each holds exactly its words: the document validator proves it again.
-  return { kit: kitId, states } as Stage;
+  // (TypeScript sees the generic shape here; `assembleScrollV2` has already refused a kit the code does not define.)
+  return { kit: kitId, states };
 }
 
 /**
@@ -394,6 +395,9 @@ export function assembleScrollV2(
     stopItem.push(index);
   });
   if (stops.length === 0) return { kind: 'unassemblable' };
+  // A stage of a kit the code no longer defines still validates (stored revisions must stay readable), so the
+  // refusal to make one is here: nothing new is drawn with a kit that is gone.
+  if (recipe.variant === 'stage' && !isStageKitId(recipeKit(recipe))) return { kind: 'unassemblable' };
   const pointed = pointRevealsAtNextStop(stops, revealing);
   const limitsAside = asides.find((aside) => aside.kind === 'limits');
   const recap: Recap = {

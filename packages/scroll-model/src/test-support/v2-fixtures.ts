@@ -2,7 +2,7 @@ import type { AuthoringEvidence } from '../producer/authoring-bind.js';
 import { AuthoredScrollV2 } from '../producer/v2/authoring-schema.js';
 import type { PublicationV2, RecipeDataV2 } from '../producer/v2/assemble.js';
 import type { CompileV2Input } from '../producer/v2/compile.js';
-import type { Misconception } from '../v2/document.js';
+import { isLiveStage, type LiveStage, type Misconception, type ScrollDocumentV2 } from '../v2/document.js';
 import { EARTH_SKY_KIT } from '../v2/kit.js';
 import type { StageKitId } from '../v2/kits/index.js';
 
@@ -308,4 +308,14 @@ export function compileInputV2(
     evidence: EVIDENCE_V2,
     sources: PASSAGES_V2,
   };
+}
+
+/**
+ * The stage of a test document, as one of the kits the code still defines. A test about a kit's words reads its states
+ * through this, so a stage of a removed kit (a legacy stage, whose states have no kit words to read) fails loudly.
+ */
+export function liveStageOf(document: Pick<ScrollDocumentV2, 'stage'>): LiveStage {
+  if (document.stage === undefined) throw new Error('the document has no stage');
+  if (!isLiveStage(document.stage)) throw new Error(`the stage of ${document.stage.kit} is legacy`);
+  return document.stage;
 }

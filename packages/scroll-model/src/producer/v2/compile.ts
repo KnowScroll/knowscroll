@@ -1,6 +1,7 @@
 import { uniqueIssuesV2, type IssueV2 } from '../../v2/issues.js';
 import { validateDocumentV2 } from '../../v2/validate.js';
 import type { ScrollDocumentV2 } from '../../v2/document.js';
+import { isStageKitId } from '../../v2/kits/index.js';
 import { assembleScrollV2, type AssemblyMap, type PublicationV2, type RecipeDataV2 } from './assemble.js';
 import type { AuthoredScrollV2 } from './authoring-schema.js';
 import { authoringIssuesV2, type AuthoringRulesInput } from './rules.js';
@@ -83,6 +84,10 @@ function citationsOf(
  * output.
  */
 export function compileAuthoredV2(authored: AuthoredScrollV2, input: CompileV2Input): CompileV2Outcome {
+  // The document validator accepts the stage of a kit the code no longer defines (a stored revision), so a new Scroll is
+  // refused here, before anything reads the kit: a recipe that still names a removed kit makes nothing.
+  if (input.recipe.kit !== undefined && !isStageKitId(input.recipe.kit))
+    return { kind: 'refused', stage: 'authoring', issues: [{ code: 'stage_kit_unknown', path: '$' }] };
   const own = authoringIssuesV2(authored, input);
   // A figure no cited passage states is left out of the picture, not refused: the repair could only guess (D-382).
   const { authored: stated, leftOut } = leaveOutUnstatedFigures(authored, input.evidence);

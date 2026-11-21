@@ -4,6 +4,7 @@ import broadStreet from '@knowscroll/scroll-model/fixtures/broad-street-v3-ci.js
 import fence from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import { describePicture, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { HOLD_STEP, throughTheFirstHold, type HoldRow } from './folio-hold';
 
 /**
  * Folio drawing a `scroll-document.v3` in a real browser (the gallery export, `/gallery-folio`, the three labelled CI
@@ -11,7 +12,9 @@ import { describePicture, type ScrollDocumentV3 } from '@knowscroll/scroll-model
  * headings and the "Fixture" kicker and draws its first picture, in Light and Dark, on a phone and a desktop, with no
  * sideways scroll and nothing serious for an accessibility scan; at 320 px wide and at 200 % text nothing scrolls
  * sideways either. The Text chip, a linked phrase, the three controls (scrub, switch, pick), "To sum up" and reduced
- * motion are each checked on the fixture that has them. The words a person reads come from the fixtures, not from the
+ * motion are each checked on the fixture that has them. A held picture is checked on the Broad Street essay, which holds
+ * its plan over its first three beats (pinned above them on a phone, beside them on a wide screen, changing state while
+ * they pass, laid flat as words): the document v3 counterpart of the v2 hold tests in `folio-gallery.spec.ts`. The words a person reads come from the fixtures, not from the
  * spec, so a change to a fixture's text does not break it.
  */
 
@@ -368,3 +371,184 @@ for (const { motion, drawn } of [
     await expect(drawing).toHaveAttribute('data-ks-figure-transition', drawn);
   });
 }
+
+/**
+ * The first hold of the Broad Street essay, from the fixture: its beats, in order, and how many different states of its
+ * picture they show. The plan is held over the first beats of the first section; a beat that shows nothing keeps the
+ * state before it, so the held plan takes fewer states than it has beats.
+ */
+const broad = documents['broad-street'].document;
+const heldPlan = (() => {
+  const beats = broad.sections[0]?.beats.slice(0, 3) ?? [];
+  const shown = beats.flatMap((beat) => (beat.show === undefined ? [] : [beat.show]));
+  const picture = shown[0]?.picture;
+  if (beats.length < 3 || picture === undefined || shown.some((show) => show.picture !== picture))
+    throw new Error('the Broad Street fixture holds one picture over its first three beats');
+  return {
+    ids: beats.map((beat) => beat.id),
+    picture,
+    states: new Set(shown.map((show) => JSON.stringify(show.state))),
+  };
+})();
+
+const firstHold = (page: Page) => page.locator('[data-testid^="hold-"]').first();
+
+/** Whether a box is inside the scroller's own frame, at least in part. */
+async function inView(page: Page, selector: string): Promise<boolean> {
+  return page.evaluate((query) => {
+    const root = document.querySelector('[data-testid="folio-scroller"]');
+    const node = document.querySelector(query);
+    if (root === null || node === null) return false;
+    const frame = root.getBoundingClientRect();
+    const box = node.getBoundingClientRect();
+    return box.bottom > frame.top && box.top < frame.bottom;
+  }, selector);
+}
+
+interface GalleryEvents {
+  stops: (string | null | undefined)[];
+}
+const galleryEvents = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __ksFolioGallery: GalleryEvents }).__ksFolioGallery);
+
+test('the first hold of broad-street holds its plan over its first three beats', async ({ page }) => {
+  await open(page, 'broad-street', phone);
+  const hold = firstHold(page);
+  await expect(hold).toBeVisible();
+  const beats = await hold
+    .locator('[data-ks-stop]')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-ks-stop')));
+  expect(beats).toEqual(heldPlan.ids);
+  await expect(hold.getByTestId('held-figure').locator('[data-ks-figure]')).toHaveCount(1);
+  expect(heldPlan.states.size, 'the held plan changes state').toBeGreaterThanOrEqual(2);
+});
+
+test('the first hold of broad-street pins its plan above its beats, changes its state and releases it, at phone', async ({
+  page,
+}) => {
+  await open(page, 'broad-street', phone);
+  await expect(firstHold(page)).toBeVisible();
+  const rows: HoldRow[] = await throughTheFirstHold(page);
+  const first = rows[0];
+  const last = rows.at(-1);
+  if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
+
+  // The figure is the pinned figure when it sits at the top of the scroller (its panel's padding is under 24 px).
+  const pinnedTop = Math.min(...rows.map((row) => row.figureTop).filter((top) => top >= -2));
+  const pinned = rows.filter((row) => Math.abs(row.figureTop - pinnedTop) <= 3);
+  // It arrived from below, so it was pinned by the scroll and not drawn there.
+  expect(first.figureTop).toBeGreaterThan(pinnedTop + 40);
+  expect(pinnedTop).toBeLessThan(24);
+  expect(pinned.length).toBeGreaterThanOrEqual(3);
+  // Across the pinned steps the beats move up and the figure does not, and they move far enough for the last beat to
+  // come to where the first was when the figure pinned (held beats are spaced like any others, #769, D-434). One step of
+  // slack, since the scroll is sampled.
+  const beatTravel = pinned[0] === undefined ? 0 : pinned[0].firstBeatTop - (pinned.at(-1)?.firstBeatTop ?? 0);
+  const firstToLast = pinned[0] === undefined ? Infinity : pinned[0].lastBeatTop - pinned[0].firstBeatTop;
+  expect(firstToLast).toBeGreaterThan(0);
+  expect(beatTravel).toBeGreaterThanOrEqual(firstToLast - HOLD_STEP);
+  for (const row of pinned) expect(Math.abs(row.figureTop - pinnedTop)).toBeLessThanOrEqual(3);
+  // Every state of the plan its beats show, while it is pinned, and no state it does not.
+  const keys = new Set(pinned.map((row) => row.key));
+  expect(keys.size).toBeGreaterThanOrEqual(heldPlan.states.size);
+  for (const key of keys) expect(key.startsWith(`${heldPlan.picture}/`), key).toBe(true);
+  // And when the hold is over it scrolls away: its bottom is above the top of the scroller.
+  expect(last.figureBottom).toBeLessThan(0);
+  // Above its beats on a phone: the figure is as wide as the column, not beside it.
+  for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
+});
+
+test('the first hold of broad-street keeps its plan beside its beats, in full view while it changes state, at desktop', async ({
+  page,
+}) => {
+  await open(page, 'broad-street', desktop);
+  await expect(firstHold(page)).toBeVisible();
+  const rows = await throughTheFirstHold(page);
+  const first = rows[0];
+  const last = rows.at(-1);
+  if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
+
+  // Beside its beats: the figure's left edge is to the right of every beat's right edge, and the beats start level
+  // with it, with no blank above them (#769, D-434).
+  for (const row of rows) expect(row.figureLeft).toBeGreaterThan(row.beatsRight);
+  for (const row of rows) expect(Math.abs(row.firstBeatTop - row.figureTop)).toBeLessThanOrEqual(24);
+  // It arrives from below and takes two or more states while the whole figure is in view. These beats are shorter than
+  // the figure, so it need not pin: it goes up with them.
+  expect(first.figureTop).toBeGreaterThan(40);
+  const whole = rows.filter((row) => row.figureTop >= -3 && row.figureBottom <= row.viewport + 3);
+  expect(new Set(whole.map((row) => row.key)).size).toBeGreaterThanOrEqual(heldPlan.states.size);
+  // And when the hold is over it scrolls away: its bottom is above the top of the scroller.
+  expect(last.figureBottom).toBeLessThan(0);
+});
+
+test.describe('the picture of a hold, as words', () => {
+  test('T turns every picture into its words and lays the holds flat; T again brings them back', async ({ page }) => {
+    await open(page, 'broad-street', phone);
+    await page.getByRole('group', { name: 'Scroll reader' }).focus();
+    // Every plate is a picture named by its words until T.
+    const plates = page.locator('[data-ks-figure]');
+    const count = await plates.count();
+    expect(count).toBeGreaterThan(2);
+    const words = await plates.evaluateAll((nodes) =>
+      nodes.map((node) => node.querySelector('[role="img"]')?.getAttribute('aria-label') ?? ''),
+    );
+    expect(words.every((alt) => alt !== '')).toBe(true);
+    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
+    const holds = await page.locator('[data-testid^="hold-"]').count();
+    expect(holds).toBeGreaterThan(0);
+    await page.keyboard.press('t');
+    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
+    // As words nothing needs to stay in view, so the holds lie flat: each beat is followed by its figure's words, and
+    // every picture that was drawn is now on the page as words.
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
+    const shown = await plates.evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ''));
+    for (const alt of words) expect(shown.some((text) => text.includes(alt))).toBe(true);
+    // T again brings the pictures, and the holds, back.
+    await page.keyboard.press('t');
+    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(holds);
+  });
+
+  test('a held figure’s Text chip turns on the text version, lays the holds flat and keeps the beat being read', async ({
+    page,
+  }) => {
+    await open(page, 'broad-street', phone);
+    const hold = firstHold(page);
+    // Into the hold, so a beat inside it is the one being read.
+    const holdTop = await hold.evaluate((node) => (node as HTMLElement).offsetTop);
+    await scroller(page).evaluate((node, value) => {
+      node.scrollTop = value;
+    }, holdTop + 200);
+    await expect.poll(async () => (await galleryEvents(page)).stops.at(-1) ?? null).not.toBeNull();
+    await page.waitForTimeout(300);
+    const reading = (await galleryEvents(page)).stops.at(-1);
+    if (reading === undefined || reading === null) throw new Error('a beat is being read');
+    await hold.getByTestId('held-figure').getByRole('button', { name: 'Text version of this picture' }).click();
+    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
+    // The essay reflowed under the reader, and the beat being read is still in view and still the one being read.
+    await expect.poll(() => inView(page, `[data-ks-stop="${reading}"]`)).toBe(true);
+    expect((await galleryEvents(page)).stops.at(-1)).toBe(reading);
+  });
+});
+
+for (const { label, viewport } of sizes) {
+  test(`under reduced motion the held plan of broad-street cross-fades and never tweens, at ${label}`, async ({
+    page,
+  }) => {
+    await open(page, 'broad-street', viewport, { motion: 'reduce' });
+    const rows = await throughTheFirstHold(page);
+    expect(new Set(rows.map((row) => row.key)).size, 'the held figure changed state').toBeGreaterThanOrEqual(2);
+    const transitions = rows.map((row) => row.transition);
+    expect(transitions).toContain('crossfade');
+    expect(transitions).not.toContain('tween');
+  });
+}
+
+test('without reduced motion the same hold glides (the control for the reduced-motion test)', async ({ page }) => {
+  await open(page, 'broad-street', phone);
+  const rows = await throughTheFirstHold(page);
+  expect(new Set(rows.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
+  // The plan moves from one state to the next in the same box, so the change is drawn as one picture moving.
+  expect(rows.map((row) => row.transition)).toContain('tween');
+});
