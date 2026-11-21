@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { linkPress } from '@knowscroll/ui';
 import type { OperatorUnavailableReason } from './operator-copy';
 import { operatorColor, operatorFont } from './operator-theme';
 import { unavailableWords } from './operator-copy';
@@ -116,6 +117,32 @@ export function TextButton({
     >
       <Mono size={12} color={operatorColor.ink}>
         {busy ? `${label}…` : label}
+      </Mono>
+    </Pressable>
+  );
+}
+
+/** A link to another operator screen: a real `<a href>` on the web, the same look as {@link TextButton}. */
+export function TextLink({
+  label,
+  href,
+  onNavigate,
+  accessibilityLabel,
+}: {
+  readonly label: string;
+  readonly href: string;
+  readonly onNavigate: () => void;
+  readonly accessibilityLabel?: string;
+}) {
+  return (
+    <Pressable
+      role="link"
+      accessibilityLabel={accessibilityLabel ?? label}
+      {...linkPress({ href, onNavigate })}
+      style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}
+    >
+      <Mono size={12} color={operatorColor.ink}>
+        {label}
       </Mono>
     </Pressable>
   );

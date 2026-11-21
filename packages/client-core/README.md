@@ -234,6 +234,10 @@ Related: #248.
   server's 404) and one journey lookup (`idle`, `invalid` for input that is not an ID and is never sent, `loading`, `found`,
   `not_found`, `unavailable`). Only the newest lookup shows. Read-only.
 
+## Operator review of held Scrolls (#780)
+
+- `reviewListQueryOptions(api)` and `reviewShowQueryOptions(api, target)` read the held revisions and one held revision; both always read again when the screen opens. `releaseReview` and `rejectReview` ask the review gate for a decision: a refusal (`coverage_missing`, `revision_released` and the like) is the result, and only a failure to ask throws. `isReviewNotFound(error)` is the server's 404, which means the account is not an operator or the revision is not held (any more): the screen shows the unknown-page screen for both. A decision invalidates `operatorReviewKey`. Mutations never retry, as everywhere (an unknown outcome is read again, never resent).
+
 ## Manager-owned selective Clear
 
 Related: #345.

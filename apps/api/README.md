@@ -39,8 +39,17 @@ Related: #248.
 `GET /v1/operator/journeys/{id}` (one record's timeline). They take the ordinary session and scope pipeline, then
 check on every call that the signed-in account is an operator of the world (`KS_OPERATOR_ACCOUNTS`, read from the
 account's address now). Anyone else gets the same 404 as an unknown route, and the refusal is logged as a code
-(`operator.refused`). The routes read the allowlisted `ops` views and change nothing. Module:
+(`operator.refused`). The panels and journey routes read the allowlisted `ops` views and change nothing. Module:
 `packages/backend/src/modules/operator/README.md`.
+
+The same controller serves the operator's review of held library Scrolls (#780): `GET /v1/operator/review` (the held
+revisions), `GET /v1/operator/review/{assetId}/{revision}` (one to read: the stored document, its cover, the passages each
+part cites and what the checks said) and `POST …/release` and `POST …/reject` (the review gate's own decisions, as `content
+release` and `content reject`). Each answers the same 404 to an account that is not an operator and to a revision that is not
+held, and a malformed asset or revision is a 400 only for an operator. The controller calls the Content module's
+`OperatorReview` (token `OPERATOR_REVIEW`, wired in `src/modules/content.ts` with `IS_OPERATOR` and the world from `API_CONFIG`: only operator worlds review), which checks the operator
+itself on every call, and logs `content.review_decided` (recipe key, outcome, revision, a refusal's code) for a decision.
+See the content README, "The review gate".
 
 ## Account: sessions, export and deletion (D-043)
 

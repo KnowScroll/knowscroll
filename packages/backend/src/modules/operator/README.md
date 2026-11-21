@@ -33,6 +33,12 @@ database and in a browser (D-044). This is historical check evidence; current de
   room ids and counts only, never a message; v3 R-2).
 - Paste the ID of a request, production run, Reel order, model attempt, reasoning run, exposure or asset
   and read what the records say, oldest first, with the gaps they leave.
+- Open `/operator/review` and read the library Scrolls a model wrote that are waiting to be released, each as a reader would
+  see it, with the passages it cites and what the checks said, then release or reject it (#780). The screen and its four routes
+  (`GET /v1/operator/review`, `GET /v1/operator/review/{assetId}/{revision}`, and `POST …/release` and `…/reject`) belong to the
+  Content module's review gate ([content README](../content/README.md), "The review gate"). Operator only decides *who*: the
+  API binds this module's `IsOperator` to the content use case, which asks it on every call and answers the same 404 to anyone
+  else and to a revision that is not held. The decisions are the gate's own, recorded as `app:<fingerprint of the account id>`.
 - From a server shell: `node dist/operator.js journey <id>` or `journey --account <accountId>` (worker tree).
 - Point Grafana or `psql` at the `ks2_ops_reader` role and read the `ops` views.
 - From a server shell: `node dist/operator.js geography dry-run --universe <uuid>` and `planner dry-run --universe <uuid>` say
@@ -254,7 +260,7 @@ scripted world that validates every batch against the real wire contract and jud
 |---|---|---|
 | `ReadOperatorPanels()` | `GET /v1/operator/panels` | `IsOperator` on the signed-in account, checked on every call |
 | `ReadJourney(id)` | `GET /v1/operator/journeys/{id}`, `operator.js journey` | The same check; the CLI runs from the server shell |
-| `IsOperator(accountId)` | the controller | The account's address now matches one entry of `KS_OPERATOR_ACCOUNTS` |
+| `IsOperator(accountId)` | the controller, and the Content module's `OperatorReview` (bound by the API composition root, #780) | The account's address now matches one entry of `KS_OPERATOR_ACCOUNTS` |
 | `RunWatchdog()` | the worker's `operator.watchdog` consumer | None: reads `ops.watchdog` only; names no person |
 
 Dependency direction: `domain/` (journey rules, panel shapes, timeline text) → `application/` (use cases
