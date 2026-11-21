@@ -1,8 +1,8 @@
 # Pictures of a document v3
 
 One renderer draws every picture of a `scroll-document.v3` (#762, D-432). A picture is data from the closed set of
-kinds in `packages/scroll-model/src/v3/pictures.ts`; this folder turns it into a drawing. No kit is involved: the v2
-kits stay in `../kit` for v2 Scrolls only.
+kinds in `packages/scroll-model/src/v3/pictures.ts`; this folder turns it into a drawing. No kit is involved: this folder
+imports nothing from the v2 kits (the `kit/` folder beside it), which stay for v2 Scrolls only.
 
 Status: **implemented**, unit-tested and browser-tested in the gallery (`folio-v3-smoke.spec.ts`). Web only, like
 Folio (#740).
@@ -13,7 +13,7 @@ Folio (#740).
 | ---------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Lay out          | `layout/<kind>.ts`, `layout/index.ts`        | A pure function of the picture, its state and the box: plain shapes (rect, circle, line, arc, text) in the box's own pixels, each with a stable `key`, the part it draws and a colour **role**. The caption takes two lines (three at 9 px) at the foot.                                                             |
 | Draw             | `picture-svg.tsx`                            | The shapes as SVG, roles turned into colours (`palette.ts`). A pulsed part that is visible is drawn at full strength in the `mark` colour, as a stroke of at least 2 px (a shape with no stroke gets one) or, for text, the `mark` fill; a part not yet reached stays hidden. Decorative to assistive tech. |
-| Move             | `blend.ts`, `../stage/use-stage-pictures.ts` | Two scenes of one picture in one box glide: shapes are matched by key, those leaving fade out and those arriving fade in. Anything else, and every change under reduced motion, cross-fades.                                                                                                                |
+| Move             | `blend.ts`, `use-stage-pictures.ts` | Two scenes of one picture in one box glide: shapes are matched by key, those leaving fade out and those arriving fade in. Anything else, and every change under reduced motion, cross-fades.                                                                                                                |
 | Measure and name | `picture-figure.tsx` (`PictureDrawing`)      | Measures its box, lays out for it, and names the image with `describePicture` from scroll-model, which is also its text version.                                                                                                                                                                            |
 
 ## The kinds

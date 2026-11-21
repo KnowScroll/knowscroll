@@ -12,6 +12,7 @@ import {
   GreenhouseStateSchema,
   NERVE_KIT,
   NerveStateSchema,
+  isStageKitId,
   STAR_KIT,
   STARLIGHT_KIT,
   StarlightStateSchema,
@@ -166,19 +167,50 @@ export type Aside = z.infer<typeof Aside>;
 function stageOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: State) {
   return z.strictObject({
     kit: z.literal(kit),
-    states: z
-      .array(z.strictObject({ stop: LocalId, state, alt: plainText(10, F.stateDescriptionChars) }))
-      .min(1)
-      .max(L.maxStops),
+    states: stageStates(state),
   });
 }
 
+function stageStates<State extends z.ZodType>(state: State) {
+  return z
+    .array(z.strictObject({ stop: LocalId, state, alt: plainText(10, F.stateDescriptionChars) }))
+    .min(1)
+    .max(L.maxStops);
+}
+
 /**
- * The one pinned figure of a Scroll. It names the kit that draws it (D-194), and `states` lists the
- * stops that change it, in order; every other stop keeps the state before it. Every state holds the words
- * of that kit and no others, and the description of each is derived from the state by code.
+ * A kit id of the form every kit has ("tides.v1"). A stored stage of a kit the code no longer defines must still parse,
+ * and the form keeps `kit` from being any string: it is looked up in registries, where a name such as "constructor"
+ * must never be taken for a kit, and it keeps a cover's figure apart from a picture frame, which has no `kit`.
  */
-export const Stage = z.discriminatedUnion('kit', [
+const KIT_ID_FORM = /^[a-z][a-z0-9-]{1,39}\.v[0-9]{1,3}$/;
+
+/**
+ * The kit of a legacy stage: a well-formed kit id that is NOT in `STAGE_KIT_IDS`. It is derived from that list, so removing
+ * a kit from it makes the stored stages of that kit legacy, with no other edit (the live arms below are then the only
+ * place left to remove its lines).
+ */
+const LegacyKit = z
+  .string()
+  .regex(KIT_ID_FORM, { message: 'id_format' })
+  // Aborting matters: a non-aborting refusal here would leave this arm the union's only live candidate when a live kit's
+  // own arm aborts on a wrong word, and Zod would then report this arm's `kit_is_live` at `stage.kit` instead of the word.
+  .refine((kit) => !isStageKitId(kit), { message: 'kit_is_live', abort: true });
+
+/** A state of a legacy stage: a plain object, whatever its kit once put in it. */
+const LegacyState = z.record(z.string(), z.unknown());
+
+/**
+ * The stage of a kit that no longer exists, as an older revision stored it (stored revisions are immutable and the library
+ * serves them to older apps, D-433). Its kit-specific words and physics are not checked: they were checked when it was
+ * admitted, and the code that checked them is gone. Its structure (stops, order, the words for each state) still is.
+ * A stage whose kit is still defined never takes this arm, so a typo in it is still refused.
+ */
+const LegacyStageSchema = z.strictObject({ kit: LegacyKit, states: stageStates(LegacyState) });
+export type LegacyStage = z.infer<typeof LegacyStageSchema>;
+
+/** The stages of the kits the code still defines, one arm each. */
+const LIVE_STAGES = [
   stageOf(EARTH_SKY_KIT, StageStateSchema),
   stageOf(TIDES_KIT, TidesStateSchema),
   stageOf(GREENHOUSE_KIT, GreenhouseStateSchema),
@@ -188,19 +220,33 @@ export const Stage = z.discriminatedUnion('kit', [
   stageOf(NERVE_KIT, NerveStateSchema),
   stageOf(STARLIGHT_KIT, StarlightStateSchema),
   stageOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
-]);
+] as const;
+
+/** A stage of a kit the code still defines: every state holds that kit's words and no others. */
+export const LiveStage = z.discriminatedUnion('kit', LIVE_STAGES);
+export type LiveStage = z.infer<typeof LiveStage>;
+
+/**
+ * The one pinned figure of a Scroll. It names the kit that draws it (D-194), and `states` lists the
+ * stops that change it, in order; every other stop keeps the state before it. Every state holds the words
+ * of that kit and no others, and the description of each is derived from the state by code. A stage of a kit
+ * the code no longer defines is a {@link LegacyStage}: stored, readable, never made again. The union is flat
+ * (one level of options) so the response contracts that embed it stay shallow.
+ */
+export const Stage = z.union([...LIVE_STAGES, LegacyStageSchema]);
 export type Stage = z.infer<typeof Stage>;
+
+/** Whether a stage is of a kit the code still defines (so its states have that kit's words). */
+export function isLiveStage(stage: Stage): stage is LiveStage {
+  return isStageKitId(stage.kit);
+}
 
 /** One state of a kit as a picture on its own: the kit that draws it, the state, and the words for it. */
 function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: State) {
   return z.strictObject({ kit: z.literal(kit), state, alt: plainText(10, F.stateDescriptionChars) });
 }
 
-/**
- * A single frame of a stage, outside its document: what a cover shows of a Scroll before it is opened. The
- * kits on the device draw it from the state, so a frame carries no drawing.
- */
-export const StageFrame = z.discriminatedUnion('kit', [
+const LIVE_FRAMES = [
   frameOf(EARTH_SKY_KIT, StageStateSchema),
   frameOf(TIDES_KIT, TidesStateSchema),
   frameOf(GREENHOUSE_KIT, GreenhouseStateSchema),
@@ -210,18 +256,36 @@ export const StageFrame = z.discriminatedUnion('kit', [
   frameOf(NERVE_KIT, NerveStateSchema),
   frameOf(STARLIGHT_KIT, StarlightStateSchema),
   frameOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
-]);
+] as const;
+
+/** A frame of a kit the code still defines. */
+export const LiveStageFrame = z.discriminatedUnion('kit', LIVE_FRAMES);
+export type LiveStageFrame = z.infer<typeof LiveStageFrame>;
+
+const LegacyFrameSchema = z.strictObject({
+  kit: LegacyKit,
+  state: LegacyState,
+  alt: plainText(10, F.stateDescriptionChars),
+});
+
+/**
+ * A single frame of a stage, outside its document: what a cover shows of a Scroll before it is opened. The
+ * kits on the device draw it from the state, so a frame carries no drawing. It accepts a frame of a kit the code
+ * no longer defines, like {@link Stage}, so a cover stays readable; {@link firstFrameOf} never makes one.
+ */
+export const StageFrame = z.union([...LIVE_FRAMES, LegacyFrameSchema]);
 export type StageFrame = z.infer<typeof StageFrame>;
 
 /**
  * The picture a Scroll opens on: its stage's first state, which validation pins to the first stop
- * (`stage_first_state_missing`). A Scroll without a stage has none.
+ * (`stage_first_state_missing`). A Scroll without a stage has none, and neither has one whose kit the code no
+ * longer defines: nothing here can draw it, so a cover shows no figure rather than one it cannot.
  */
-export function firstFrameOf(document: Pick<ScrollDocumentV2, 'stage'>): StageFrame | undefined {
+export function firstFrameOf(document: Pick<ScrollDocumentV2, 'stage'>): LiveStageFrame | undefined {
   const first = document.stage?.states[0];
   // The kit and its state come from one validated stage, so they belong together; TypeScript cannot follow that pairing.
-  return document.stage && first
-    ? ({ kit: document.stage.kit, state: first.state, alt: first.alt } as StageFrame)
+  return document.stage && first && isLiveStage(document.stage)
+    ? ({ kit: document.stage.kit, state: first.state, alt: first.alt } as LiveStageFrame)
     : undefined;
 }
 

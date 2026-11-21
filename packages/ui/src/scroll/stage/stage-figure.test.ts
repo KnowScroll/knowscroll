@@ -1,11 +1,11 @@
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { stageFigureAt } from './stage-figure';
+import { drawableStage, stageFigureAt } from './stage-figure';
 import { stageEntryAt } from './stage-state';
 
 const document = seasons as unknown as ScrollDocumentV2;
-const stage = document.stage;
-if (stage === undefined) throw new Error('the fixture has a stage');
+const stage = drawableStage(document.stage);
+if (stage === undefined) throw new Error('the fixture has a drawable stage');
 const last = document.stops.at(-1)?.id ?? '';
 
 describe('the figure a v2 stage shows (V3 F10)', () => {
@@ -25,7 +25,7 @@ describe('the figure a v2 stage shows (V3 F10)', () => {
   it('keeps the state at the stop, its key and its words, when the kit cannot draw the journey (one state, no orbit)', () => {
     const first = stage.states[0];
     if (first === undefined) throw new Error('the stage has a state');
-    const short = { ...stage, states: [first] } as typeof stage;
+    const short = { ...stage, states: [first] };
     const entry = stageEntryAt(short, document.stops, last);
     expect(stageFigureAt(short, document.stops, last, true)).toEqual({
       kind: 'state',
@@ -34,5 +34,20 @@ describe('the figure a v2 stage shows (V3 F10)', () => {
       alt: entry.alt,
       key: entry.stop,
     });
+  });
+});
+
+describe('a stage of a kit this build does not draw', () => {
+  const stored = (kit: string) =>
+    ({
+      kit,
+      states: [{ stop: 's1', state: { old: 'word' }, alt: 'What the removed kit drew.' }],
+    }) as unknown as NonNullable<ScrollDocumentV2['stage']>;
+
+  it('is not drawable: a stored stage may name a kit that has been removed, and a name such as constructor is no kit', () => {
+    for (const kit of ['gone.v1', 'constructor', '__proto__', 'hasOwnProperty'])
+      expect(drawableStage(stored(kit))).toBeUndefined();
+    expect(drawableStage(undefined)).toBeUndefined();
+    expect(drawableStage(document.stage)).toBe(document.stage);
   });
 });

@@ -340,6 +340,20 @@ describe('Explore prerequisite wire contracts', () => {
     ).toBe(false);
   });
 
+  it('accepts a figure of a stage kit the code no longer defines, and still refuses a live kit’s wrong state', () => {
+    const cover = {
+      version: 'offer-cover.v1',
+      kicker: 'Wire fixture',
+      readingMinutes: 3,
+      figure: { kit: 'gone.v1', state: { old: 'word' }, alt: 'What the removed kit drew.' },
+    };
+    expect(EncounterOfferSchema.parse({ ...offer, cover }).cover).toEqual(cover);
+    expect(
+      EncounterOfferSchema.safeParse({ ...offer, cover: { ...cover, figure: { ...cover.figure, kit: 'tides.v1' } } })
+        .success,
+    ).toBe(false);
+  });
+
   describe('offer-cover.v2: a cover whose figure may be a picture frame', () => {
     const seasons = JSON.parse(
       readFileSync(new URL('../../scroll-model/fixtures/documents/seasons-v3-ci.json', import.meta.url), 'utf8'),

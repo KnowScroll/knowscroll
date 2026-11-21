@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { liveStageOf } from '../test-support/v2-fixtures.js';
 import { callsOf } from './document.js';
 import { kitDefinition, STAGE_KIT_IDS, type StageKitId } from './kits/index.js';
 import { validateDocumentV2 } from './validate.js';
@@ -37,7 +38,7 @@ describe.each(KITS)('the CI fixture of the kit %s', (kit) => {
     const outcome = validateDocumentV2(fixture(kit), { verify: false });
     if (outcome.kind !== 'valid') throw new Error('valid');
     const definition = kitDefinition(kit);
-    const states = outcome.document.stage?.states ?? [];
+    const states = liveStageOf(outcome.document).states;
     expect(new Set(states.map((entry) => entry.state['view']))).toEqual(new Set(definition.enums['view']));
     for (const entry of states) expect(entry.alt).toBe(definition.describe(entry.state));
     expect(states.length).toBeGreaterThanOrEqual(6);

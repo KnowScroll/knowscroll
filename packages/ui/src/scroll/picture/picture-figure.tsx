@@ -6,7 +6,7 @@ import { canonicalJson, describePicture } from '../model';
 import { dataSet } from '../../display/data-set';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
-import { useStagePictures, type SceneBlend } from '../stage/use-stage-pictures';
+import { useStagePictures, type SceneBlend } from './use-stage-pictures';
 import { canGlidePictures, lerpPictureScene } from './blend';
 import { layoutPicture } from './layout';
 import { pictureColours } from './palette';

@@ -542,7 +542,7 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Read stops (the units a facet binds to, D-127) | at least 3 | `read_stops_too_few` |
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
-| Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
+| Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` (a legacy stage, below, skips the last two) |
 | Final call binding | a `tilt` binding needs a stage whose picture at the Final call changes when the tilt is turned (`tiltMatters`): a view that draws the axis and the season, in a month that is not March or September | `final_call_binding_invalid` |
 | Reveal picture | a `call_it` may carry `revealStage`: the first read stop after it, which sets a state that differs from the picture the call sits over (D-383) | `call_reveal_invalid` |
 | Calls, Final call included | zero to 4 in stored documents; zero to 3 in new authoring; an optional Final call is unique and last, and its question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `final_call_misplaced`, `final_call_restates_call` |
@@ -573,6 +573,17 @@ Status: **implemented**, unit-tested.
 ### The kit
 
 A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194, D-201, D-204). Nine kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
+
+#### Stored stages outlive their kits (legacy stages)
+
+The nine kits are being removed one at a time (#775), after the Scrolls that use each are rewritten as document v3. A stored revision of a removed kit never changes and stays readable until a later database cleanup deletes it (it is also the revision an older app is served, D-433). So `Stage` and `StageFrame` take, besides the live kits' arms, a **legacy stage**: `{kit, states}` where `kit` is a well-formed kit id (`name.vN`) that is **not** in `STAGE_KIT_IDS`, and every state is a plain object with its stop and words (`{stop, state, alt}`), passed through whole. Its kit-specific words and physics are not checked (the code that checked them is gone, and they were checked when it was stored); its structure still is (the stops it sits on, their order, the first stop, enough states, no repeats), and so are the measures and the hash.
+
+- It is derived from `STAGE_KIT_IDS`, not listed: removing a kit's id from that list makes its stored stages legacy at once. Then delete the kit's arm in `v2/document.ts` and its other lines (the deletion list names them).
+- A stage of a kit still in `STAGE_KIT_IDS` never takes the legacy arm: its states must match that kit's schema exactly, so a typo in a live kit's stage is still refused (`isStageKitId`, `isLiveStage`).
+- The union is flat (`LiveStage`'s arms, then the legacy arm), so the contracts that embed it stay shallow. `validateDocumentV2` reports a failed stage at the arm of its own kit, so the findings keep their paths (`stage.states.1.state`).
+- `stageIssues` skips `settle` and `describe`, and `bindingIssues` skips the tilt rule, for a legacy stage. `kitDefinition(id)` throws for a kit that is not defined, so no reader looks one up by a stored `kit` without asking `isStageKitId` first.
+- The producer never makes one: `compileAuthoredV2` refuses a recipe that names an unknown kit (`stage_kit_unknown`) and `assembleScrollV2` makes no document of it.
+- `firstFrameOf` gives no frame for a legacy stage, so a cover shows no figure for it. Readers that draw (`packages/ui`, the cover on the client) draw nothing for a kit they lack.
 
 | Kit | Draws | The writer chooses | Code derives (D-195) |
 |---|---|---|---|

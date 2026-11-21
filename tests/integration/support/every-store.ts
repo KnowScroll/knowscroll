@@ -290,7 +290,7 @@ export async function everyStoreSeeder(
         ...parent,
         id: regionalId,
         mode: 'vertical',
-        descriptor: { ...o.offer, offerId: regionalId, relation: { kind: 'discovery' } },
+        descriptor: JSON.stringify({ ...o.offer, offerId: regionalId, relation: { kind: 'discovery' } }),
       })
       .execute();
     await database.db

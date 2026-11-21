@@ -6,7 +6,7 @@ import { Text } from '../../text/text';
 import { dataSet } from '../../display/data-set';
 import { printedSurface } from '../../display/printed';
 import { FigureDrawing, useKitFigure } from './kit-figure';
-import { stageFigureAt } from './stage-figure';
+import { drawableStage, stageFigureAt, type DrawableStage } from './stage-figure';
 import { tiltText } from './tilt-control';
 
 export interface StageProps {
@@ -36,18 +36,25 @@ export interface StageProps {
  * screen reader hears exactly what the picture draws. The drawing is the kit's (the stage names which,
  * D-194); this component only picks the figure for the current stop (`stageFigureAt`) and frames it.
  */
-export function Stage({
+export function Stage(props: StageProps) {
+  const stage = drawableStage(props.document.stage);
+  // A stored stage of a kit this build no longer draws has no picture: nothing is drawn rather than a kit looked up that is gone.
+  return stage === undefined ? null : <DrawnStage {...props} stage={stage} />;
+}
+
+function DrawnStage({
   document,
+  stage,
   stopId,
   reducedMotion,
   textVersion = false,
   tilt,
   recap = false,
   height,
-}: StageProps) {
+}: StageProps & { readonly stage: DrawableStage }) {
   const figure = useMemo(
-    () => stageFigureAt(document.stage, document.stops, stopId, recap),
-    [document.stage, document.stops, stopId, recap],
+    () => stageFigureAt(stage, document.stops, stopId, recap),
+    [stage, document.stops, stopId, recap],
   );
   const drawn = useKitFigure(figure, reducedMotion, tilt);
   return (

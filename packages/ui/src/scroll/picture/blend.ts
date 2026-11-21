@@ -1,5 +1,7 @@
-import { lerp } from '../kit/blend';
 import type { PictureScene, PictureShape } from './scene';
+
+/** `progress` of the way (0..1) from one number to another. The picture's own, so the renderer reaches into no kit code; the kits' blend imports it from here. */
+export const lerp = (from: number, to: number, progress: number): number => from + (to - from) * progress;
 
 /**
  * Two scenes are one picture changing when they draw the same picture in the same box: then a move between them is a

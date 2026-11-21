@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { INTEGRITY_METHOD } from '../document.js';
 import { assembleScrollV2 } from '../producer/v2/assemble.js';
-import { authoredV2, filler, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
-import { callsOf, type CallItStop, type FinalCallStop, type ReadStop, type ScrollDocumentV2 } from './document.js';
+import { authoredV2, filler, liveStageOf, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
+import {
+  callsOf,
+  type CallItStop,
+  type FinalCallStop,
+  isLiveStage,
+  type LiveStage,
+  type ReadStop,
+  type ScrollDocumentV2,
+} from './document.js';
+import { parseDocumentV2 } from './delivery.js';
 import { describeStageState } from './kit.js';
 import { computeMeasuresV2 } from './measures.js';
 import { computeIntegrityV2, validateDocumentV2 } from './validate.js';
@@ -47,9 +56,8 @@ function callIt(document: ScrollDocumentV2, index: number): CallItStop {
   if (stop.kind !== 'call_it') throw new Error(`stop ${index} is not a Call it`);
   return stop;
 }
-function stageOf(document: ScrollDocumentV2): NonNullable<ScrollDocumentV2['stage']> {
-  if (document.stage === undefined) throw new Error('the fixture has no stage');
-  return document.stage;
+function stageOf(document: ScrollDocumentV2): LiveStage {
+  return liveStageOf(document);
 }
 function stateAt(document: ScrollDocumentV2, index: number) {
   const state = stageOf(document).states[index];
@@ -449,5 +457,135 @@ describe('a call that turns the picture when the guess is wrong (D-383)', () => 
         (call(document, document.stops.length - 1) as { revealStage?: string }).revealStage = 's3';
       }),
     ).toContain(`schema_unrecognized_keys@stops.${String(fixture().stops.length - 1)}`);
+  });
+});
+
+describe('a stored stage of a kit the code no longer defines (a legacy stage)', () => {
+  /**
+   * The fixture with its stage rewritten as one a deleted kit stored: another kit id, and states that hold words no kit
+   * of today has. The structure is the stored one's (the same stops), so only the kit-specific part differs.
+   */
+  const legacyOf = (kit = 'gone.v1'): ScrollDocumentV2 => {
+    const document = fixture();
+    const stage = stageOf(document);
+    const states = stage.states.map((entry, index) => ({
+      stop: entry.stop,
+      state: { thing: `a word of the old kit ${String(index)}`, level: 'high' },
+      alt: `The old kit shows its state number ${String(index)}.`,
+    }));
+    return signed({ ...document, stage: { kit, states } });
+  };
+  const codes = (document: unknown, options?: { verify?: boolean }): string[] => {
+    const outcome = validateDocumentV2(document, options);
+    return outcome.kind === 'invalid' ? outcome.issues.map((issue) => `${issue.code}@${issue.path}`) : [];
+  };
+
+  it('parses with parseDocumentV2 and validates with validateDocumentV2, and the stage comes back as it was stored', () => {
+    const stored = JSON.parse(JSON.stringify(legacyOf())) as ScrollDocumentV2;
+    expect(parseDocumentV2(stored).kind).toBe('valid');
+    const outcome = validateDocumentV2(stored);
+    if (outcome.kind !== 'valid') throw new Error(JSON.stringify(outcome.issues));
+    expect(outcome.document.stage).toEqual(stored.stage);
+    expect(isLiveStage(outcome.document.stage ?? stageOf(fixture()))).toBe(false);
+  });
+
+  it('still checks the measures and the hash of the stored document', () => {
+    const document = legacyOf();
+    expect(
+      codes({ ...document, measures: { ...document.measures, totalWeight: document.measures.totalWeight + 1 } }),
+    ).toContain('measures_mismatch@measures');
+    expect(codes({ ...document, title: `${document.title} again` })).toContain('integrity_mismatch@integrity');
+    // The client path skips both, as it does for a stored document of a kit that exists.
+    expect(codes({ ...document, title: `${document.title} again` }, { verify: false })).toEqual([]);
+  });
+
+  it('judges no kit physics: the words of a state and its description are not checked against a kit', () => {
+    expect(codes(legacyOf('removed-kit.v7'))).toEqual([]);
+    const document = legacyOf();
+    const first = stageOf(fixture()).states[0];
+    if (first === undefined) throw new Error('the fixture has a stage');
+    // A live kit would refuse each of these (an unsettled state, a description it did not write); a legacy stage has no such kit.
+    expect(
+      codes(
+        signed({
+          ...document,
+          stage: {
+            kit: 'gone.v1',
+            states: [
+              { ...first, state: { view: 'earth-close', moonAt: 'full' } },
+              ...(document.stage?.states.slice(1) ?? []),
+            ],
+          },
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('still checks what does not depend on the kit: the stops it sits on, their order, the first stop and the count', () => {
+    const edited = (edit: (stage: NonNullable<ScrollDocumentV2['stage']>) => void): string[] => {
+      const document = legacyOf();
+      if (document.stage === undefined) throw new Error('the fixture has a stage');
+      edit(document.stage);
+      return codes(signed(document));
+    };
+    expect(edited((stage) => stage.states[1] && (stage.states[1].stop = 's99'))).toContain(
+      'stage_state_stop_unknown@stage.states.1.stop',
+    );
+    expect(edited((stage) => stage.states[0] && (stage.states[0].stop = 's2'))).toContain(
+      'stage_first_state_missing@stage.states',
+    );
+    expect(edited((stage) => stage.states[1] && (stage.states[1].stop = 's2'))).toContain(
+      'stage_state_on_call@stage.states.1.stop',
+    );
+    expect(edited((stage) => (stage.states = stage.states.slice(0, 2)))).toContain('stage_too_static@stage.states');
+    expect(
+      edited((stage) => {
+        if (stage.states[1] && stage.states[0]) stage.states[1] = { ...stage.states[0], stop: stage.states[1].stop };
+      }),
+    ).toContain('stage_state_repeated@stage.states.1');
+  });
+
+  it('does not judge a Final call’s tilt binding by the physics of a kit it cannot ask', () => {
+    const document = legacyOf();
+    const final = call(document, document.stops.length - 1);
+    if (final.kind !== 'final_call') throw new Error('the last stop is the Final call');
+    final.binding = { kind: 'tilt' };
+    document.landmark = { key: 'ci-fixture-axis', name: 'The CI Fixture Axis' };
+    expect(codes(signed(document))).toEqual([]);
+  });
+
+  it('is not taken for a stage of a kit the code still defines: its words are still checked, so a typo is refused', () => {
+    const document = fixture();
+    const stage = stageOf(document);
+    const typo = (state: Record<string, string>): string[] =>
+      codes(
+        signed({ ...document, stage: { kit: stage.kit, states: stage.states.map((entry) => ({ ...entry, state })) } }),
+      );
+    expect(typo({ view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'earh' })).not.toEqual([]);
+    // The finding names the wrong word where it stands, as before legacy stages existed, never the kit id.
+    const misspelt = validateDocumentV2(
+      signed({
+        ...document,
+        stage: {
+          kit: stage.kit,
+          states: stage.states.map((entry) => ({
+            ...entry,
+            state: { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'earh' },
+          })),
+        },
+      }),
+    );
+    expect(misspelt.kind).toBe('invalid');
+    const found = misspelt.kind === 'invalid' ? misspelt.issues : [];
+    expect(found).toContainEqual({ code: 'schema_invalid_value', path: 'stage.states.0.state.focus' });
+    expect(found.map((issue) => issue.path)).not.toContain('stage.kit');
+    // The words of one kit under the name of another.
+    expect(typo({ view: 'bulges', moonAt: 'full', focus: 'none' })).not.toEqual([]);
+    expect(codes(signed({ ...document, stage: { kit: 'tides.v1', states: stage.states } }))).not.toEqual([]);
+  });
+
+  it('takes only a well-formed kit id, so no name of an object’s own property is a kit', () => {
+    for (const kit of ['constructor', '__proto__', 'gone', 'Gone.v1', 'gone.v1.v2', '', 'x'.repeat(80) + '.v1'])
+      expect(codes(legacyOf(kit)), kit).not.toEqual([]);
   });
 });

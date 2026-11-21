@@ -1,6 +1,6 @@
 import type { ReadStop, ScrollDocumentV2, Stop } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
-import { stageFigureAt } from '../stage/stage-figure';
+import { drawableStage, stageFigureAt } from '../stage/stage-figure';
 import { blocksOfRun, type RunBeat } from './holds';
 import type { Figure } from './reading-model';
 import type { Beat, BeatText, ReadingBlock, ReadingModel } from './reading-model';
@@ -59,10 +59,13 @@ function sameView(from: Figure, to: Figure): boolean {
  *   them changing it, share a hold of at most `HOLD_LIMIT` beats; a beat inside it that changes nothing keeps the
  *   state before it;
  * - a Final call that hands the reader Earth's tilt (D-187) puts the picture after it, with the slider under it;
- * - the end plate takes the recap's captions and the picture of the whole journey, when the kit draws one.
+ * - the end plate takes the recap's captions and the picture of the whole journey, when the kit draws one;
+ * - a stage whose kit this build does not draw (a stored revision of a kit since removed) draws no figure at all, and
+ *   its beats read as text, exactly as a Scroll with no stage does.
  */
 export function readingModelOfV2(document: ScrollDocumentV2): ReadingModel {
-  const { stage, stops } = document;
+  const { stops } = document;
+  const stage = drawableStage(document.stage);
   const changesAt = new Set(stage?.states.map((entry) => entry.stop));
   const blocks: ReadingBlock[] = [];
   let run: RunBeat[] = [];
