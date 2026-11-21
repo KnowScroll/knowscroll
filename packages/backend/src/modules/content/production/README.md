@@ -66,7 +66,7 @@ recipe. What is in place:
   unread. A document v3 has no calls: its answer check is recorded as passed with no request.
 - **Versions.** A v3 recipe's jobs are `scroll-production-v3.v1` (`SCROLL_PRODUCTION_V3_VERSION`, in `PRODUCTION_VERSIONS`), paired
   in `versions.test.ts` with `WRITER_V3_PROMPT_VERSION` (`scroll-writer-v3.v1`, `writer-v3-version.ts`, which the future writer
-  imports). `scrollV3PlanOf` reads the plan from the code recipe; a stored (`gen-`) recipe has none yet. A take is bounded like
+  imports). `scrollV3PlanOf` reads the plan from the code recipe; a stored (`gen-`) recipe is a document v3 recipe and gets a key-only marker plan (see "Stored recipes", #781). A take is bounded like
   v2 (`REQUEST_BOUND_V3_PER_TOPIC` = 6); the writer pull request sets the bound once the pipeline is chosen.
 - **No writer, so a refusal.** `writerPlanFor` throws `SCROLL_V3_WRITER_NOT_IMPLEMENTED` for a v3 subject before any request, so
   the v1 writer never writes a recipe planned as v3. The v3 writer replaces that line.
@@ -358,12 +358,19 @@ provenance is reachable through content's client-facing read ports.
 
 ## Stored recipes and the brief role (#674, D-412)
 
-A recipe whose key starts with `gen-` lives in `content.recipes`. It runs through this job like a v2 library recipe: `subjectOf` reads its row
-(`librarySubject` builds the subject from the book recipe, with its own asset and explanation identity), `productionVersionOf` and `requestBoundOf`
-treat the key as a v2 recipe, the writer is the v2 writer with the plain, no-misconception plan, and the Scroll is stored held (`isHeldForReview`).
+A recipe whose key starts with `gen-` lives in `content.recipes`. **It is a document v3 recipe** (#781, owner decision 4 on #771: a proposal may
+carry pictures). It runs through this job like a v3 library recipe: `subjectOf` reads its row (`librarySubject` builds the subject from the book recipe,
+with its own asset and explanation identity, and `scrollV3` = the proposal's `shape` and section intents, no pictures), `productionVersionOf` and
+`requestBoundOf` treat the key as a v3 recipe (`scroll-production-v3.v1`), and the Scroll is stored held (`isHeldForReview`). Those two, the standing and
+the plan refusal hold only a key, so they stay key-only: `scrollV3PlanOf` returns a fixed marker plan for a `gen-` key (it says document v3, no
+misconception, nothing more) and `scrollV2PlanOf` returns nothing; the real shape and sections reach the writer from the row through `bookRecipeOf`.
+A row whose plan is not a v3 one (a v2 plan an older process wrote) is refused before any job is reserved or request sent: `plan_refused`,
+`stored_recipe_plan_not_v3` (`storedPlanRefusalOf`). A row whose `scroll_v3` does not parse is a defect: `bookRecipeOf` throws
+`STORED_RECIPE_PLAN_INVALID`. **There is no document v3 writer yet**, so a stored recipe cannot be produced until the writer pull request lands:
+`writerPlanFor` throws `SCROLL_V3_WRITER_NOT_IMPLEMENTED` for a v3 subject before any request.
 `store.create` moves the recipe from `checked` to `queued` with the job row, and `store.finish` moves it to `produced` with the stored Scroll.
 
-`propose-recipes.ts` and `recipe-brief.ts` are the proposing step. The role `content.recipe-brief` (version `recipe-brief.v1`, background class, one
+`propose-recipes.ts` and `recipe-brief.ts` are the proposing step. The role `content.recipe-brief` (version `recipe-brief.v2`, which asks each draft for a `shape` and two or three section intents and no longer forbids naming a picture, background class, one
 request and at most one repair, `repairWithPreviousAnswer`) runs on the production harness through `proposeProduction`, so each paid attempt is in the
 attempt ledger. Its run is `stableUuid("content.recipe-brief:<version>|<planet>|<facet or ->|<UTC day>|<retry>")`: derived from the request and never
 from what it stores. `content.recipe_proposals` is the job row of this step: the first delivery freezes the context it sends there (`openProposal`),

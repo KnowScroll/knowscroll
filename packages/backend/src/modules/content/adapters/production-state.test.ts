@@ -42,7 +42,7 @@ describe('which document a recipe must have to count as published', () => {
     expect(isPlannedAsV2OrV3('exoplanet-kinds')).toBe(true);
   });
 
-  it('asks a stored recipe for a v2 document: no stored recipe is planned as v3 yet', () => {
-    expect(plannedDocumentVersionOf(`gen-${'a'.repeat(8)}`)).toBe(SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
+  it('asks a stored recipe for a document v3: every proposal is a document v3 recipe (#781)', () => {
+    expect(plannedDocumentVersionOf(`gen-${'a'.repeat(8)}`)).toBe(SCROLL_DOCUMENT_V3_SCHEMA_VERSION);
   });
 });

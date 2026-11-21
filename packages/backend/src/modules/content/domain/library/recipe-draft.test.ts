@@ -23,6 +23,12 @@ const draft: RecipeDraft = {
   facetId: FACET,
   brief:
     'Explain how the four heart valves open and close with each beat so blood flows forward and never back. Ask only for what the pages say about the valves and their timing. Do not turn the explanation into medical advice.',
+  shape: 'mechanism',
+  sections: [
+    'What the valves are and where they sit',
+    'How one beat opens and closes them',
+    'What goes wrong when one leaks',
+  ],
   pages: [PAGE_A, PAGE_B],
 };
 
@@ -65,6 +71,8 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
       assetId: 'e0a7e0a7-0000-4000-8000-000000000001',
       topicId: TOPIC,
       facetId: FACET,
+      shape: 'mechanism',
+      sections: draft.sections,
       pages: [PAGE_A, PAGE_B],
       checks: { pool: 34 },
     });
@@ -93,11 +101,55 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
     expect(refusalOf({ ...draft, brief: five }, context())).toBe('brief_shape');
   });
 
-  it('refuses a brief that names a block of a Scroll', () => {
-    const brief = `${draft.brief} Add a diagram of the valves.`;
-    expect(refusalOf({ ...draft, brief }, context())).toBe('brief_names_block');
+  it('refuses a brief that names a quiz or anything interactive, the only words document v3 has no place for', () => {
     expect(refusalOf({ ...draft, brief: draft.brief.replace('Do not', 'Include a quiz. Do not') }, context())).toBe(
       'brief_names_block',
+    );
+    expect(refusalOf({ ...draft, brief: `${draft.brief} Make it interactive.` }, context())).toBe('brief_names_block');
+    expect(refusalOf({ ...draft, brief: `${draft.brief} End with three Quizzes.` }, context())).toBe(
+      'brief_names_block',
+    );
+  });
+
+  it('accepts a brief that names a picture, as owner decision 4 on #771 intends (the filter keeps only quiz and interactive; this is the decision, not a weakened test)', () => {
+    for (const word of ['diagram', 'slider', 'simulation', 'stepper', 'chart', 'picture', 'stage']) {
+      const brief = `${draft.brief} Show it with a ${word} of the valves.`;
+      expect(refusalOf({ ...draft, brief }, context()), word).toBe('accepted');
+    }
+  });
+
+  it('holds the section intents to the same plain-text rules, and keeps quiz and interactive out of them too', () => {
+    expect(refusalOf({ ...draft, sections: ['What the valves are'] }, context())).toBe('sections_shape');
+    expect(
+      refusalOf({ ...draft, sections: ['One', 'Two', 'Three', 'Four'].map((word) => `${word} things`) }, context()),
+    ).toBe('sections_shape');
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'what the valves are'] }, context())).toBe(
+      'sections_shape',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', ' How a beat works'] }, context())).toBe(
+      'sections_shape',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'How a beat\nworks'] }, context())).toBe(
+      'sections_shape',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'How'] }, context())).toBe('sections_shape');
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'x'.repeat(121)] }, context())).toBe(
+      'sections_shape',
+    );
+    expect(
+      refusalOf({ ...draft, sections: ['What the valves are', 'See en.wikipedia.org/wiki/Heart'] }, context()),
+    ).toBe('text_has_address');
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'A <b>bold</b> claim'] }, context())).toBe(
+      'text_has_markup',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'A quiz on the valves'] }, context())).toBe(
+      'sections_name_block',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'An interactive tour'] }, context())).toBe(
+      'sections_name_block',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'How one beat works'] }, context())).toBe(
+      'accepted',
     );
   });
 
@@ -258,6 +310,8 @@ describe("the same angle in other words (the plan's cardiac-cycle recipe)", () =
     title: 'One heartbeat told from start to finish',
     facetId: cardiac.facetId,
     brief,
+    shape: 'story',
+    sections: ['What fills the heart', 'What empties it'],
     pages: [PAGE],
     ...over,
   });
@@ -339,5 +393,23 @@ describe('the strict shape of the brief role answer', () => {
       }).success,
     ).toBe(false);
     expect(RecipeBriefOutputSchema.safeParse({ drafts: [], other: true }).success).toBe(false);
+  });
+
+  it('requires a shape from the closed set and two or three sections of 4 to 120 characters (#781)', () => {
+    const parses = (over: Record<string, unknown>) =>
+      RecipeBriefOutputSchema.safeParse({ drafts: [{ ...draft, ...over }] }).success;
+    for (const shape of ['argument', 'mechanism', 'story']) expect(parses({ shape }), shape).toBe(true);
+    expect(parses({ shape: 'essay' })).toBe(false);
+    expect(parses({ shape: undefined })).toBe(false);
+    const { sections: _sections, ...withoutSections } = draft;
+    expect(RecipeBriefOutputSchema.safeParse({ drafts: [withoutSections] }).success).toBe(false);
+    expect(parses({ sections: ['Only one section here'] })).toBe(false);
+    expect(parses({ sections: ['The first part', 'The second part'] })).toBe(true);
+    expect(parses({ sections: ['The first part', 'The second part', 'The third part', 'A fourth part'] })).toBe(false);
+    expect(parses({ sections: ['The first part', 'abc'] })).toBe(false);
+    expect(parses({ sections: ['The first part', 'x'.repeat(121)] })).toBe(false);
+    expect(parses({ sections: ['The first part', 'x'.repeat(120)] })).toBe(true);
+    expect(parses({ sections: ['The first part', 7] })).toBe(false);
+    expect(parses({ pictures: [{ kind: 'chart', purpose: 'the figures' }] })).toBe(false);
   });
 });

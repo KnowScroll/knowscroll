@@ -2,12 +2,14 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   GENERATED_RECIPE_PREFIX,
-  GENERATED_SCROLL_V2_PLAN,
+  GENERATED_SCROLL_V3_MARKER,
   generatedKeyOf,
+  generatedScrollV3PlanOf,
   generatedUnitIdOf,
   isGeneratedRecipeKey,
   MAX_RECIPE_KEY_LENGTH,
   RECIPE_STATUSES,
+  StoredScrollV3Schema,
   titleOfKey,
 } from './generated.js';
 import { RECIPES, RECIPE_KEYS } from './index.js';
@@ -69,8 +71,35 @@ describe('the key of a stored recipe', () => {
 });
 
 describe('what every stored recipe asks of the writer', () => {
-  it('is a plain, explanation-first Scroll: no misconception, no landmark, no picture, no play block (D-397)', () => {
-    expect(GENERATED_SCROLL_V2_PLAN).toEqual({ variant: 'plain', misconception: { kind: 'none' } });
+  it("is a document v3 plan: the proposal's own shape and sections, no misconception and no pictures (#781)", () => {
+    const plan = generatedScrollV3PlanOf({ shape: 'story', sections: ['What happened first', 'What came of it'] });
+    expect(plan).toEqual({
+      shape: 'story',
+      sections: ['What happened first', 'What came of it'],
+      misconception: { kind: 'none' },
+    });
+    // The writer picks the pictures from what its passages hold: the plan names none.
+    expect(plan.pictures).toBeUndefined();
+  });
+
+  it('keeps a marker for the code that holds only a key: a v3 plan with no misconception and no pictures', () => {
+    expect(GENERATED_SCROLL_V3_MARKER.misconception).toEqual({ kind: 'none' });
+    expect(GENERATED_SCROLL_V3_MARKER.pictures).toBeUndefined();
+    expect(GENERATED_SCROLL_V3_MARKER.sections.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('stores exactly a shape and two or three sections of 1 to 120 characters, the rule migration 0124 checks', () => {
+    const ok = { shape: 'argument', sections: ['One', 'Two'] };
+    expect(StoredScrollV3Schema.safeParse(ok).success).toBe(true);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, sections: ['One', 'Two', 'Three'] }).success).toBe(true);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, sections: ['One'] }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, sections: ['1', '2', '3', '4'] }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, sections: ['One', ''] }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, sections: ['One', 'x'.repeat(121)] }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, shape: 'essay' }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, pictures: [] }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ ...ok, misconception: { kind: 'none' } }).success).toBe(false);
+    expect(StoredScrollV3Schema.safeParse({ shape: 'argument' }).success).toBe(false);
   });
 
   it('has the four statuses the table allows', () => {

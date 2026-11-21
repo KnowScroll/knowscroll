@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { generatedUnitIdOf, type GeneratedRecipeKey } from './generated.js';
+import {
+  generatedUnitIdOf,
+  SECTION_INTENT_MAX,
+  SECTIONS_MAX,
+  SECTIONS_MIN,
+  type GeneratedRecipeKey,
+} from './generated.js';
+import { SCROLL_SHAPE_IDS, type ScrollShapeId } from './plan.js';
 
 /**
  * The model's proposal of a recipe (#674, D-412): what to write a Scroll about on a planet that already exists. The model
@@ -16,6 +23,11 @@ export const DRAFT_BRIEF_MAX_CHARS = 800;
 export const DRAFT_BRIEF_MIN_SENTENCES = 2;
 export const DRAFT_BRIEF_MAX_SENTENCES = 4;
 export const DRAFT_MAX_PAGES = 3;
+/** One section intent: a short plain line saying what the section is for (the database allows 1 to 120, a draft 4 to 120). */
+export const DRAFT_SECTION_MIN_CHARS = 4;
+export const DRAFT_SECTION_MAX_CHARS = SECTION_INTENT_MAX;
+export const DRAFT_MIN_SECTIONS = SECTIONS_MIN;
+export const DRAFT_MAX_SECTIONS = SECTIONS_MAX;
 /** Drafts one call may return. */
 export const DRAFTS_PER_CALL = 3;
 /**
@@ -29,10 +41,20 @@ export const MAX_PASSAGE_POOL = 63;
 /** A control character or a line break: a title or a brief is one plain line of text. */
 const CONTROL = /\p{Cc}|\p{Cf}/u;
 
+/**
+ * A draft carries the plan a stored recipe holds (#781, owner decision 4 on #771): the `shape` of the essay (the closed set of document
+ * v3) and one intent per section, two or three. Pictures are not proposed: the writer picks the kind from the closed set by what its
+ * passages hold, and a statement picture is always available.
+ */
 const DraftSchema = z.strictObject({
   title: z.string().trim().min(DRAFT_TITLE_MIN).max(DRAFT_TITLE_MAX),
   facetId: z.string().min(1).max(160),
   brief: z.string().trim().min(DRAFT_BRIEF_MIN_CHARS).max(DRAFT_BRIEF_MAX_CHARS),
+  shape: z.enum(SCROLL_SHAPE_IDS),
+  sections: z
+    .array(z.string().trim().min(DRAFT_SECTION_MIN_CHARS).max(DRAFT_SECTION_MAX_CHARS))
+    .min(DRAFT_MIN_SECTIONS)
+    .max(DRAFT_MAX_SECTIONS),
   pages: z.array(z.string().min(1).max(300)).min(1).max(DRAFT_MAX_PAGES),
 });
 export type RecipeDraft = z.infer<typeof DraftSchema>;
@@ -46,6 +68,8 @@ export const DRAFT_REFUSALS = [
   'title_shape',
   'brief_shape',
   'brief_names_block',
+  'sections_shape',
+  'sections_name_block',
   'text_has_address',
   'text_has_markup',
   'facet_unknown',
@@ -99,6 +123,9 @@ export interface AcceptedRecipe {
   readonly topicId: string;
   readonly facetId: string;
   readonly brief: string;
+  /** The plan the recipe is stored with: the kind of essay and what each of its two or three sections is for. */
+  readonly shape: ScrollShapeId;
+  readonly sections: readonly string[];
   readonly pages: readonly string[];
   /** What the checks found, for the operator: the pool and the closest existing recipe. Numbers and codes only. */
   readonly checks: { readonly pool: number; readonly closest: number };
@@ -109,10 +136,12 @@ export type DraftVerdict =
   | { readonly kind: 'refused'; readonly code: DraftRefusal };
 
 /**
- * The briefs' words that name a block of a Scroll. A brief names no block type (library rule): the writer is told the shape
- * separately and ignores a brief's talk of diagrams and the like.
+ * The words of a brief or a section intent that name something a document v3 has no place for. Document v3 has no quiz and nothing
+ * interactive, so a brief or a section that names either is refused. Pictures are allowed now (#781, owner decision 4): `diagram`,
+ * `slider`, `simulation`, `stepper`, `chart`, `picture` and `stage` were refused while a proposal could have no picture, and a brief may
+ * say "a chart of the figures" now that the writer picks the kind of picture from its passages.
  */
-const BLOCK_WORDS = /\b(?:diagram|slider|simulation|stepper|chart|quiz|interactive|picture|stage)s?\b/iu;
+const BLOCK_WORDS = /\b(?:quizzes|quiz|interactive)\b/iu;
 
 /** Sentences of a brief, split where a sentence ends and a space follows (the library test's rule). */
 export const sentencesOf = (text: string): readonly string[] => text.split(/(?<=[.?!])\s+/u).filter((s) => s !== '');
@@ -209,6 +238,23 @@ export function checkRecipeDraft(draft: RecipeDraft, context: DraftCheckContext)
   for (const text of [draft.title, draft.brief]) if (ADDRESS.test(text)) return refuse('text_has_address');
   for (const text of [draft.title, draft.brief]) if (MARKUP.test(text)) return refuse('text_has_markup');
   if (BLOCK_WORDS.test(draft.brief)) return refuse('brief_names_block');
+  // The section intents are one plain line each, distinct from one another, and prose the writer reads like the brief.
+  if (
+    draft.sections.length < DRAFT_MIN_SECTIONS ||
+    draft.sections.length > DRAFT_MAX_SECTIONS ||
+    draft.sections.some(
+      (section) =>
+        CONTROL.test(section) ||
+        section !== section.trim() ||
+        section.length < DRAFT_SECTION_MIN_CHARS ||
+        section.length > DRAFT_SECTION_MAX_CHARS,
+    ) ||
+    new Set(draft.sections.map((section) => section.toLowerCase())).size !== draft.sections.length
+  )
+    return refuse('sections_shape');
+  for (const section of draft.sections) if (ADDRESS.test(section)) return refuse('text_has_address');
+  for (const section of draft.sections) if (MARKUP.test(section)) return refuse('text_has_markup');
+  if (draft.sections.some((section) => BLOCK_WORDS.test(section))) return refuse('sections_name_block');
   if (!context.facetIds.includes(draft.facetId)) return refuse('facet_unknown');
   if (context.requestedFacetId !== undefined && draft.facetId !== context.requestedFacetId)
     return refuse('facet_not_requested');
@@ -249,6 +295,8 @@ export function checkRecipeDraft(draft: RecipeDraft, context: DraftCheckContext)
       topicId: context.topicId,
       facetId: draft.facetId,
       brief: draft.brief,
+      shape: draft.shape,
+      sections: draft.sections,
       pages: draft.pages,
       checks: { pool, closest: Math.round(closest * 100) / 100 },
     },

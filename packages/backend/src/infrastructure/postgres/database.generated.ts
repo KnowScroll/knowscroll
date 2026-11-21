@@ -252,7 +252,11 @@ export interface ContentRecipes {
   origin: string;
   pages: string[];
   proposing_run_id: string | null;
-  scroll_v2: Generated<Json>;
+  scroll_v2: Generated<Json | null>;
+  /**
+   * The document v3 plan of a proposed recipe: {shape, sections}. The writer picks the pictures from what its passages hold. Null for a recipe that holds the plain v2 plan (#781).
+   */
+  scroll_v3: Json | null;
   status: string;
   supporting_facet_id: string | null;
   title: string;

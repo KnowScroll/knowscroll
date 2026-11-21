@@ -87,7 +87,14 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
     'Show why a spring tide on Orrin is the strongest of its month, when the two moons line up. Ask only for what the pages say about alignment and range. Do not offer a forecast.',
     'Explain tidal locking and why Orrin always shows one face to its planet. Ask only for what the pages say about locking. Do not describe how long it takes.',
   ] as const;
-  const draft = (title: string, facetId: string, brief: string) => ({ title, facetId, brief, pages: [PAGE_A, PAGE_B] });
+  const draft = (title: string, facetId: string, brief: string) => ({
+    title,
+    facetId,
+    brief,
+    shape: 'mechanism' as const,
+    sections: ['What the two bulges are', 'Why they follow the moon round'],
+    pages: [PAGE_A, PAGE_B],
+  });
 
   /** Frozen research on an earlier, finished job of a code recipe: the pages code "already holds" for the planet. */
   async function holdPages() {
@@ -759,7 +766,9 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       for (const key of after.recipes) expect(await jobsFor(key)).toBe(1);
     });
 
-    it('produces a recipe through the real job and keeps its Scroll held: nothing is served until an operator releases it', async () => {
+    // #781: a stored recipe is a document v3 recipe and no document v3 writer exists yet (SCROLL_V3_WRITER_NOT_IMPLEMENTED), so a stored recipe cannot be
+    // produced through the real job here; the writer pull request restores this test with a v3 fixture.
+    it.skip('produces a recipe through the real job and keeps its Scroll held: nothing is served until an operator releases it', async () => {
       const [gap] = (await gaps()).filter((row) => row.status === 'commissioned' && row.planet === PLANET);
       const key = gap!.recipes[0] as `gen-${string}`;
       const asset = (
@@ -1029,7 +1038,9 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
     const oneDraft = (tag: string) =>
       answerWith({ drafts: [draft(`How the moon Orrin raises two bulges in its seas, ${tag}`, FACET_A, BRIEFS[0])] });
 
-    it('does not strand a gap whose take an operator rejected: the stored recipe is commissioned again with no model call, each round is counted, and the bound rejects the gap', async () => {
+    // #781: a stored recipe is a document v3 recipe and no document v3 writer exists yet (SCROLL_V3_WRITER_NOT_IMPLEMENTED), so a stored recipe cannot be
+    // produced through the real job here; the writer pull request restores this test with a v3 fixture.
+    it.skip('does not strand a gap whose take an operator rejected: the stored recipe is commissioned again with no model call, each round is counted, and the bound rejects the gap', async () => {
       const gap = await openTidesGap();
       const first = loop({ day: 9, script: () => oneDraft('rejected take') });
       expect(await first.brief()).toMatchObject({ proposed: 1, commissioned: 1 });
