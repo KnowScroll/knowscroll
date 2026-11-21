@@ -24,7 +24,15 @@ import { computeMeasuresV3 } from '../../v3/measures.js';
 import { Picture } from '../../v3/pictures.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
 import { COPY_RUN_WORDS } from '../compile.js';
-import { digitFiguresIn, readingsOf, unitInPassages } from '../v2/figures.js';
+import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
+import {
+  digitFiguresIn,
+  plainFigure,
+  pointAgrees,
+  readingsOf,
+  unitInPassages,
+  unstatedFigures,
+} from '../v2/figures.js';
 
 /**
  * `scroll-authoring.v3`: a document v3 as a person writes it by hand, before code sets what is code's (ids, measures,
@@ -115,8 +123,11 @@ interface CitedPart {
   readonly quotation?: string | undefined;
 }
 
-/** Every reader-facing string of a picture: its title, caption, labels, notes, values and cells. */
-function pictureTexts(picture: Picture): string[] {
+/**
+ * Every reader-facing string of a picture: its title, caption, labels, notes, values and cells. A chart's values are
+ * left out when `chartValues` is false, because the strict rule reads them as points (`pointAgrees`), not as prose.
+ */
+export function pictureTexts(picture: Picture, chartValues = true): string[] {
   const head = [picture.title, ...(picture.caption === undefined ? [] : [picture.caption])];
   const item = (entry: { readonly label: string; readonly note?: string | undefined }) => [
     entry.label,
@@ -149,7 +160,7 @@ function pictureTexts(picture: Picture): string[] {
       return [
         ...head,
         ...(picture.unit === undefined ? [] : [picture.unit]),
-        ...picture.points.flatMap((point) => [point.value, ...item(point)]),
+        ...picture.points.flatMap((point) => [...(chartValues ? [point.value] : []), ...item(point)]),
         ...picture.marks.map((mark) => mark.label),
       ];
     case 'plan':
@@ -181,12 +192,12 @@ function beatTexts(beat: AuthoredBeatV3): string[] {
 const quotationOf = (picture: Picture): string | undefined =>
   picture.kind === 'statement' && picture.statement.form === 'quote' ? picture.statement.text : undefined;
 
-function citedParts(authored: AuthoredScrollV3): CitedPart[] {
+function citedParts(authored: AuthoredScrollV3, chartValues: boolean): CitedPart[] {
   const beats = authored.sections.flatMap((section) => section.beats);
   return [
     ...authored.pictures.map(({ picture, cites }, index): CitedPart => ({
       path: `pictures.${index}`,
-      texts: pictureTexts(picture),
+      texts: pictureTexts(picture, chartValues),
       cites,
       quotation: quotationOf(picture),
     })),
@@ -233,18 +244,50 @@ const comparable = (text: string): string =>
     .trim();
 
 /**
+ * How strictly figures are read. `editorial` is a hand-written Scroll's rule: a figure a passage gives as one end of a
+ * range is accepted on its own, figures in words are not read, and a chart's values are read like any text. `strict`
+ * is the model writer's (D-208, D-302): every prose string uses `unstatedFigures`, a chart's values use `pointAgrees`
+ * with the magnitude word that opens its unit, and the copy rule runs against `copySources`.
+ */
+export interface EvidenceOptions {
+  readonly figures: 'editorial' | 'strict';
+  /** What the copy rule compares against: every research text. Without it, the passages a part cites. */
+  readonly copySources?: readonly string[] | undefined;
+}
+
+/** The magnitude word a chart's unit opens with ("million people"), which every value of the chart is written with. */
+function unitMagnitude(unit: string | undefined): Magnitude | undefined {
+  const word = unit
+    ?.trim()
+    .split(/[\s-]+/u)[0]
+    ?.toLowerCase();
+  return word !== undefined && Object.hasOwn(MAGNITUDES, word) ? (word as Magnitude) : undefined;
+}
+
+/**
  * What the authored Scroll says against what it cites: every cited claim exists; every figure a part shows is in a
  * passage that part cites (D-208), and a figure in the kicker, title, dek, a section title or an ask suggestion is in
  * some passage the Scroll cites; a quotation matches a passage it cites word for word; and no other text copies nine
- * words in a row from a cited passage.
+ * words in a row from a cited passage (or, strict, from any research text).
+ *
+ * In `strict` mode a header string is reported at its own path (`title`, `dek`, `sections.0.title`,
+ * `askSuggestions.1`) and the copy rule covers it; a chart value that disagrees with its passages is reported at
+ * `pictures.N.points.K.value`. Editorial mode reports every header problem at `header`, as it always has.
  */
-function evidenceIssues(authored: AuthoredScrollV3, claims: ReadonlyMap<string, string>): IssueV3[] {
+export function evidenceIssues(
+  authored: AuthoredScrollV3,
+  claims: ReadonlyMap<string, string>,
+  options: EvidenceOptions = { figures: 'editorial' },
+): IssueV3[] {
+  const strict = options.figures === 'strict';
   const issues: IssueV3[] = [];
-  const parts = citedParts(authored);
+  const parts = citedParts(authored, !strict);
   const quoteOf = (claimId: string): string => claims.get(claimId) ?? '';
+  const unstated = (text: string, passages: readonly string[]): boolean =>
+    strict ? unstatedFigures(text, passages).length > 0 : unstatedDigitFigures(text, passages).length > 0;
   const supported = (texts: readonly string[], cites: readonly string[]) => {
     const passages = cites.map(quoteOf);
-    return texts.every((text) => unstatedDigitFigures(text, passages).length === 0);
+    return texts.every((text) => !unstated(text, passages));
   };
   const everyCite = [...new Set(parts.flatMap((part) => part.cites))];
   for (const part of parts) {
@@ -258,30 +301,59 @@ function evidenceIssues(authored: AuthoredScrollV3, claims: ReadonlyMap<string, 
     )
       issues.push({ code: 'quote_not_in_evidence', path: part.path });
     const ownWords = part.texts.filter((text) => text !== part.quotation);
-    if (ownWords.some((text) => copiedRuns(text, passages, COPY_RUN_WORDS).length > 0))
+    if (ownWords.some((text) => copiedRuns(text, options.copySources ?? passages, COPY_RUN_WORDS).length > 0))
       issues.push({ code: 'copied_passage', path: part.path });
   }
-  const headings = [
+  const others = [
     authored.kicker,
-    authored.title,
-    authored.dek,
-    ...authored.sections.map((section) => section.title),
-    ...authored.askSuggestions,
     ...(authored.misconception.kind === 'myth' ? [authored.misconception.claim] : []),
     ...(authored.framing.kind === 'hypothetical' ? [...authored.framing.assumptions, ...authored.framing.kept] : []),
     ...(authored.framing.kind === 'perspective' ? [authored.framing.lens] : []),
   ];
-  if (!supported(headings, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
+  if (strict) {
+    const own: { readonly path: string; readonly text: string }[] = [
+      { path: 'title', text: authored.title },
+      { path: 'dek', text: authored.dek },
+      ...authored.sections.map((section, index) => ({ path: `sections.${index}.title`, text: section.title })),
+      ...authored.askSuggestions.map((text, index) => ({ path: `askSuggestions.${index}`, text })),
+    ];
+    const passages = everyCite.map(quoteOf);
+    for (const { path, text } of own) {
+      if (unstated(text, passages)) issues.push({ code: 'authoring_number_not_in_evidence', path });
+      if (copiedRuns(text, options.copySources ?? passages, COPY_RUN_WORDS).length > 0)
+        issues.push({ code: 'copied_passage', path });
+    }
+    if (!supported(others, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
+  } else {
+    const headings = [
+      authored.kicker,
+      authored.title,
+      authored.dek,
+      ...authored.sections.map((section) => section.title),
+      ...authored.askSuggestions,
+      ...others.slice(1),
+    ];
+    if (!supported(headings, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
+  }
   // A chart's unit is words of its passages, as D-208 asks of a v2 chart: "light years" over a passage in kilometres is refused.
   authored.pictures.forEach(({ picture, cites }, index) => {
-    if (picture.kind === 'chart' && picture.unit !== undefined && !unitInPassages(picture.unit, cites.map(quoteOf)))
+    if (picture.kind !== 'chart') return;
+    const passages = cites.map(quoteOf);
+    if (picture.unit !== undefined && !unitInPassages(picture.unit, passages))
       issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.picture.unit` });
+    if (!strict) return;
+    const values = new Set(picture.points.map((point) => plainFigure(point.value)));
+    const magnitude = unitMagnitude(picture.unit);
+    picture.points.forEach((point, pointIndex) => {
+      if (!pointAgrees({ value: point.value, magnitude }, passages, values))
+        issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.points.${pointIndex}.value` });
+    });
   });
   return issues;
 }
 
 /** Assigns what is code's: section ids `s1…`, beat ids `b1…` in reading order, aside ids `a1…` next to their beat. */
-function assemble(authored: AuthoredScrollV3, publication: PublicationV3): Omit<ScrollDocumentV3, 'integrity'> {
+export function assemble(authored: AuthoredScrollV3, publication: PublicationV3): Omit<ScrollDocumentV3, 'integrity'> {
   let beatNumber = 0;
   const sections = authored.sections.map((section, sectionIndex) => ({
     id: `s${sectionIndex + 1}`,
@@ -323,7 +395,7 @@ function assemble(authored: AuthoredScrollV3, publication: PublicationV3): Omit<
   };
 }
 
-function citationsOf(authored: AuthoredScrollV3, document: ScrollDocumentV3): ScrollProvenanceV3['citations'] {
+export function citationsOf(authored: AuthoredScrollV3, document: ScrollDocumentV3): ScrollProvenanceV3['citations'] {
   const beats = authored.sections.flatMap((section) => section.beats);
   const beatIds = document.sections.flatMap((section) => section.beats.map((beat) => beat.id));
   return [
