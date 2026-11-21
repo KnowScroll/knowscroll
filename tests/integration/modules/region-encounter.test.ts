@@ -536,7 +536,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
             id: illegalId,
             source_offer_id: first.offer.offerId,
             source_exposure_id: activated.outcome.exposureId,
-            descriptor: { ...first.offer, offerId: illegalId },
+            descriptor: JSON.stringify({ ...first.offer, offerId: illegalId }),
           })
           .execute();
       }),

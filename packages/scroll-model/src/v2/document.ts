@@ -198,7 +198,7 @@ const LegacyKit = z
   .refine((kit) => !isStageKitId(kit), { message: 'kit_is_live', abort: true });
 
 /** A state of a legacy stage: a plain object, whatever its kit once put in it. */
-const LegacyState = z.record(z.string(), z.json());
+const LegacyState = z.record(z.string(), z.unknown());
 
 /**
  * The stage of a kit that no longer exists, as an older revision stored it (stored revisions are immutable and the library
