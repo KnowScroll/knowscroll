@@ -15,6 +15,7 @@ import {
   type ScrollDocumentV3,
 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import { OPERATOR_WORLDS } from '../../identity/public.js';
 import type {
   IsOperatorAccount,
   OperatorReview,
@@ -214,8 +215,14 @@ function rejectResultOf(result: RejectResult): ReviewRejectResult | 'reason_inva
 export function makeOperatorReview(ports: {
   readonly db: Kysely<Database>;
   readonly isOperator: IsOperatorAccount;
+  /** The world this process serves. Review runs only where operator tools do (`OPERATOR_WORLDS`), as the CLI's commands. */
+  readonly world: string;
 }): OperatorReview {
   const { db } = ports;
+  // Outside an operator world (live) every call is the not-operator 404, whatever `KS_OPERATOR_ACCOUNTS` lists: the app must not
+  // release what the CLI refuses to.
+  const mayReview = async (accountId: string): Promise<boolean> =>
+    OPERATOR_WORLDS.includes(ports.world) && (await ports.isOperator(accountId));
   const gate = makeReviewGate(db);
   const notOperator: ReviewNotFound = { kind: 'not_found', why: 'not_operator' };
   const notHeld: ReviewNotFound = { kind: 'not_found', why: 'not_held' };
@@ -228,7 +235,7 @@ export function makeOperatorReview(ports: {
 
   return {
     async list(accountId) {
-      if (!(await ports.isOperator(accountId))) return notOperator;
+      if (!(await mayReview(accountId))) return notOperator;
       const rows = await readListingRows(db, { onlyHeld: true });
       const [supports, topics] = await Promise.all([readSupportChecks(db, rows), primaryTopics(db, rows)]);
       const revisions: ReviewListItem[] = [];
@@ -243,7 +250,7 @@ export function makeOperatorReview(ports: {
     },
 
     async show(accountId, target) {
-      if (!(await ports.isOperator(accountId))) return notOperator;
+      if (!(await mayReview(accountId))) return notOperator;
       const row = await heldRow(target);
       if (row === undefined) return notHeld;
       const read = readDocument(row);
@@ -274,7 +281,7 @@ export function makeOperatorReview(ports: {
     },
 
     async release(accountId, target) {
-      if (!(await ports.isOperator(accountId))) return notOperator;
+      if (!(await mayReview(accountId))) return notOperator;
       if ((await heldRow(target)) === undefined) return notHeld;
       const result = releaseResultOf(await gate.release({ ...target, decidedBy: deciderOfAccount(accountId) }));
       if (result === undefined) return notHeld;
@@ -282,7 +289,7 @@ export function makeOperatorReview(ports: {
     },
 
     async reject(accountId, target, reason) {
-      if (!(await ports.isOperator(accountId))) return notOperator;
+      if (!(await mayReview(accountId))) return notOperator;
       if ((await heldRow(target)) === undefined) return notHeld;
       const result = rejectResultOf(await gate.reject({ ...target, reason, decidedBy: deciderOfAccount(accountId) }));
       if (result === undefined) return notHeld;

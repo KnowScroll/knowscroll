@@ -31,6 +31,7 @@ import { documentV3Source } from '../support/scroll.js';
 describe('the operator review of held Scrolls (real PostgreSQL, hand-written fixture Scrolls)', () => {
   let database: TestDatabase<Database>;
   let review: OperatorReview;
+  let liveReview: OperatorReview;
   let operator: FixturePerson;
   let stranger: FixturePerson;
   let nameless: FixturePerson;
@@ -50,13 +51,12 @@ describe('the operator review of held Scrolls (real PostgreSQL, hand-written fix
     database = await createTestDatabase<Database>('operator_review');
     const matches = operatorAddressMatcher(operatorAddress);
     if (matches === undefined) throw new Error('the operator pattern is valid');
-    review = makeOperatorReview({
-      db: database.db,
-      isOperator: makeIsOperator({
-        readAddress: (accountId) => readAccountAddress(database.db, accountId),
-        matchers: [matches],
-      }),
+    const isOperator = makeIsOperator({
+      readAddress: (accountId) => readAccountAddress(database.db, accountId),
+      matchers: [matches],
     });
+    review = makeOperatorReview({ db: database.db, isOperator, world: 'dev' });
+    liveReview = makeOperatorReview({ db: database.db, isOperator, world: 'live' });
     operator = await personWithAddress(operatorAddress);
     stranger = await personWithAddress('someone@ci.invalid');
     nameless = await personWithAddress(undefined);
@@ -151,6 +151,19 @@ describe('the operator review of held Scrolls (real PostgreSQL, hand-written fix
           expect(await review.reject(who.accountId, target, 'Not for me to say.')).toEqual(notOperator);
         }
       }
+      expect(await stateOf(held.assetId)).toEqual({ state: 'held', decided_by: null, reason: null });
+    });
+  });
+
+  describe('an operator in the live world', () => {
+    it('gets not found on every route and changes nothing, as the CLI refuses live: review runs only where operator tools do', async () => {
+      const held = await holdV3('fence');
+      await admitCoverage(held);
+      const notOperator = { kind: 'not_found', why: 'not_operator' };
+      expect(await liveReview.list(operator.accountId)).toEqual(notOperator);
+      expect(await liveReview.show(operator.accountId, held.target)).toEqual(notOperator);
+      expect(await liveReview.release(operator.accountId, held.target)).toEqual(notOperator);
+      expect(await liveReview.reject(operator.accountId, held.target, 'Not here.')).toEqual(notOperator);
       expect(await stateOf(held.assetId)).toEqual({ state: 'held', decided_by: null, reason: null });
     });
   });

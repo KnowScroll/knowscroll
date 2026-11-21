@@ -47,7 +47,7 @@ revisions), `GET /v1/operator/review/{assetId}/{revision}` (one to read: the sto
 part cites and what the checks said) and `POST …/release` and `POST …/reject` (the review gate's own decisions, as `content
 release` and `content reject`). Each answers the same 404 to an account that is not an operator and to a revision that is not
 held, and a malformed asset or revision is a 400 only for an operator. The controller calls the Content module's
-`OperatorReview` (token `OPERATOR_REVIEW`, wired in `src/modules/content.ts` with `IS_OPERATOR`), which checks the operator
+`OperatorReview` (token `OPERATOR_REVIEW`, wired in `src/modules/content.ts` with `IS_OPERATOR` and the world from `API_CONFIG`: only operator worlds review), which checks the operator
 itself on every call, and logs `content.review_decided` (recipe key, outcome, revision, a refusal's code) for a decision.
 See the content README, "The review gate".
 

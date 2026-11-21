@@ -10,7 +10,8 @@ import { OPERATOR_REVIEW, READ_LIBRARY_FINDS, type OperatorReview } from '@knows
 import { IS_OPERATOR, type IsOperator } from '@knowscroll/backend/modules/operator';
 import type { Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { DATABASE } from '../tokens.js';
+import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
+import { API_CONFIG, DATABASE } from '../tokens.js';
 
 /**
  * Content wiring for the API composition root: the scope-bound read ports experience and evidence
@@ -30,9 +31,9 @@ export const contentWiring: Provider[] = [
   // The operator's review screen (#780): the review gate behind the operator check of `KS_OPERATOR_ACCOUNTS`, which the use case runs on every call.
   {
     provide: OPERATOR_REVIEW,
-    inject: [DATABASE, IS_OPERATOR],
-    useFactory: (db: Kysely<Database>, isOperator: IsOperator): OperatorReview =>
-      makeOperatorReview({ db, isOperator }),
+    inject: [DATABASE, IS_OPERATOR, API_CONFIG],
+    useFactory: (db: Kysely<Database>, isOperator: IsOperator, config: ApiConfig): OperatorReview =>
+      makeOperatorReview({ db, isOperator, world: config.world }),
   },
 ];
 
