@@ -17,7 +17,7 @@ import {
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
-import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_V3_HINT, citationLimitIssuesV3 } from './citation-limits.js';
+import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT_V3, citationLimitIssuesV3 } from './citation-limits.js';
 import { copyRepairNotes } from './copy-repair.js';
 import { authoringEvidence, evidenceText, type EvidencePassage } from './evidence.js';
 import { bannedNames, readerStrings, type BannedName } from './writer.js';
@@ -273,7 +273,7 @@ function copyNotes<T>(
 function safeIssuesOf(context: WriterV3Context): Readonly<Record<string, string>> {
   return Object.freeze({
     ...REPAIR_HINTS_V3,
-    [CITATIONS_TOO_MANY]: CITATIONS_TOO_MANY_V3_HINT,
+    [CITATIONS_TOO_MANY]: CITATIONS_TOO_MANY_HINT_V3,
     ...Object.fromEntries(namesOf(context).map((name) => [name.code, name.hint])),
   });
 }

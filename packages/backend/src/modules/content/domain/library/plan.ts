@@ -138,6 +138,11 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
    * and the system never do (D-129).
    */
   readonly scrollV2?: ScrollV2Plan;
+  /**
+   * Present when this recipe is produced as a `scroll-document.v3` (sections of beats and pictures from the closed set). A recipe
+   * carries `scrollV3` or `scrollV2`, never both (a library test). A person decides it, per recipe (#771).
+   */
+  readonly scrollV3?: ScrollV3Plan;
 };
 
 /** What the plan decides before the writer starts a v2 Scroll (`RecipeDataV2` in the producer). */

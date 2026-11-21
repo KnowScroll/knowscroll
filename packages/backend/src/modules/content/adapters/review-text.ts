@@ -1,11 +1,19 @@
 import {
+  beatsOfV3,
   describeChart,
   describeFork,
+  describePicture,
   describeScale,
+  orderedItems,
+  pickItems,
   readingWords,
+  scrubPositions,
   sortedItems,
+  type Beat,
   type Interactive,
+  type Picture,
   type ScrollDocumentV2,
+  type ScrollDocumentV3,
 } from '@knowscroll/scroll-model';
 import type { AnswerCheckSummary, CallVerdict } from '../domain/answer-check.js';
 import { LIBRARY_SUPPORT_POLICY, countsOf, decideRevision } from '../domain/library-support.js';
@@ -208,6 +216,110 @@ export function reviewTextOf(
     lines.push('');
   }
   lines.push('RECAP', ...document.recap.captions.map((caption) => `  ${caption}`), ...quoteLines(evidence, 'recap'));
+  lines.push('', 'ASK SUGGESTIONS', ...document.askSuggestions.map((suggestion) => `  ${suggestion}`));
+  if (evidence !== undefined && evidence.sources.length > 0)
+    lines.push('', 'SOURCES', ...evidence.sources.map((source) => `  ${source}`));
+  return lines.join('\n');
+}
+
+/** The quotation a quote beat sets apart, with who said it, where and when. */
+function citeOf(cite: Extract<Beat, { kind: 'quote' }>['cite']): string {
+  return [cite.who, cite.work, cite.year].filter((part): part is string => part !== undefined).join(', ');
+}
+
+/** What a beat's control lets a reader reach, in the picture's own words: every position of a scrub, the other side of a switch, the notes of a pick. */
+function controlLines(beat: Extract<Beat, { kind: 'plain' }>, picture: Picture | undefined): string[] {
+  const control = beat.control;
+  if (control === undefined) return [];
+  const lines = [
+    `  CONTROL (${control.kind}) "${control.label}"${control.kind === 'scrub' ? ` along ${control.along}` : ''}`,
+  ];
+  if (picture === undefined || beat.show === undefined) return lines;
+  switch (control.kind) {
+    case 'scrub':
+      scrubPositions(picture, beat.show.state, control.along).forEach((position, index) =>
+        lines.push(`    ${String(index + 1)}. ${position.label}: ${describePicture(picture, position.state)}`),
+      );
+      break;
+    case 'switch':
+      lines.push(`    Switches to: ${describePicture(picture, control.to)}`);
+      break;
+    case 'pick':
+      for (const item of pickItems(picture)) lines.push(`    ${item.label}: ${item.note ?? ''}`);
+      break;
+  }
+  return lines;
+}
+
+/** A linked phrase with the part it names; the part's label is added when the picture has one for it. */
+function linkLines(beat: Beat, picture: Picture | undefined): string[] {
+  const labels = new Map((picture === undefined ? [] : orderedItems(picture)).map((item) => [item.id, item.label]));
+  return beat.links.map((link) => {
+    const label = labels.get(link.part);
+    return `  LINK "${link.phrase}" -> ${link.part}${label === undefined ? '' : ` (${label})`}`;
+  });
+}
+
+/**
+ * The document v3 Scroll as plain text for the operator's terminal, to read before it is released (D-138): kicker, title and
+ * promise, every section and beat in reading order with the picture each shows (in its words, derived by code), its linked
+ * phrases, its control and what the control reaches, its quotation, its asides, the takeaway and the ask suggestions. It is the
+ * document as stored. When `evidence` is given, the exact passages each part cites follow that part (a beat, an aside, a picture
+ * or `takeaway`). `support` is the library support check's stored result, as for {@link reviewTextOf}; a document v3 has no calls,
+ * so there is no answer check line. Pure.
+ */
+export function reviewTextV3(
+  document: ScrollDocumentV3,
+  evidence?: ReviewEvidence,
+  support?: StoredLibraryCheck | null,
+): string {
+  const beats = beatsOfV3(document);
+  const controls = beats.filter((beat) => beat.kind === 'plain' && beat.control !== undefined).length;
+  const lines: string[] = [
+    `${document.kicker} · ${document.title}`,
+    document.dek,
+    `${document.measures.mainWords} words · ${document.measures.readingMinutes} minutes · ${beats.length} beats · ${document.pictures.length} pictures · ${controls} controls · ${document.shape}`,
+    document.misconception.kind === 'myth'
+      ? `Misconception: ${document.misconception.claim} (source: ${document.misconception.source.label}, reviewed: ${String(document.misconception.source.reviewed)})`
+      : 'Misconception: none',
+    ...(support === undefined ? [] : supportCheckLines(support)),
+    '',
+    'PICTURES',
+  ];
+  const pictures = new Map(document.pictures.map((picture) => [picture.id, picture]));
+  for (const picture of document.pictures) {
+    lines.push(
+      `  [${picture.id}] ${picture.kind}: ${picture.title}${picture.caption === undefined ? '' : ` (${picture.caption})`}`,
+      ...quoteLines(evidence, picture.id).map((line) => `  ${line}`),
+    );
+  }
+  lines.push('');
+  const asidesByBeat = new Map<string, ScrollDocumentV3['asides']>();
+  for (const aside of document.asides)
+    asidesByBeat.set(aside.anchorBeat, [...(asidesByBeat.get(aside.anchorBeat) ?? []), aside]);
+  for (const section of document.sections) {
+    lines.push(`SECTION [${section.id}] ${section.title}`, '');
+    for (const beat of section.beats) {
+      const picture = beat.show === undefined ? undefined : pictures.get(beat.show.picture);
+      const emphasis = beat.kind === 'plain' && beat.emphasis !== undefined ? ` (${beat.emphasis})` : '';
+      lines.push(`[${beat.id}]${emphasis}${beat.kind === 'quote' ? ' (quotation)' : ''}`, `  ${beat.text}`);
+      if (beat.kind === 'quote') lines.push(`  QUOTE FROM: ${citeOf(beat.cite)}`);
+      lines.push(`  Simpler: ${beat.simple}`);
+      if (beat.show !== undefined)
+        lines.push(
+          `  PICTURE [${beat.show.picture}]: ${picture === undefined ? '(a picture the document does not declare)' : describePicture(picture, beat.show.state)}`,
+        );
+      lines.push(...linkLines(beat, picture));
+      if (beat.kind === 'plain') lines.push(...controlLines(beat, picture));
+      lines.push(...quoteLines(evidence, beat.id));
+      for (const aside of asidesByBeat.get(beat.id) ?? []) {
+        lines.push(`  ASIDE (${aside.kind}${aside.collapsed ? ', collapsed' : ''}) ${aside.title}: ${aside.text}`);
+        lines.push(...quoteLines(evidence, aside.id));
+      }
+      lines.push('');
+    }
+  }
+  lines.push('TO SUM UP', `  ${document.takeaway}`, ...quoteLines(evidence, 'takeaway'));
   lines.push('', 'ASK SUGGESTIONS', ...document.askSuggestions.map((suggestion) => `  ${suggestion}`));
   if (evidence !== undefined && evidence.sources.length > 0)
     lines.push('', 'SOURCES', ...evidence.sources.map((source) => `  ${source}`));

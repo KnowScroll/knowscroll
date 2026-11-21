@@ -1,7 +1,18 @@
 import { sql, type Transaction } from 'kysely';
 import { z } from 'zod';
-import { parseDocument, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
-import { ScrollProvenance, ScrollProvenanceV2, type ProductionRecord } from '@knowscroll/scroll-model/internal';
+import {
+  parseDocument,
+  parseDocumentV2,
+  parseDocumentV3,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+} from '@knowscroll/scroll-model';
+import {
+  ScrollProvenance,
+  ScrollProvenanceV2,
+  ScrollProvenanceV3,
+  type ProductionRecord,
+} from '@knowscroll/scroll-model/internal';
 import { MINIMAX_MODELS } from '../../../infrastructure/config/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
@@ -20,6 +31,7 @@ import type { BookRecipe } from '../domain/library/generated.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
 import { PRODUCTION_VERSIONS, productionVersionOf } from './topics.js';
+import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
 const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
@@ -138,7 +150,17 @@ interface StoredLineage {
   readonly writerPromptVersion: string;
 }
 
+/**
+ * The lineage a revision states, by its document schema, or `undefined` when document or provenance do not parse. A schema this
+ * function does not know must never fall into the v1 branch's answer silently, so each stored schema has its own branch.
+ */
 function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
+  if (row.document_version === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    const document = parseDocumentV3(row.document);
+    const provenance = ScrollProvenanceV3.safeParse(row.provenance);
+    if (document.kind !== 'valid' || !provenance.success) return undefined;
+    return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_V3_PROMPT_VERSION };
+  }
   if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
     const document = parseDocumentV2(row.document);
     const provenance = ScrollProvenanceV2.safeParse(row.provenance);

@@ -381,7 +381,7 @@ requests per recipe** (six for a v2 library recipe, which adds the answer check,
 stores the immutable admitted revision in the same production-root transaction. Research and model
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
 job after a crash. The operator's `content writer-spike-v2` runs the v2 writer (`scroll-authoring.v2`) on library recipes and reports; it admits and publishes nothing
-(S-0, D-120 to D-122). `content writer-spike-v3` does the same for the document v3 writer in two arms, with the same promise (#771; "Writer v3 and the v3 spike" in the production README). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
+(S-0, D-120 to D-122). `content writer-spike-v3` does the same for the document v3 writer in two arms, with the same promise (#771; "Writer v3 and the v3 spike" in the production README). A recipe the plan marks `scrollV3` is produced by the same job with its own production version (`scroll-production-v3.v1`) and is held for review, and its publication verifies the lineage of a document v3 and writes its topic attribution and coverage (#772, **implemented, no writer yet**: no recipe is marked and no v3 writer exists, see [production/README.md](production/README.md)). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
 (D-129, implemented). The plan marks the four Seasons recipes (D-137), the thirty-five recipes of four systems (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217), and a v2 library Scroll is stored **held** until an operator releases it (D-138, "The review gate" below). `content regenerate --only <keys>` makes another take of one whose Scroll is served (D-197), three takes to a production version. See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
@@ -493,7 +493,7 @@ No state existed between "admitted" and "served": an asset's `status` was `admit
 read follows its **current revision** (`assets.revision`). The gate uses that pointer, so it adds almost no
 machinery.
 
-- **Hold.** Production of a v2 library recipe (`ProductionSubject.scrollV2`, however the job was sent) stores the
+- **Hold.** Production of a v2 or a document v3 library recipe (`ProductionSubject.scrollV2` or `scrollV3`, however the job was sent) stores the
   revision, its provenance, its topic and its coverage as usual, but does not advance the current revision. A new
   asset is created with status `held`. A `content.revision_reviews` row says `held`. The production job is
   `published` and records the code `held_for_review`. v1 recipes and made-to-order Scrolls publish as before.
@@ -504,9 +504,10 @@ machinery.
   draw on, the check that a report names a revision a person could have met, and the coverage mapping that
   formation reads) also refuse a revision whose review state is not `released` (`adapters/review-gate-sql.ts`).
   The coverage write path (publication and `readmit-coverage`) still reaches held revisions.
+- **Document v3 (#772; implemented, no writer yet).** The gate reads a held `scroll-document.v3` too. `review-list` carries its title, reading time, coverage and, as `v3`, its beats, its pictures by kind and its controls (`stops` is the beats and `calls` is 0). `review-show` prints it with `reviewTextV3`: kicker, title, dek, every section and beat with the picture it shows in words, its linked phrases, its control and the words of each state it reaches, quotations with who said them, asides, "To sum up" and the ask suggestions. With `--sources` the passages each part cites follow it; the parts of a v3 are its beat, aside and picture ids and `takeaway` (`ScrollProvenanceV3`). The listing and the text of a v1 or v2 Scroll are unchanged. Release needs an active coverage head, as before (`coverage_missing`).
 - **Answer check (D-198).** `review-list` and `review-show` carry what the answer check said about the calls (`passed`, `repaired`, `unchecked`, or `not run` for a revision made before it); `reviewTextOf` prints it under the header.
 - **Support check (D-415).** The library support check's verdict is **hidden by default**: `review-list --show-check` carries `supportCheck` (the verdict by the policy in force, the state and the counts, `null` while it has not run; no sentence) and `review-show --show-check` prints its verdict, the sentences that passed as stating no fact, the sentences to read first and a "Not covered:" line, so the decisions it is measured against stay the operator's own. The check, its queue, its sweep and the replay that measures it against these decisions are in the [production README](production/README.md); it releases nothing and only a revision with a row here can be checked.
-- **Standing.** `readLibraryStatus` reports `held` (with `heldRevision`), not `published`, and for a v2 recipe its `regeneration` state, `takesLeft` and `check`. `produce-library`
+- **Standing.** `readLibraryStatus` reports `held` (with `heldRevision`), not `published`, and for a v2 recipe (or a recipe planned as document v3, which counts as published only while its current revision is a v3) its `regeneration` state, `takesLeft` and `check`. `produce-library`
   skips it, a second take is refused while the first is held, and Quartermaster's `chooseScrollRecipe` never
   picks a v2 recipe, because no person's ask could be answered by a Scroll that waits for a read. A group that
   named a recipe before the plan made it v2 reads as stopped (`readScrollProduction`), so a join never sends its

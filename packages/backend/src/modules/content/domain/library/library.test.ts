@@ -7,6 +7,8 @@ import {
   GUIDE_CHARACTERS,
   INTERACTIVE_KINDS as SCROLL_MODEL_PLAY_KINDS,
   LIMITS_V2,
+  PICTURE_KINDS,
+  SCROLL_SHAPES,
   STAGE_FIGURE_SLOTS,
   STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS,
 } from '@knowscroll/scroll-model';
@@ -14,7 +16,9 @@ import { LIBRARY_SERIES } from './continuity.js';
 import {
   GUIDE_CHARACTER_IDS,
   INTERACTIVE_KINDS,
+  PICTURE_KIND_IDS,
   PLAY_BLOCK_KINDS,
+  SCROLL_SHAPE_IDS,
   STAGE_FIGURE_SLOT_IDS,
   STAGE_KIT_IDS,
 } from './plan.js';
@@ -485,6 +489,31 @@ describe('what a recipe asks of its picture (D-382, D-383)', () => {
       expect(plan?.orbitMonths ?? 2, recipe.key).toBeGreaterThanOrEqual(2);
       expect(plan?.orbitMonths ?? 2, recipe.key).toBeLessThanOrEqual(12);
       expect(new Set(plan?.figures).size, recipe.key).toBe(plan?.figures?.length ?? 0);
+    }
+  });
+});
+
+describe('the document v3 plan (scrollV3, #771)', () => {
+  const planned = recipes.filter((recipe) => recipe.scrollV3 !== undefined);
+
+  it('keeps the plan’s picture kinds and shapes in step with scroll-model', () => {
+    expect([...PICTURE_KIND_IDS]).toEqual([...PICTURE_KINDS]);
+    expect([...SCROLL_SHAPE_IDS]).toEqual([...SCROLL_SHAPES]);
+  });
+
+  it('gives a recipe one plan at most: v2 or document v3, never both', () => {
+    for (const recipe of recipes)
+      expect(recipe.scrollV2 !== undefined && recipe.scrollV3 !== undefined, recipe.key).toBe(false);
+  });
+
+  it('names two or three sections, and at most three pictures, each with what it is there to show', () => {
+    for (const recipe of planned) {
+      const plan = recipe.scrollV3;
+      expect(plan?.sections.length ?? 0, recipe.key).toBeGreaterThanOrEqual(2);
+      expect(plan?.sections.length ?? 0, recipe.key).toBeLessThanOrEqual(3);
+      expect(plan?.pictures?.length ?? 1, recipe.key).toBeGreaterThanOrEqual(1);
+      expect(plan?.pictures?.length ?? 1, recipe.key).toBeLessThanOrEqual(3);
+      for (const picture of plan?.pictures ?? []) expect(picture.purpose.trim(), recipe.key).not.toBe('');
     }
   });
 });

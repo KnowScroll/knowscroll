@@ -1,5 +1,5 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
@@ -20,7 +20,13 @@ import {
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
 import { answerChecksOf } from '../production/answer-check.js';
-import { parseProductionRecipe, planRefusalOf, productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
+import {
+  parseProductionRecipe,
+  planRefusalOf,
+  productionVersionOf,
+  scrollV2PlanOf,
+  scrollV3PlanOf,
+} from '../production/topics.js';
 import { codeRecipeOf } from '../application/recipe-book.js';
 import { recipeBookOf } from './stored-recipes.js';
 
@@ -88,11 +94,26 @@ async function readRecipeIdentities(
 }
 
 /**
+ * The document schema a recipe's Scroll must have to count as published, or `undefined` for a v1 recipe, which any
+ * admitted Scroll satisfies. A recipe the plan marks `scrollV3` needs a `scroll-document.v3`, one it marks `scrollV2` a
+ * `scroll-document.v2`. Pure.
+ */
+export function plannedDocumentVersionOf(recipe: string): string | undefined {
+  if (scrollV3PlanOf(recipe) !== undefined) return SCROLL_DOCUMENT_V3_SCHEMA_VERSION;
+  return scrollV2PlanOf(recipe) === undefined ? undefined : SCROLL_DOCUMENT_V2_SCHEMA_VERSION;
+}
+
+/** Whether the plan marks a recipe as a v2 or a document v3 Scroll: such a Scroll is read by an operator and may be regenerated. Pure. */
+export function isPlannedAsV2OrV3(recipe: string): boolean {
+  return scrollV2PlanOf(recipe) !== undefined || scrollV3PlanOf(recipe) !== undefined;
+}
+
+/**
  * Every named recipe's production standing: its Scroll is admitted, its jobs at the current recipe
  * version are running, rejected (and may be taken again) or ended for good, or nothing has happened.
- * A recipe the plan marks `scrollV2` is published only once its current revision is a v2 document: a
- * v1 Scroll admitted earlier does not satisfy it, so the recipe is produced again as a new revision
- * (D-129). Reads shared, nonpersonal tables only.
+ * A recipe the plan marks `scrollV2` is published only once its current revision is a v2 document, and one it marks
+ * `scrollV3` only once it is a document v3: a Scroll of an earlier schema admitted before does not satisfy it, so the
+ * recipe is produced again as a new revision (D-129). Reads shared, nonpersonal tables only.
  */
 export async function readLibraryStatus(
   db: Queryable,
@@ -124,12 +145,13 @@ export async function readLibraryStatus(
   return recipes.map((recipe) => {
     const jobs = runs.filter((run) => run.topic === recipe);
     const asset = assets.find((row) => row.id === assetOf(recipe));
+    const plannedVersion = plannedDocumentVersionOf(recipe);
     const admitted =
-      asset?.status === 'admitted' &&
-      (scrollV2PlanOf(recipe) === undefined || asset.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
+      asset?.status === 'admitted' && (plannedVersion === undefined || asset.document_version === plannedVersion);
     const latest = jobs.at(-1);
     const jobStates = jobs.map(standingStateOf);
-    const v2 = scrollV2PlanOf(recipe) !== undefined;
+    // The flag's name is old: a recipe planned as document v3 is regenerated like a v2 one, from its served take.
+    const v2 = isPlannedAsV2OrV3(recipe);
     const regeneration = regenerationStanding({
       v2,
       admitted,
@@ -180,7 +202,7 @@ function facetFirst(recipes: readonly BookRecipe[], facetId: string): readonly B
  * run (D-037): code only, from the recipe book and the recipes' current standing. Read inside the caller's
  * personal transaction; no lock and no write.
  *
- * A code recipe the plan marks v2 is never chosen: its Scroll waits for an operator to read it before anyone is
+ * A code recipe the plan marks v2 or document v3 is never chosen: its Scroll waits for an operator to read it before anyone is
  * served (D-138), and a person's ask cannot be answered by it. A stored recipe is chosen though its Scroll is held the
  * same way: it exists so that readers always get new content, the operator's read is the one temporary gate, and the
  * Scroll is served once it is released (D-412). The kinds a decision may choose are `options.allow`: each has its own
@@ -215,7 +237,9 @@ export async function chooseScrollRecipeIn(
       ? await book.servingBrief(brief)
       : facetFirst(await book.servingBrief({ topicId: brief.topicId }), aimedFacet);
   // A code recipe is Create's to make only while it is a v1 Scroll. A stored recipe has a status and is always v2.
-  const producible = ranked.filter((recipe) => recipe.status !== undefined || recipe.scrollV2 === undefined);
+  const producible = ranked.filter(
+    (recipe) => recipe.status !== undefined || (recipe.scrollV2 === undefined && recipe.scrollV3 === undefined),
+  );
   const standing = await readLibraryStatus(
     db,
     producible.map((recipe) => recipe.key as ProductionRecipeKey),
@@ -242,7 +266,7 @@ export async function chooseScrollRecipeIn(
  * The standing of one recipe's production and the take a send for it should name, for a waiter
  * deciding whether to keep waiting and for a request that joins work already under way.
  *
- * Nothing a person's ask waits on is coming from a code recipe the plan marks v2 (D-138): the operator's library run
+ * Nothing a person's ask waits on is coming from a code recipe the plan marks v2 or document v3 (D-138): the operator's library run
  * makes those, and its Scroll waits for a read. So a group that names one, from before the plan marked it
  * v2, reads as stopped until the Scroll is served: a join never sends its job again, and its waiters
  * close honestly instead of waiting on work Create does not own. A stored recipe is Create's own work, so its standing
@@ -258,7 +282,7 @@ export async function readScrollProductionIn(db: Queryable, recipe: string): Pro
   if (key === undefined) return { state: 'stopped' };
   const [standing] = await readLibraryStatus(db, [key]);
   if (standing === undefined) return { state: 'stopped' };
-  if (!isGeneratedRecipeKey(key) && scrollV2PlanOf(key) !== undefined && standing.state !== 'published')
+  if (!isGeneratedRecipeKey(key) && isPlannedAsV2OrV3(key) && standing.state !== 'published')
     return { state: 'stopped' };
   const take = takeToSend(standing.state, standing.takes);
   return { state: standing.state, ...(take === undefined ? {} : { take }) };
