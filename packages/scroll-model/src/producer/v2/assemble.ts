@@ -20,7 +20,7 @@ import {
   type ReadStop,
   type Recap,
   type ScrollDocumentV2,
-  type Stage,
+  type LiveStage,
   type Stop,
 } from '../../v2/document.js';
 import { EARTH_SKY_KIT, type StageFigure } from '../../v2/kit.js';
@@ -311,7 +311,7 @@ function buildStage(
   stops: readonly Stop[],
   patches: readonly (Readonly<Record<string, string>> | undefined)[],
   figures: readonly (readonly StageFigure[] | undefined)[],
-): Stage {
+): LiveStage {
   const kit = kitDefinition(kitId);
   const states: { stop: string; state: WordState; alt: string }[] = [];
   let chosen = kit.initial;
@@ -331,7 +331,7 @@ function buildStage(
   });
   // The kit's own functions made every state, so each holds exactly its words: the document validator proves it again.
   // (TypeScript sees the generic shape here; `assembleScrollV2` has already refused a kit the code does not define.)
-  return { kit: kitId, states };
+  return { kit: kitId, states } as LiveStage;
 }
 
 /**

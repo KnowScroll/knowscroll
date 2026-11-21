@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { recapMonths, validateDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { isLiveStage, recapMonths, validateDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import type { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
@@ -95,7 +95,8 @@ describe('Seasons Part 1 and its stage plan (labelled CI fixtures, real PostgreS
 
     const document = await storedDocument(TOPICS.seasons.assetId, revisionOf(result));
     const stage = document.stage;
-    if (stage?.kit !== 'earth-sky.v1') throw new Error('CI expected an Earth & sky stage');
+    if (stage === undefined || !isLiveStage(stage) || stage.kit !== 'earth-sky.v1')
+      throw new Error('CI expected an Earth & sky stage');
     const states = stage.states;
     expect(recapMonths(states.map((entry) => entry.state))).toHaveLength(2);
     const call = document.stops.find((stop) => stop.kind === 'call_it');
