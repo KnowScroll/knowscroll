@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { callsOf, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { notRetired } from './retirement-sql.js';
 import { notUnderReview } from './review-gate-sql.js';
 import type { ReadScrollPlayFacts, ScrollCallFacts } from '../public.js';
 
@@ -10,7 +11,7 @@ import type { ReadScrollPlayFacts, ScrollCallFacts } from '../public.js';
  * keeps only what judging a pick, showing a call to a thread and awarding the landmark need. A revision the review gate holds or rejected reads as
  * absent, like every read that takes an exact revision from its caller (D-138), and so does a revision of an asset that is not admitted (withdrawn,
  * D-418): a call is never judged against a Scroll nobody is served. An older revision of an admitted asset still reads, as for a person who
- * opened it before a correction. No lock and no
+ * opened it before a correction, unless a document v3 retired it (D-435): then it reads as absent. No lock and no
  * network. A person locks at most four calls a Scroll, so nothing is cached: every read asks the
  * gate again.
  */
@@ -24,6 +25,7 @@ export const readScrollPlayFacts: ReadScrollPlayFacts = async (scope, assetId, r
     .where('asset.kind', '=', 'scroll')
     .where('asset.status', '=', 'admitted')
     .where(sql<boolean>`${notUnderReview('revision.asset_id', 'revision.revision')}`)
+    .where(sql<boolean>`${notRetired('revision.asset_id', 'revision.revision')}`)
     .executeTakeFirst();
   if (
     (row?.document as { schemaVersion?: unknown } | null | undefined)?.schemaVersion !==

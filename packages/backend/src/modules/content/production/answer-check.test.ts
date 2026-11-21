@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { RECIPES } from '../domain/library/index.js';
+import { summariseAnswerChecks } from '../domain/answer-check.js';
 import { describe, expect, it } from 'vitest';
 import { makeAnswerCheckStep } from './answer-check-step.js';
 import { evidencePassages } from './evidence.js';
@@ -244,5 +246,40 @@ describe('a draft with no call to check', () => {
       record: { draft: 1, kind: 'checked', verdicts: [] },
       receipt: { role: 'answer_check', kind: 'checked', verdicts: [] },
     });
+  });
+});
+
+describe('the answer check of a document v3 Scroll (D-435)', () => {
+  // A document v3 has no calls (decision I1), so its answer check is the empty one: passed, with no request.
+  const v3 = JSON.parse(
+    readFileSync(new URL('../../../../../scroll-model/fixtures/documents/seasons-v3-ci.json', import.meta.url), 'utf8'),
+  ) as unknown;
+
+  it('finds no call in a stored document v3, so there is nothing for the checker to be asked', () => {
+    expect(callsOfStoredDocument(v3)).toEqual([]);
+  });
+
+  it('is recorded as passed with no request, and is read back as passed, which is what the release policy asks for', async () => {
+    const harness = {
+      proposeProduction: () => Promise.reject(new Error('CI: no request may be sent for a document v3')),
+      readProductionRunAccounting: () => Promise.reject(new Error('CI: nothing to account')),
+      closeProductionRun: () => Promise.reject(new Error('CI: nothing to close')),
+    };
+    const step = makeAnswerCheckStep({
+      authority: { scopeId: 'scroll-supply', generation: 1 },
+      withScope: () => Promise.reject(new Error('CI: no scope is needed')),
+      harness,
+    });
+    const outcome = await step.check({
+      jobId: 'b'.repeat(8),
+      policyVersion: 'scroll-production.v17',
+      draft: 1,
+      calls: callsOfStoredDocument(v3),
+      signal: new AbortController().signal,
+    });
+    if (outcome.kind !== 'done') throw new Error('CI expected a finished check');
+    expect(outcome.record).toEqual({ draft: 1, kind: 'checked', verdicts: [] });
+    // The receipt a job keeps is what the policy reads back.
+    expect(summariseAnswerChecks(answerChecksOf([outcome.receipt]))).toEqual({ outcome: 'passed', calls: 0 });
   });
 });

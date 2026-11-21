@@ -128,10 +128,11 @@ export interface WriterSpikeDeps {
   readonly blocks?: ReadonlyMap<ScrollTopic, SpikeBlocks>;
 }
 
-const emptyTokens = { input: null, output: null, thinking: null, complete: false } as const;
+/** The tokens of a line before any attempt was paid. */
+export const emptyTokens = { input: null, output: null, thinking: null, complete: false } as const;
 
 /** Sums reported usage; `complete` is false when any attempt did not report a count. */
-function tokensOf(attempts: readonly SpikeAttempt[]): SpikeLine['tokens'] {
+export function tokensOf(attempts: readonly SpikeAttempt[]): SpikeLine['tokens'] {
   const paid = attempts;
   const sum = (pick: (attempt: SpikeAttempt) => number | null): number | null =>
     paid.length === 0 ? null : paid.reduce<number>((total, attempt) => total + (pick(attempt) ?? 0), 0);
@@ -143,7 +144,8 @@ function tokensOf(attempts: readonly SpikeAttempt[]): SpikeLine['tokens'] {
   };
 }
 
-const toSpikeAttempt = (attempt: ProductionAttemptAccounting): SpikeAttempt => ({
+/** One paid attempt as a spike line reports it. */
+export const toSpikeAttempt = (attempt: ProductionAttemptAccounting): SpikeAttempt => ({
   attemptId: attempt.attemptId,
   step: attempt.step,
   state: attempt.state,
@@ -164,7 +166,7 @@ function blocksIn(document: ScrollDocumentV2): string[] {
 }
 
 /** The outcome a harness result stands for, before the answer is compiled. */
-function classify(result: ProposeOutcome<AuthoredScrollV2>): { outcome: SpikeOutcome; code?: string } {
+export function classify<T>(result: ProposeOutcome<T>): { outcome: SpikeOutcome; code?: string } {
   switch (result.kind) {
     case 'proposed':
       return { outcome: result.repaired ? 'accepted_after_repair' : 'accepted_first_take' };
@@ -365,7 +367,7 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
   return { writeOne };
 }
 
-/** Outcomes after which no further topic is started: the cause is not about the next topic. */
+/** Outcomes after which no further job is started: the cause is not about the next job. */
 const STOPS_THE_BATCH: ReadonlySet<SpikeOutcome> = new Set([
   'paused',
   'unknown',
@@ -374,42 +376,54 @@ const STOPS_THE_BATCH: ReadonlySet<SpikeOutcome> = new Set([
   'model_mismatch',
 ]);
 
-export interface SpikeBatchSummary {
+/** What a batch reports: how many jobs ran, which never started and what stopped it, if anything did. `Job` is what a batch runs: a recipe key here. */
+export interface SpikeBatchSummary<Job = ScrollTopic> {
   readonly requested: number;
   readonly completed: number;
-  /** Topics never started because an earlier outcome stopped the batch. */
-  readonly notStarted: readonly ScrollTopic[];
-  readonly stoppedBy?: { readonly key: ScrollTopic; readonly outcome: SpikeOutcome };
+  /** Jobs never started because an earlier outcome stopped the batch. */
+  readonly notStarted: readonly Job[];
+  readonly stoppedBy?: { readonly key: Job; readonly outcome: SpikeOutcome };
 }
 
 /**
- * Runs topics through `writeOne`, at most `concurrency` at a time, handing each result to `emit` as
- * soon as it is ready. After an outcome that says the cause is not the topic (a spent budget, an
+ * Runs jobs through `writeOne`, at most `concurrency` at a time, handing each result to `emit` as
+ * soon as it is ready. After an outcome that says the cause is not the job (a spent budget, an
  * unknown attempt, a refused harness, a model mismatch) or two provider failures in a row, no new
- * topic starts; those already running finish.
+ * job starts; those already running finish. A job is any value the caller can run: the v2 spike
+ * runs recipe keys, the v3 spike a recipe with an arm.
  */
-export async function runSpikeBatch(
+export async function runSpikeJobs<Job, Result extends { readonly line: { readonly outcome: SpikeOutcome } }>(
+  jobs: readonly Job[],
+  writeOne: (job: Job) => Promise<Result>,
+  emit: (result: Result) => Promise<void>,
+  concurrency: number,
+): Promise<SpikeBatchSummary<Job>> {
+  const queue = [...jobs];
+  let completed = 0;
+  let consecutiveFailures = 0;
+  let stoppedBy: SpikeBatchSummary<Job>['stoppedBy'];
+  const worker = async (): Promise<void> => {
+    while (stoppedBy === undefined) {
+      const job = queue.shift();
+      if (job === undefined) return;
+      const result = await writeOne(job);
+      await emit(result);
+      completed += 1;
+      consecutiveFailures = result.line.outcome === 'provider_failed' ? consecutiveFailures + 1 : 0;
+      if ((STOPS_THE_BATCH.has(result.line.outcome) || consecutiveFailures >= 2) && stoppedBy === undefined)
+        stoppedBy = { key: job, outcome: result.line.outcome };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, SPIKE_MAX_CONCURRENCY)) }, worker));
+  return { requested: jobs.length, completed, notStarted: queue, ...(stoppedBy === undefined ? {} : { stoppedBy }) };
+}
+
+/** The v2 spike's batch: `runSpikeJobs` over recipe keys. */
+export function runSpikeBatch(
   keys: readonly ScrollTopic[],
   writeOne: (key: ScrollTopic) => Promise<SpikeResult>,
   emit: (result: SpikeResult) => Promise<void>,
   concurrency: number,
 ): Promise<SpikeBatchSummary> {
-  const queue = [...keys];
-  let completed = 0;
-  let consecutiveFailures = 0;
-  let stoppedBy: SpikeBatchSummary['stoppedBy'];
-  const worker = async (): Promise<void> => {
-    while (stoppedBy === undefined) {
-      const key = queue.shift();
-      if (key === undefined) return;
-      const result = await writeOne(key);
-      await emit(result);
-      completed += 1;
-      consecutiveFailures = result.line.outcome === 'provider_failed' ? consecutiveFailures + 1 : 0;
-      if ((STOPS_THE_BATCH.has(result.line.outcome) || consecutiveFailures >= 2) && stoppedBy === undefined)
-        stoppedBy = { key, outcome: result.line.outcome };
-    }
-  };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, SPIKE_MAX_CONCURRENCY)) }, worker));
-  return { requested: keys.length, completed, notStarted: queue, ...(stoppedBy === undefined ? {} : { stoppedBy }) };
+  return runSpikeJobs(keys, writeOne, emit, concurrency);
 }

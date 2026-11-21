@@ -14,8 +14,10 @@ import {
 } from '../domain/library-support.js';
 import { recipeBookOf } from '../adapters/stored-recipes.js';
 import type { CheckLibrarySupport } from './library-support-check.js';
-import { LIBRARY_SUPPORT_CHECK_VERSION, NOT_COVERED } from './library-support.js';
+import { NOT_COVERED } from './library-support.js';
+import { LIBRARY_CHECKER_VERSIONS } from './library-support-kinds.js';
 import { libraryCheckStore, type StoredLibraryCheck } from './library-support-store.js';
+import { NOT_COVERED_V3 } from './library-support-v3.js';
 import { SPIKE_MODEL } from './spike-v2/run.js';
 
 /** The most decided revisions one replay reads. */
@@ -35,7 +37,7 @@ export type ReplayOutcome =
   | 'paused'
   /** The revision's checks would pass `--max-requests`: nothing was sent for it. */
   | 'over_cap'
-  /** The revision is no stored v2 Scroll. */
+  /** The revision is no stored v2 or v3 Scroll. */
   | 'not_replayable';
 
 /** What the operator prints for one decided revision: counts and codes, never a sentence, a title or a reason. */
@@ -79,7 +81,10 @@ export type ReplayStop = 'paused' | 'outcome_unknown' | 'scope_refused' | 'abort
 export type ReplayStatus = 'done' | 'partial' | 'stopped';
 
 export interface ReplaySummary {
+  /** The version of the check of a document v2 Scroll. */
   readonly checkerVersion: string;
+  /** The version of the check of a document v3 Scroll (D-435): a decided v3 revision is checked and measured under it. */
+  readonly checkerVersionV3: string;
   readonly status: ReplayStatus;
   readonly revisions: number;
   readonly requestsSent: number;
@@ -88,8 +93,10 @@ export interface ReplaySummary {
   readonly skippedForCap: { readonly released: number; readonly rejected: number; readonly total: number };
   /** Why the replay did not look at every revision it read, or `null` when it did. */
   readonly stopped: ReplayStop | null;
-  /** What the check does not read, so the agreement is not taken for more than it measures. */
+  /** What the check of a document v2 does not read, so the agreement is not taken for more than it measures. */
   readonly notCovered: readonly string[];
+  /** The same for the check of a document v3. */
+  readonly notCoveredV3: readonly string[];
   /** How the stored results of this checker version agree with the operator's decisions, whoever's replay stored them. */
   readonly agreement: AgreementSummary;
 }
@@ -196,7 +203,7 @@ function lineOf(
 
 /**
  * Measures the library support check against the operator's own decisions (D-415). It reads the revisions an operator released or
- * rejected (`content.revision_reviews`), runs the check over each that has no result of the current checker version, and reports how the
+ * rejected (`content.revision_reviews`), runs the check over each that has no result of the checker version that reads its document (a v2's by D-415, a v3's by D-435), and reports how the
  * stored results agree with the decisions: for each decision, how many revisions the check would have passed and flagged, with the
  * rejected ones it would have passed as the dangerous number, by recipe family, and the same results under looser limits.
  *
@@ -209,9 +216,15 @@ function lineOf(
 export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies) {
   const policy = deps.policy ?? LIBRARY_SUPPORT_POLICY;
 
-  /** The agreement of the stored results of this checker version for these decided revisions. */
+  /**
+   * The agreement of the stored results of this build's checker versions for these decided revisions. A revision has a result of the version that
+   * reads its document only (a v2's of v2's, a v3's of v3's), so one read of each version and a merge give each revision its own.
+   */
   async function agreement(familyOf: FamilyOf, decided: readonly DecidedRevision[]): Promise<AgreementSummary> {
-    const stored = await libraryCheckStore.readMany(deps.db, LIBRARY_SUPPORT_CHECK_VERSION, decided);
+    const stored = new Map([
+      ...(await libraryCheckStore.readMany(deps.db, LIBRARY_CHECKER_VERSIONS.v2, decided)),
+      ...(await libraryCheckStore.readMany(deps.db, LIBRARY_CHECKER_VERSIONS.v3, decided)),
+    ]);
     const rows = decided.map((entry): DecidedCheck => {
       const check = stored.get(`${entry.assetId}:${String(entry.revision)}`);
       const { family } = familyOf(entry.assetId);
@@ -228,10 +241,14 @@ export function makeLibrarySupportReplay(deps: LibrarySupportReplayDependencies)
     signal: AbortSignal,
     emit: (line: ReplayLine) => Promise<void> | void,
   ): Promise<ReplaySummary> {
-    const base = { checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION, maxRequests: target.maxRequests };
+    const base = {
+      checkerVersion: LIBRARY_CHECKER_VERSIONS.v2,
+      checkerVersionV3: LIBRARY_CHECKER_VERSIONS.v3,
+      maxRequests: target.maxRequests,
+    };
     const decided = await libraryCheckStore.decided(deps.db, { since: target.since, limit: target.limit });
     const familyOf = await familyLookupOf(deps.recipes ?? recipeBookOf(deps.db));
-    const common = { ...base, revisions: decided.length, notCovered: NOT_COVERED };
+    const common = { ...base, revisions: decided.length, notCovered: NOT_COVERED, notCoveredV3: NOT_COVERED_V3 };
     if (deps.model !== SPIKE_MODEL)
       return {
         ...common,

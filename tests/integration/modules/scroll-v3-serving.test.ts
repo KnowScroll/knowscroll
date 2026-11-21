@@ -40,9 +40,10 @@ const COVER_V1 = 'offer-cover.v1';
 const COVER_V2 = 'offer-cover.v2';
 
 /**
- * Serving a document v3 (#763, D-129): a client that declares the schema is served the document whole; one that does not
- * is offered the latest earlier revision whose schema it declares; a revision pinned by an offer or a link is never swapped.
- * Fixtures are scroll-model's labelled CI documents, re-sealed under fresh assets, over real PostgreSQL; no provider.
+ * Serving a document v3 (#763, D-129, D-435): a client that declares the schema is served the document whole; a client that does not
+ * is offered nothing for an asset whose current revision is a v3, because a released v3 retires the asset's earlier revisions (they are served
+ * to no one, pinned or not); a revision pinned by an offer or a link is never swapped. The second suite, `retirement`, is what is left of the
+ * fallback and the rest of retirement. Fixtures are scroll-model's labelled CI documents, re-sealed under fresh assets, over real PostgreSQL; no provider.
  */
 describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
   let database: TestDatabase<Database>;
@@ -168,7 +169,7 @@ describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
     });
   });
 
-  describe('the revision an older app is offered (decision H)', () => {
+  describe('the revision an older app is offered (decision H1, amended by D-435)', () => {
     it('is the current revision for a client that declares the schema', async () => {
       expect(await offered(v3Client)).toEqual(
         new Map([
@@ -179,18 +180,13 @@ describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
       );
     });
 
-    it('is the latest earlier v2 revision for a v2-only client, and nothing for an asset that is only a document v3', async () => {
-      // threeAges holds a v1 revision 1 and a v2 revision 2: the later of the two it can read, not the oldest.
-      expect(await offered(v2Client)).toEqual(
-        new Map([
-          [threeAges.assetId, 2],
-          [twoAges.assetId, 1],
-        ]),
-      );
+    it('is nothing for a v2-only client, for an asset that is only a document v3 and for an asset whose earlier v1 and v2 revisions a document v3 retired', async () => {
+      // threeAges holds a v1 revision 1 and a v2 revision 2, and twoAges a v2 revision 1: all retired by the document v3 that followed (D-435).
+      expect(await offered(v2Client)).toEqual(new Map());
     });
 
-    it('is the latest earlier v1 revision for a v1-only client, exactly as before document v3 existed', async () => {
-      expect(await offered(v1Client)).toEqual(new Map([[threeAges.assetId, 1]]));
+    it('is nothing for a v1-only client for such an asset too; the fallback to a v1 remains only where the current revision is a v2 (see `retirement`)', async () => {
+      expect(await offered(v1Client)).toEqual(new Map());
     });
 
     it('is nothing for a client that declares no Scroll schema it can use', async () => {
@@ -214,12 +210,13 @@ describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
         kind: 'cannot_render',
         reason: 'unsupported_document',
       });
-      // The earlier revision is still its own exact revision, readable by the client that can render it.
-      expect(
-        await inScope((scope) =>
-          readExactEncounter(scope, { assetId: twoAges.assetId, assetRevision: 1, capabilities: v2Client }),
-        ),
-      ).toMatchObject({ assetRevision: 1 });
+      // The earlier revision was retired by the v3 that followed it: no exact read opens it, for the client that could render it either.
+      for (const capabilities of [v2Client, v3Client])
+        expect(
+          await inScope((scope) =>
+            readExactEncounter(scope, { assetId: twoAges.assetId, assetRevision: 1, capabilities }),
+          ),
+        ).toBeUndefined();
     });
   });
 
@@ -277,14 +274,6 @@ describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
       const offers = await open([V1, V2, V3]);
       expect(offers.length).toBeGreaterThan(0);
       for (const offer of offers) expect(Object.hasOwn(offer, 'cover')).toBe(false);
-    });
-
-    it('is the stage frame of the earlier v2 revision a v2-only session is offered, under the version it declared', async () => {
-      const offers = await open([V1, V2, COVER_V2]);
-      const stand = offers.find((offer) => offer.assetId === threeAges.assetId);
-      expect(stand?.assetRevision).toBe(2);
-      expect(stand?.cover).toMatchObject({ version: COVER_V2, figure: firstFrameOf(threeAges.v2.document) });
-      expect(offers.some((offer) => offer.assetId === onlyV3.assetId)).toBe(false);
     });
   });
 
@@ -377,9 +366,8 @@ describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
   describe('a document v3 has no calls (decision I1)', () => {
     it('reads as no play facts, never as a throw, so a lock, a challenge or a landmark finds nothing', async () => {
       expect(await inScope((scope) => readScrollPlayFacts(scope, onlyV3.assetId, 1))).toBeUndefined();
-      // Its older v2 revision still has its calls: the facts follow the exact revision.
-      const older = await inScope((scope) => readScrollPlayFacts(scope, threeAges.assetId, 2));
-      expect(older?.calls.length).toBeGreaterThan(0);
+      // Its older v2 revision had calls, and the document v3 that followed retired it (D-435): the facts follow the exact revision, and a retired one is absent.
+      expect(await inScope((scope) => readScrollPlayFacts(scope, threeAges.assetId, 2))).toBeUndefined();
       expect(await inScope((scope) => readScrollPlayFacts(scope, threeAges.assetId, 3))).toBeUndefined();
     });
 
@@ -397,6 +385,283 @@ describe('serving a document v3 (real PostgreSQL CI fixtures)', () => {
         .execute();
       const calls = await makeReadLibraryCalls(database.db)({ kind: 'planet', id: 'earth.seasons' }, 100);
       expect(calls.map((entry) => entry.assetId)).not.toContain(seasons.assetId);
+    });
+  });
+});
+
+/**
+ * Retirement (D-435, amending decision H1 of #756 and D-433): a released document v3 retires its asset's earlier v1 and v2 revisions, so an app without
+ * v3 gets nothing for that Scroll and no earlier revision is opened by anyone. The rule is read from rows that already exist: an asset whose current
+ * revision is a `scroll-document.v3` has retired every revision before it. Where the current revision is a v2, a v1 still stands in for a v1-only app.
+ * An asset of its own for each case, in a database of its own, over real PostgreSQL; no provider.
+ */
+describe('retirement: a released document v3 retires its asset’s v1 and v2 revisions (D-435, real PostgreSQL CI fixtures)', () => {
+  let database: TestDatabase<Database>;
+  let c: Cases;
+  /** v1 revision 1, v2 revision 2 and a document v3 revision 3. */
+  let threeAges: {
+    assetId: string;
+    v3: Awaited<ReturnType<typeof seedDocumentV3>>;
+    v2: Awaited<ReturnType<typeof seedDocumentV2>>;
+  };
+  /** v2 revision 1 and a document v3 revision 2, no v1. */
+  let twoAges: { assetId: string; v3: Awaited<ReturnType<typeof seedDocumentV3>> };
+  /** v1 revision 1 and v2 revision 2, and no document v3: the v1 still stands in for a v1-only app. */
+  let standIn: { assetId: string; v2: Awaited<ReturnType<typeof seedDocumentV2>> };
+
+  const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+  async function inScope<T>(run: (scope: Parameters<Parameters<ReturnType<typeof withScope>>[1]>[0]) => Promise<T>) {
+    const person = await recordingPerson(database);
+    const entered = await withScope()(person.authority, run);
+    if (entered.kind !== 'entered') throw new Error('CI scope refused');
+    return entered.value;
+  }
+  const offeredFor = async (capabilities: ReturnType<typeof capabilitiesOf>, assetId: string) =>
+    (
+      await inScope((scope) =>
+        readDiscoveryCandidates(scope, { languages: ['en'], formats: ['scroll'], capabilities, limit: 100 }),
+      )
+    ).find((entry) => entry.assetId === assetId)?.assetRevision;
+
+  /** An asset whose first revision is a v1 from the starter source, so a later v2 and v3 are corrections of it. */
+  async function v1Asset(label: string) {
+    const source = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
+    source.assetId = randomUUID();
+    source.publication.explanationUnitId = `ci-${label}-${randomUUID()}`;
+    const imported = await c.importScroll(source);
+    if (imported.kind !== 'imported') throw new Error('fixture admission refused');
+    return { assetId: imported.assetId, unit: source.publication.explanationUnitId };
+  }
+
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('scroll_v3_retirement');
+    c = await scrollUseCases(database, { recording: true });
+
+    const three = await v1Asset('retire-three');
+    const into = (revision: number) => ({ assetId: three.assetId, revision, unit: three.unit });
+    const v2 = await seedDocumentV2(database.db, 'seasons-stage-ci', into(2));
+    threeAges = { assetId: three.assetId, v2, v3: await seedDocumentV3(database.db, 'seasons-v3-ci', into(3)) };
+
+    const first = await seedDocumentV2(database.db, 'scale-chart-blocks-ci');
+    twoAges = {
+      assetId: first.assetId,
+      v3: await seedDocumentV3(database.db, 'broad-street-v3-ci', {
+        assetId: first.assetId,
+        revision: 2,
+        unit: `ci-retire-two-${randomUUID()}`,
+      }),
+    };
+
+    const older = await v1Asset('stand-in');
+    standIn = {
+      assetId: older.assetId,
+      v2: await seedDocumentV2(database.db, 'seasons-stage-ci', {
+        assetId: older.assetId,
+        revision: 2,
+        unit: older.unit,
+      }),
+    };
+  });
+  afterAll(async () => {
+    await c.close();
+    await database.drop();
+  });
+
+  describe('what an app is offered', () => {
+    it('is the current revision for an app that declares the v3, and nothing for an app that does not, for an asset whose current revision is a v3', async () => {
+      expect(await offeredFor(v3Client, threeAges.assetId)).toBe(3);
+      expect(await offeredFor(v3Client, twoAges.assetId)).toBe(2);
+      for (const capabilities of [v2Client, v1Client]) {
+        expect(await offeredFor(capabilities, threeAges.assetId)).toBeUndefined();
+        expect(await offeredFor(capabilities, twoAges.assetId)).toBeUndefined();
+      }
+    });
+
+    it('is still the latest earlier revision the app reads where the current revision is a v2: a v1 stands in for a v1-only app', async () => {
+      expect(await offeredFor(v3Client, standIn.assetId)).toBe(2);
+      expect(await offeredFor(v2Client, standIn.assetId)).toBe(2);
+      expect(await offeredFor(v1Client, standIn.assetId)).toBe(1);
+    });
+
+    it('is nothing from a v2 asset’s earlier revision once a v3 follows it, and the v1 stand-in comes back for no one: a held v3 retires nothing, a released one retires at once', async () => {
+      const held = await v1Asset('held-v3');
+      const into = (revision: number) => ({ assetId: held.assetId, revision, unit: held.unit });
+      await seedDocumentV2(database.db, 'seasons-stage-ci', into(2));
+      await seedDocumentV3(database.db, 'seasons-v3-ci', into(3));
+      // A revision the review gate holds never becomes the asset's current revision: put the pointer where it would be, with the row that holds revision 3.
+      await database.db.updateTable('content.assets').set({ revision: 2 }).where('id', '=', held.assetId).execute();
+      await database.db
+        .insertInto('content.revision_reviews')
+        .values({ asset_id: held.assetId, revision: 3, state: 'held' })
+        .execute();
+      expect(await offeredFor(v1Client, held.assetId)).toBe(1);
+      expect(await offeredFor(v2Client, held.assetId)).toBe(2);
+      expect(await offeredFor(v3Client, held.assetId)).toBe(2);
+      expect(await c.renderScroll({ assetId: held.assetId, revision: 2, capabilities: v2Client })).toMatchObject({
+        kind: 'rendition',
+      });
+      // Released: the pointer moves and the review row says so, as the gate does in one transaction.
+      await database.db.updateTable('content.assets').set({ revision: 3 }).where('id', '=', held.assetId).execute();
+      await database.db
+        .updateTable('content.revision_reviews')
+        .set({ state: 'released', decided_at: new Date(), decided_by: 'cli:ci-reviewer' })
+        .where('asset_id', '=', held.assetId)
+        .where('revision', '=', 3)
+        .execute();
+      expect(await offeredFor(v1Client, held.assetId)).toBeUndefined();
+      expect(await offeredFor(v2Client, held.assetId)).toBeUndefined();
+      expect(await offeredFor(v3Client, held.assetId)).toBe(3);
+      expect(await c.renderScroll({ assetId: held.assetId, revision: 2, capabilities: v2Client })).toEqual({
+        kind: 'not_found',
+      });
+    });
+
+    it('leaves an earlier document v3 readable when a later v3 corrects it: only v1 and v2 revisions retire', async () => {
+      const first = await seedDocumentV3(database.db, 'fence-v3-ci');
+      await seedDocumentV3(database.db, 'broad-street-v3-ci', {
+        assetId: first.assetId,
+        revision: 2,
+        unit: `ci-v3-over-v3-${randomUUID()}`,
+      });
+      expect(await offeredFor(v3Client, first.assetId)).toBe(2);
+      // A person who opened revision 1 before the correction can still read it, as for any correction (D-129).
+      expect(await c.renderScroll({ assetId: first.assetId, revision: 1, capabilities: v3Client })).toMatchObject({
+        kind: 'rendition',
+      });
+    });
+
+    it('is the stage frame of a v2 Scroll that is the current revision, to a v2-only session, and no cover for an asset that is now a v3', async () => {
+      const person = await recordingPerson(database);
+      const result = await c.navigate(person.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'discover' as const },
+        capabilities: capabilitiesOf(V1, V2, COVER_V2),
+      });
+      if (result.kind !== 'accepted' || result.outcome.status !== 'ready') throw new Error('CI fixture expected ready');
+      const outcome: Ready = result.outcome;
+      const offers = [outcome.offer, ...outcome.bufferedOffers];
+      const current = offers.find((offer: EncounterOffer) => offer.assetId === standIn.assetId);
+      expect(current?.assetRevision).toBe(2);
+      expect(current?.cover).toMatchObject({ version: COVER_V2, figure: firstFrameOf(standIn.v2.document) });
+      for (const retired of [threeAges.assetId, twoAges.assetId])
+        expect(offers.some((offer: EncounterOffer) => offer.assetId === retired)).toBe(false);
+    });
+  });
+
+  describe('what is opened by a revision pinned by an offer, a link or an exposure', () => {
+    const pinned = (assetId: string, assetRevision: number, capabilities: ReturnType<typeof capabilitiesOf>) => ({
+      assetId,
+      assetRevision,
+      capabilities,
+    });
+
+    it('opens no earlier revision of an asset whose current revision is a v3, for any app, not even one that reads it', async () => {
+      for (const [asset, revisions] of [
+        [twoAges.assetId, [1]],
+        [threeAges.assetId, [1, 2]],
+      ] as const)
+        for (const revision of revisions)
+          for (const capabilities of [v3Client, v2Client, v1Client]) {
+            expect(
+              await inScope((scope) => readExactEncounter(scope, pinned(asset, revision, capabilities))),
+            ).toBeUndefined();
+            expect(
+              await inScope((scope) => readOfferEncounter(scope, pinned(asset, revision, capabilities))),
+            ).toBeUndefined();
+          }
+      // Its current revision opens, for the app that declares it; a v2 that is current opens for its own app.
+      expect(await inScope((scope) => readExactEncounter(scope, pinned(threeAges.assetId, 3, v3Client)))).toMatchObject(
+        {
+          assetRevision: 3,
+        },
+      );
+      expect(await inScope((scope) => readExactEncounter(scope, pinned(standIn.assetId, 2, v2Client)))).toMatchObject({
+        assetRevision: 2,
+      });
+    });
+
+    it('answers a render of such a revision as it answers any revision that cannot be read, not_found, to every app, and leaves the current revision alone', async () => {
+      for (const capabilities of [v3Client, v2Client, v1Client]) {
+        expect(await c.renderScroll({ assetId: twoAges.assetId, revision: 1, capabilities })).toEqual({
+          kind: 'not_found',
+        });
+        expect(await c.renderScroll({ assetId: threeAges.assetId, revision: 1, capabilities })).toEqual({
+          kind: 'not_found',
+        });
+        expect(await c.renderScroll({ assetId: threeAges.assetId, revision: 2, capabilities })).toEqual({
+          kind: 'not_found',
+        });
+      }
+      expect(await c.renderScroll({ assetId: threeAges.assetId, revision: 3, capabilities: v3Client })).toMatchObject({
+        kind: 'rendition',
+      });
+      // A v2 that is current is still rendered for a v2 app, and its v1 for a v1 app, as before.
+      expect(await c.renderScroll({ assetId: standIn.assetId, revision: 2, capabilities: v2Client })).toMatchObject({
+        kind: 'rendition',
+      });
+      expect(await c.renderScroll({ assetId: standIn.assetId, revision: 1, capabilities: v1Client })).toMatchObject({
+        kind: 'rendition',
+      });
+    });
+
+    it('does not render after the v3 was released a revision that was rendered before it: the cache never answers for a retired one', async () => {
+      const early = await seedDocumentV2(database.db, 'scale-chart-blocks-ci');
+      expect(await c.renderScroll({ assetId: early.assetId, revision: 1, capabilities: v2Client })).toMatchObject({
+        kind: 'rendition',
+      });
+      await seedDocumentV3(database.db, 'broad-street-v3-ci', {
+        assetId: early.assetId,
+        revision: 2,
+        unit: `ci-cache-${randomUUID()}`,
+      });
+      expect(await c.renderScroll({ assetId: early.assetId, revision: 1, capabilities: v2Client })).toEqual({
+        kind: 'not_found',
+      });
+    });
+
+    it('refuses the exposure of a person who opened the earlier revision before the v3 was released, as it refuses any exposure whose document cannot be read', async () => {
+      const person = await seedPerson(database.db);
+      const before = await seedDocumentV2(database.db, 'scale-chart-blocks-ci');
+      const opened = await c.openExposure(person.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'scroll', assetId: before.assetId },
+        origin: { kind: 'direct' },
+        capabilities: v2Client,
+      });
+      if (opened.kind !== 'opened') throw new Error('CI open refused');
+      expect(await c.readExposureDocument(person.authority, opened.outcome.exposureId)).toMatchObject({
+        kind: 'document',
+      });
+      await seedDocumentV3(database.db, 'broad-street-v3-ci', {
+        assetId: before.assetId,
+        revision: 2,
+        unit: `ci-exposure-${randomUUID()}`,
+      });
+      expect(await c.readExposureDocument(person.authority, opened.outcome.exposureId)).toEqual({
+        kind: 'refused',
+        reason: 'exposure_not_found',
+      });
+    });
+
+    it('gives Ask, a Quick answer and a call’s facts nothing from such a revision, and still gives them from a v2 that is current', async () => {
+      const firstStop = (document: { stops: { id: string }[] }) => document.stops[0]!.id;
+      const retired = { assetId: threeAges.assetId, assetRevision: 2 };
+      expect(
+        await inScope((scope) => readScrollAskFacts(scope, retired, firstStop(threeAges.v2.document))),
+      ).toBeUndefined();
+      expect(
+        await inScope((scope) => readScrollQuickAnswerFacts(scope, retired, firstStop(threeAges.v2.document))),
+      ).toBeUndefined();
+      expect(await inScope((scope) => readScrollPlayFacts(scope, threeAges.assetId, 2))).toBeUndefined();
+      const current = { assetId: standIn.assetId, assetRevision: 2 };
+      expect(
+        await inScope((scope) => readScrollAskFacts(scope, current, firstStop(standIn.v2.document))),
+      ).toMatchObject({
+        title: standIn.v2.document.title,
+      });
+      expect((await inScope((scope) => readScrollPlayFacts(scope, standIn.assetId, 2)))?.calls.length).toBeGreaterThan(
+        0,
+      );
     });
   });
 });

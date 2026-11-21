@@ -1,5 +1,4 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import { parseDocumentV2 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import type { Catalogue } from '../application/catalogue.js';
@@ -14,7 +13,6 @@ import {
   decideAutoRelease,
   isCatalogueTopic,
   isSystemDecided,
-  proseOf,
   releasesLeftToday,
   type AnswerCheckFact,
   type AutoReleaseFacts,
@@ -22,8 +20,9 @@ import {
 } from '../domain/release-policy.js';
 import { SENSITIVITY_VERSION, type SensitiveCategory } from '../domain/release-sensitive-data.js';
 import { answerChecksOf } from '../production/answer-check.js';
-import { LIBRARY_SUPPORT_CHECK_VERSION } from '../production/library-support.js';
+import { LIBRARY_CHECKER_VERSIONS, checkerVersionOfDocument } from '../production/library-support-kinds.js';
 import { libraryCheckStore } from '../production/library-support-store.js';
+import { policyDocumentOf } from './release-policy-document.js';
 import { releasePolicyStore, type HeldSummary, type PolicyCounts } from './release-policy-store.js';
 import { lockAssetForReview, makeReviewGate, type ReleaseGuard, type ReleaseResult } from './review-gate.js';
 
@@ -34,10 +33,12 @@ export const RELEASE_POLICY_SWEEP_LIMIT = 100;
 export const RELEASE_POLICY_SWEEP_PAGES = 10;
 
 /**
- * The rules a hold was judged under: the policy, the sensitivity file and the support checker's version. A recorded permanent hold is skipped only while this is
- * the same, so changing any of them makes the sweep look again.
+ * The rules a hold was judged under: the policy, the sensitivity file and the support checker's versions (a document v2's and a document v3's, D-435). A recorded
+ * permanent hold is skipped only while this is the same, so changing any of them makes the sweep look again. (A document v3 held `unreadable` before D-435 is
+ * looked at again for that reason.)
  */
-const rulesVersion = (): string => `${RELEASE_POLICY.id}|${SENSITIVITY_VERSION}|${LIBRARY_SUPPORT_CHECK_VERSION}`;
+const rulesVersion = (): string =>
+  `${RELEASE_POLICY.id}|${SENSITIVITY_VERSION}|${LIBRARY_CHECKER_VERSIONS.v2}|${LIBRARY_CHECKER_VERSIONS.v3}`;
 
 /** The most held revisions `status` evaluates. */
 export const RELEASE_POLICY_STATUS_LIMIT = 1_000;
@@ -137,13 +138,14 @@ async function factsOf(db: Queryable, summary: HeldSummary, catalogue: Catalogue
     releasePolicyStore.raisesOf(db, summary.assetId, summary.revision),
     supportCheckFact(db, summary),
   ]);
-  const parsed = body === undefined ? undefined : parseDocumentV2(body.document);
+  const document = body === undefined ? { readable: false, prose: '' } : policyDocumentOf(body.document);
   return {
     assetStatus: summary.assetStatus,
     topicId,
     topicApproved: summary.approved,
-    risk: assessRisk({ catalogue, topicId, text: parsed?.kind === 'valid' ? proseOf(parsed.document) : '', raised }),
-    documentReadable: parsed?.kind === 'valid',
+    risk: assessRisk({ catalogue, topicId, text: document.prose, raised }),
+    documentReadable: document.readable,
+    // An active coverage mapping at the head of this revision, for a v2 and for a v3 alike: the review gate also refuses a v3 without one (`coveredIfDocumentV3`).
     coverageMapped: summary.mapped,
     answerCheck: answerCheckFact(body?.outcomes),
     supportCheck,
@@ -151,14 +153,17 @@ async function factsOf(db: Queryable, summary: HeldSummary, catalogue: Catalogue
 }
 
 /**
- * What the library support check said for this build's checker version. The verdict is code's: it is read again from every stored
- * sentence under the policy in force, and a stored `passed` that the sentences no longer support counts as `flagged`.
+ * What the library support check said for the checker version of this build that reads the revision's document (v2's for a document v2, v3's for a document
+ * v3, D-435; a result of the other version, or of an older build, is `stale`). The verdict is code's: it is read again from every stored sentence under the
+ * policy in force, and a stored `passed` that the sentences no longer support counts as `flagged`.
  */
 async function supportCheckFact(db: Queryable, summary: HeldSummary): Promise<SupportCheckFact> {
   const current = summary.currentCheck;
   if (current === null) return summary.otherVersionCheck ? { kind: 'stale' } : { kind: 'none' };
   if (current.state === 'unchecked') return { kind: 'unchecked' };
-  const stored = await libraryCheckStore.read(db, summary.assetId, summary.revision, LIBRARY_SUPPORT_CHECK_VERSION);
+  const checkerVersion = checkerVersionOfDocument(summary.documentVersion);
+  if (checkerVersion === undefined) return { kind: 'none' };
+  const stored = await libraryCheckStore.read(db, summary.assetId, summary.revision, checkerVersion);
   if (stored?.state !== 'checked') return { kind: 'none' };
   const decided = decideRevision(countsOf(stored.sentences), LIBRARY_SUPPORT_POLICY);
   return { kind: 'checked', verdict: stored.verdict === 'passed' && decided === 'passed' ? 'passed' : 'flagged' };
@@ -180,7 +185,7 @@ function guardFor(
     await releasePolicyStore.lockPolicy(trx);
     await releasePolicyStore.lockApproval(trx, target.assetId, target.revision);
     const [summary] = await releasePolicyStore.heldSummaries(trx, {
-      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+      checkerVersions: LIBRARY_CHECKER_VERSIONS,
       onlyReady: false,
       limit: 1,
       only: target,
@@ -239,7 +244,7 @@ export function makeReleasePolicy(db: Kysely<Database>, catalogue: Catalogue) {
     let capReached = false;
     for (let page = 0; page < RELEASE_POLICY_SWEEP_PAGES && !capReached; page += 1) {
       const candidates = await releasePolicyStore.heldSummaries(db, {
-        checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+        checkerVersions: LIBRARY_CHECKER_VERSIONS,
         onlyReady: true,
         limit: RELEASE_POLICY_SWEEP_LIMIT,
         paging: { rulesVersion: rules, lookedBefore: startedAt },
@@ -371,7 +376,7 @@ export function makeReleasePolicy(db: Kysely<Database>, catalogue: Catalogue) {
     const counts = await releasePolicyStore.counts(db);
     const release = await catalogue.current();
     const summaries = await releasePolicyStore.heldSummaries(db, {
-      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+      checkerVersions: LIBRARY_CHECKER_VERSIONS,
       onlyReady: false,
       limit: RELEASE_POLICY_STATUS_LIMIT,
     });

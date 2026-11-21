@@ -11,6 +11,7 @@ import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
 import transit from '@knowscroll/scroll-model/fixtures/transit-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
+import { drawableStage } from '../stage/stage-figure';
 import { HOLD_LIMIT } from './holds';
 import { readingModelOfV2 } from './from-v2';
 import { beatsOf, type ReadingBlock } from './reading-model';
@@ -102,8 +103,39 @@ describe('a v2 Scroll as an essay (folio README 5.5)', () => {
 
   it('ends on the picture of the whole journey only where the kit draws one', () => {
     for (const [, document] of FIXTURES) {
-      const kit = document.stage === undefined ? undefined : KIT_PICTURES[document.stage.kit];
+      const stage = drawableStage(document.stage);
+      const kit = stage === undefined ? undefined : KIT_PICTURES[stage.kit];
       expect(readingModelOfV2(document).end.figure?.kind).toBe(kit?.recap === undefined ? undefined : 'recap');
     }
+  });
+
+  describe('a stored Scroll whose stage is of a kit this build does not draw', () => {
+    /** The seasons fixture as the library may still hold it after a kit is removed: the same stops, a stage of a kit that is gone. */
+    const stored = (kit: string): ScrollDocumentV2 => {
+      const original = seasons as unknown as ScrollDocumentV2;
+      const states = (original.stage?.states ?? []).map((entry, index) => ({
+        stop: entry.stop,
+        state: { old: `word ${String(index)}` },
+        alt: `What the removed kit drew, state ${String(index)}.`,
+      }));
+      return { ...original, stage: { kit, states } };
+    };
+
+    it.each(['gone.v1', 'constructor', '__proto__', 'toString'])(
+      'reads as text, with no figure anywhere and none at the end, as a Scroll with no stage does (%s)',
+      (kit) => {
+        const model = readingModelOfV2(stored(kit));
+        const blocks = model.sections.flatMap((section) => section.blocks);
+        expect(blocks.every((block) => block.kind === 'beat')).toBe(true);
+        expect(beatsOf(model).map((beat) => beat.id)).toEqual(stored(kit).stops.map((stop) => stop.id));
+        expect(model.end.figure).toBeUndefined();
+      },
+    );
+
+    it('gives the same essay a Scroll without a stage gives, even with a Final call that asks for the tilt', () => {
+      const withoutStage = { ...(seasons as unknown as ScrollDocumentV2) };
+      delete withoutStage.stage;
+      expect(readingModelOfV2(stored('gone.v1'))).toEqual(readingModelOfV2(withoutStage));
+    });
   });
 });

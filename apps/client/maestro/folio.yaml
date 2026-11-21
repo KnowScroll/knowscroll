@@ -1,6 +1,7 @@
-# The Folio reader over a labelled v2 fixture, on the device (#734). The one thing a browser cannot prove: on Android a
-# held figure is pushed down its hold by an offset the UI thread drives, so it must stay pinned at the top while its
-# beats pass, change as each arrives, and leave with its hold. The screenshots are read by a person; the assertions
+# The Folio reader over a labelled document v3 fixture (Broad Street, its plan held over its first three beats), on the
+# device (#734, #775). The one thing a browser cannot prove: on Android a held figure is pushed down its hold by an
+# offset the UI thread drives, so it must stay pinned at the top while its beats pass, change as each arrives, and
+# leave with its hold. The screenshots are read by a person; the assertions
 # here only prove the page and the hold were drawn. No session and no server.
 appId: com.knowscroll.client
 name: Folio holds a figure while its beats pass
@@ -9,12 +10,12 @@ tags:
   - folio
 ---
 - runFlow: start-app.yaml
-- openLink: knowscroll://gallery-folio?doc=circulation
+- openLink: knowscroll://gallery-folio?doc=broadStreetV3
 - extendedWaitUntil:
     visible:
       id: ks-folio-gallery
     timeout: 60000
-- assertVisible: The heart and the blood.*
+- assertVisible: The pump on Broad Street.*
 - takeScreenshot: folio-01-opening
 - extendedWaitUntil:
     visible:

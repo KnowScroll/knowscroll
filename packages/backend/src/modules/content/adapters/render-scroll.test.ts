@@ -43,6 +43,17 @@ describe('whether a client can be given a stored Scroll document', () => {
     expect(canRenderScroll(undefined, declaring('scroll-document.v3'))).toBe(false);
   });
 
+  it('serves a stored v2 whose stage is of a kit the code no longer defines, and still refuses a live kit’s wrong state', () => {
+    const stored = v2 as { stage: { kit: string; states: { state: unknown }[] } };
+    const states = stored.stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } }));
+    expect(canRenderScroll({ ...stored, stage: { kit: 'gone.v1', states } }, declaring('scroll-document.v2'))).toBe(
+      true,
+    );
+    expect(canRenderScroll({ ...stored, stage: { kit: 'tides.v1', states } }, declaring('scroll-document.v2'))).toBe(
+      false,
+    );
+  });
+
   it('names a document v3 by its declared schema', () => {
     expect(isScrollDocumentV3(v3)).toBe(true);
     expect(isScrollDocumentV3(v2)).toBe(false);

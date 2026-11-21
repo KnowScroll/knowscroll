@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { assembleScrollV2 } from '../producer/v2/assemble.js';
 import { authoredV2, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
-import { firstFrameOf, Stage, StageFrame, type ScrollDocumentV2 } from './document.js';
+import { firstFrameOf, LiveStage, LiveStageFrame, Stage, StageFrame, type ScrollDocumentV2 } from './document.js';
+import { STAGE_KIT_IDS } from './kits/index.js';
 
 /** The labelled CI fixture, assembled with or without a stage. Not product content. */
 function fixture(variant: 'stage' | 'plain'): ScrollDocumentV2 {
@@ -42,9 +43,26 @@ describe('a stage frame on its own', () => {
     expect(StageFrame.safeParse({ ...frame(), kit: 'tides.v1' }).success).toBe(false);
   });
 
-  it('refuses a kit it does not know and an extra key', () => {
-    expect(StageFrame.safeParse({ ...frame(), kit: 'unknown.v1' }).success).toBe(false);
+  it('refuses an extra key, and a kit id that is not the form of one', () => {
     expect(StageFrame.safeParse({ ...frame(), stop: 'the-lean' }).success).toBe(false);
+    for (const kit of ['unknown', 'constructor', 'Unknown.v1'])
+      expect(StageFrame.safeParse({ ...frame(), kit }).success, kit).toBe(false);
+  });
+
+  it('takes a frame of a kit the code no longer defines, as it was stored, but never a live kit’s with a wrong state', () => {
+    const stored = { kit: 'gone.v1', state: { anything: 'a word' }, alt: 'What the old kit showed.' };
+    expect(StageFrame.safeParse(stored)).toEqual({ success: true, data: stored });
+    expect(StageFrame.safeParse({ ...stored, kit: 'tides.v1' }).success).toBe(false);
+  });
+});
+
+describe('the first frame of a Scroll whose stage is of a kit the code no longer defines', () => {
+  it('is nothing: no figure of a kit nothing can draw', () => {
+    const document = fixture('stage');
+    const first = document.stage?.states[0];
+    if (document.stage === undefined || first === undefined) throw new Error('the stage fixture has a stage');
+    const legacy = { ...document, stage: { kit: 'gone.v1', states: [{ ...first, state: { old: 'words' } }] } };
+    expect(firstFrameOf(legacy as unknown as ScrollDocumentV2)).toBeUndefined();
   });
 });
 
@@ -53,7 +71,16 @@ describe('the kits a stage frame accepts', () => {
     union.options.map((option) => option.shape.kit.value).sort();
 
   it('are exactly the kits a stage names, so a kit added to one alone fails here', () => {
-    expect(kitsOf(StageFrame)).toEqual(kitsOf(Stage));
-    expect(new Set(kitsOf(Stage)).size).toBe(Stage.options.length);
+    expect(kitsOf(LiveStageFrame)).toEqual(kitsOf(LiveStage));
+    expect(new Set(kitsOf(LiveStage)).size).toBe(LiveStage.options.length);
+  });
+
+  it('are exactly STAGE_KIT_IDS: the kits left out of it are the ones whose stored stages are legacy', () => {
+    expect(kitsOf(LiveStage)).toEqual([...STAGE_KIT_IDS].sort());
+  });
+
+  it('are all the arms of a stage but one: the last arm takes the kits that are not live', () => {
+    expect(Stage.options).toHaveLength(LiveStage.options.length + 1);
+    expect(StageFrame.options).toHaveLength(LiveStageFrame.options.length + 1);
   });
 });

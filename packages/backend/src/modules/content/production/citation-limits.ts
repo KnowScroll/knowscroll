@@ -22,6 +22,7 @@ function withinBounds(
   citations: Readonly<Record<string, readonly string[]>>,
   passages: readonly EvidencePassage[],
   bounds: ProvenanceBounds,
+  path = 'items',
 ): AdmissionIssue[] {
   const claimIds = new Set(Object.values(citations).flat());
   const sourceIds = new Set(
@@ -31,7 +32,7 @@ function withinBounds(
     claimIds.size > bounds.claims ||
     sourceIds.size > bounds.sources ||
     Object.keys(citations).length > bounds.citations;
-  return over ? [{ code: CITATIONS_TOO_MANY, path: 'items' }] : [];
+  return over ? [{ code: CITATIONS_TOO_MANY, path }] : [];
 }
 
 /**
@@ -50,12 +51,14 @@ export function citationLimitIssues(
 
 /**
  * {@link citationLimitIssues} for a document v3 (`scroll-provenance.v3`: 48 claims, 24 sources and 22 parts). The finding code
- * is the same, so one repair hint serves both; its text is {@link CITATIONS_TOO_MANY_HINT_V3}. `citations` maps each beat,
- * aside, picture and the takeaway to the claim ids it cites. Pure.
+ * is the same; its hint is {@link CITATIONS_TOO_MANY_HINT_V3}. `citations` maps each beat, aside, picture and the takeaway to
+ * the claim ids it cites. The finding sits at `path`, the part of the model's own reply the one repair can change: `items` for
+ * a reply that holds the essay, `pictures` for a staging reply, whose prose is fixed. Pure.
  */
 export function citationLimitIssuesV3(
   citations: Readonly<Record<string, readonly string[]>>,
   passages: readonly EvidencePassage[],
+  path = 'items',
 ): AdmissionIssue[] {
-  return withinBounds(citations, passages, PROVENANCE_V3_LIMITS);
+  return withinBounds(citations, passages, PROVENANCE_V3_LIMITS, path);
 }

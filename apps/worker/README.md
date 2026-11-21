@@ -266,6 +266,15 @@ same nonpersonal harness grant (one request and at most one repair per topic, `M
 line per topic with its outcome, findings, measured minutes, counts and tokens. It admits and publishes nothing and creates no
 table, so it needs no migration. How to read the output: the runbook, "The v2 writer spike (S-0)".
 
+`node dist/operator.js content writer-spike-v3 --topics <recipe keys> --arms <a,b> [--raw-dir <absolute dir>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]`
+(`src/writer-spike-v3-operator.ts`, #771) runs the document v3 writer on the ten recipes of the spike's own plan table, in arm `a` (one
+reply: at most two requests) and arm `b` (the prose, then its staging: at most four), through the same harness grant
+(`MiniMax-M3.1-Flash` only), and prints one JSON line per recipe and arm. `--raw-dir` keeps every paid reply, one file each, and
+`--out` the accepted documents. `node dist/operator.js content writer-spike-v3-blind --in <out file> --page <html file> --key <key file> [--seed <n>]`
+(`src/writer-spike-v3-blind.ts`) turns those documents into one local page to read without knowing the arm, and a key file to open
+afterwards; it touches no database and no provider. Both admit and publish nothing and need no migration. The raw folder, the
+page and the key hold the model's text: keep them outside the repository. How to read the output: the runbook, "The v3 writer spike (#771)".
+
 The explicit `planner.run` consumer (#236) calls the personal Planner with the delivery abort
 signal. `KS_PLANNER_ENABLED` defaults to 1 in world `local` and 0 elsewhere (dev sets 1); with 0,
 deliveries persist `blocked_disabled` with no reservation. The role spends the shared MiniMax plan

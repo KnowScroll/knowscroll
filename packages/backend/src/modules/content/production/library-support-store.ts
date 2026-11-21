@@ -1,4 +1,5 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
+import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { RULE_CODES, UNSUPPORTED_KINDS, type NoClaimGround } from '../domain/ask-support.js';
@@ -201,25 +202,34 @@ export const libraryCheckStore = {
   },
 
   /**
-   * The held revisions that have no result of this checker version, or whose last try ended on a provider failure at least
-   * `retryAfterSeconds` ago with rounds left, oldest hold first: what the sweep hands to the check job. `limit` bounds one pass.
+   * The held revisions that have no result of the checker version that reads their document (`versions.v2` for a document v2, `versions.v3` for a
+   * document v3; a revision of another schema is never due), or whose last try ended on a provider failure at least `retryAfterSeconds` ago with
+   * rounds left, oldest hold first, each with that version: what the sweep hands to the check job. `limit` bounds one pass.
    */
   async dueHeld(
     db: Queryable,
-    checkerVersion: string,
+    versions: { readonly v2: string; readonly v3: string },
     options: { readonly limit: number; readonly retryAfterSeconds: number },
-  ): Promise<readonly { readonly assetId: string; readonly revision: number }[]> {
-    const { rows } = await sql<{ asset_id: string; revision: number }>`select review.asset_id, review.revision
+  ): Promise<readonly { readonly assetId: string; readonly revision: number; readonly checkerVersion: string }[]> {
+    const { rows } = await sql<{
+      asset_id: string;
+      revision: number;
+      checker_version: string;
+    }>`select review.asset_id, review.revision, checker.version as checker_version
       from content.revision_reviews review
+      join content.asset_revisions revision on revision.asset_id = review.asset_id and revision.revision = review.revision
+      cross join lateral (select case revision.document_version
+          when ${SCROLL_DOCUMENT_V2_SCHEMA_VERSION}::text then ${versions.v2}::text
+          when ${SCROLL_DOCUMENT_V3_SCHEMA_VERSION}::text then ${versions.v3}::text end as version) checker
       left join content.library_support_checks done
-        on done.asset_id = review.asset_id and done.revision = review.revision and done.checker_version = ${checkerVersion}
-      where review.state = 'held'
+        on done.asset_id = review.asset_id and done.revision = review.revision and done.checker_version = checker.version
+      where review.state = 'held' and checker.version is not null
         and (done.asset_id is null
           or (done.state = 'unchecked' and done.code = ${RETRYABLE_CODE} and done.check_round < ${LIBRARY_SUPPORT_MAX_ROUNDS}
             and done.checked_at < now() - make_interval(secs => ${options.retryAfterSeconds}::integer)))
       order by review.held_at, review.asset_id, review.revision
       limit ${options.limit}::integer`.execute(db);
-    return rows.map((row) => ({ assetId: row.asset_id, revision: row.revision }));
+    return rows.map((row) => ({ assetId: row.asset_id, revision: row.revision, checkerVersion: row.checker_version }));
   },
 
   /**

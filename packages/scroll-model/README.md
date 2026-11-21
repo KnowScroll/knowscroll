@@ -542,7 +542,7 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Read stops (the units a facet binds to, D-127) | at least 3 | `read_stops_too_few` |
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
-| Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
+| Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` (a legacy stage, below, skips the last two) |
 | Final call binding | a `tilt` binding needs a stage whose picture at the Final call changes when the tilt is turned (`tiltMatters`): a view that draws the axis and the season, in a month that is not March or September | `final_call_binding_invalid` |
 | Reveal picture | a `call_it` may carry `revealStage`: the first read stop after it, which sets a state that differs from the picture the call sits over (D-383) | `call_reveal_invalid` |
 | Calls, Final call included | zero to 4 in stored documents; zero to 3 in new authoring; an optional Final call is unique and last, and its question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `final_call_misplaced`, `final_call_restates_call` |
@@ -573,6 +573,17 @@ Status: **implemented**, unit-tested.
 ### The kit
 
 A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194, D-201, D-204). Nine kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
+
+#### Stored stages outlive their kits (legacy stages)
+
+The nine kits are being removed one at a time (#775), after the Scrolls that use each are rewritten as document v3. A stored revision of a removed kit never changes and stays readable until a later database cleanup deletes it (it is also the revision an older app is served, D-433). So `Stage` and `StageFrame` take, besides the live kits' arms, a **legacy stage**: `{kit, states}` where `kit` is a well-formed kit id (`name.vN`) that is **not** in `STAGE_KIT_IDS`, and every state is a plain object with its stop and words (`{stop, state, alt}`), passed through whole. Its kit-specific words and physics are not checked (the code that checked them is gone, and they were checked when it was stored); its structure still is (the stops it sits on, their order, the first stop, enough states, no repeats), and so are the measures and the hash.
+
+- It is derived from `STAGE_KIT_IDS`, not listed: removing a kit's id from that list makes its stored stages legacy at once. Then delete the kit's arm in `v2/document.ts` and its other lines (the deletion list names them).
+- A stage of a kit still in `STAGE_KIT_IDS` never takes the legacy arm: its states must match that kit's schema exactly, so a typo in a live kit's stage is still refused (`isStageKitId`, `isLiveStage`).
+- The union is flat (`LiveStage`'s arms, then the legacy arm), so the contracts that embed it stay shallow. `validateDocumentV2` reports a failed stage at the arm of its own kit, so the findings keep their paths (`stage.states.1.state`).
+- `stageIssues` skips `settle` and `describe`, and `bindingIssues` skips the tilt rule, for a legacy stage. `kitDefinition(id)` throws for a kit that is not defined, so no reader looks one up by a stored `kit` without asking `isStageKitId` first.
+- The producer never makes one: `compileAuthoredV2` refuses a recipe that names an unknown kit (`stage_kit_unknown`) and `assembleScrollV2` makes no document of it.
+- `firstFrameOf` gives no frame for a legacy stage, so a cover shows no figure for it. Readers that draw (`packages/ui`, the cover on the client) draw nothing for a kit they lack.
 
 | Kit | Draws | The writer chooses | Code derives (D-195) |
 |---|---|---|---|
@@ -639,9 +650,9 @@ Two members were added for the stage plan (D-382, D-383): `figures` on a `stop` 
 
 ## `scroll-document.v3` (#759)
 
-Status. **Implemented** (unit tests): the document, `scroll-limits.v3`, `scroll-measures.v3`, the six picture kinds with their state rules and text versions, `validateDocumentV3`, `parseDocumentV3`, `negotiateV3`, and the hand-written editorial compile with `scroll-provenance.v3`. **Not runtime-verified**: no document v3 has been admitted, stored or read on dev, because the content module refuses one until beat coverage lands (#761). **Planned**: the document v3 writer, the control `set`, more picture kinds, and the reader's use of the format (see the `ui` and `client-core` READMEs). v1 and v2 documents, limits and measures are untouched and keep their own schemas.
+Status. **Implemented** (unit tests): the document, `scroll-limits.v3`, `scroll-measures.v3`, the six picture kinds with their state rules and text versions, `validateDocumentV3`, `parseDocumentV3`, `negotiateV3`, and the hand-written editorial compile with `scroll-provenance.v3`. **Not runtime-verified**: no document v3 has been admitted, stored or read on dev, because the content module refuses one until beat coverage lands (#761). **Implemented, not yet runtime-verified**: the model writer's shapes and compile (below), whose spike measures two arms (#771). **Planned**: the control `set`, more picture kinds, and the reader's use of the format (see the `ui` and `client-core` READMEs). v1 and v2 documents, limits and measures are untouched and keep their own schemas.
 
-Where it lives. `src/v3/` is the public model (`@knowscroll/scroll-model`). The editorial compile is backend-only: `src/producer/v3/editorial.ts` (`./producer`) and `src/internal/provenance-v3.ts` (`./internal`). The fixture `validDocumentV3()` in `src/test-support/v3-fixtures.ts` is a CI fixture, never product content.
+Where it lives. `src/v3/` is the public model (`@knowscroll/scroll-model`). The editorial compile and the model writer's compile are backend-only: `src/producer/v3/editorial.ts`, `src/producer/v3/written.ts` (`./producer`) and `src/internal/provenance-v3.ts` (`./internal`). The fixture `validDocumentV3()` in `src/test-support/v3-fixtures.ts` is a CI fixture, never product content.
 
 ### What it is
 
@@ -748,9 +759,19 @@ A link names a part of the picture on screen at its beat: the beat's own `show`,
 
 `scroll-provenance.v3` (`ScrollProvenanceV3`) holds the claims and sources the document cites (no others), a citation for every beat, aside, picture (by their ids) and the end summary (`takeaway`), the checks and the production record. It is stored beside the revision and never served to readers.
 
+### The model writer's shapes and compile (`./producer`)
+
+Status. **Implemented** (unit tests); **not yet runtime-verified**: no model has written through it. The design is #771 and its owner decisions: the model fills labels, notes and cited values and code assigns every id; figures are strict; two arms are measured. Files: `src/producer/v3/written-schema.ts` (the reply shapes, `scroll-writing-v3.v1`), `written-merge.ts`, `written-pictures.ts`, `written.ts` (the compile), `reasons.ts` (`REPAIR_HINTS_V3`) and `written-reference.ts` (the shape shown to the model).
+
+- **Shapes.** `WrittenScrollV3` is arm (a): one reply with `title`, `dek`, `pictures`, a flat `items` list (`section`, `para`, `quote`, `aside`), `takeaway` and `askSuggestions`. A picture is the `v3/pictures.ts` kind without any id and with references by label; a paragraph carries `show` (a picture by its number from 1, a state with labels), `links` (a phrase and a part label), a `control` and an `emphasis`. Arm (b) is `WrittenProseV3` (the same without pictures and without show, links, control and emphasis) then `WrittenStagingV3` (`pictures` and a `stage` list: one entry for each paragraph or quotation, counted `P1…Pn`). Every object is strict and every string has the document's own bound, so an oversize field is refused at the model's own path.
+- **Arm (b) merge.** `mergeStagingV3(prose, staging)` puts each stage entry on its paragraph and returns the arm (a) reply plus findings at `stage.K` (`stage_para_unknown`, `stage_para_repeated`, `control_unfit` for a control on a quotation). `numberedProseText(prose)` is the text the staging model reads. `stagingPathsV3` moves a later finding to the `stage.K` entry that wrote it.
+- **`compileWrittenV3({reply, code, evidence, sources, claims, sourceRecords, production, plannedKinds?})`** returns `compiled` (the document, its `scroll-provenance.v3`, the claims each part cites) or `refused` with every finding merged, each at the model's own item (`items.N…`, `pictures.N…`, `takeaway`, `title`, `dek`, `askSuggestions.N`). It resolves handles, picture numbers and labels, assigns the ids (`p1…`, parts `p1-s1`, `p1-i1`, `p1-r1`, `p1-v1`, `p1-l1`; sections `s1…`, beats `b1…`, asides `a1…`), runs the strict evidence rule and the writer rules, then `validateDocumentV3` on the sealed bytes, and maps the document's findings back. A Scroll with fewer than two sections, or a section of fewer than two beats, is too small for the document's schema: it gets every other finding and none of the document's rules. `compileWrittenProseV3(prose, input)` is arm (b)'s first step: the same checks with a placeholder picture that is never stored, and without any finding about pictures, shows, links or controls.
+- **Strict figures** (`evidenceIssues(…, {figures: 'strict'})`; the editorial rule is unchanged). Every prose string uses `unstatedFigures` (D-208 with the range rule, and D-302) against the passages its part cites, a header string against every passage the Scroll cites; a chart value uses `pointAgrees` with the magnitude word that opens the chart's unit (`million people` means `8.3` is written `8.3 million`). The copy rule (nine words) runs against every research text for every string except a quotation, the title, dek, section titles and ask suggestions included.
+- **Codes the writer adds** (in `V3_REASON_CODES`): `section_first_missing`, `aside_without_beat`, `picture_label_duplicate`, `picture_kind_unplanned`, `first_beat_points_back`, `machine_phrase` (the list `MACHINE_PHRASES_V3` grows from the owner's rejections), `takeaway_repeats_dek`, `stage_para_unknown`, `stage_para_repeated`. `REPAIR_HINTS_V3` has one hint for every code the compile can return.
+
 ### Planned
 
-The document v3 writer (a model's own authoring shape and repair catalogue), the control `set`, the kinds `layers`, `timeline`, `radial` and `scale`, beat coverage for storing a document v3 (#761), and the reader that draws one.
+The runtime use of the writer (the backend role, the harness and the spike), the control `set`, the kinds `layers`, `timeline`, `radial` and `scale`, beat coverage for storing a document v3 (#761), and the reader that draws one.
 
 ## Fixtures
 

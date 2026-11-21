@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { authoredV2, compileInputV2, FIXTURE_STAGES, MYTH_V2 } from '../../test-support/v2-fixtures.js';
+import {
+  authoredV2,
+  compileInputV2,
+  FIXTURE_STAGES,
+  liveStageOf,
+  MYTH_V2,
+  PUBLICATION_V2,
+} from '../../test-support/v2-fixtures.js';
 import { EARTH_SKY_KIT } from '../../v2/kit.js';
-import { kitDefinition, kitKeys, STAGE_KIT_IDS, type StageKitId } from '../../v2/kits/index.js';
+import { isStageKitId, kitDefinition, kitKeys, STAGE_KIT_IDS, type StageKitId } from '../../v2/kits/index.js';
 import { computeIntegrityV2, validateDocumentV2 } from '../../v2/validate.js';
 import type { ScrollDocumentV2 } from '../../v2/document.js';
 import { AuthoredScrollV2 } from './authoring-schema.js';
 import { authoringReferenceV2 } from './reference.js';
-import { compileAuthoredV2, type CompileV2Outcome } from './compile.js';
+import { assembleScrollV2 } from './assemble.js';
+import { compileAuthoredV2, type CompileV2Input, type CompileV2Outcome } from './compile.js';
 
 const OTHER_KITS = STAGE_KIT_IDS.filter((id): id is Exclude<StageKitId, 'earth-sky.v1'> => id !== EARTH_SKY_KIT);
 
@@ -47,10 +55,10 @@ describe.each(OTHER_KITS)('a stage Scroll drawn with the kit %s', (kit) => {
     const outcome = compileAuthoredV2(authoredV2('stage', kit), compileInputV2('stage', MYTH_V2, kit));
     expect(issuesOf(outcome)).toEqual([]);
     if (outcome.kind !== 'compiled') return;
-    const stage = outcome.document.stage;
-    expect(stage?.kit).toBe(kit);
-    expect(stage?.states.length).toBeGreaterThanOrEqual(3);
-    for (const entry of stage?.states ?? []) {
+    const stage = liveStageOf(outcome.document);
+    expect(stage.kit).toBe(kit);
+    expect(stage.states.length).toBeGreaterThanOrEqual(3);
+    for (const entry of stage.states) {
       expect(Object.keys(entry.state).sort()).toEqual([...kitKeys(definition)].sort());
       expect(entry.alt).toBe(definition.describe(entry.state));
       expect(definition.settle(entry.state)).toEqual(entry.state);
@@ -140,5 +148,32 @@ describe.each(OTHER_KITS)('a stage Scroll drawn with the kit %s', (kit) => {
     expect(states).toHaveLength(6);
     expect(new Set(states.map((state) => JSON.stringify(definition.settle(state)))).size).toBe(6);
     for (const state of states) expect(definition.settle(state)).toEqual(state);
+  });
+});
+
+describe('a recipe that names a kit the code does not define', () => {
+  // The document validator accepts the stored stage of a removed kit; the producer must still never make one.
+  const input = (): CompileV2Input => {
+    const base = compileInputV2('stage', MYTH_V2);
+    return { ...base, recipe: { ...base.recipe, kit: 'gone.v1' as StageKitId } };
+  };
+
+  it('is refused by the compile, with a code of its own, and nothing is read from the kit', () => {
+    const outcome = compileAuthoredV2(authoredV2('stage'), input());
+    expect(outcome).toEqual({
+      kind: 'refused',
+      stage: 'authoring',
+      issues: [{ code: 'stage_kit_unknown', path: '$' }],
+    });
+  });
+
+  it('is not assembled into a document, so no caller can make a stage of it', () => {
+    expect(assembleScrollV2(authoredV2('stage'), PUBLICATION_V2, input().recipe)).toEqual({ kind: 'unassemblable' });
+  });
+
+  it('has no definition to read: the kit registry throws rather than answer for a kit that is gone', () => {
+    expect(() => kitDefinition('gone.v1' as StageKitId)).toThrow(/Unknown stage kit/);
+    expect(isStageKitId('gone.v1')).toBe(false);
+    expect(isStageKitId(EARTH_SKY_KIT)).toBe(true);
   });
 });
