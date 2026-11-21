@@ -61,6 +61,8 @@ describe('route map', () => {
         '/gallery-scroll',
         '/gallery-space',
         '/operator',
+        '/operator/review',
+        '/operator/review/[assetId]/[revision]',
         '/recover',
         '/redeem',
         '/reel/[assetId]',

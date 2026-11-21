@@ -370,6 +370,24 @@ export {
  * only; the worker consumes it, and it is off until the owner switches the policy on.
  */
 export { sweepReleasePolicyQueue } from './production/release-policy-events.js';
+/**
+ * The operator's review of held library Scrolls on the app's screen (#780, D-138): the held revisions, one to read as a reader would
+ * with the passages each part cites and what the checks said, and the same release and reject the CLI has. Bound by the API
+ * composition root with its operator check; every call answers `not_found` to an account that is not an operator and for a
+ * revision that is not held.
+ */
+export type {
+  IsOperatorAccount,
+  OperatorDecisionLog,
+  OperatorRelease,
+  OperatorReject,
+  OperatorReview,
+  OperatorReviewList,
+  OperatorReviewShow,
+  ReviewNotFound,
+  ReviewTarget,
+} from './application/operator-review.js';
+export const OPERATOR_REVIEW = Symbol('content.operatorReview');
 export { libraryRecipes, planLibraryProduction, planRegeneration } from './domain/library/serving.js';
 export type {
   CatalogueBrief,

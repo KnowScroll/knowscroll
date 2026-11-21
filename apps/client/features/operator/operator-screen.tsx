@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { createOperatorSession, healthQueryOptions, type AccountScope } from '@knowscroll/client-core';
 import { useDocumentTitle } from '../../platform/document-title';
@@ -15,7 +16,7 @@ import {
   RoomCallsCard,
   UniverseChangeCard,
 } from './operator-panels';
-import { Chip, Mono, Note, TextButton } from './operator-parts';
+import { Chip, Mono, Note, TextButton, TextLink } from './operator-parts';
 import { columnsFor, operatorColor, operatorFont } from './operator-theme';
 
 /** Names the browser tab only once the server has shown this account the page. */
@@ -35,6 +36,7 @@ function WorldLine({ scope }: { readonly scope: AccountScope }) {
 }
 
 export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
+  const router = useRouter();
   const session = useMemo(() => createOperatorSession(scope), [scope]);
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const [lookup, setLookup] = useState('');
@@ -86,6 +88,11 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
             onPress={() => void session.refresh()}
             accessibilityLabel="Read the panels again"
           />
+          <TextLink
+            label="Review held Scrolls"
+            href="/operator/review"
+            onNavigate={() => router.push('/operator/review')}
+          />
         </View>
         {state.panels.status === 'ready' && state.panels.stale ? (
           <Note>The last refresh failed. These panels are from the previous read.</Note>
@@ -119,8 +126,8 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
 }
 
 /**
- * `/operator`: the Operator screen (Operator.html), for an operator account of this world. It is not
- * linked from the app and shows the unknown-page screen to everyone else, including a signed-out
+ * `/operator`: the Operator screen (Operator.html), for an operator account of this world. No reader's screen
+ * links to it (its own header links to the review of held Scrolls, #780), and it shows the unknown-page screen to everyone else, including a signed-out
  * visitor; the server refuses the data to them too (D-044).
  */
 export function OperatorScreen() {

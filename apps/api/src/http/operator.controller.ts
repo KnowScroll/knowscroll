@@ -1,7 +1,14 @@
 import { Controller, Header, Inject, Req } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
-import { UuidSchema, apiContract, type JourneyResponse, type OperatorPanelsResponse } from '@knowscroll/contracts';
+import {
+  UuidSchema,
+  apiContract,
+  type JourneyResponse,
+  type OperatorPanelsResponse,
+  type ReviewRejectResult,
+  type ReviewReleaseResult,
+} from '@knowscroll/contracts';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
   IS_OPERATOR,
@@ -15,10 +22,23 @@ import {
   type ReadJourney,
   type ReadOperatorPanels,
 } from '@knowscroll/backend/modules/operator';
+import {
+  OPERATOR_REVIEW,
+  type OperatorReview,
+  type ReviewNotFound,
+  type ReviewTarget,
+} from '@knowscroll/backend/modules/content';
 import { UNPROMPTED_CAPS } from '@knowscroll/backend/modules/rooms';
 import { LOG_EVENT } from '../tokens.js';
 import { problem } from './problems.js';
 import { admittedCaller } from './scope-guard.js';
+
+/** The route's asset and revision, or `undefined` when either is malformed. Parsed only after the operator is known. */
+function reviewTargetOf(input: { readonly assetId: string; readonly revision: string }): ReviewTarget | undefined {
+  const assetId = UuidSchema.safeParse(input.assetId);
+  const revision = /^[1-9][0-9]{0,6}$/.test(input.revision) ? Number(input.revision) : undefined;
+  return assetId.success && revision !== undefined ? { assetId: assetId.data.toLowerCase(), revision } : undefined;
+}
 
 const iso = (date: Date): string => date.toISOString();
 const isoOrNull = (date: Date | null): string | null => (date === null ? null : iso(date));
@@ -112,10 +132,11 @@ function wireJourney(journey: Journey): JourneyResponse {
 }
 
 /**
- * Operator routes (#248, D-044): the panels of the Operator screen and the journey inspector.
- * Every call checks, on the server, that the signed-in account is an operator of this world
+ * Operator routes (#248, D-044): the panels of the Operator screen, the journey inspector and the review of held
+ * Scrolls (#780: list, read, release, reject). Every call checks, on the server, that the signed-in account is an operator of this world
  * (`KS_OPERATOR_ACCOUNTS`); anyone else gets the same 404 as an unknown route and the refusal is
- * logged as a code. Reads only; the use cases read the allowlisted `ops` views.
+ * logged as a code. The panels and journeys only read, from the allowlisted `ops` views; the review's two decisions are the
+ * review gate's own and are logged as `content.review_decided`.
  */
 @Controller()
 export class OperatorController {
@@ -124,6 +145,7 @@ export class OperatorController {
     @Inject(IS_OPERATOR) private readonly isOperator: IsOperator,
     @Inject(READ_OPERATOR_PANELS) private readonly readPanels: ReadOperatorPanels,
     @Inject(READ_JOURNEY) private readonly readJourney: ReadJourney,
+    @Inject(OPERATOR_REVIEW) private readonly review: OperatorReview,
   ) {}
 
   private async requireOperator(request: Request, route: string): Promise<void> {
@@ -131,6 +153,32 @@ export class OperatorController {
     if (await this.isOperator(caller.accountId)) return;
     this.logEvent('operator.refused', { route, reasonCode: 'not_operator' });
     throw problem('NOT_FOUND');
+  }
+
+  /**
+   * The answer to a review call that found nothing: the same 404 whether the account is no operator or the revision is not held,
+   * logged as a code. The use cases check the operator themselves; `requireOperator` runs first only so that a malformed asset or
+   * revision is a 400 for an operator and a 404 for anyone else.
+   */
+  private notFound(route: string, refusal: ReviewNotFound): never {
+    if (refusal.why === 'not_operator') this.logEvent('operator.refused', { route, reasonCode: 'not_operator' });
+    else this.logEvent('operator.read', { route, outcome: 'not_held' });
+    throw problem('NOT_FOUND');
+  }
+
+  /** The diagnostic record of a decision, as `content review-release` and `review-reject` keep it: the recipe key, what happened and the revision. */
+  private recordDecision(
+    recipe: string | null,
+    revision: number,
+    result: ReviewReleaseResult | ReviewRejectResult,
+  ): void {
+    this.logEvent('content.review_decided', {
+      severity: result.outcome === 'refused' ? 'warn' : 'info',
+      context: recipe ?? 'unknown_recipe',
+      outcome: result.outcome,
+      revision,
+      ...(result.reason === null ? {} : { reasonCode: result.reason }),
+    });
   }
 
   @Header('Cache-Control', 'private, no-store')
@@ -160,6 +208,70 @@ export class OperatorController {
       });
       if (result.kind === 'not_found') throw problem('NOT_FOUND');
       return wireJourney(result.journey);
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.operator.reviewList)
+  reviewListRoute(@Req() request: Request) {
+    return implement(apiContract.operator.reviewList).handler(async () => {
+      const route = '/v1/operator/review';
+      await this.requireOperator(request, route);
+      const result = await this.review.list(admittedCaller(request).accountId);
+      if (result.kind === 'not_found') this.notFound(route, result);
+      this.logEvent('operator.read', { route, outcome: 'read', count: result.revisions.length });
+      return { revisions: [...result.revisions] };
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.operator.reviewShow)
+  reviewShowRoute(@Req() request: Request) {
+    return implement(apiContract.operator.reviewShow).handler(async ({ input }) => {
+      const route = '/v1/operator/review/{assetId}/{revision}';
+      const caller = admittedCaller(request);
+      // After the operator check, so a malformed value never tells a non-operator the route exists.
+      await this.requireOperator(request, route);
+      const target = reviewTargetOf(input);
+      if (target === undefined) throw problem('INVALID_REQUEST');
+      const result = await this.review.show(caller.accountId, target);
+      if (result.kind === 'not_found') this.notFound(route, result);
+      this.logEvent('operator.read', { route, outcome: result.kind });
+      if (result.kind === 'unreadable') throw problem('UNPROCESSABLE_REQUEST');
+      return result.review;
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.operator.reviewRelease)
+  reviewReleaseRoute(@Req() request: Request) {
+    return implement(apiContract.operator.reviewRelease).handler(async ({ input }) => {
+      const route = '/v1/operator/review/{assetId}/{revision}/release';
+      const caller = admittedCaller(request);
+      await this.requireOperator(request, route);
+      const target = reviewTargetOf(input);
+      if (target === undefined) throw problem('INVALID_REQUEST');
+      const result = await this.review.release(caller.accountId, target);
+      if (result.kind === 'not_found') this.notFound(route, result);
+      this.recordDecision(result.recipe, target.revision, result.result);
+      return result.result;
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.operator.reviewReject)
+  reviewRejectRoute(@Req() request: Request) {
+    return implement(apiContract.operator.reviewReject).handler(async ({ input }) => {
+      const route = '/v1/operator/review/{assetId}/{revision}/reject';
+      const caller = admittedCaller(request);
+      await this.requireOperator(request, route);
+      const target = reviewTargetOf(input);
+      if (target === undefined) throw problem('INVALID_REQUEST');
+      const result = await this.review.reject(caller.accountId, target, input.reason ?? '');
+      if (result.kind === 'not_found') this.notFound(route, result);
+      if (result.kind === 'reason_invalid') throw problem('INVALID_REQUEST');
+      this.recordDecision(result.recipe, target.revision, result.result);
+      return result.result;
     });
   }
 }
