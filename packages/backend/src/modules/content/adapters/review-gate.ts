@@ -1,6 +1,14 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import { parseDocumentV2, readingWords, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
-import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
+import {
+  parseDocumentV2,
+  beatsOfV3,
+  parseDocumentV3,
+  readingWords,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+  type PictureKind,
+  type ScrollDocumentV3,
+} from '@knowscroll/scroll-model';
+import { ScrollProvenanceV2, ScrollProvenanceV3 } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import { summariseAnswerChecks, withoutCallText, type AnswerCheckSummary } from '../domain/answer-check.js';
@@ -24,7 +32,7 @@ import {
   type ReviewState,
 } from '../domain/review.js';
 import type { AutoReleaseRefusal } from '../domain/release-policy.js';
-import { reviewTextOf, type ReviewEvidence } from './review-text.js';
+import { reviewTextOf, reviewTextV3, type ReviewEvidence } from './review-text.js';
 
 /** One revision at the review gate, as the operator's list shows it. Never any body text. */
 export interface ReviewListing {
@@ -36,9 +44,14 @@ export interface ReviewListing {
   readonly title: string;
   readonly words: number;
   readonly readingMinutes: number;
+  /** The stops of a v2 Scroll; the beats of a document v3, which are its units. */
   readonly stops: number;
+  /** The calls of a v2 Scroll; always 0 for a document v3, which has none. */
   readonly calls: number;
+  /** Whether the Scroll has a picture; a document v3 always has at least one. */
   readonly hasPicture: boolean;
+  /** What only a document v3 has: its pictures by kind and its controls. Absent for a v1 or v2 Scroll, so their listings are unchanged. */
+  readonly v3?: ReviewListingV3;
   /** Whether the recipe's planet and angle are mapped to this revision (what formation needs). */
   readonly coverage: 'mapped' | 'unmapped';
   /** The revision the asset serves now, when it serves one. */
@@ -60,6 +73,15 @@ export interface ReviewListing {
    * its verdict, or the decisions would no longer be the operator's own.
    */
   readonly supportCheck?: SupportCheckSummary | null;
+}
+
+/** What a reviewer counts in a document v3 before reading it. */
+export interface ReviewListingV3 {
+  readonly beats: number;
+  /** How many pictures of each kind the document declares. */
+  readonly pictures: Readonly<Partial<Record<PictureKind, number>>>;
+  /** How many beats carry a scrub, a switch or a pick. */
+  readonly controls: number;
 }
 
 /** What the support check said about a revision, by the policy in force (the verdict is decided again from the stored sentences, so a policy change shows at once). */
@@ -120,6 +142,8 @@ interface ListingRow {
   state: ReviewState;
   title: string;
   document: unknown;
+  /** The schema of `document`, which says how to read it. */
+  document_version: string;
   held_at: Date;
   decided_at: Date | null;
   decided_by: string | null;
@@ -152,22 +176,30 @@ function answerCheckOf(outcomes: unknown): AnswerCheckSummary | null {
 /** The check's result for a listing: `undefined` leaves it out (hidden), `null` says none ran, a result becomes its summary. */
 type SupportView = StoredLibraryCheck | null | undefined;
 
-function listingOf(row: ListingRow, support: SupportView): ReviewListing | undefined {
+/** What a listing says about the document itself; everything else in it comes from the review row. */
+export interface DocumentFacts {
+  readonly words: number;
+  readonly readingMinutes: number;
+  readonly stops: number;
+  readonly calls: number;
+  readonly hasPicture: boolean;
+  readonly v3?: ReviewListingV3;
+}
+
+function listingFrom(row: ListingRow, support: SupportView, facts: DocumentFacts): ReviewListing {
   const check = answerCheckOf(row.outcomes);
-  const parsed = parseDocumentV2(row.document);
-  if (parsed.kind !== 'valid') return undefined;
-  const { document } = parsed;
   return {
     assetId: row.asset_id,
     recipe: recipeOfAsset.get(row.asset_id) ?? row.stored_recipe,
     revision: row.revision,
     state: row.state,
     title: row.title,
-    words: readingWords(document),
-    readingMinutes: document.measures.readingMinutes,
-    stops: document.stops.length,
-    calls: document.stops.filter((stop) => stop.kind !== 'read').length,
-    hasPicture: document.stage !== undefined,
+    words: facts.words,
+    readingMinutes: facts.readingMinutes,
+    stops: facts.stops,
+    calls: facts.calls,
+    hasPicture: facts.hasPicture,
+    ...(facts.v3 === undefined ? {} : { v3: facts.v3 }),
     coverage: row.mapped ? 'mapped' : 'unmapped',
     servedRevision: row.asset_status === 'admitted' ? row.served_revision : null,
     heldAt: row.held_at.toISOString(),
@@ -177,6 +209,43 @@ function listingOf(row: ListingRow, support: SupportView): ReviewListing | undef
     answerCheck: check === null ? null : withoutCallText(check),
     ...(support === undefined ? {} : { supportCheck: support === null ? null : supportCheckSummaryOf(support) }),
   };
+}
+
+/** What a reviewer counts in a document v3 before reading it. Pure. */
+export function listingFactsOfV3(document: ScrollDocumentV3): DocumentFacts {
+  const beats = beatsOfV3(document);
+  const pictures: Partial<Record<PictureKind, number>> = {};
+  for (const picture of document.pictures) pictures[picture.kind] = (pictures[picture.kind] ?? 0) + 1;
+  return {
+    words: document.measures.mainWords,
+    readingMinutes: document.measures.readingMinutes,
+    stops: beats.length,
+    calls: 0,
+    hasPicture: document.pictures.length > 0,
+    v3: {
+      beats: beats.length,
+      pictures,
+      controls: beats.filter((beat) => beat.kind === 'plain' && beat.control !== undefined).length,
+    },
+  };
+}
+
+/** The listing of a held revision, or `undefined` when its document does not parse as the schema it says it has. */
+function listingOf(row: ListingRow, support: SupportView): ReviewListing | undefined {
+  if (row.document_version === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    const parsed = parseDocumentV3(row.document);
+    return parsed.kind === 'valid' ? listingFrom(row, support, listingFactsOfV3(parsed.document)) : undefined;
+  }
+  const parsed = parseDocumentV2(row.document);
+  if (parsed.kind !== 'valid') return undefined;
+  const { document } = parsed;
+  return listingFrom(row, support, {
+    words: readingWords(document),
+    readingMinutes: document.measures.readingMinutes,
+    stops: document.stops.length,
+    calls: document.stops.filter((stop) => stop.kind !== 'read').length,
+    hasPicture: document.stage !== undefined,
+  });
 }
 
 /** The support check results of the current checker version for the revisions of these rows, by `assetId:revision`. */
@@ -197,7 +266,7 @@ async function readListingRows(
   where: { readonly assetId?: string; readonly revision?: number; readonly onlyHeld: boolean },
 ): Promise<readonly ListingRow[]> {
   const { rows } = await sql<ListingRow>`
-    select review.asset_id, review.revision, review.state, revision.title, revision.document,
+    select review.asset_id, review.revision, review.state, revision.title, revision.document, revision.document_version,
       review.held_at, review.decided_at, review.decided_by, review.reason,
       asset.revision as served_revision, asset.status as asset_status,
       exists (select 1 from content.coverage_heads head
@@ -219,7 +288,10 @@ async function readListingRows(
   return rows;
 }
 
-/** The quotes each part of a stored v2 Scroll cites and the pages they come from, for a factual read. */
+/**
+ * The quotes each part of a stored v2 or document v3 Scroll cites and the pages they come from, for a factual read. The parts of
+ * a v3 are its beat, aside and picture ids and `takeaway`; the provenance says which schema it is.
+ */
 async function readEvidence(
   db: Kysely<Database> | Transaction<Database>,
   assetId: string,
@@ -231,16 +303,18 @@ async function readEvidence(
     .where('asset_id', '=', assetId)
     .where('revision', '=', revision)
     .executeTakeFirst();
-  const parsed = ScrollProvenanceV2.safeParse(row?.provenance);
-  if (!parsed.success) return undefined;
-  const quoteOf = new Map(parsed.data.claims.map((claim) => [claim.claimId, claim.quote]));
+  const parsedV2 = ScrollProvenanceV2.safeParse(row?.provenance);
+  const parsedV3 = parsedV2.success ? undefined : ScrollProvenanceV3.safeParse(row?.provenance);
+  const provenance = parsedV2.success ? parsedV2.data : parsedV3?.success ? parsedV3.data : undefined;
+  if (provenance === undefined) return undefined;
+  const quoteOf = new Map(provenance.claims.map((claim) => [claim.claimId, claim.quote]));
   const quotesByPart = new Map(
-    parsed.data.citations.map((entry) => [
+    provenance.citations.map((entry) => [
       entry.partId,
       entry.claimIds.flatMap((id) => (quoteOf.has(id) ? [quoteOf.get(id)!] : [])),
     ]),
   );
-  return { quotesByPart, sources: parsed.data.sources.map((source) => `${source.title} (${source.url})`) };
+  return { quotesByPart, sources: provenance.sources.map((source) => `${source.title} (${source.url})`) };
 }
 
 export async function lockAssetForReview(trx: Transaction<Database>, assetId: string) {
@@ -304,9 +378,16 @@ async function showRevision(
       ? ((await readSupportChecks(db, [row])).get(`${row.asset_id}:${String(row.revision)}`) ?? null)
       : undefined;
   const listing = listingOf(row, support);
-  const parsed = parseDocumentV2(row.document);
-  if (listing === undefined || parsed.kind !== 'valid') return { kind: 'refused', reason: 'document_unreadable' };
+  if (listing === undefined) return { kind: 'refused', reason: 'document_unreadable' };
   const evidence = request.withSources ? await readEvidence(db, row.asset_id, row.revision) : undefined;
+  if (row.document_version === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    // The listing parsed, so the document does: a document v3 has no calls, so there is no answer check to print.
+    const parsedV3 = parseDocumentV3(row.document);
+    if (parsedV3.kind !== 'valid') return { kind: 'refused', reason: 'document_unreadable' };
+    return { kind: 'shown', listing, text: reviewTextV3(parsedV3.document, evidence, support) };
+  }
+  const parsed = parseDocumentV2(row.document);
+  if (parsed.kind !== 'valid') return { kind: 'refused', reason: 'document_unreadable' };
   return {
     kind: 'shown',
     listing,

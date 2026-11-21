@@ -18,14 +18,19 @@ import {
   productionVersionOf,
   REQUEST_BOUND_ASK_ORDER,
   REQUEST_BOUND_PER_TOPIC,
+  PRODUCTION_VERSIONS,
   REQUEST_BOUND_V2_PER_TOPIC,
+  REQUEST_BOUND_V3_PER_TOPIC,
   requestBoundOf,
   SCROLL_PRODUCTION_V2_VERSION,
+  SCROLL_PRODUCTION_V3_VERSION,
   SCROLL_PRODUCTION_VERSION,
   scrollV2PlanOf,
+  scrollV3PlanOf,
   TOPICS,
 } from './topics.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
+import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
 import { QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
 
 /** Marks a recipe v2 for one test, the way the plan will. */
@@ -34,6 +39,16 @@ function markV2(key: 'exoplanet-kinds'): void {
   const recipe = TOPICS[key] as { scrollV2?: unknown };
   recipe.scrollV2 = { variant: 'plain', misconception: { kind: 'none' } };
   marked.push(() => delete recipe.scrollV2);
+}
+/** Marks a recipe as a document v3 one for one test, the way the plan will. */
+function markV3(key: 'exoplanet-kinds'): void {
+  const recipe = TOPICS[key] as { scrollV3?: unknown };
+  recipe.scrollV3 = {
+    shape: 'mechanism',
+    sections: ['What happens', 'Why it matters'],
+    misconception: { kind: 'none' },
+  };
+  marked.push(() => delete recipe.scrollV3);
 }
 afterEach(() => marked.splice(0).forEach((undo) => undo()));
 
@@ -63,6 +78,57 @@ describe('production versions: a recipe is v1 unless the plan marks it v2', () =
       kind: 'skipped',
       reason: 'policy_version',
     });
+  });
+});
+
+describe('production versions: a recipe the plan marks document v3', () => {
+  it('has no v3 plan for a v1 recipe, an order or a stored recipe', () => {
+    expect(scrollV3PlanOf('exoplanet-kinds')).toBeUndefined();
+    expect(scrollV3PlanOf(`order-${'a'.repeat(32)}`)).toBeUndefined();
+    // A stored recipe cannot carry the plan yet: its key alone decides, and says v2.
+    expect(scrollV3PlanOf(`gen-${'a'.repeat(32)}`)).toBeUndefined();
+  });
+
+  it('gives a marked recipe the v3 version, in the job it sends and the job it accepts', async () => {
+    markV3('exoplanet-kinds');
+    expect(scrollV3PlanOf('exoplanet-kinds')?.shape).toBe('mechanism');
+    expect(productionVersionOf('exoplanet-kinds')).toBe(SCROLL_PRODUCTION_V3_VERSION);
+    expect(produceScrollJob('exoplanet-kinds', 2)).toMatchObject({
+      policyVersion: SCROLL_PRODUCTION_V3_VERSION,
+      take: 2,
+    });
+    const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')));
+    const abort = { signal: new AbortController().signal };
+    expect(
+      await run({ v: 1, recipe: 'exoplanet-kinds', policyVersion: SCROLL_PRODUCTION_V2_VERSION, take: 1 }, abort),
+    ).toEqual({ kind: 'skipped', reason: 'policy_version' });
+  });
+
+  it('pairs the v3 writer’s instructions with the v3 production version, so a new writer cannot reuse the old writer’s takes', () => {
+    const productionVersionOfWriter: Readonly<Record<string, string>> = {
+      'scroll-writer-v3.v1': 'scroll-production-v3.v1',
+    };
+    expect(productionVersionOfWriter[WRITER_V3_PROMPT_VERSION]).toBe(SCROLL_PRODUCTION_V3_VERSION);
+  });
+
+  it('is a version a job row may carry, and bounds a take like v2 until the writer pull request chooses', () => {
+    expect(PRODUCTION_VERSIONS).toContain(SCROLL_PRODUCTION_V3_VERSION);
+    expect(new Set(PRODUCTION_VERSIONS).size).toBe(3);
+    expect(REQUEST_BOUND_V3_PER_TOPIC).toBe(REQUEST_BOUND_V2_PER_TOPIC);
+    markV3('exoplanet-kinds');
+    expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_V3_PER_TOPIC);
+  });
+
+  it('refuses a v3 plan whose misconception source no person has reviewed, as for v2', () => {
+    markV3('exoplanet-kinds');
+    const recipe = TOPICS['exoplanet-kinds'] as { scrollV3?: { misconception: unknown } };
+    if (recipe.scrollV3 === undefined) throw new Error('CI: the recipe was just marked');
+    recipe.scrollV3.misconception = {
+      kind: 'myth',
+      claim: 'A CI fixture claim, never product content.',
+      source: { label: 'CI fixture label', reviewed: false },
+    };
+    expect(planRefusalOf('exoplanet-kinds')).toBe('misconception_source_unreviewed');
   });
 });
 

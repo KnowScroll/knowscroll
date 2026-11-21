@@ -45,7 +45,7 @@ request and at most one repair, none inside a transaction, and the answer check 
   `production-status` shows it `stopped`. The stored compile refuses it too, should the plan change
   while a job runs.
 - **Citation bound.** A Scroll may cite at most 48 different passages (the provenance's bound); the
-  validated compile finds it, so the one repair can fix it (`citations_too_many`).
+  validated compile finds it, so the one repair can fix it (`citations_too_many`). A document v3 has its own bound (below).
 - **Held, not served (D-138).** The same transaction stores the revision held: the asset's current revision does not
   move (a new asset is born `held`), a `content.revision_reviews` row says `held`, and the job records
   `held_for_review`. `production-status` shows `held`; the next take is refused until the operator rejects the
@@ -54,6 +54,32 @@ request and at most one repair, none inside a transaction, and the answer check 
 - **Same publication.** Revision, provenance, topic attribution and coverage (`scroll-recipe-coverage.v2`)
   commit in one transaction. `content produce-scroll`, `produce-library` and `production-status` work for v2
   recipes unchanged.
+
+## Producing a document v3 Scroll (#772)
+
+Status: **implemented, no writer yet.** The pipeline is ready for a model-written `scroll-document.v3`; no recipe is marked
+`scrollV3` and no document v3 writer exists, so nothing is produced this way today. A recipe the library plan marks `scrollV3`
+(`ScrollV3Plan`: shape, section intents, pictures by kind and purpose) would be produced by the same job, take and ledger as a v2
+recipe. What is in place:
+
+- **Hold.** `isHeldForReview` and `hasAnswerCheck` (`review-hold.ts`) hold a v3-planned library recipe, so it is never published
+  unread. A document v3 has no calls: its answer check is recorded as passed with no request.
+- **Versions.** A v3 recipe's jobs are `scroll-production-v3.v1` (`SCROLL_PRODUCTION_V3_VERSION`, in `PRODUCTION_VERSIONS`), paired
+  in `versions.test.ts` with `WRITER_V3_PROMPT_VERSION` (`scroll-writer-v3.v1`, `writer-v3-version.ts`, which the future writer
+  imports). `scrollV3PlanOf` reads the plan from the code recipe; a stored (`gen-`) recipe has none yet. A take is bounded like
+  v2 (`REQUEST_BOUND_V3_PER_TOPIC` = 6); the writer pull request sets the bound once the pipeline is chosen.
+- **No writer, so a refusal.** `writerPlanFor` throws `SCROLL_V3_WRITER_NOT_IMPLEMENTED` for a v3 subject before any request, so
+  the v1 writer never writes a recipe planned as v3. The v3 writer replaces that line.
+- **Lineage.** `storedLineage` (`publication-topic.ts`) has a `scroll-document.v3` branch (`parseDocumentV3`,
+  `ScrollProvenanceV3`, the writer prompt version `WRITER_V3_PROMPT_VERSION`), so a v3 revision gets its topic attribution and
+  its coverage head in the publication transaction. Before this it fell into the v1 branch and was recorded
+  `attribution_unverified`, with no topic and no coverage. `matchesWriterAttempts` is unchanged: one writer run.
+- **Citation bound.** `citationLimitIssuesV3` holds a v3 to `PROVENANCE_V3_LIMITS` (48 passages, 24 pages, 22 parts that cite),
+  with the same finding `citations_too_many` and its own hint (`CITATIONS_TOO_MANY_HINT_V3`).
+- **Standing.** A v3-planned recipe counts as published only while its current revision is a document v3
+  (`plannedDocumentVersionOf`), and a new take may follow a published one, as for v2.
+- **Not done:** the writer, its authoring shape and repair hints, the library support check and the release policy's reading of a
+  document v3 (`library-support-check.ts`, `release-policy.ts`), which still read v2 only.
 
 ## The answer check and regeneration (S-6a, D-197, D-198)
 
