@@ -324,6 +324,67 @@ To read a refused answer: `node dist/operator.js reasoning rejected --attempt <a
 
 Each run starts fresh and remembers nothing. Before running again, reconcile every attempt the last run left `unknown` with `reasoning unknown` (or write it off): re-running that topic before then would send a second paid request while the first is unsettled. Then re-run only the topics in `notStarted` plus `stoppedBy.key`, which is not in `notStarted`. Re-running all twenty repeats the finished ones and pays for them again.
 
+## The v3 writer spike (#771)
+
+Before any recipe is planned as a `scroll-document.v3`, the team measures how the document v3 writer does on real recipes, in two arms. Arm `a` asks for the whole Scroll in one reply. Arm `b` asks for the prose, then asks a second request to stage it (the pictures, and what each paragraph shows, links and controls). The command **admits and publishes nothing** and needs no migration. Status: implemented, **not yet run on real MiniMax**.
+
+```sh
+# worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash (the only model it accepts)
+node dist/operator.js content writer-spike-v3 --topics <recipe key,…> --arms <a,b> [--raw-dir <absolute dir>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
+node dist/operator.js content writer-spike-v3-blind --in <out file> --page <html file> --key <key file> [--seed <n>]
+```
+
+The ten recipes, each with a plan of the spike's own (the library marks none as v3). Every plan has three sections and no misconception. A recipe with named pictures must write exactly those kinds; for the others the writer chooses one to three kinds.
+
+| Recipe | Shape | Named pictures |
+|---|---|---|
+| `seasons` | argument | a statement, a grid |
+| `tides-spring-neap` | mechanism | a cycle |
+| `greenhouse-radiation` | mechanism | two flows |
+| `cardiac-cycle` | mechanism | a cycle, a grid |
+| `black-hole-formation` | story | a flow, a grid |
+| `gradient-descent` | mechanism | the writer chooses |
+| `dns-lookup` | mechanism | the writer chooses |
+| `industrial-causes` | argument | the writer chooses |
+| `immune-memory` | mechanism | the writer chooses |
+| `exoplanet-kinds` | argument | the writer chooses |
+
+Each recipe runs in each arm: `--topics` times `--arms` jobs. A job sends at most two requests in arm `a` and four in arm `b` (the writer or the stager, and one repair of each). All ten recipes in both arms is at most 60 requests. Run them in two halves of five recipes if the MiniMax window is short; the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) apply as for every production call.
+
+```sh
+node dist/operator.js content writer-spike-v3 --topics seasons,tides-spring-neap,greenhouse-radiation,cardiac-cycle,black-hole-formation --arms a,b --concurrency 2 --spike-id writer-v3-1 --raw-dir /var/tmp/ks-v3-spike/raw --out /var/tmp/ks-v3-spike/writer-v3-1.jsonl
+node dist/operator.js content writer-spike-v3 --topics gradient-descent,dns-lookup,industrial-causes,immune-memory,exoplanet-kinds --arms a,b --concurrency 2 --spike-id writer-v3-2 --raw-dir /var/tmp/ks-v3-spike/raw --out /var/tmp/ks-v3-spike/writer-v3-2.jsonl
+```
+
+### Reading the output
+
+One JSON line on stdout for the start (`result: "starting"`), one for each job as it finishes (`result: "job"`), and one for the end (`done` or `stopped`). The exit status is as for the v2 spike: 0, 2 when refused or stopped early, 1 on a failure. A job line never holds any text of the Scroll.
+
+| Field | Meaning |
+|---|---|
+| `key`, `arm`, `spikeId` | The recipe, the arm and this spike run. |
+| `outcome` | As for v2: `accepted_first_take` (no step needed a repair), `accepted_after_repair`, `rejected` (a step and its repair were both refused), `research_failed`, `evidence_insufficient`, `provider_failed`, `model_mismatch`, `paused`, `unknown`, `refused`, `scope_refused`. In arm `b` a refused prose means the staging was never sent. |
+| `steps` | One entry for each harness run: `step` (`one`; or `prose` then `staging`), `runId`, `roleVersion`, `outcome`, `requests`, `findings` (`{attempt, code, path}` for each refused answer: the repair's reason, at the model's own item or at `stage.N` for staging), `tokens`, `attempts`, `models` and `wallMs`. |
+| `requests`, `tokens`, `wallMs` | Totals over the steps (`wallMs` has `research` and `total`). `tokens.output` includes thinking. |
+| `document` | For an accepted job: `sections`, `beats`, `words` (the paragraphs' words, which the 350 to 700 bound counts), `readingMinutes`, `picturesByKind`, `shows`, `links`, `controls`, `asides`, `takeawayWords`, and `plannedKinds` against `writtenKinds`. `null` otherwise. |
+| `rawFiles`, `rawFilesFailed` | The raw reply files written, and how many could not be. |
+
+To compare the arms: for each recipe, put the two lines side by side. Compare the outcome, the requests and tokens (arm `b` always pays at least two requests), the findings, and the `document` numbers. Then read the essays blind.
+
+### Raw replies and the blind read
+
+With `--raw-dir`, every paid attempt is written to `<raw dir>/<spike id>/<recipe>.<arm>.<step>.<n>.json`: `{ key, arm, step, attempt, attemptId, state, model, text }`. `text` is the accepted output (written again as JSON), or the refused answer the harness kept (`null` if it kept none). Read a refused answer's findings with `reasoning rejected --attempt <attemptId>` as for v2.
+
+`--out` appends one line for each accepted job: `{ key, arm, spikeId, document, citations }`.
+
+`content writer-spike-v3-blind` turns the `--out` file into one HTML page and a key file. The page shows each essay under a letter (Essay A, B, C and so on, in an order the seed decides): title, dek, section titles, paragraphs, quotations with who, work and year, asides marked as asides, "To sum up", and a boxed line wherever a paragraph shows a picture, with the picture's title and the words a screen reader would hear. The page names no arm, recipe, run or model. It is one self-contained file: open it in a browser, on a phone or in dark mode. The key file maps each letter to `{ key, arm }`; open it only after reading. Without `--seed` the command picks one and prints it, so the same order can be made again.
+
+The raw folder, the `--out` file, the page and the key hold the model's own text about public sources. They are local files: keep them outside the repository, and never paste them, or the essays, into an issue or a pull request. Paste the job lines (they hold no text) instead.
+
+### Running it again
+
+As for the v2 spike: reconcile every `unknown` attempt first (`reasoning unknown`), then re-run only the jobs in `notStarted` and `stoppedBy.job`. A new `--spike-id` gives a new raw folder.
+
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
 A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.

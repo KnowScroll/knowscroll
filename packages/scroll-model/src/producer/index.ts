@@ -71,3 +71,34 @@ export {
   type EditorialV3Stage,
   type PublicationV3,
 } from './v3/editorial.js';
+
+/**
+ * `scroll-writing-v3.v1`: what the model writer of a `scroll-document.v3` replies in (one reply, or prose and then
+ * staging), the merge of the two, the compile into a stored document and provenance (or into findings one repair can
+ * act on), its repair hints and its reference text (#771).
+ */
+export {
+  SCROLL_WRITING_V3_VERSION,
+  WrittenControlV3,
+  WrittenItemV3,
+  WrittenLinkV3,
+  WrittenPictureV3,
+  WrittenProseItemV3,
+  WrittenProseV3,
+  WrittenScrollV3,
+  WrittenShowV3,
+  WrittenStagingV3,
+  WrittenStateV3,
+} from './v3/written-schema.js';
+export { mergeStagingV3, numberedProseText, stagingPathsV3, type MergedStagingV3 } from './v3/written-merge.js';
+export {
+  compileWrittenProseV3,
+  compileWrittenV3,
+  MACHINE_PHRASES_V3,
+  type WrittenCodeFacts,
+  type WrittenCompileInput,
+  type WrittenCompileOutcome,
+  type WrittenProseOutcome,
+} from './v3/written.js';
+export { REPAIR_HINTS_V3 } from './v3/reasons.js';
+export { writtenReferenceV3, type WrittenArm } from './v3/written-reference.js';

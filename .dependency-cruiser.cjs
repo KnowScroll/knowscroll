@@ -62,6 +62,9 @@ const compositionRoots = [
   '^apps/worker/src/scenes-operator\\.ts$',
   // The writer spike composes the production harness and the v2 writer for one operator command (S-0, D-120).
   '^apps/worker/src/writer-spike-operator\\.ts$',
+  // The v3 writer spike composes the production harness and the document v3 writer for one operator command; its blind-read page reads the accepted documents it wrote (#771).
+  '^apps/worker/src/writer-spike-v3-operator\\.ts$',
+  '^apps/worker/src/writer-spike-v3-blind\\.ts$',
   // The ask-check command composes the production harness and replays the support check over stored ask answers (S-7b, D-252).
   '^apps/worker/src/ask-check-operator\\.ts$',
   // The support-check replay composes the production harness and measures the library support check against the operator's decisions (#674, D-415).

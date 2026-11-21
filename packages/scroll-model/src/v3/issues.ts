@@ -44,6 +44,16 @@ export const V3_REASON_CODES = [
   'takeaway_sentences',
   // The editorial compile: a quotation must match a passage it cites word for word.
   'quote_not_in_evidence',
+  // The model writer's compile (`producer/v3/written.ts`): what only the shape of a reply can show.
+  'section_first_missing',
+  'aside_without_beat',
+  'picture_label_duplicate',
+  'picture_kind_unplanned',
+  'first_beat_points_back',
+  'machine_phrase',
+  'takeaway_repeats_dek',
+  'stage_para_unknown',
+  'stage_para_repeated',
 ] as const;
 
 export type V3ReasonCode = (typeof V3_REASON_CODES)[number];

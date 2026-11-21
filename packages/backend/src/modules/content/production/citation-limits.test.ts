@@ -63,6 +63,25 @@ describe('the bounds of what a document v3 revision’s provenance can record', 
     ]);
   });
 
+  it('puts the finding where the repair can change it: the pictures, for a staging reply over fixed prose', () => {
+    const passages = passagesOf(PROVENANCE_V3_LIMITS.claims + 1);
+    expect(citationLimitIssuesV3(citing(PROVENANCE_V3_LIMITS.claims + 1), passages, 'pictures')).toEqual([
+      { code: CITATIONS_TOO_MANY, path: 'pictures' },
+    ]);
+  });
+
+  it('counts the parts that cite, too: a beat, an aside, a picture and the takeaway each have an entry', () => {
+    const passages = passagesOf(1);
+    const parts = (count: number) =>
+      Object.fromEntries(Array.from({ length: count }, (_, index) => [`part${String(index + 1)}`, ['claim-ci-1']]));
+    expect(citationLimitIssuesV3(parts(PROVENANCE_V3_LIMITS.citations), passages)).toEqual([]);
+    expect(citationLimitIssuesV3(parts(PROVENANCE_V3_LIMITS.citations + 1), passages)).toHaveLength(1);
+  });
+
+  it('counts different passages, not citations: reusing one passage everywhere is fine', () => {
+    expect(citationLimitIssuesV3({ b1: ['claim-ci-1'], b2: ['claim-ci-1'] }, passagesOf(1))).toEqual([]);
+  });
+
   it('bounds the parts that cite at 22, where v2 allows 32', () => {
     const one = passagesOf(1);
     const parts = (count: number) =>
