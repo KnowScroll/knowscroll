@@ -725,7 +725,10 @@ export function compileWrittenProseV3(
   prose: WrittenProseV3,
   input: Omit<WrittenCompileInput, 'reply' | 'plannedKinds'>,
 ): WrittenProseOutcome {
-  const handle = [...input.evidence.claimIdOf.keys()][0] ?? 'e1';
+  // The placeholder cites a passage the prose already cites, so it adds nothing to what the prose is judged on: neither a
+  // passage toward the four distinct ones, nor a passage the header's figures could lean on.
+  const handle =
+    prose.items.flatMap((item) => (item.type === 'section' ? [] : item.cites))[0] ?? prose.takeaway.cites[0] ?? 'e1';
   const placeholder: WrittenStagingV3 = {
     pictures: [
       {

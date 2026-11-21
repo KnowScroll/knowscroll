@@ -460,6 +460,11 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       compiled(withChart('people', `${BOIL} Some 8.3 people and 9.1 people live nearby.`));
     });
 
+    it('refuses a value no cited passage states at all, at the value', () => {
+      const issues = refused(withChart('people', `${BOIL} Some 8.3 people live nearby.`));
+      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.1.value'));
+    });
+
     it('refuses a unit the passage never names, at the unit', () => {
       const issues = refused(withChart('light years', `${BOIL} Some 8.3 people and 9.1 people live nearby.`));
       expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.unit'));
@@ -596,6 +601,24 @@ describe('arm (b): the merge and the prose compile', () => {
     const input = compileInputFor(validReply());
     const { reply: _reply, plannedKinds: _planned, ...rest } = input;
     expect(compileWrittenProseV3(prose, rest)).toEqual({ kind: 'accepted' });
+  });
+
+  it('judges the prose on its own citations: the placeholder picture lends it no passage', () => {
+    const { prose } = split(validReply());
+    // The prose cites e2 and e3 only; the heating passage (e1) alone states the figure in the dek.
+    for (const item of prose.items)
+      if (item.type !== 'section') item.cites = item.cites.map((cite) => (cite === 'e1' ? 'e2' : cite));
+    prose.takeaway.cites = ['e2'];
+    prose.dek = 'Why a kettle element draws 3 kilowatts, and where the heat goes.';
+    const input = compileInputFor(validReply(), (mutable) => {
+      mutable.passages['c-heat'] = `${HEAT} A typical element draws 3 kilowatts.`;
+    });
+    const { reply: _reply, plannedKinds: _planned, ...rest } = input;
+    const outcome = compileWrittenProseV3(prose, rest);
+    expect(outcome.kind).toBe('refused');
+    expect(outcome.kind === 'refused' ? outcome.issues : []).toContainEqual(
+      at('authoring_number_not_in_evidence', 'dek'),
+    );
   });
 
   it('refuses prose for its own problems and names none about pictures', () => {

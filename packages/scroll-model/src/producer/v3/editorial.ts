@@ -345,7 +345,11 @@ export function evidenceIssues(
     const values = new Set(picture.points.map((point) => plainFigure(point.value)));
     const magnitude = unitMagnitude(picture.unit);
     picture.points.forEach((point, pointIndex) => {
-      if (!pointAgrees({ value: point.value, magnitude }, passages, values))
+      // `pointAgrees` judges how a stated value is written (its magnitude word, a range's other end) and lets through a value
+      // no passage states, which in v2 the ordinary figure check refused. A chart value is outside that check here, so a
+      // value no cited passage writes at all is refused first.
+      const stated = readingsOf(plainFigure(point.value), passages).length > 0;
+      if (!stated || !pointAgrees({ value: point.value, magnitude }, passages, values))
         issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.points.${pointIndex}.value` });
     });
   });

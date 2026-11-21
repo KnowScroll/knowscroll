@@ -1,7 +1,6 @@
 import type { Claim, ProductionRecord, Source } from '../internal/provenance.js';
 import type { WrittenCompileInput } from '../producer/v3/written.js';
 import type { WrittenItemV3, WrittenScrollV3 } from '../producer/v3/written-schema.js';
-import { beatsOfV3 } from '../v3/document.js';
 import { validDocumentV3 } from './v3-fixtures.js';
 
 /**
@@ -173,6 +172,3 @@ export interface Mutable {
   minDistinctCitations: number;
   pages: string[];
 }
-
-/** The beat count the fixture has, for tests that need to know how many paragraphs there are. */
-export const FIXTURE_BEATS = beatsOfV3(validDocumentV3()).length;
