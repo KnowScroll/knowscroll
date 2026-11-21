@@ -516,6 +516,20 @@ describe('retirement: a released document v3 retires its asset’s v1 and v2 rev
       });
     });
 
+    it('leaves an earlier document v3 readable when a later v3 corrects it: only v1 and v2 revisions retire', async () => {
+      const first = await seedDocumentV3(database.db, 'fence-v3-ci');
+      await seedDocumentV3(database.db, 'broad-street-v3-ci', {
+        assetId: first.assetId,
+        revision: 2,
+        unit: `ci-v3-over-v3-${randomUUID()}`,
+      });
+      expect(await offeredFor(v3Client, first.assetId)).toBe(2);
+      // A person who opened revision 1 before the correction can still read it, as for any correction (D-129).
+      expect(await c.renderScroll({ assetId: first.assetId, revision: 1, capabilities: v3Client })).toMatchObject({
+        kind: 'rendition',
+      });
+    });
+
     it('is the stage frame of a v2 Scroll that is the current revision, to a v2-only session, and no cover for an asset that is now a v3', async () => {
       const person = await recordingPerson(database);
       const result = await c.navigate(person.authority, {
