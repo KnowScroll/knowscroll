@@ -43,7 +43,7 @@ const PROSE_ITEMS = [
   `aside: {"type":"aside","kind":"${ASIDE_KINDS.join('" | "')}","title":"Where this stops","text":"At most ${F.asideChars} characters.","cites":["e14"]}  (belongs to the paragraph or quotation just BEFORE it in the list; write it right after that item; at least one aside of kind "limits")`,
 ];
 
-const TAIL = `takeaway: one to three plain sentences, at most ${F.takeawayChars.max} characters, that are not the dek again. askSuggestions: up to ${L.askSuggestions} full questions a curious reader would ask next. Every item cites one to eight offered passages by handle (e1, e2, …); a figure is stated only as a cited passage states it.`;
+const TAIL = `takeaway: one to three plain sentences, at most ${F.takeawayChars.max} characters, that are not the dek again. askSuggestions: up to ${L.askSuggestions} full questions a curious reader would ask next. Every paragraph, quote, aside and picture, and the takeaway, cites one to eight offered passages by handle (e1, e2, …); a section carries no cites. A figure is stated only as a cited passage states it.`;
 
 /**
  * The writer-facing shape of one reply of the document v3 writer, as compact annotated JSON. Limits come from the same
