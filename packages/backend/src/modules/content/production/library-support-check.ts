@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
-import { parseDocumentV2 } from '@knowscroll/scroll-model';
-import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
+import { parseDocumentV2, parseDocumentV3 } from '@knowscroll/scroll-model';
+import { ScrollProvenanceV2, ScrollProvenanceV3 } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
 import type {
@@ -16,6 +16,8 @@ import {
   LIBRARY_SUPPORT_REQUEST_BOUND,
   libraryEvidenceOf,
   sentencesOfScroll,
+  type LibraryEvidence,
+  type LibrarySentences,
 } from './library-support.js';
 import {
   FINAL_PROVIDER_CODE,
@@ -25,6 +27,12 @@ import {
   type StoredLibraryCheck,
 } from './library-support-store.js';
 import { makeLibrarySupportStep } from './library-support-step.js';
+import {
+  LIBRARY_SUPPORT_V3_CHECK_VERSION,
+  LIBRARY_SUPPORT_V3_BATCH_SENTENCES,
+  sentencesOfScrollV3,
+} from './library-support-v3.js';
+import { makeLibrarySupportStepV3 } from './library-support-v3-step.js';
 import type { ClosingRun } from './types.js';
 
 export interface CheckLibrarySupportDependencies {
@@ -46,15 +54,23 @@ export interface CheckLibrarySupportInput {
    * `LIBRARY_SUPPORT_REQUEST_BOUND`.
    */
   readonly requestCap?: number;
+  /**
+   * The checker version the caller meant (a queue job names it). A revision whose document is read by another version is not checked
+   * (`other_checker_version`), so a job sent for one checker never runs under the other.
+   */
+  readonly checkerVersion?: string;
 }
 
 /** What one run of the check came to. */
 export type CheckLibrarySupportResult =
   /**
    * Nothing was asked and nothing was written: the revision is not stored, did not go through the review gate (a made-to-order revision never
-   * does, and must never be stored in the shared table) or is not a v2 Scroll.
+   * does, and must never be stored in the shared table), is not a v2 or v3 Scroll, or is read by another checker version than the caller meant.
    */
-  | { readonly kind: 'not_found'; readonly reason: 'revision_missing' | 'not_under_review' | 'not_a_v2_scroll' }
+  | {
+      readonly kind: 'not_found';
+      readonly reason: 'revision_missing' | 'not_under_review' | 'not_a_v2_or_v3_scroll' | 'other_checker_version';
+    }
   /** A result of this checker version was already stored, so nothing was asked. */
   | { readonly kind: 'reused'; readonly check: StoredLibraryCheck }
   /** This run stored a result: checked, or unchecked with a code. `requests` are the paid requests this run added (the stored result holds the total over every round). */
@@ -88,8 +104,8 @@ const isFinal = (check: StoredLibraryCheck): boolean =>
   !(check.state === 'unchecked' && check.code === RETRYABLE_CODE && check.round < LIBRARY_SUPPORT_MAX_ROUNDS);
 
 /**
- * The support check of one stored library Scroll revision (D-415): reads the revision and its private provenance, lists the sentences a
- * reader sees with the passages each rests on, asks the checker a batch at a time through the production harness, and stores what became
+ * The support check of one stored library Scroll revision (D-415, D-435): reads the revision and its private provenance, lists the sentences a
+ * reader sees with the passages each rests on (a document v2's or a document v3's, each under its own checker version, so a v2 result stands), asks the checker a batch at a time through the production harness, and stores what became
  * of every sentence with the revision's verdict, which code decides from them under a policy. The same use case runs for the worker's job
  * and for the operator's replay.
  *
@@ -101,8 +117,43 @@ const isFinal = (check: StoredLibraryCheck): boolean =>
  * are one short transaction at the end. A spent budget or quota stores nothing, so the next sweep asks again.
  */
 export function makeCheckLibrarySupport(deps: CheckLibrarySupportDependencies) {
-  const step = makeLibrarySupportStep(deps);
+  const stepV2 = makeLibrarySupportStep(deps);
+  const stepV3 = makeLibrarySupportStepV3(deps);
   const policy = deps.policy ?? LIBRARY_SUPPORT_POLICY;
+
+  /** What differs between a v2 and a v3: the checker's version, the step that asks the model, and how the revision's sentences are listed. */
+  interface Track {
+    readonly checkerVersion: string;
+    readonly step: ReturnType<typeof makeLibrarySupportStep>;
+    /** The sentences of one request: the v2 check's ten, a v3's thirteen. */
+    readonly batchSentences: number;
+    /** The sentences and the evidence, or `undefined` when the provenance cannot be read. */
+    readonly list: (
+      provenance: unknown,
+    ) => { readonly evidence: LibraryEvidence; readonly listed: LibrarySentences } | undefined;
+  }
+  const trackV2 = (document: Parameters<typeof sentencesOfScroll>[0]): Track => ({
+    checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+    step: stepV2,
+    batchSentences: LIBRARY_SUPPORT_BATCH_SENTENCES,
+    list: (provenance) => {
+      const parsed = ScrollProvenanceV2.safeParse(provenance);
+      if (!parsed.success) return undefined;
+      const evidence = libraryEvidenceOf(parsed.data);
+      return { evidence, listed: sentencesOfScroll(document, evidence) };
+    },
+  });
+  const trackV3 = (document: Parameters<typeof sentencesOfScrollV3>[0]): Track => ({
+    checkerVersion: LIBRARY_SUPPORT_V3_CHECK_VERSION,
+    step: stepV3,
+    batchSentences: LIBRARY_SUPPORT_V3_BATCH_SENTENCES,
+    list: (provenance) => {
+      const parsed = ScrollProvenanceV3.safeParse(provenance);
+      if (!parsed.success) return undefined;
+      const evidence = libraryEvidenceOf(parsed.data);
+      return { evidence, listed: sentencesOfScrollV3(document, evidence) };
+    },
+  });
 
   /** Stores a result and closes the runs it used in one transaction; `kept` means another delivery already stored one. */
   async function store(
@@ -122,9 +173,19 @@ export function makeCheckLibrarySupport(deps: CheckLibrarySupportDependencies) {
     if (subject === undefined) return { kind: 'not_found', reason: 'revision_missing' };
     // Only a Scroll that went through the review gate is checked: a made-to-order revision has no row there and is never stored here.
     if (subject.review === null) return { kind: 'not_found', reason: 'not_under_review' };
-    const parsed = parseDocumentV2(subject.document);
-    if (parsed.kind !== 'valid') return { kind: 'not_found', reason: 'not_a_v2_scroll' };
-    const earlier = await libraryCheckStore.read(deps.db, assetId, revision, LIBRARY_SUPPORT_CHECK_VERSION);
+    const parsedV2 = parseDocumentV2(subject.document);
+    const parsedV3 = parsedV2.kind === 'valid' ? undefined : parseDocumentV3(subject.document);
+    const track =
+      parsedV2.kind === 'valid'
+        ? trackV2(parsedV2.document)
+        : parsedV3?.kind === 'valid'
+          ? trackV3(parsedV3.document)
+          : undefined;
+    if (track === undefined) return { kind: 'not_found', reason: 'not_a_v2_or_v3_scroll' };
+    const { checkerVersion, step, batchSentences } = track;
+    if (input.checkerVersion !== undefined && input.checkerVersion !== checkerVersion)
+      return { kind: 'not_found', reason: 'other_checker_version' };
+    const earlier = await libraryCheckStore.read(deps.db, assetId, revision, checkerVersion);
     if (earlier !== undefined && isFinal(earlier)) return { kind: 'reused', check: earlier };
     const round = earlier === undefined ? 1 : earlier.round + 1;
     // A later round asks only the batch that failed and those after it: the batches before it are read back from the ledger.
@@ -135,7 +196,7 @@ export function makeCheckLibrarySupport(deps: CheckLibrarySupportDependencies) {
     const base = {
       assetId,
       revision,
-      checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+      checkerVersion,
       policyVersion: policy.id,
       round,
       batchFailures: failures,
@@ -155,18 +216,17 @@ export function makeCheckLibrarySupport(deps: CheckLibrarySupportDependencies) {
     const refused = async (code: string): Promise<CheckLibrarySupportResult> => {
       const written = await store(nothing(code), []);
       if (written === 'scope_refused') return { kind: 'scope_refused' };
-      const stored = await libraryCheckStore.read(deps.db, assetId, revision, LIBRARY_SUPPORT_CHECK_VERSION);
+      const stored = await libraryCheckStore.read(deps.db, assetId, revision, checkerVersion);
       return stored === undefined ? { kind: 'scope_refused' } : { kind: 'reused', check: stored };
     };
 
-    const provenance = ScrollProvenanceV2.safeParse(subject.provenance);
-    if (!provenance.success) return refused('provenance_unreadable');
-    const evidence = libraryEvidenceOf(provenance.data);
-    const listed = sentencesOfScroll(parsed.document, evidence);
+    const read = track.list(subject.provenance);
+    if (read === undefined) return refused('provenance_unreadable');
+    const { evidence, listed } = read;
     if (listed.kind === 'refused') return refused(listed.code);
     const { sentences } = listed;
 
-    const batches = Math.ceil(sentences.length / LIBRARY_SUPPORT_BATCH_SENTENCES);
+    const batches = Math.ceil(sentences.length / batchSentences);
     const needed = batches - resumeFrom + 1;
     if (input.requestCap !== undefined && batches <= LIBRARY_SUPPORT_MAX_BATCHES && needed > input.requestCap)
       return { kind: 'over_cap', needed };
@@ -182,7 +242,7 @@ export function makeCheckLibrarySupport(deps: CheckLibrarySupportDependencies) {
     if (outcome.kind === 'paused') return outcome;
     if (outcome.kind === 'advanced') {
       // Another delivery closed a run of this check: it stored the result, or is about to.
-      const stored = await libraryCheckStore.read(deps.db, assetId, revision, LIBRARY_SUPPORT_CHECK_VERSION);
+      const stored = await libraryCheckStore.read(deps.db, assetId, revision, checkerVersion);
       return stored === undefined ? { kind: 'paused', code: 'run_closed' } : { kind: 'reused', check: stored };
     }
     // The batches before `resumeFrom` were answered in an earlier round: the ledger gave them back for nothing, and their requests are in `requestsBefore`.
@@ -222,7 +282,7 @@ export function makeCheckLibrarySupport(deps: CheckLibrarySupportDependencies) {
     }
     const written = await store(result, closing);
     if (written === 'scope_refused') return { kind: 'scope_refused' };
-    const stored = await libraryCheckStore.read(deps.db, assetId, revision, LIBRARY_SUPPORT_CHECK_VERSION);
+    const stored = await libraryCheckStore.read(deps.db, assetId, revision, checkerVersion);
     if (stored === undefined) return { kind: 'scope_refused' };
     return written === 'written'
       ? { kind: 'stored', check: stored, requests: addedRequests }

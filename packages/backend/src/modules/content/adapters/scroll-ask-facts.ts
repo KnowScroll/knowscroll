@@ -9,6 +9,7 @@ import {
 } from '@knowscroll/scroll-model';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { notRetired } from './retirement-sql.js';
 import { notUnderReview } from './review-gate-sql.js';
 import type { ContentRef, ReadScrollAskFacts } from '../public.js';
 
@@ -27,7 +28,7 @@ export type StoredEssay = ScrollDocumentV2 | ScrollDocumentV3;
  * transaction. A revision the review gate holds or rejected reads as absent, like every read that takes an exact
  * revision from its caller (D-138), and so does one of an asset that is not admitted (withdrawn, D-418) and a document
  * that is neither a `scroll-document.v2` nor a `scroll-document.v3`: the parse alone refuses a v1 document and an absent
- * row. An older revision of an admitted asset still reads. No lock and no network.
+ * row. An older revision of an admitted asset still reads, unless a document v3 retired it (D-435): then it reads as absent. No lock and no network.
  */
 export async function readStoredEssay(scope: PersonalScopeTx, ref: ContentRef): Promise<StoredEssay | undefined> {
   const row = await transactionOf(scope)
@@ -39,6 +40,7 @@ export async function readStoredEssay(scope: PersonalScopeTx, ref: ContentRef): 
     .where('asset.kind', '=', 'scroll')
     .where('asset.status', '=', 'admitted')
     .where(sql<boolean>`${notUnderReview('revision.asset_id', 'revision.revision')}`)
+    .where(sql<boolean>`${notRetired('revision.asset_id', 'revision.revision')}`)
     .executeTakeFirst();
   const parsed =
     (row?.document as { schemaVersion?: unknown } | null | undefined)?.schemaVersion ===

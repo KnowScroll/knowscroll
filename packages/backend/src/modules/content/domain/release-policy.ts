@@ -17,7 +17,8 @@ import {
  *
  * What a policy release needs, all of it: a new Scroll (nothing is served for the asset yet), a topic a person approved, no sensitive category
  * by the catalogue, the words or a recorded raise, a readable and mapped document, an answer check that passed, and a library support check
- * of the current checker version that passed. Anything else stays held for a person.
+ * of the current checker version that passed. Anything else stays held for a person. The same rules judge a document v2 and a document v3 (D-435); "the
+ * current checker version" is the one that reads the revision's own document, which the adapter chooses before these facts reach here.
  */
 
 /** The decision's name in `content.revision_reviews.decided_by` (`policy:<name>`). Any change to what the policy requires is a new name. */
@@ -116,15 +117,16 @@ function namesRecentYear(text: string): boolean {
  * Every string of a stored document that is its words, joined by line breaks: the title, kicker and dek, each stop's lines, simpler words, guide, play
  * blocks and calls, the asides, the recap, the Ask suggestions, the picture's descriptions and the misconception. It walks the document's own fields and takes
  * every string except the values under {@link NON_PROSE_KEYS} (identity, versions, measures, the integrity hash, references between parts), so nothing is
- * filtered out of a text by its look and a field added to the format is scanned until the owner says it is not words. Pure.
+ * filtered out of a text by its look and a field added to the format is scanned until the owner says it is not words. A document v3 is read with
+ * `NON_PROSE_KEYS_V3` (`nonProseKeys`), which adds the references its parts make to one another; a v1 or v2 document is read with the default, as it always was. Pure.
  */
-export function proseOf(value: unknown): string {
+export function proseOf(value: unknown, nonProseKeys: ReadonlySet<string> = NON_PROSE_KEYS): string {
   const strings: string[] = [];
   const walk = (node: unknown): void => {
     if (typeof node === 'string') strings.push(node);
     else if (Array.isArray(node)) for (const item of node) walk(item);
     else if (typeof node === 'object' && node !== null)
-      for (const [key, child] of Object.entries(node)) if (!NON_PROSE_KEYS.has(key)) walk(child);
+      for (const [key, child] of Object.entries(node)) if (!nonProseKeys.has(key)) walk(child);
   };
   walk(value);
   return strings.join('\n');
@@ -176,7 +178,7 @@ export function assessRisk(input: {
 export type AnswerCheckFact = 'passed' | 'repaired' | 'unchecked' | 'flagged' | 'none';
 
 /**
- * What the library support check (D-415) said, for the checker version of this build only.
+ * What the library support check (D-415) said, for the checker version of this build that reads the revision's document only (a v2's or a v3's, D-435).
  * - `none`: no result at all.
  * - `stale`: results exist, but only for another checker version, which says nothing about the sentences as they are checked now.
  * - `unchecked`: the current version ran and gave nothing usable.

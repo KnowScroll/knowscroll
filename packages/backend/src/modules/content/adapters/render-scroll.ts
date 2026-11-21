@@ -15,6 +15,7 @@ import {
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { RenderScroll } from '../public.js';
 import { readStoredScrollDocument } from './postgres-store.js';
+import { isRetiredRevision } from './retirement-sql.js';
 
 /**
  * Stored revisions are immutable, so a parsed document can be kept: parsing up to 128 KiB of JSON
@@ -61,12 +62,15 @@ export function canRenderScroll(stored: unknown, capabilities: unknown): boolean
  * rest) and negotiates it for the capabilities the client declared (D-012). A v1 document has the
  * blocks the client cannot render replaced by fallbacks, and the essential ones reported. A v2 or v3 document
  * is served whole to a client that declares its schema, and is `cannot_render` for any other (the caller
- * may serve an earlier revision instead). Pure reads; no lock, no network.
+ * may serve an earlier revision instead). A revision that a later document v3 retired (D-435) is `not_found`, as
+ * any revision that cannot be read is, and the cache never answers for it. Pure reads; no lock, no network.
  */
 export function makeRenderScroll(db: Kysely<Database>): RenderScroll {
   const cache = new Map<string, NonNullable<Parsed>>();
   return async ({ assetId, revision, capabilities }) => {
     const key = `${assetId}@${String(revision)}`;
+    // A stored revision never changes, but whether it is retired does (a later v3 retires it, D-435), so the cache is asked after this and never instead of it.
+    if (await isRetiredRevision(db, assetId, revision)) return { kind: 'not_found' };
     let document = cache.get(key);
     if (document === undefined) {
       const stored = await readStoredScrollDocument(db, assetId, revision);
