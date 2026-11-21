@@ -138,6 +138,11 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
    * and the system never do (D-129).
    */
   readonly scrollV2?: ScrollV2Plan;
+  /**
+   * Present when this recipe is produced as a `scroll-document.v3` (sections of beats and pictures from the closed set). A recipe
+   * carries `scrollV3` or `scrollV2`, never both (a library test). A person decides it, per recipe (#771).
+   */
+  readonly scrollV3?: ScrollV3Plan;
 };
 
 /** What the plan decides before the writer starts a v2 Scroll (`RecipeDataV2` in the producer). */
@@ -187,6 +192,30 @@ export interface ScrollV2Plan {
     /** The first call_it shows the true picture to a reader who guessed wrong: the stop after it sets that picture. */
     readonly reveal?: boolean;
   };
+}
+
+/** The kinds of picture a document v3 draws: scroll-model's `PICTURE_KINDS` (a library test keeps the two in step). */
+export const PICTURE_KIND_IDS = ['statement', 'flow', 'cycle', 'grid', 'chart', 'plan'] as const;
+export type PictureKindId = (typeof PICTURE_KIND_IDS)[number];
+
+/** The kinds of essay a document v3 is: scroll-model's `SCROLL_SHAPES` (a library test keeps the two in step). */
+export const SCROLL_SHAPE_IDS = ['argument', 'mechanism', 'story'] as const;
+export type ScrollShapeId = (typeof SCROLL_SHAPE_IDS)[number];
+
+/**
+ * What the plan decides before the writer starts a `scroll-document.v3` Scroll (#771, decisions 2 and 4): the kind of essay,
+ * what each of its two or three sections is for and, when a person chose them, its pictures by kind and purpose. The writer
+ * fills a picture's labels, notes and cited values; code assigns every id. Without `pictures` the writer picks kinds from the
+ * closed set by what its passages hold, and a statement picture is always available.
+ */
+export interface ScrollV3Plan {
+  readonly shape: ScrollShapeId;
+  /** One short line per section, in reading order: two or three. */
+  readonly sections: readonly string[];
+  /** One to three pictures, each a kind and what it is there to show. */
+  readonly pictures?: readonly { readonly kind: PictureKindId; readonly purpose: string }[];
+  /** As for v2: the common wrong idea the Scroll teaches against, or `none`. */
+  readonly misconception: ScrollV2Plan['misconception'];
 }
 
 /**
