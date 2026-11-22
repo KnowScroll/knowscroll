@@ -83,6 +83,7 @@ export default defineConfig({
         'folio-reader-smoke.spec.ts',
         'covers-smoke.spec.ts',
         'document-v3-serving-smoke.spec.ts',
+        'operator-review-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

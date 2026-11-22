@@ -3,16 +3,19 @@ import {
   catalogueProviders,
   contentProviders,
   contentRenderProviders,
+  makeOperatorReview,
   makeReadLibraryFinds,
 } from '@knowscroll/backend/modules/content/nest-providers';
-import { READ_LIBRARY_FINDS } from '@knowscroll/backend/modules/content';
+import { OPERATOR_REVIEW, READ_LIBRARY_FINDS, type OperatorReview } from '@knowscroll/backend/modules/content';
+import { IS_OPERATOR, type IsOperator } from '@knowscroll/backend/modules/operator';
 import type { Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { DATABASE } from '../tokens.js';
+import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
+import { API_CONFIG, DATABASE } from '../tokens.js';
 
 /**
  * Content wiring for the API composition root: the scope-bound read ports experience and evidence
- * use inside a personal transaction, and the document renderer (shared reads outside one).
+ * use inside a personal transaction, the document renderer (shared reads outside one) and the operator's review of held Scrolls.
  */
 export const contentWiring: Provider[] = [
   ...contentProviders(),
@@ -24,6 +27,13 @@ export const contentWiring: Provider[] = [
     provide: READ_LIBRARY_FINDS,
     inject: [DATABASE],
     useFactory: (db: Kysely<Database>) => makeReadLibraryFinds(db),
+  },
+  // The operator's review screen (#780): the review gate behind the operator check of `KS_OPERATOR_ACCOUNTS`, which the use case runs on every call.
+  {
+    provide: OPERATOR_REVIEW,
+    inject: [DATABASE, IS_OPERATOR, API_CONFIG],
+    useFactory: (db: Kysely<Database>, isOperator: IsOperator, config: ApiConfig): OperatorReview =>
+      makeOperatorReview({ db, isOperator, world: config.world }),
   },
 ];
 

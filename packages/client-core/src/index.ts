@@ -18,6 +18,15 @@ export {
   type OperatorState,
 } from './operator-session';
 export {
+  isReviewNotFound,
+  operatorReviewKey,
+  rejectReview,
+  releaseReview,
+  reviewListQueryOptions,
+  reviewShowQueryOptions,
+  type ReviewTarget,
+} from './operator-review';
+export {
   SCOPED_STORAGE_PREFIX,
   ScopeEndedError,
   createAccountScope,

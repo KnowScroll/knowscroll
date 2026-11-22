@@ -1,6 +1,7 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
 import { UuidSchema } from './ids.js';
+import { operatorReviewContract } from './operator-review.js';
 
 /**
  * Operator (#248, D-044): what an operator sees of the running system. Not consumer UI: the server
@@ -255,4 +256,5 @@ export const readOperatorJourneyContract = oc
 export const operatorContract = {
   panels: readOperatorPanelsContract,
   journey: readOperatorJourneyContract,
+  ...operatorReviewContract,
 };
