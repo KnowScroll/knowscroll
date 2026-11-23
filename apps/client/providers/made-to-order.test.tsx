@@ -3,11 +3,11 @@ import { render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { createAccountScopeManager, memoryStore } from '@knowscroll/client-core';
 import { AccountScopeProvider } from './account-scope';
-import { MadeToOrderContext, MadeToOrderProvider, useMadeToOrder, useMadeToOrderState } from './made-to-order';
+import { MadeToOrderContext, useMadeToOrder, useMadeToOrderState } from './made-to-order';
 
 /**
- * The made-to-order switch as the app learns it (D-436): one read of `GET /v1/account/features` per scope, over a labelled
- * fixture `fetch`. Only the API's own "on" shows a way in; waiting, "off", a failure and being signed out all show none.
+ * The made-to-order switch as the app learns it (D-436): one read of `GET /v1/account/features` per scope, made by the first
+ * screen that can show a way in (never at app start), over a labelled fixture `fetch`. Only the API's own "on" shows a way in; waiting, "off", a failure and being signed out all show none.
  */
 const account = {
   accountId: '0199a000-0000-7000-8000-00000000000a',
@@ -44,7 +44,11 @@ function Probe() {
   return <Text>{`${useMadeToOrderState()} ${String(useMadeToOrder())}`}</Text>;
 }
 
-async function mounted(s: ReturnType<typeof server>) {
+function Elsewhere() {
+  return <Text>nothing made to order here</Text>;
+}
+
+async function mounted(s: ReturnType<typeof server>, child = <Probe />) {
   const manager = createAccountScopeManager({
     baseUrl: 'https://app.scope.test',
     platform: 'web',
@@ -52,13 +56,7 @@ async function mounted(s: ReturnType<typeof server>) {
     store: memoryStore(),
     newQueryClient,
   });
-  await render(
-    <AccountScopeProvider manager={manager}>
-      <MadeToOrderProvider>
-        <Probe />
-      </MadeToOrderProvider>
-    </AccountScopeProvider>,
-  );
+  await render(<AccountScopeProvider manager={manager}>{child}</AccountScopeProvider>);
 }
 
 describe('the made-to-order switch in the app', () => {
@@ -96,17 +94,48 @@ describe('the made-to-order switch in the app', () => {
     expect(s.paths).not.toContain('/v1/account/features');
   });
 
-  it('is off for a screen rendered with no provider at all, so a gallery or a test shows no way in', async () => {
+  it('makes no read at all for a screen that has no way in: the read belongs to the screens that can show one', async () => {
+    const s = server({ status: 200, body: { version: 'account-features.v1', madeToOrder: true } });
+    await mounted(s, <Elsewhere />);
+    expect(await screen.findByText('nothing made to order here')).toBeOnTheScreen();
+    expect(s.paths).toContain('/auth/session');
+    expect(s.paths).not.toContain('/v1/account/features');
+  });
+
+  it('makes one read for two screens under the same scope', async () => {
+    const s = server({ status: 200, body: { version: 'account-features.v1', madeToOrder: true } });
+    await mounted(
+      s,
+      <>
+        <Probe />
+        <Text>second</Text>
+        <Probe />
+      </>,
+    );
+    expect(await screen.findAllByText('on true')).toHaveLength(2);
+    expect(s.paths.filter((path) => path === '/v1/account/features')).toHaveLength(1);
+  });
+
+  it('is off, and does not throw, for a screen rendered alone with no account scope and no query client', async () => {
     await render(<Probe />);
     expect(screen.getByText('off false')).toBeOnTheScreen();
   });
 
-  it('is on for a test that says so through the context', async () => {
+  it('is on for a test that says so through the context, whatever the API would say', async () => {
     await render(
       <MadeToOrderContext.Provider value="on">
         <Probe />
       </MadeToOrderContext.Provider>,
     );
     expect(screen.getByText('on true')).toBeOnTheScreen();
+  });
+
+  it('is unknown for a test that says so, and off for one that says off', async () => {
+    await render(
+      <MadeToOrderContext.Provider value="unknown">
+        <Probe />
+      </MadeToOrderContext.Provider>,
+    );
+    expect(screen.getByText('unknown false')).toBeOnTheScreen();
   });
 });

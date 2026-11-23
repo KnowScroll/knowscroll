@@ -286,9 +286,8 @@ exercise the actual stage and path dialog.
 ## The made-to-order switch (D-436, #784)
 
 "You asked" (Ask from here), "What if" and "Another perspective" are Scrolls made to order, and they are **switched off in every world** until the owner decides what they become. The app has no switch of its own: the
-API says whether they are on. `providers/made-to-order.tsx` reads `GET /v1/account/features` (`{ madeToOrder }`) once per account scope, under the scope's query client (so an account or epoch change drops it), and gives every screen a
-`MadeToOrderState` of `unknown` (not answered yet), `on` or `off`. `useMadeToOrder()` is true only for `on`: a screen draws a way in only then, so nothing appears and then disappears, and a failed read, an old API with no such route and being
-signed out are all `off`. `MadeToOrderContext` defaults to `off`, so a screen rendered with no provider (a gallery, a test) shows no way in; tests that need one wrap it in `MadeToOrderContext.Provider value="on"`.
+API says whether they are on. `providers/made-to-order.tsx` exports `useMadeToOrderState()`, which reads `GET /v1/account/features` (`{ madeToOrder }`) **the first time a screen that can show a way in asks**, never at app start: the read is a query under the account scope's query client, with one key per scope and a minute's stale time, so every such screen shares one read and an account or epoch change drops it. A screen that has no way in (the Universe, rooms, Keep, Account) makes no such request. The hook answers
+`unknown` (not answered yet), `on` or `off`; `useMadeToOrder()` is true only for `on`: a screen draws a way in only then, so nothing appears and then disappears, and a failed read, an old API with no such route, being signed out, and a screen rendered with no account scope or no query client (it never reads) are all `off`. `MadeToOrderContext`'s default, `undefined`, means "ask the API"; a gallery or a test sets the state without the API with `MadeToOrderContext.Provider value="on"` (or `"unknown"`, `"off"`).
 *I chose a route of its own over a field of `GET /auth/session`: the session answer belongs to sign-in and is read before any scope exists and again on every refusal, so a new field would reach every sign-in fixture and the account scope itself, while this one is read once, by the screens that need it, and is cheap to remove when the features are decided.*
 
 What `off` takes away, and where (each is a jest case in the file named, and `e2e/made-to-order-off-smoke.spec.ts` at 390 and 1440 with axe):
@@ -296,11 +295,11 @@ What `off` takes away, and where (each is a jest case in the file named, and `e2
 | Way in | Where it is hidden | Test |
 | --- | --- | --- |
 | Ask about this (the first row of •••), the A and ? keys, "Make it a full Scroll" under a Quick answer; so also the Ask sheet and the questions a Scroll suggests, which only the sheet shows | `ScrollReaderSurface` passes the reader no `ask` and no `makeScroll` (Explore and `/scroll/<id>`, v2 and document v3); `ScrollScreen` does not draw its Ask overlay | `scroll-reader-surface.test.tsx` |
-| The Ask keys' lines in the keyboard map | `KeyboardMapSheet` filters the rows marked `madeToOrder` | `keyboard-map.test.tsx` |
+| The Ask keys' lines in the keyboard map | `KeyboardMapSheet` filters the rows marked `madeToOrder` (read only while the sheet is open) | `keyboard-map.test.tsx` |
 | What if / Another perspective above a thread's message box, and the sheets they open (the composer, the Map) | `ThreadScreen` draws no `AsksBar` and no `BranchSheets`, no Map button, and `useScenarioBoard(…, enabled)` reads no branches | `made-to-order-off-smoke.spec.ts` |
 | What if… and Another perspective in a message's menu, What if… under a shared moment, every branch card | `ThreadMessages` | `thread-messages.test.tsx` |
 | A branch's address `/threads/<id>/b/<node>` | the route shows the app's not-found page when `off`, nothing while `unknown` | `branch-route.test.tsx` |
-| A question asked from a Scroll in "Your requests" (`/account/requests`, Keep's Requested view) | `RequestsList` leaves out the items the server marks `ask: true` | `requests-list.test.tsx` |
+| A question asked from a Scroll in "Your requests" (`/account/requests`, Keep's Requested view) | `RequestsList` leaves out the items the server marks `ask: true` (it asks the API only when the list holds one) | `requests-list.test.tsx` |
 
 Not hidden, because they make nothing to order: Quick answers (and "Ask a follow-up" on one), "Ask" for a Reel or Scroll from the dock (the library request sheet), and a Scroll already made to order that someone has saved or has the address of (the API
 still serves it; no list can tell it from any other Scroll). While the switch is `on` everything below works exactly as before.

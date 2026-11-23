@@ -94,10 +94,17 @@ for (const { name, document, suggestions } of documents)
         scrollDocument: document,
         madeToOrder: false,
       });
-      const asked = page.waitForRequest((request) => new URL(request.url()).pathname === '/v1/account/features');
+      const reads: string[] = [];
+      page.on('request', (request) => {
+        const { pathname } = new URL(request.url());
+        if (pathname === '/v1/account/features') reads.push(pathname);
+      });
       await page.goto('/explore');
-      await asked;
+      // The switch is read by a screen that can show a way in, not at app start: the cover has none.
+      await expect(page.getByTestId('essay-cover-read')).toBeVisible();
+      expect(reads).toEqual([]);
       await readCover(page);
+      await expect.poll(() => reads.length).toBe(1);
       await expect(
         page.getByTestId('reader-top-title').getByRole('heading', { level: 1, name: 'CI encounter fixture 1' }),
       ).toBeVisible();

@@ -5,8 +5,8 @@ The root layout mounts display and device choices, then the account scope. Start
 its state and disposes it on cleanup. The signed-in subtree is keyed by the actual scope so
 an account or epoch change cannot retain another scope's cached state or controllers.
 
-[made-to-order.tsx](made-to-order.tsx) sits inside it: it reads `GET /v1/account/features` for the signed-in scope and tells every screen whether the Scrolls made to order
-("You asked", "What if", "Another perspective") are `on`, `off` or not yet known (D-436). Only `on` shows a way into them; a failed read, an old API and being signed out are `off`. The app has no switch of its own.
+[made-to-order.tsx](made-to-order.tsx) is not mounted at the root: its `useMadeToOrderState()` hook reads `GET /v1/account/features` for the signed-in scope the first time a screen that can show a way into
+the Scrolls made to order ("You asked", "What if", "Another perspective") asks, and answers `on`, `off` or `unknown` (D-436). Only `on` shows a way in; a failed read, an old API, being signed out and no scope or query client at all are `off`. The app has no switch of its own.
 
 [device-preferences.tsx](device-preferences.tsx) sits above that scope. It applies motion, text,
 Appearance (Light or Dark, #666) and playback choices immediately and keeps them on the device.

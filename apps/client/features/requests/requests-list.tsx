@@ -5,7 +5,7 @@ import { Banner, Button, ErrorState, RequestStatusChip, Skeleton, StateBlock, Te
 import type { ContentRequestStatus } from '@knowscroll/contracts';
 import { useMadeToOrder } from '../../providers/made-to-order';
 import { canTryAgain, formatWord, unavailableMessage } from './request-copy';
-import type { ListedRequest, RequestsListSession } from './requests-list-session';
+import type { ListedRequest, RequestsListSession, RequestsListState } from './requests-list-session';
 
 /** What a person can open: the Scroll or Reel that a ready request bound. */
 export interface ReadyRequestTarget {
@@ -127,9 +127,37 @@ export function RequestsList({
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   // A question asked from a Scroll is a way into a Scroll made to order: while those are off the list does not show it or its
-  // status (D-436). Every other request stays.
+  // status (D-436). Only a list that holds one asks the API whether they are on; every other request stays, and a list with none
+  // makes no such read.
+  const body = { session, state, onOpen, onAsk };
+  return state.items.some((item) => item.ask === true) ? (
+    <FilteredRequests {...body} />
+  ) : (
+    <RequestsBody {...body} items={state.items} />
+  );
+}
+
+interface BodyProps {
+  readonly session: RequestsListSession;
+  readonly state: RequestsListState;
+  readonly onOpen: (target: ReadyRequestTarget) => void;
+  readonly onAsk?: (() => void) | undefined;
+}
+
+/** The list with the questions asked from a Scroll left out unless the API says Scrolls made to order are on. */
+function FilteredRequests(props: BodyProps) {
   const madeToOrder = useMadeToOrder();
-  const items = madeToOrder ? state.items : state.items.filter((item) => item.ask !== true);
+  const items = madeToOrder ? props.state.items : props.state.items.filter((item) => item.ask !== true);
+  return <RequestsBody {...props} items={items} />;
+}
+
+function RequestsBody({
+  session,
+  state,
+  items,
+  onOpen,
+  onAsk,
+}: BodyProps & { readonly items: readonly ListedRequest[] }) {
   if (state.phase === 'loading') return <Skeleton rows={3} label="Loading your requests" />;
   if (state.phase === 'unavailable')
     return (

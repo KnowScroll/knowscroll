@@ -181,40 +181,47 @@ function Keys({ shortcut }: { readonly shortcut: Shortcut }) {
 
 /** The keyboard map as a sheet: reachable from Account and from the desktop Explore footer. */
 export function KeyboardMapSheet({ visible, onClose }: { readonly visible: boolean; readonly onClose: () => void }) {
-  const madeToOrder = useMadeToOrder();
   return (
     <BottomSheet visible={visible} title="Keyboard shortcuts" onClose={onClose}>
-      <View style={styles.groups}>
-        {KEYBOARD_MAP.map((group) => (
-          <View key={group.title} role="group" aria-label={group.title} style={styles.group}>
-            <Text variant="ui" heading={3}>
-              {group.title}
-            </Text>
-            <Text variant="meta" color={content.ink2}>
-              {group.where}
-            </Text>
-            <View role="list" style={styles.list}>
-              {group.shortcuts
-                .filter((shortcut) => madeToOrder || shortcut.madeToOrder !== true)
-                .map((shortcut) => (
-                  <View
-                    key={shortcut.spoken}
-                    role="listitem"
-                    accessible
-                    accessibilityLabel={`${shortcut.spoken}: ${shortcut.action}`}
-                    style={styles.row}
-                  >
-                    <Keys shortcut={shortcut} />
-                    <View aria-hidden style={styles.action}>
-                      <Text variant="bodyS">{shortcut.action}</Text>
-                    </View>
-                  </View>
-                ))}
-            </View>
-          </View>
-        ))}
-      </View>
+      {visible ? <ShortcutGroups /> : null}
     </BottomSheet>
+  );
+}
+
+/** The groups, drawn only while the sheet is open, so the made-to-order switch is read only when someone looks at the keys (D-436). */
+function ShortcutGroups() {
+  const madeToOrder = useMadeToOrder();
+  return (
+    <View style={styles.groups}>
+      {KEYBOARD_MAP.map((group) => (
+        <View key={group.title} role="group" aria-label={group.title} style={styles.group}>
+          <Text variant="ui" heading={3}>
+            {group.title}
+          </Text>
+          <Text variant="meta" color={content.ink2}>
+            {group.where}
+          </Text>
+          <View role="list" style={styles.list}>
+            {group.shortcuts
+              .filter((shortcut) => madeToOrder || shortcut.madeToOrder !== true)
+              .map((shortcut) => (
+                <View
+                  key={shortcut.spoken}
+                  role="listitem"
+                  accessible
+                  accessibilityLabel={`${shortcut.spoken}: ${shortcut.action}`}
+                  style={styles.row}
+                >
+                  <Keys shortcut={shortcut} />
+                  <View aria-hidden style={styles.action}>
+                    <Text variant="bodyS">{shortcut.action}</Text>
+                  </View>
+                </View>
+              ))}
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
