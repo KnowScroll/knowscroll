@@ -657,3 +657,14 @@ What a room offers a person who is there alone, made only of things that really 
 - **The quiet pill** counts people: `lastMessageAt` is the newest shown message a person wrote, so an AI answer does not make an empty room look busy.
 - **Lock order.** The replay reads under the room root FOR SHARE and takes nothing else. Leaving a question takes the room root FOR UPDATE (the ask bounds are counts), then the new discussion's rows. The notice switch takes the room root FOR SHARE.
 - **Erasure and export.** A Clear and leaving keep a question and its words as they keep any conversation. The asker's switch (`notify_answer`) and the marker (`answer_noticed_at`) are theirs: a Clear, leaving, removal and account deletion each turn the switch off and clear the marker (`QuestionStore.forgetMember`, `erasure.ts`), and the export lists both for each question they left. A replay holds nothing to erase.
+
+## Removing the Scrolls of the retired formats (#791, D-437)
+
+`adapters/old-scroll-removal.ts` is Rooms' part of `content cleanup-old-scrolls` (see the content README and [the runbook](../../../../../docs/v2/operations/scroll-cleanup.md)). A discussion rooted
+at an old revision goes whole (messages, snippets, Useful marks, debate and votes, post votes, the turns that wrote into it, a find
+turn of an old asset and the typing hold). A card to an old revision in a discussion that stays becomes a tombstone as account
+deletion makes one (same place and number, a fresh change number). A derived summary and the room's memory that read a message that
+leaves are erased and written again later (D-247); a memory's pointer to a deleted turn is let go; a topic named from a message that
+leaves is called `NEUTRAL_TOPIC_TITLE` (D-168). A daily question, a Spot the flaw and a Launch that name an asset that goes whole in
+their JSON payload are deleted (the Launch before its ritual), and an answer's recorded support that cites one is cleared. A Clear
+has already removed the launch answers, players and flaw taps. Implemented; verified by `old-scroll-cleanup.test.ts`.

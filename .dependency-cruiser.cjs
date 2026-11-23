@@ -44,6 +44,9 @@ const compositionRoots = [
   '^apps/worker/src/catalogue-operator\\.ts$',
   // Topic growth's consumer composes the seeding of candidate pages, the proposal role on the production harness and the pass (#674, D-422).
   '^apps/worker/src/topic-growth-jobs\\.ts$',
+  // The cleanup of the v1 and v2 Scrolls composes every module's part of it and selective Clear for every account (#791).
+  '^apps/worker/src/old-scroll-cleanup\\.ts$',
+  '^apps/worker/src/old-scroll-cleanup-clear\\.ts$',
   // The topic commands compose the production harness and the candidate reads (#674, D-422).
   '^apps/worker/src/topic-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).

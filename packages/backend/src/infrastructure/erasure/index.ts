@@ -24,3 +24,15 @@ export {
   exportPersonalData,
   exportReading,
 } from './registry.js';
+
+export {
+  OLD_SCROLL_REVISIONS,
+  countSteps,
+  namesOldRevision,
+  namesRemovedAsset,
+  runSteps,
+  type ModuleRemovalReport,
+  type OldScrollRemoval,
+  type RemovalCount,
+  type RemovalStep,
+} from './old-scrolls.js';
