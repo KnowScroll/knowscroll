@@ -101,7 +101,7 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
     expect(refusalOf({ ...draft, brief: five }, context())).toBe('brief_shape');
   });
 
-  it('refuses a brief that names a quiz or anything interactive, the only words document v3 has no place for', () => {
+  it('refuses a brief that names a quiz or anything interactive, a slider, a simulation or a stepper included', () => {
     expect(refusalOf({ ...draft, brief: draft.brief.replace('Do not', 'Include a quiz. Do not') }, context())).toBe(
       'brief_names_block',
     );
@@ -109,10 +109,14 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
     expect(refusalOf({ ...draft, brief: `${draft.brief} End with three Quizzes.` }, context())).toBe(
       'brief_names_block',
     );
+    for (const word of ['slider', 'Sliders', 'simulation', 'simulations', 'stepper', 'Steppers']) {
+      const brief = `${draft.brief} Let the reader use a ${word} of the valves.`;
+      expect(refusalOf({ ...draft, brief }, context()), word).toBe('brief_names_block');
+    }
   });
 
-  it('accepts a brief that names a picture, as owner decision 4 on #771 intends (the filter keeps only quiz and interactive; this is the decision, not a weakened test)', () => {
-    for (const word of ['diagram', 'slider', 'simulation', 'stepper', 'chart', 'picture', 'stage']) {
+  it('accepts a brief that names a picture, as owner decision 4 on #771 intends (this is the decision, not a weakened test)', () => {
+    for (const word of ['diagram', 'chart', 'picture', 'stage']) {
       const brief = `${draft.brief} Show it with a ${word} of the valves.`;
       expect(refusalOf({ ...draft, brief }, context()), word).toBe('accepted');
     }
@@ -147,6 +151,12 @@ describe('checkRecipeDraft: what code accepts of a model proposal', () => {
     );
     expect(refusalOf({ ...draft, sections: ['What the valves are', 'An interactive tour'] }, context())).toBe(
       'sections_name_block',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'A slider for the heart rate'] }, context())).toBe(
+      'sections_name_block',
+    );
+    expect(refusalOf({ ...draft, sections: ['What the valves are', 'A diagram of one beat'] }, context())).toBe(
+      'accepted',
     );
     expect(refusalOf({ ...draft, sections: ['What the valves are', 'How one beat works'] }, context())).toBe(
       'accepted',

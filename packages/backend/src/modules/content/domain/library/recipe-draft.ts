@@ -136,12 +136,13 @@ export type DraftVerdict =
   | { readonly kind: 'refused'; readonly code: DraftRefusal };
 
 /**
- * The words of a brief or a section intent that name something a document v3 has no place for. Document v3 has no quiz and nothing
- * interactive, so a brief or a section that names either is refused. Pictures are allowed now (#781, owner decision 4): `diagram`,
- * `slider`, `simulation`, `stepper`, `chart`, `picture` and `stage` were refused while a proposal could have no picture, and a brief may
- * say "a chart of the figures" now that the writer picks the kind of picture from its passages.
+ * The words of a brief or a section intent that name something a proposal must not ask for: a quiz, or anything interactive (the
+ * proposing role says "never name a quiz or anything interactive"), including the old Scroll's interactive blocks, a slider, a
+ * simulation and a stepper. Pictures are allowed now (#781, owner decision 4): `diagram`, `chart`, `picture` and `stage` were refused
+ * while a proposal could have no picture, and a brief may say "a chart of the figures" now that the writer picks the kind of picture
+ * from its passages. Which controls a picture has is the writer's choice, never the proposal's.
  */
-const BLOCK_WORDS = /\b(?:quizzes|quiz|interactive)\b/iu;
+const BLOCK_WORDS = /\b(?:quizzes|quiz|interactive|sliders?|simulations?|steppers?)\b/iu;
 
 /** Sentences of a brief, split where a sentence ends and a space follows (the library test's rule). */
 export const sentencesOf = (text: string): readonly string[] => text.split(/(?<=[.?!])\s+/u).filter((s) => s !== '');
