@@ -261,7 +261,7 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
       ).toMatchObject({ kind: 'rendition' });
     });
 
-    it('holds the revision for a person when it would replace a Scroll a reader is served, and a person’s release retires the earlier revision', async () => {
+    it('releases the revision with no person when it replaces a served v1, and the v1 is served to no one afterwards (D-435, decisions 6 and 9; was: held replaces_served for a person)', async () => {
       // The earlier revision: the recipe's v1 Scroll, published straight to readers as it was before the plan marked it.
       delete planned.scrollV3;
       const earlier = fixtureProductionWorker(database, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
@@ -276,19 +276,46 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
         check: { state: 'checked', verdict: 'passed' },
       });
       expect((await policy().approveTopic({ topicId: recipe.topicId, approvedBy: person })).kind).toMatch(/approved/u);
-      expect(await policy().releaseOne({ assetId: recipe.assetId, revision: 2 }, { dailyCap: 5 })).toEqual({
-        kind: 'refused',
-        reason: 'replaces_served',
-      });
-      expect(await gate().release({ assetId: recipe.assetId, revision: 2, decidedBy: person })).toMatchObject({
-        kind: 'released',
-      });
       const render = makeRenderScroll(database.db);
+      // Held, it retires nothing: the v1 is still served.
+      expect(await render({ assetId: recipe.assetId, revision: 1, capabilities: v3Client })).toMatchObject({
+        kind: 'rendition',
+      });
+      expect(await policy().sweep(on)).toMatchObject({
+        kind: 'swept',
+        released: [{ assetId: recipe.assetId, revision: 2, topicId: recipe.topicId }],
+      });
+      expect(await reviewOf(2)).toMatchObject({ state: 'released', decided_by: RELEASE_POLICY.decidedBy });
       expect(await render({ assetId: recipe.assetId, revision: 1, capabilities: v3Client })).toEqual({
         kind: 'not_found',
       });
       expect(await render({ assetId: recipe.assetId, revision: 2, capabilities: v3Client })).toMatchObject({
         kind: 'rendition',
+      });
+    });
+
+    it('holds a new v3 that would replace a served v3 for a person: replaces_served until a person releases it', async () => {
+      await produce();
+      expect(await gate().release({ assetId: recipe.assetId, revision: 1, decidedBy: person })).toMatchObject({
+        kind: 'released',
+      });
+      const worker = setup(good);
+      const result = await worker.producer()(key, false, signal(), false, 2);
+      expect(result).toMatchObject({ outcome: 'published', revision: 2, held: true });
+      expect(await checked(worker, 2)).toMatchObject({
+        kind: 'stored',
+        check: { state: 'checked', verdict: 'passed' },
+      });
+      expect((await policy().approveTopic({ topicId: recipe.topicId, approvedBy: person })).kind).toMatch(/approved/u);
+      expect(await policy().releaseOne({ assetId: recipe.assetId, revision: 2 }, { dailyCap: 5 })).toEqual({
+        kind: 'refused',
+        reason: 'replaces_served',
+      });
+      expect(await policy().sweep(on)).toMatchObject({ kind: 'swept', released: [] });
+      expect(await reviewOf(2)).toMatchObject({ state: 'held' });
+      expect(await gate().release({ assetId: recipe.assetId, revision: 2, decidedBy: person })).toMatchObject({
+        kind: 'released',
+        replacedRevision: 1,
       });
     });
   });

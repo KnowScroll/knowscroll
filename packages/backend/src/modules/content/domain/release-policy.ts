@@ -1,3 +1,8 @@
+import {
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+} from '@knowscroll/scroll-model';
 import type { CatalogueSnapshot } from './catalogue/snapshot.js';
 import {
   NON_PROSE_KEYS,
@@ -15,7 +20,7 @@ import {
  * generated Scroll. This is the rule that, once the owner turns it on, lets a worker release a later Scroll of a topic a person has approved,
  * and no other. Everything here is pure: the adapter reads the facts and applies the decision, and nothing here is ever evidence.
  *
- * What a policy release needs, all of it: a new Scroll (nothing is served for the asset yet), a topic a person approved, no sensitive category
+ * What a policy release needs, all of it: a new Scroll (nothing is served for the asset yet, or only a document v1 or v2 that a document v3 replaces: D-435, decisions 6 and 9 on #771), a topic a person approved, no sensitive category
  * by the catalogue, the words or a recorded raise, a readable and mapped document, an answer check that passed, and a library support check
  * of the current checker version that passed. Anything else stays held for a person. The same rules judge a document v2 and a document v3 (D-435); "the
  * current checker version" is the one that reads the revision's own document, which the adapter chooses before these facts reach here.
@@ -23,8 +28,8 @@ import {
 
 /** The decision's name in `content.revision_reviews.decided_by` (`policy:<name>`). Any change to what the policy requires is a new name. */
 export const RELEASE_POLICY = {
-  id: 'approved-topic-supported.v1',
-  decidedBy: 'policy:approved-topic-supported.v1',
+  id: 'approved-topic-supported.v2',
+  decidedBy: 'policy:approved-topic-supported.v2',
 } as const;
 
 /** Every decision this policy makes starts with this; a person's decision starts with `cli:`. The replay of the support check counts `cli:` decisions only. */
@@ -192,8 +197,15 @@ export type SupportCheckFact =
 
 /** The facts a policy release is decided from, all read from stored rows. */
 export interface AutoReleaseFacts {
-  /** The asset's status: only a new asset (`held`, nothing served yet) is eligible. A replacement of a served Scroll is a person's call. */
+  /**
+   * The asset's status: a new asset (`held`, nothing served yet) is eligible. A replacement of a served Scroll is a person's call, except
+   * for a document v3 over a served document v1 or v2 (`mayReplaceServed`).
+   */
   readonly assetStatus: 'held' | 'admitted' | 'withdrawn';
+  /** The schema of the revision judged (`scroll-document.v2` or `.v3`). */
+  readonly documentVersion: string;
+  /** The schema of the revision the asset serves now, or `null` when it serves none (a new asset, or a withdrawn one). */
+  readonly servedDocumentVersion: string | null;
   readonly topicId: string | null;
   /** A person approved this topic and has not revoked it. */
   readonly topicApproved: boolean;
@@ -246,11 +258,27 @@ export type AutoReleaseDecision =
 const hold = (reason: AutoReleaseHold): AutoReleaseDecision => ({ kind: 'hold', reason });
 
 /**
+ * Whether a revision may take the place of the one a reader is served without a person (decisions 6 and 9 on #771, D-435): a document v3 over a served
+ * document v1 or v2, which its release then retires. A v2 over a served revision, a v3 over a served v3 (no decision covers releasing one again) and anything
+ * over a withdrawn asset still wait for a person.
+ */
+export function mayReplaceServed(
+  facts: Pick<AutoReleaseFacts, 'assetStatus' | 'documentVersion' | 'servedDocumentVersion'>,
+): boolean {
+  return (
+    facts.assetStatus === 'admitted' &&
+    facts.documentVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION &&
+    (facts.servedDocumentVersion === SCROLL_DOCUMENT_SCHEMA_VERSION ||
+      facts.servedDocumentVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION)
+  );
+}
+
+/**
  * Whether the policy may release the Scroll now. The first failing rule is the reason, strictest first: what is sensitive is named before what
  * is merely not approved, so a count of holds never hides a sensitive topic behind a missing approval.
  */
 export function decideAutoRelease(facts: AutoReleaseFacts): AutoReleaseDecision {
-  if (facts.assetStatus !== 'held') return hold('replaces_served');
+  if (facts.assetStatus !== 'held' && !mayReplaceServed(facts)) return hold('replaces_served');
   if (facts.topicId === null) return hold('no_topic');
   if (facts.risk.riskClass === 'sensitive') return hold('sensitive');
   if (!facts.topicApproved) return hold('topic_not_approved');

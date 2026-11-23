@@ -1,5 +1,9 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import {
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+} from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { PERMANENT_HOLDS, POLICY_DECIDER_PREFIX } from '../domain/release-policy.js';
@@ -30,6 +34,8 @@ export interface HeldSummary {
   readonly documentVersion: string;
   /** `held` for a new asset (nothing served yet), `admitted` when the asset serves an earlier revision, `withdrawn`. */
   readonly assetStatus: 'held' | 'admitted' | 'withdrawn';
+  /** The schema of the revision the asset serves now (`scroll-document.v1`, `.v2` or `.v3`), or `null` when it serves none. */
+  readonly servedDocumentVersion: string | null;
   /** The revision's primary attributions. Exactly one is a topic; none or several are not. */
   readonly topicIds: readonly string[];
   /** A person approved the primary topic and has not revoked it. */
@@ -47,6 +53,7 @@ interface HeldRow {
   revision: number;
   asset_status: string;
   document_version: string;
+  served_document_version: string | null;
   topic_ids: string[];
   approved: boolean;
   mapped: boolean;
@@ -103,8 +110,9 @@ export const releasePolicyStore = {
    * The held revisions of Scrolls with the facts that need no body. `only` names one revision (the release transaction reads its own that way, under the asset's lock).
    * Each revision is read under the checker version of its own document: `checkerVersions.v2` for a document v2 and `checkerVersions.v3` for a document v3 (D-435); a revision
    * of another schema has none, so it has no current check and is never ready.
-   * With `onlyReady` it keeps only those the policy could release on these facts: a new asset, an approved topic, an active mapping and a stored `checked` result
-   * of that checker version with the verdict `passed`, so a revision that is held for a good reason does not make the body of every other one be read. The stored
+   * With `onlyReady` it keeps only those the policy could release on these facts: a new asset (or a document v3 over a served document v1 or v2,
+   * `mayReplaceServed`), an approved topic, an active mapping and a stored `checked` result of that checker version with the verdict `passed`, so a revision that is
+   * held for a good reason does not make the body of every other one be read. The stored
    * verdict is a filter only: the release transaction decides it again from the sentences.
    * With `paging` (the sweep) the order is the revision least recently looked at first, never looked at before any, oldest hold first among equals; a revision looked at
    * since `lookedBefore` is left out, so a sweep's pages end; and one whose recorded hold is permanent under `rulesVersion` is left out. Without it the order is the
@@ -121,7 +129,9 @@ export const releasePolicyStore = {
     },
   ): Promise<readonly HeldSummary[]> {
     const ready = options.onlyReady
-      ? sql`and asset.status = 'held' and approved.flag and mapped.flag and this_version.state = 'checked' and this_version.verdict = 'passed'`
+      ? sql`and (asset.status = 'held' or (asset.status = 'admitted' and revision.document_version = ${SCROLL_DOCUMENT_V3_SCHEMA_VERSION}::text
+          and served.document_version in (${SCROLL_DOCUMENT_SCHEMA_VERSION}::text, ${SCROLL_DOCUMENT_V2_SCHEMA_VERSION}::text)))
+        and approved.flag and mapped.flag and this_version.state = 'checked' and this_version.verdict = 'passed'`
       : sql``;
     const only =
       options.only === undefined
@@ -137,12 +147,13 @@ export const releasePolicyStore = {
         ? sql`review.held_at, review.asset_id, review.revision`
         : sql`look.looked_at nulls first, review.held_at, review.asset_id, review.revision`;
     const { rows } =
-      await sql<HeldRow>`select review.asset_id, review.revision, asset.status as asset_status, revision.document_version,
+      await sql<HeldRow>`select review.asset_id, review.revision, asset.status as asset_status, revision.document_version, served.document_version as served_document_version,
         topics.ids as topic_ids, approved.flag as approved, mapped.flag as mapped,
         this_version.state as current_state, this_version.verdict as current_verdict, other.flag as other_version
       from content.revision_reviews review
       join content.assets asset on asset.id = review.asset_id and asset.kind = 'scroll'
       join content.asset_revisions revision on revision.asset_id = review.asset_id and revision.revision = review.revision
+      left join content.asset_revisions served on served.asset_id = asset.id and served.revision = asset.revision and asset.status = 'admitted'
       cross join lateral (select case revision.document_version
           when ${SCROLL_DOCUMENT_V2_SCHEMA_VERSION}::text then ${options.checkerVersions.v2}::text
           when ${SCROLL_DOCUMENT_V3_SCHEMA_VERSION}::text then ${options.checkerVersions.v3}::text end as version) checker
@@ -172,6 +183,7 @@ export const releasePolicyStore = {
       revision: row.revision,
       documentVersion: row.document_version,
       assetStatus: assetStatusOf(row.asset_status),
+      servedDocumentVersion: row.served_document_version,
       topicIds: row.topic_ids,
       approved: row.approved,
       mapped: row.mapped,

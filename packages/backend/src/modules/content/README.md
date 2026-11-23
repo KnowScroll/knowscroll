@@ -538,7 +538,7 @@ mechanism that, once the owner turns it on, lets a worker release a later Scroll
 the gate's states: a policy release is the gate's own `release`, with `decided_by = policy:<name>`.
 
 - **Rules** (`domain/release-policy.ts`, pure). `decideAutoRelease` returns a release or the first failing rule as a code: a replacement of a
-  served Scroll (`replaces_served`), no single primary topic, a sensitive Scroll, a topic nobody approved, an unreadable document, no active
+  served Scroll, unless it is a document v3 over a served v1 or v2 (`replaces_served`), no single primary topic, a sensitive Scroll, a topic nobody approved, an unreadable document, no active
   coverage mapping, an answer check that did not pass, and a missing (`no_support_check`), stale-version (`stale_support_check`), unchecked or flagged
   support check. `assessRisk` makes the class: the catalogue's systems, the words and every recorded raise each propose a class and the highest wins
   (`raiseRisk`), so nothing lowers it. `domain/release-sensitive-data.ts` is the one data file of the owner's sensitive categories (systems, whole-word
@@ -551,8 +551,10 @@ the gate's states: a policy release is the gate's own `release`, with `decided_b
   checker version: a v2 by the v2 check, a v3 by the v3 check (`production/library-support-kinds.ts`, `heldSummaries` picks the version by the revision's
   `document_version`). A support result of the other version reads as `stale_support_check`, so a v2 result never stands for a v3. A v3 has no calls, so its
   answer check is the empty one and is recorded `passed` with no request; coverage is the active head (the gate also refuses a v3 without one). The rules
-  version a hold is judged under includes both checker versions. A v3 that would replace a served Scroll stays for a person (`replaces_served`), and the
-  person's release retires what it replaced. The review listing and text of a v3 for an operator are not built yet.
+  version a hold is judged under includes both checker versions. A v3 that would replace a served v1 or v2 is released by the policy when every check passes (decisions 6 and 9 on #771;
+  `mayReplaceServed`, from the served revision's document version, `servedDocumentVersion`), and its release retires what it replaced. A v2 that would replace a served Scroll, and a v3
+  that would replace a served v3, stay for a person (`replaces_served`): no decision covers releasing a served v3 again without one. The policy is named `approved-topic-supported.v2`, so
+  the rules version a hold is judged under moved and the next sweep reads again every revision it held under v1. The review listing and text of a v3 for an operator are not built yet.
 - **The decision is made in the release transaction.** `adapters/release-policy.ts` (`makeReleasePolicy`: `sweep`, `releaseOne`, `approveTopic`, `revokeTopic`,
   `withdraw`, `proposeRaise`, `status`) passes the review gate a `ReleaseGuard`. Under the asset's lock the guard takes the policy lock, locks the
   topic's approval `for share`, reads the revision's facts again (asset status, topic and approval, coverage head, the support check of this checker version,

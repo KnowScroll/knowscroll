@@ -141,6 +141,8 @@ async function factsOf(db: Queryable, summary: HeldSummary, catalogue: Catalogue
   const document = body === undefined ? { readable: false, prose: '' } : policyDocumentOf(body.document);
   return {
     assetStatus: summary.assetStatus,
+    documentVersion: summary.documentVersion,
+    servedDocumentVersion: summary.servedDocumentVersion,
     topicId,
     topicApproved: summary.approved,
     risk: assessRisk({ catalogue, topicId, text: document.prose, raised }),

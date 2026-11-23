@@ -406,7 +406,7 @@ A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]
 What happens after the job, with no person:
 
 1. The delivery that held the Scroll sends its **support check**, under the checker version that reads a document v3 (`support-check-v3.…`). The sweep (every ten minutes) sends any it missed. `review-list --show-check` shows the verdict, once you have decided to look at it (D-415).
-2. The **release policy** (when the owner has switched it on and approved the topic) releases the Scroll if every check passes, and holds it, with a code, if any does not. A Scroll that would replace one a reader is served (`replaces_served`) always waits for a person; that person's release retires the earlier revisions.
+2. The **release policy** (when the owner has switched it on and approved the topic) releases the Scroll if every check passes, and holds it, with a code, if any does not. A document v3 that replaces a served v1 or v2 is released by the policy too, and its release retires the v1 or v2 (decisions 6 and 9 on #771). A v3 that would replace a served v3 (`replaces_served`) waits for a person: no decision covers releasing a served v3 again without one.
 
 A refusal of the writer's reply that the repair does not mend ends the take as `rejected` with `invalid_output`. The job's receipts and `content production-status` show the code and the attempts, never the model's text. Fix the plan or the instructions and bump the writer version, which gives every recipe new takes. A **paused** take (a spent daily cap or quota) sends nothing and resumes the same job on the next send.
 
@@ -815,7 +815,7 @@ All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shar
 
 | Hold code | Why it stays for a person |
 |---|---|
-| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). Only a new asset is released by the policy. |
+| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). The policy releases a new asset, and a document v3 over a served v1 or v2; a v2 over a served Scroll, and a v3 over a served v3, wait for a person. |
 | `no_topic` | The revision has no single primary topic. |
 | `sensitive` | The catalogue puts its topic in a sensitive category (all of Human body and History), its words match the data file (`domain/release-sensitive-data.ts`: medicine, health, law, finance, political or religious history, current events, safety, or a year from 2023 to 2100), the topic is not in the catalogue, or a raise was recorded against it. |
 | `topic_not_approved` | No live approval of its topic. |
@@ -825,7 +825,7 @@ All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shar
 
 **Turning it on is the owner's decision, after the measure above says the support check can be trusted.** The steps are then: approve the first topics with `approve-topic`; set `KS_CONTENT_AUTO_RELEASE_ENABLED=1` (and, if five a day is wrong, `KS_CONTENT_AUTO_RELEASE_DAILY_CAP`) in the world's worker environment file and restart the worker; watch `content policy status` and the `content.release_policy_released` and `content.release_policy_swept` log lines. **Turning it off:** set the switch to `0` and restart the worker. A Scroll the policy released that should not have been: `withdraw` it (the asset stops being served everywhere, nobody can lock a call, ask or get a quick answer from it any more, its topic's approval is revoked so nothing more of the topic is released unread, and who withdrew it and when is kept in `content.release_withdrawals`). `withdraw` leaves a Scroll you released yourself alone.
 
-A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v1` (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
+A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v2` (releases made before the v3 rule were recorded as `…v1`) (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
 
 ## Facts about the model
 
