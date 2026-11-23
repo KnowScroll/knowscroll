@@ -19,6 +19,7 @@ import {
 } from '@knowscroll/ui';
 import { QUICK_ANSWER_LABEL, QUICK_ANSWER_QUESTION_MAX } from '@knowscroll/contracts';
 import type { FeedbackTarget } from '@knowscroll/client-core';
+import { useMadeToOrder } from '../../providers/made-to-order';
 import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
@@ -67,7 +68,10 @@ export interface ReaderMoves {
    * reader opens the share sheet itself, so Share is never a dead button.
    */
   readonly shareScroll?: (() => void) | undefined;
-  /** Ask from here, anchored to the stop (the beat, for a v3 Scroll) on screen: the first row of the ••• sheet and the A and ? keys. */
+  /**
+   * Ask from here, anchored to the stop (the beat, for a v3 Scroll) on screen: the first row of the ••• sheet and the A and ? keys.
+   * The surface offers it only while the made-to-order Scrolls are on (D-436), whatever the screen passes.
+   */
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
   readonly formatSwitch?: ReactNode;
@@ -140,6 +144,11 @@ export function ScrollReaderSurface({
   readonly topInset: number;
   readonly bottomInset: number;
 }) {
+  // Ask from here makes a Scroll for the person's question: a way in is drawn only while the API says that is on (D-436). The
+  // Ask row, the A and ? keys and "Make it a full Scroll" all go with it, and the ••• sheet closes up without a gap.
+  const madeToOrder = useMadeToOrder();
+  const askMove = madeToOrder ? moves.ask : undefined;
+  const makeScrollMove = madeToOrder ? moves.makeScroll : undefined;
   const [moreOpen, setMoreOpen] = useState(false);
   const [challenging, setChallenging] = useState(false);
   // Share a moment (D-292): the stop on screen when the person opened More, shared as a snippet.
@@ -221,7 +230,7 @@ export function ScrollReaderSurface({
           endSlot={endSlot}
           commands={{
             universe: moves.universe,
-            ask: moves.ask,
+            ask: askMove,
             format: moves.format,
             wayOn: moves.nextPart?.onPress,
             previousPart: moves.previousPart,
@@ -240,11 +249,11 @@ export function ScrollReaderSurface({
             if (quick === undefined || card === undefined) return null;
             return (
               <QuickAnswerCard
-                view={quickAnswerViewOf(card, moves.makeScroll !== undefined)}
+                view={quickAnswerViewOf(card, makeScrollMove !== undefined)}
                 label={card.phase === 'answered' ? card.label : QUICK_ANSWER_LABEL}
                 followUpMax={QUICK_ANSWER_QUESTION_MAX}
                 onMakeScroll={() =>
-                  moves.makeScroll?.(stopId, card.passage, card.phase === 'answered' ? card.question : undefined)
+                  makeScrollMove?.(stopId, card.passage, card.phase === 'answered' ? card.question : undefined)
                 }
                 onReport={() => {
                   if (card.phase !== 'answered') return;
@@ -298,7 +307,7 @@ export function ScrollReaderSurface({
         <MoreSheetBody
           onClose={() => setMoreOpen(false)}
           input={{
-            ask: moves.ask,
+            ask: askMove,
             canChallenge,
             hasSmallPrint: limits !== undefined,
             view: readerView,

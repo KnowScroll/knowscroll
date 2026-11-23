@@ -34,10 +34,36 @@ async function askOrderOutcome(
 }
 
 /**
+ * Closes a waiting ask order's request because ask orders are switched off (D-436): the same words the person is given when a
+ * new question is refused, `budget_unavailable` with the limit `off`. The order's production job is ended by the worker, so
+ * nothing is left running for a request nobody is waiting on.
+ */
+async function closeSwitchedOff(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  d: Demand & { readonly askOrder: NonNullable<Demand['askOrder']> },
+): Promise<void> {
+  const current = await snapshot(p, scope, d);
+  const revision = await p.advance(scope);
+  await p.store.finish(scope, {
+    ...d,
+    revision,
+    requestRevision: checkedRevision(current.requestRevision + 1),
+    updatedAt: p.now().toISOString(),
+    status: 'unavailable',
+    reason: 'budget_unavailable',
+    askLimit: 'off',
+  });
+  await p.notify(scope, revision, d.id);
+}
+
+/**
  * Advances one waiter whose request became an ask order (D-218): binds the admitted Scroll and notes, once, how long the
  * order took (the ledger's "usually" time), looks again in {@link nextPoll} while production is under way, or closes the
  * request as could-not-prepare. A redelivery changes nothing that is already decided. No model call and no network wait:
- * the order's production runs in its own job.
+ * the order's production runs in its own job. While `KS_MADE_TO_ORDER_ENABLED` is off (D-436) it advances nothing: the
+ * request closes as `budget_unavailable` (limit `off`), even if the order's Scroll was admitted meanwhile, because the app
+ * no longer links to one made to order.
  *
  * Authority: the caller's open personal scope with the request already read and the owner checked; the Scroll's current
  * admission is rechecked here.
@@ -47,6 +73,10 @@ export async function advanceAskOrder(
   scope: PersonalScopeTx,
   d: Demand & { readonly askOrder: NonNullable<Demand['askOrder']> },
 ): Promise<void> {
+  if (!p.madeToOrderEnabled) {
+    await closeSwitchedOff(p, scope, d);
+    return;
+  }
   const outcome = await askOrderOutcome(p, scope, d);
   if (outcome.kind === 'wait') {
     await p.enqueue(scope, d.id, nextPoll(d, p.now()));

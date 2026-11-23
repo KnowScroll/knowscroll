@@ -433,6 +433,12 @@ authority negatives; none is real provider or discovery journey evidence.
 
 ## Made-to-order Scrolls (#244, D-049)
 
+**Switched off in every world (D-436, #784).** `KS_MADE_TO_ORDER_ENABLED` (off unless `1`, on the worker) ends every delivery for an order before anything is read or run:
+`makeRunScrollProduction(produce, { madeToOrderEnabled })` returns `{ kind: 'skipped', reason: 'made_to_order_off' }` for an `order-…` recipe, and for any job of the
+`content.produce-answer` queue whatever its key says (the consumer passes `madeToOrderQueue`). A skipped delivery is complete: no run, attempt or paid request, and pg-boss does not retry it;
+the worker logs `content.scroll_production_finished` with `outcome: skipped` and `reasonCode: made_to_order_off`. Library recipes are never affected. Nothing is deleted: an order already
+stored, and a Scroll already made from one, stay readable. The rules below describe the production that runs while the switch is on.
+
 The recipe key names either a library recipe or an order (`order-<32 hex>`, `content.made_to_order_scrolls`). Production
 resolves it to a `ProductionSubject` (`subject.ts`): the asset and explanation identity, the mode, the brief, the research
 pages, the format and whether the result is attributed to a topic. The pipeline, the job, the takes, the stop rules and the

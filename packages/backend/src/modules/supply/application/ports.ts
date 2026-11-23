@@ -335,6 +335,12 @@ export interface SupplyPorts {
   readonly readOrderProduction: ReadMadeToOrderProductionIn;
   readonly askLedger: AskOrderLedger;
   readonly plannedLedger: PlannedDemandLedger;
+  /**
+   * `KS_MADE_TO_ORDER_ENABLED` (D-436): whether anything made to order may be made at all. Off, an ask order is not made (the request
+   * closes as `budget_unavailable` with the limit `off`), is not retried and is not advanced. It is a switch, not a cap: the caps below
+   * keep their own meaning.
+   */
+  readonly madeToOrderEnabled: boolean;
   /** Ask orders Create may make per UTC day for the world (0 turns them off) and for one person. */
   readonly askCaps: { readonly perDay: number; readonly perPersonPerDay: number };
   /** The recording gate: an ask from here is tied to what was read, so it needs recording on (D-083). */

@@ -149,7 +149,10 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
   let talk: ReturnType<typeof talkCases>['talk'];
   let scenarios: ScenarioUseCases;
   let suggest: SuggestStep;
-  let compose: (caps: { perDay: number; perThread: number }) => { scenarios: ScenarioUseCases; suggest: SuggestStep };
+  let compose: (caps: { perDay: number; perThread: number; madeToOrder?: boolean }) => {
+    scenarios: ScenarioUseCases;
+    suggest: SuggestStep;
+  };
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
   let production: ReturnType<typeof fixtureProductionWorker>;
   let plannerScript: (sequence: number) => FixtureScenario | Promise<FixtureScenario>;
@@ -191,7 +194,15 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [ENQUEUE, makeEnqueueJob(content.boss)],
         [DATABASE, database.db],
-        [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadDailyCap: caps.perThread }],
+        [
+          CONFIG,
+          {
+            supplyScenarioDailyCap: caps.perDay,
+            supplyScenarioThreadDailyCap: caps.perThread,
+            // The suite runs with the switch on (D-436); the cases that need it off say so.
+            madeToOrderEnabled: caps.madeToOrder ?? true,
+          },
+        ],
         [HARNESS, fixtureRecordingHarness(database.db, { model: planner }).harness],
         [THREAD_GUEST, cases.guest],
         [READ_THREAD_STANDING, standing],
@@ -201,9 +212,9 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         [RECORD_MADE_TO_ORDER_SCROLL, recordMadeToOrderScroll],
       ]);
       const providers = [
-        ...scenarioProviders({ withPersonalScope: SCOPE, database: DATABASE, enqueueJob: ENQUEUE }),
+        ...scenarioProviders({ withPersonalScope: SCOPE, database: DATABASE, enqueueJob: ENQUEUE, config: CONFIG }),
         ...scenarioOrderProviders({ enqueueJob: ENQUEUE, config: CONFIG }),
-        ...scenarioWorkerProviders({ withPersonalScope: SCOPE, database: DATABASE, harness: HARNESS }),
+        ...scenarioWorkerProviders({ withPersonalScope: SCOPE, database: DATABASE, harness: HARNESS, config: CONFIG }),
       ];
       const build = <T>(token: symbol) => buildRecursively(providers, token, values) as T;
       return {
@@ -379,10 +390,11 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     sql`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id,completed_at) values (${randomUUID()},${recipe},${SCROLL_PRODUCTION_VERSION},${take},1,1,'rejected',${randomUUID()},now())`.execute(
       database.db,
     );
-  function resolver() {
+  function resolver(madeToOrderEnabled = true) {
     announced = [];
     sent = [];
     const resolveBranches = makeResolveBranches({
+      madeToOrderEnabled,
       store: branchPoolStore(database.db),
       readProduction: makeReadMadeToOrderProduction(database.db),
       sendProduction: (recipe, take) => {
@@ -690,6 +702,73 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(await chooseWith(await drafted(a, aRef, root), 'o2')).toEqual({
         kind: 'refused',
         code: 'budget_unavailable',
+      });
+    });
+  });
+
+  describe('with the made-to-order switch off (D-436)', () => {
+    const off = () => compose({ perDay: 100, perThread: 100, madeToOrder: false });
+
+    it('refuses a draft and a choice, writes and sends nothing, and still reads and removes what exists', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      // One branch was made while the switch was on, and one draft is waiting on a choice.
+      const made = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      const waiting = await drafted(a, aRef, root, { text: 'What if traffic doubles twice?' });
+      const before = await counts();
+      const jobs = (await jobsOf('scenarios.suggest-draft')).length;
+      const { scenarios: closed } = off();
+
+      expect(
+        await closed.draft(a.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: aRef,
+          kind: 'what_if',
+          origin: { kind: 'root' },
+          parent: { kind: 'root', assetRevision: root.assetRevision },
+          text: 'What if nobody cached anything?',
+        }),
+      ).toEqual({ kind: 'refused', code: 'made_to_order_off' });
+      expect(
+        await closed.choose(a.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: aRef,
+          draftId: waiting,
+          selection: { kind: 'suggestion', optionId: 'o1' },
+        }),
+      ).toEqual({ kind: 'refused', code: 'made_to_order_off' });
+      expect(await counts()).toEqual(before);
+      expect((await jobsOf('scenarios.suggest-draft')).length).toBe(jobs);
+
+      // What was made is still read by its members, and its starter may still take it down.
+      expect((await cards(b, bRef))[0]).toMatchObject({ nodeId: made.node.nodeId, status: 'preparing' });
+      const removed = await closed.remove(a.authority, {
+        version,
+        commandId: randomUUID(),
+        thread: aRef,
+        nodeId: made.node.nodeId,
+        revision: 1,
+      });
+      expect(removed).toMatchObject({ kind: 'ok', value: { operation: 'scenario.remove' } });
+
+      // The draft that was waiting is still there for the day the switch is turned back on.
+      expect(unwrap(await readDraft(a, aRef, waiting))).toMatchObject({ status: 'ready' });
+      expect(unwrap(await choose(a, aRef, waiting))).toMatchObject({ node: { status: 'preparing' } });
+    });
+
+    it('asks no model about a draft that was waiting: the planner step closes it as could not suggest', async () => {
+      const { a, aRef, root } = await begun();
+      const started = unwrap(await startDraft(a, aRef, root));
+      const calls = plannerCalls();
+      await off().suggest(
+        { v: 1, universeId: a.universeId, privacyEpoch: 1, draftId: started.draftId },
+        new AbortController().signal,
+      );
+      expect(plannerCalls()).toBe(calls);
+      expect(unwrap(await readDraft(a, aRef, started.draftId))).toMatchObject({
+        status: 'failed',
+        reason: 'could_not_suggest',
       });
     });
   });
@@ -1815,6 +1894,20 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       await resolver().resolveBranches();
       expect(sent.filter(([sentRecipe]) => sentRecipe === recipe)).toEqual([]);
       expect((await cards(a, aRef))[0]).toMatchObject({ status: 'failed', revision: 2 });
+    });
+
+    it('sends no further take for a branch while the made-to-order switch is off, and leaves it to age out (D-436)', async () => {
+      const { a, aRef, root } = await begun();
+      const made = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      const recipe = madeToOrderKey(made.node.nodeId);
+      await rejectTake(recipe, 1);
+      const off = await resolver(false).resolveBranches();
+      expect(off).toMatchObject({ sent: 0, bound: 0 });
+      expect(sent).toEqual([]);
+      expect((await cards(a, aRef))[0]).toMatchObject({ status: 'preparing' });
+      // With the switch on again the same sweep sends the next take.
+      await resolver().resolveBranches();
+      expect(sent).toContainEqual([recipe, 2]);
     });
 
     it('closes a branch that waited past the limit', async () => {

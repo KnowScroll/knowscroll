@@ -27,7 +27,9 @@ function refusal(code: ScenarioRefusal) {
     // Nothing the thread rests on can be researched by code: the idea is well formed and cannot be made here.
     case 'unsupported':
       return socialProblem('UNPROCESSABLE_REQUEST');
+    // The made-to-order switch is off (D-436): the same answer as a thread or branch that is not there, so no client has a new case to handle.
     case 'unavailable':
+    case 'made_to_order_off':
       return socialProblem('SHARING_UNAVAILABLE');
   }
 }

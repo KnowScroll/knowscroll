@@ -89,7 +89,9 @@ function requestOf(draft: DraftRow, selection: Choice['selection']): Chosen | un
  * unchosen and unexpired; the parent must be at the revision they saw. Refused without a receipt: a
  * choice the step rules refuse (`invalid_input`), a stale parent or a draft of theirs that was already
  * chosen or has expired (`stale_revision`), a thread
- * nothing of which can be researched by code (`unsupported`) and a cap (`budget_unavailable`).
+ * nothing of which can be researched by code (`unsupported`) and a cap (`budget_unavailable`). While
+ * `KS_MADE_TO_ORDER_ENABLED` is off (D-436) every choice is refused as `made_to_order_off` before any scope is entered, and
+ * Quartermaster refuses the order a second time (`off`), so no branch, receipt or job can come from here.
  * Lock order: personal root, account gate, thread, draft and node rows, then Quartermaster's
  * commissioning lock. No model call or network wait happens here.
  */
@@ -122,7 +124,7 @@ export function makeChoose(p: ScenarioPorts) {
         framing: framingOf(step),
       },
     });
-    if (order.kind === 'refused') return refuse('budget_unavailable');
+    if (order.kind === 'refused') return refuse(order.reason === 'off' ? 'made_to_order_off' : 'budget_unavailable');
     const node = {
       nodeId,
       threadId: visit.threadId,
@@ -158,6 +160,7 @@ export function makeChoose(p: ScenarioPorts) {
   return async function choose(authority: PersonalAuthority, input: unknown): Promise<Result<Acceptance>> {
     const parsed = ChooseScenarioSchema.safeParse(input);
     if (!parsed.success) return refuse('invalid_input');
+    if (!p.madeToOrderEnabled) return refuse('made_to_order_off');
     const command = parsed.data;
     const entered = await p.withScope(authority, async (scope): Promise<Result<Acceptance>> => {
       const visit = await p.guest.enter(scope, command.thread, 'write');

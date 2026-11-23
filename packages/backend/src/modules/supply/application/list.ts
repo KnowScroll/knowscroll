@@ -44,6 +44,8 @@ export function makeListRequests(p: SupplyPorts): ListRequests {
           title: titleOf(d, catalogue),
           format: formatOf(d.command),
           status: await snapshot(p, scope, d),
+          // A question asked from a Scroll says so, so a client can leave these out while they are switched off (D-436).
+          ...(d.command.intent.kind === 'ask' ? { ask: true as const } : {}),
         });
       return ContentRequestListSchema.parse({ version: 'content-request-list.v1', requests });
     });

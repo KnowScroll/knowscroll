@@ -42,6 +42,22 @@ export const listSessionsContract = oc
   .output(SessionListSchema);
 
 /**
+ * Which optional features the API has switched on for this world (D-436). The API is the one source of truth: a client shows a way
+ * into a feature only when this says it is on, and treats an answer that has not arrived, or that failed, as off. `madeToOrder`:
+ * the three Scrolls made to order ("You asked", "What if", "Another perspective"), which one switch turns on or off together.
+ */
+export const AccountFeaturesSchema = z.strictObject({
+  version: z.literal('account-features.v1'),
+  madeToOrder: z.boolean(),
+});
+export type AccountFeatures = z.infer<typeof AccountFeaturesSchema>;
+
+/** The features this world has switched on, for the signed-in caller. Read-only; no input, nothing personal in the answer. */
+export const readAccountFeaturesContract = oc
+  .route({ method: 'GET', path: '/v1/account/features', successStatus: 200, tags: ['account'] })
+  .output(AccountFeaturesSchema);
+
+/**
  * Signs one other session out. `CONFLICT` (409) for the presented session (signing out here is
  * `/auth/sign-out`, which also clears the cookie); `NOT_FOUND` (404) for an id that is unknown,
  * already ended or another person's, all the same answer.
@@ -154,6 +170,7 @@ export const claimFirstOpenContract = oc
 
 export const accountContract = {
   sessions: listSessionsContract,
+  features: readAccountFeaturesContract,
   claimFirstOpen: claimFirstOpenContract,
   endSession: endSessionContract,
   endOtherSessions: endOtherSessionsContract,

@@ -67,6 +67,8 @@ export function realSupply(
         supplyGrowthEnabled: options.growthEnabled === true,
         supplyAskDailyCap: 0,
         supplyAskPersonDailyCap: 5,
+        // Planned demand never asks a question: nothing here is made to order (D-436).
+        madeToOrderEnabled: false,
       },
     ],
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],

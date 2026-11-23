@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RequestsList } from './requests-list';
 import { closedItem, preparing, readyItem, requestsListHarness } from './requests-list.fixture';
 import { id } from '../encounter/encounter-session.fixture';
+import { MadeToOrderContext, type MadeToOrderState } from '../../providers/made-to-order';
 
 const frame = (node: React.ReactNode) => (
   <SafeAreaProvider
@@ -151,6 +152,63 @@ describe('E07 requests list', () => {
       await waitFor(() => expect(screen.getByText(/can't be tried again/)).toBeTruthy());
       expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
       expect(screen.getByRole('button', { name: 'Ask differently' })).toBeTruthy();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+});
+
+describe('E07 requests list and the made-to-order switch (D-436)', () => {
+  /** A catalogue request and a question asked from a Scroll ("You asked"), the second marked as the server marks it. */
+  const items = () => [
+    preparing(30, 'Football tactics'),
+    { ...preparing(31, 'Why is the far side cold?'), ask: true as const },
+  ];
+  const listed = async (state: MadeToOrderState) => {
+    const h = requestsListHarness(items());
+    const screen = await render(
+      frame(
+        <MadeToOrderContext.Provider value={state}>
+          <RequestsList session={h.session} onOpen={jest.fn()} onAsk={jest.fn()} />
+        </MadeToOrderContext.Provider>,
+      ),
+    );
+    h.session.visible(true);
+    return { h, screen };
+  };
+
+  it('lists a question asked from a Scroll with the other requests while the switch is on', async () => {
+    const { h, screen } = await listed('on');
+    try {
+      await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(2));
+      expect(screen.getByText('Why is the far side cold?, as a Scroll')).toBeTruthy();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
+  for (const state of ['off', 'unknown'] as const)
+    it(`leaves it out, and keeps every other request, while the switch is ${state}`, async () => {
+      const { h, screen } = await listed(state);
+      try {
+        await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(1));
+        expect(screen.getByText('Football tactics, as a Scroll')).toBeTruthy();
+        expect(screen.queryByText(/far side is cold|far side cold/)).toBeNull();
+      } finally {
+        await screen.unmount();
+        await act(() => h.scope.end());
+      }
+    });
+
+  it('says nothing was requested yet when the only requests were questions asked from a Scroll', async () => {
+    const h = requestsListHarness([{ ...preparing(32, 'Why is the far side cold?'), ask: true as const }]);
+    const screen = await render(frame(<RequestsList session={h.session} onOpen={jest.fn()} onAsk={jest.fn()} />));
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(screen.getByText('Nothing requested yet')).toBeTruthy());
+      expect(screen.queryAllByTestId('request-row')).toHaveLength(0);
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());
