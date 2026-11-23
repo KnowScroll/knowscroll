@@ -385,6 +385,33 @@ The raw folder, the `--out` file, the page and the key hold the model's own text
 
 As for the v2 spike: reconcile every `unknown` attempt first (`reasoning unknown`), then re-run only the jobs in `notStarted` and `stoppedBy.job`. A new `--spike-id` gives a new raw folder.
 
+## Producing a document v3 Scroll (#783)
+
+A recipe becomes a `scroll-document.v3` Scroll only when the library plan marks it: `scrollV3` on the recipe, with the kind of essay (`shape`), one intent for each section, the pictures it must have (kind and purpose, optional: without them the writer chooses one to three kinds) and its `misconception`, either `none` or a myth whose source label a person has `reviewed`. A person decides it, recipe by recipe, in a pull request; the writer and the system never do. A recipe carries `scrollV3` or `scrollV2`, never both. Status: implemented, tested with a fixture model; **not yet run on real MiniMax**. No recipe is marked today.
+
+The writer asks the model once for the whole Scroll (arm (a) of #771) and the harness repairs one refusal, so a take sends at most two paid requests. The model never sets the kicker, the theme, the framing or the misconception: the plan does. A v3 library Scroll is **held**, like a v2 one, and the commands are the same.
+
+Once a recipe is marked and the build is on dev:
+
+```sh
+node dist/operator.js content produce-library --dry-run --only <recipe key,…>   # lists the recipe as wouldQueue; a recipe that already has a document v3 is skipped
+node dist/operator.js content produce-library --only <recipe key,…>
+node dist/operator.js content production-status --only <recipe key,…>          # `held` once produced; `published` only after release
+node dist/operator.js content review-show --asset <asset id> --sources         # read it as a reader does, with the passages each part cites
+node dist/operator.js content release --asset <asset id> --revision <n>        # or reject, with a reason; or leave it to the release policy
+```
+
+A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]`. A take is refused until the earlier one was rejected, or released (a document v3 may be taken again after a release, as a v2 may: the new revision is held and the served one keeps serving). A recipe has three takes at a production version (`scroll-production-v3.v1`).
+
+What happens after the job, with no person:
+
+1. The delivery that held the Scroll sends its **support check**, under the checker version that reads a document v3 (`support-check-v3.…`). The sweep (every ten minutes) sends any it missed. `review-list --show-check` shows the verdict, once you have decided to look at it (D-415).
+2. The **release policy** (when the owner has switched it on and approved the topic) releases the Scroll if every check passes, and holds it, with a code, if any does not. A document v3 that replaces a served v1 or v2 is released by the policy too, and its release retires the v1 or v2 (decisions 6 and 9 on #771). A v3 that would replace a served v3 (`replaces_served`) waits for a person: no decision covers releasing a served v3 again without one.
+
+A refusal of the writer's reply that the repair does not mend ends the take as `rejected` with `invalid_output`. The job's receipts and `content production-status` show the code and the attempts, never the model's text. Fix the plan or the instructions and bump the writer version, which gives every recipe new takes. A **paused** take (a spent daily cap or quota) sends nothing and resumes the same job on the next send.
+
+What to read for in a held v3 Scroll, besides what a v2 asks: the first paragraph stands alone as the cover; each picture says what its paragraph says (the support check reads the words of a picture, not what it draws); the "To sum up" is a person's plain ending, not the dek again; a negative figure is written with its sign.
+
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
 A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
@@ -788,7 +815,7 @@ All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shar
 
 | Hold code | Why it stays for a person |
 |---|---|
-| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). Only a new asset is released by the policy. |
+| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). The policy releases a new asset, and a document v3 over a served v1 or v2; a v2 over a served Scroll, and a v3 over a served v3, wait for a person. |
 | `no_topic` | The revision has no single primary topic. |
 | `sensitive` | The catalogue puts its topic in a sensitive category (all of Human body and History), its words match the data file (`domain/release-sensitive-data.ts`: medicine, health, law, finance, political or religious history, current events, safety, or a year from 2023 to 2100), the topic is not in the catalogue, or a raise was recorded against it. |
 | `topic_not_approved` | No live approval of its topic. |
@@ -798,7 +825,7 @@ All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shar
 
 **Turning it on is the owner's decision, after the measure above says the support check can be trusted.** The steps are then: approve the first topics with `approve-topic`; set `KS_CONTENT_AUTO_RELEASE_ENABLED=1` (and, if five a day is wrong, `KS_CONTENT_AUTO_RELEASE_DAILY_CAP`) in the world's worker environment file and restart the worker; watch `content policy status` and the `content.release_policy_released` and `content.release_policy_swept` log lines. **Turning it off:** set the switch to `0` and restart the worker. A Scroll the policy released that should not have been: `withdraw` it (the asset stops being served everywhere, nobody can lock a call, ask or get a quick answer from it any more, its topic's approval is revoked so nothing more of the topic is released unread, and who withdrew it and when is kept in `content.release_withdrawals`). `withdraw` leaves a Scroll you released yourself alone.
 
-A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v1` (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
+A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v2` (releases made before the v3 rule were recorded as `…v1`) (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
 
 ## Facts about the model
 

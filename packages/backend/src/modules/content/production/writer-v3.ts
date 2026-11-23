@@ -28,8 +28,8 @@ export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v1';
 export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v1';
 export const STAGER_V3_VERSION = 'scroll-stager-v3.v1';
 
-/** The kicker every v3 spike Scroll carries; a person sets the real one when a recipe is planned as v3. */
-const SPIKE_KICKER = 'A closer look';
+/** The kicker every library Scroll carries, the same as a v2 library Scroll's (`publicationV2`): code's, never the model's. */
+const LIBRARY_KICKER = 'A closer look';
 
 /** Everything a v3 compile needs about one job: who the Scroll is, what the plan decided, and what it rests on. */
 export interface WriterV3Context {
@@ -40,9 +40,13 @@ export interface WriterV3Context {
   readonly pages: readonly ResearchPage[];
 }
 
-/** The context of a library recipe's v3 job: factual, themed `worlds`, with the recipe's own asset and explanation. */
+/**
+ * The context of a library recipe's v3 job: factual, themed `worlds`, with the recipe's own asset and explanation, at the
+ * revision the job will store (a regeneration is the next revision of the same asset).
+ */
 export function writerContextV3(
   recipe: { readonly assetId: string; readonly explanationUnitId: string },
+  revision: number,
   plan: WriterV3Plan,
   passages: readonly EvidencePassage[],
   pages: readonly ResearchPage[],
@@ -51,11 +55,11 @@ export function writerContextV3(
     code: {
       publication: {
         assetId: recipe.assetId,
-        revision: 1,
+        revision,
         language: 'en',
         explanationUnitId: recipe.explanationUnitId,
       },
-      kicker: SPIKE_KICKER,
+      kicker: LIBRARY_KICKER,
       theme: { family: 'worlds' },
       shape: plan.shape,
       framing: { kind: 'factual' },

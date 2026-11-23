@@ -141,6 +141,8 @@ async function factsOf(db: Queryable, summary: HeldSummary, catalogue: Catalogue
   const document = body === undefined ? { readable: false, prose: '' } : policyDocumentOf(body.document);
   return {
     assetStatus: summary.assetStatus,
+    documentVersion: summary.documentVersion,
+    servedDocumentVersion: summary.servedDocumentVersion,
     topicId,
     topicApproved: summary.approved,
     risk: assessRisk({ catalogue, topicId, text: document.prose, raised }),
@@ -309,8 +311,9 @@ export function makeReleasePolicy(db: Kysely<Database>, catalogue: Catalogue) {
   /**
    * Withdraws a Scroll the policy released and revokes its topic's approval, in one transaction under the asset's lock. The withdrawal is the
    * existing one: the asset's status becomes `withdrawn`, which every read already treats as not served (and which advances its availability
-   * counter). It takes the whole asset down, as a withdrawal always has; only a new asset is ever released by the policy, so no earlier revision
-   * is lost. A person's own release is left alone, and repeating the command changes nothing.
+   * counter). It takes the whole asset down, as a withdrawal always has. A v3 the policy released over a served v1 or v2 retired that revision
+   * (D-435), so withdrawing it leaves nothing of the asset served: the retired revision is not served again. A person's own release is left
+   * alone, and repeating the command changes nothing.
    */
   function withdraw(request: {
     readonly assetId: string;

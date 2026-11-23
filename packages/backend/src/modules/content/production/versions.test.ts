@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isReadingInteractionAllowed } from '../public.js';
 import {
+  claimSecondsFor,
   produceAnswerQueue,
   produceScrollJob,
   produceScrollQueue,
@@ -111,10 +112,11 @@ describe('production versions: a recipe the plan marks document v3', () => {
     expect(productionVersionOfWriter[WRITER_V3_PROMPT_VERSION]).toBe(SCROLL_PRODUCTION_V3_VERSION);
   });
 
-  it('is a version a job row may carry, and bounds a take like v2 until the writer pull request chooses', () => {
+  it('is a version a job row may carry, and bounds a take like v2, inside the claim a production delivery holds', () => {
     expect(PRODUCTION_VERSIONS).toContain(SCROLL_PRODUCTION_V3_VERSION);
     expect(new Set(PRODUCTION_VERSIONS).size).toBe(3);
     expect(REQUEST_BOUND_V3_PER_TOPIC).toBe(REQUEST_BOUND_V2_PER_TOPIC);
+    expect(claimSecondsFor(REQUEST_BOUND_V3_PER_TOPIC)).toBeLessThanOrEqual(PRODUCE_SCROLL_CLAIM_SECONDS);
     markV3('exoplanet-kinds');
     expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_V3_PER_TOPIC);
   });

@@ -138,7 +138,7 @@ describe('the release policy commands from the built release', () => {
     expect(off.code).toBe(0);
     expect(lastLine(off.stdout)).toMatchObject({
       command: 'content policy status',
-      policy: 'approved-topic-supported.v1',
+      policy: 'approved-topic-supported.v2',
       autoRelease: { enabled: false, dailyCap: 5 },
       counts: { approvedTopics: 1, revokedApprovals: 0, held: 0, releasedByPolicy: 0, releasedToday: 0, raises: 0 },
       held: { evaluated: 0, wouldRelease: 0, byReason: {} },

@@ -465,6 +465,43 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.1.value'));
     });
 
+    it('passes a negative value the passage writes with the Unicode minus, and refuses one it writes without a sign', () => {
+      const negative = (passage: string) => (reply: WrittenScrollV3, input: Mutable) => {
+        withChart('millivolts', passage)(reply, input);
+        const chart = reply.pictures[1];
+        if (chart?.kind !== 'chart') throw new Error('CI expected the chart');
+        // A bar cannot go below zero, so a figure below zero is a line.
+        chart.form = 'line';
+        chart.points = [
+          { label: 'Rest', value: '-70' },
+          { label: 'Threshold', value: '-55' },
+        ];
+      };
+      compiled(negative(`${BOIL} At rest the cell sits at \u221270 millivolts, and fires at \u221255 millivolts.`));
+      compiled(negative(`${BOIL} At rest the cell sits at -70 millivolts, and fires at -55 millivolts.`));
+      const issues = refused(negative(`${BOIL} At rest the cell sits at 70 millivolts, and fires at 55 millivolts.`));
+      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.0.value'));
+    });
+
+    it('reads a value the model writes with the Unicode minus as the stored hyphen-minus', () => {
+      const reply = validReply();
+      reply.pictures[1] = {
+        kind: 'chart',
+        title: 'Two voltages',
+        cites: ['e2'],
+        form: 'line',
+        values: 'shown',
+        points: [
+          { label: 'Rest', value: '\u221270' },
+          { label: 'Threshold', value: '\u221255' },
+        ],
+        marks: [],
+      };
+      const parsed = WrittenScrollV3.parse(JSON.parse(JSON.stringify(reply)));
+      const chart = parsed.pictures[1];
+      expect(chart?.kind === 'chart' && chart.points.map((point) => point.value)).toEqual(['-70', '-55']);
+    });
+
     it('refuses a unit the passage never names, at the unit', () => {
       const issues = refused(withChart('light years', `${BOIL} Some 8.3 people and 9.1 people live nearby.`));
       expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.unit'));

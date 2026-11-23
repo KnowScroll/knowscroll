@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { canonicalSha256, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { canonicalSha256, SCROLL_DOCUMENT_V3_SCHEMA_VERSION, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { seedSnapshot } from '../domain/catalogue/seed.js';
 import { LIBRARY_SYSTEMS } from '../domain/library/index.js';
 import {
@@ -208,6 +208,8 @@ describe('the policy’s decision for a document v3 (D-435)', () => {
     const read = policyDocumentOf(document);
     return {
       assetStatus: 'held',
+      documentVersion: SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+      servedDocumentVersion: null,
       topicId: 'earth.seasons',
       topicApproved: true,
       risk: assessRisk({ catalogue, topicId: 'earth.seasons', text: read.prose, raised: [] }),
@@ -225,7 +227,9 @@ describe('the policy’s decision for a document v3 (D-435)', () => {
 
   it('holds a document v3 for one failing check at a time, each with its own code', () => {
     const hold = (facts: AutoReleaseFacts) => decideAutoRelease(facts);
-    expect(hold(factsOfV3({ assetStatus: 'admitted' }))).toEqual({ kind: 'hold', reason: 'replaces_served' });
+    expect(
+      hold(factsOfV3({ assetStatus: 'admitted', servedDocumentVersion: SCROLL_DOCUMENT_V3_SCHEMA_VERSION })),
+    ).toEqual({ kind: 'hold', reason: 'replaces_served' });
     expect(hold(factsOfV3({ topicId: null }))).toEqual({ kind: 'hold', reason: 'no_topic' });
     expect(hold(factsOfV3({ topicApproved: false }))).toEqual({ kind: 'hold', reason: 'topic_not_approved' });
     expect(hold(factsOfV3({ coverageMapped: false }))).toEqual({ kind: 'hold', reason: 'unmapped' });

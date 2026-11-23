@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalSha256 } from '@knowscroll/scroll-model';
+import {
+  canonicalSha256,
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+} from '@knowscroll/scroll-model';
 import { seedSnapshot } from './catalogue/seed.js';
 import { LIBRARY_SYSTEMS } from './library/index.js';
 import {
@@ -33,6 +38,8 @@ const ORDINARY_TEXT = 'Orrin leans in its orbit, so a beam from its star strikes
 /** Facts of a Scroll the policy releases; each test spoils one. */
 const releasable: AutoReleaseFacts = {
   assetStatus: 'held',
+  documentVersion: SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  servedDocumentVersion: null,
   topicId: 'earth.seasons',
   topicApproved: true,
   risk: { riskClass: 'ordinary', categories: [], reasons: [] },
@@ -194,6 +201,73 @@ describe('whether the policy may release a Scroll', () => {
       kind: 'hold',
       reason: 'replaces_served',
     });
+  });
+});
+
+describe('a document v3 that replaces a served Scroll (D-435, decisions 6 and 9 on #771)', () => {
+  const v3: Partial<AutoReleaseFacts> = { assetStatus: 'admitted', documentVersion: SCROLL_DOCUMENT_V3_SCHEMA_VERSION };
+  const over = (served: string): AutoReleaseFacts => ({ ...releasable, ...v3, servedDocumentVersion: served });
+
+  it.each([SCROLL_DOCUMENT_SCHEMA_VERSION, SCROLL_DOCUMENT_V2_SCHEMA_VERSION])(
+    'is released over a served %s when every other check passes',
+    (served) => {
+      expect(decideAutoRelease(over(served))).toEqual({ kind: 'release' });
+    },
+  );
+
+  it.each([SCROLL_DOCUMENT_SCHEMA_VERSION, SCROLL_DOCUMENT_V2_SCHEMA_VERSION])(
+    'is still held by every other rule over a served %s, in the same order',
+    (served) => {
+      const sensitive = { riskClass: 'sensitive', categories: ['law'], reasons: ['keyword'] } as const;
+      const others: readonly (readonly [string, Partial<AutoReleaseFacts>])[] = [
+        ['no_topic', { topicId: null }],
+        ['sensitive', { risk: sensitive }],
+        ['topic_not_approved', { topicApproved: false }],
+        ['unreadable', { documentReadable: false }],
+        ['unmapped', { coverageMapped: false }],
+        ['answer_check_not_passed', { answerCheck: 'repaired' }],
+        ['no_support_check', { supportCheck: { kind: 'none' } }],
+        ['stale_support_check', { supportCheck: { kind: 'stale' } }],
+        ['support_unchecked', { supportCheck: { kind: 'unchecked' } }],
+        ['support_flagged', { supportCheck: { kind: 'checked', verdict: 'flagged' } }],
+      ];
+      for (const [reason, spoil] of others)
+        expect(decideAutoRelease({ ...over(served), ...spoil })).toEqual({ kind: 'hold', reason });
+      expect(decideAutoRelease({ ...over(served), risk: sensitive, topicApproved: false })).toEqual({
+        kind: 'hold',
+        reason: 'sensitive',
+      });
+    },
+  );
+
+  it('is held replaces_served over a served document v3: no decision covers releasing one again without a person', () => {
+    expect(decideAutoRelease(over(SCROLL_DOCUMENT_V3_SCHEMA_VERSION))).toEqual({
+      kind: 'hold',
+      reason: 'replaces_served',
+    });
+  });
+
+  it('is held replaces_served when the served revision is not known, and over a withdrawn asset', () => {
+    expect(decideAutoRelease({ ...over(SCROLL_DOCUMENT_V2_SCHEMA_VERSION), servedDocumentVersion: null })).toEqual({
+      kind: 'hold',
+      reason: 'replaces_served',
+    });
+    expect(decideAutoRelease({ ...over(SCROLL_DOCUMENT_V2_SCHEMA_VERSION), assetStatus: 'withdrawn' })).toEqual({
+      kind: 'hold',
+      reason: 'replaces_served',
+    });
+  });
+
+  it('does not extend to a document v2: a v2 over a served v2 (or a served v1) is held replaces_served as before', () => {
+    for (const served of [SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_SCHEMA_VERSION])
+      expect(
+        decideAutoRelease({
+          ...releasable,
+          assetStatus: 'admitted',
+          documentVersion: SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+          servedDocumentVersion: served,
+        }),
+      ).toEqual({ kind: 'hold', reason: 'replaces_served' });
   });
 });
 

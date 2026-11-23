@@ -236,7 +236,7 @@ describe('the release policy over a document v3 (labelled CI fixtures, real Post
       await discard(held);
     });
 
-    it('holds a document v3 that would replace a Scroll a reader is served, for a person, and a person’s release retires the v2 it replaces (D-435)', async () => {
+    it('releases a document v3 that replaces a served v2 with no person when every check passes, and retires the v2 (D-435, decisions 6 and 9; was: held replaces_served for a person)', async () => {
       const unit = documentV3Source('seasons')['explanationUnitId'] as string;
       const served = await seedDocumentV2(database.db, 'seasons-stage-ci', undefined);
       await database.db
@@ -246,21 +246,16 @@ describe('the release policy over a document v3 (labelled CI fixtures, real Post
         .execute();
       const held = await ready('seasons', { existing: { assetId: served.assetId, revision: 2 } });
       expect(await assetOf(held)).toEqual({ status: 'admitted', revision: 1 });
-      expect(await releaseOne(held)).toEqual({ kind: 'refused', reason: 'replaces_served' });
-      expect(await holdsOf()).toMatchObject({ byReason: { replaces_served: 1 } });
+      expect(await holdsOf()).toEqual({ evaluated: 1, wouldRelease: 1, byReason: {} });
 
       // Held, the v3 retires nothing: the v2 is still served to a v2 app.
       const render = makeRenderScroll(database.db);
       expect(await render({ assetId: served.assetId, revision: 1, capabilities: v2Client })).toMatchObject({
         kind: 'rendition',
       });
-      // A person releases it through the review gate; from then on revision 1 is served to no one and revision 2 to an app that declares v3.
-      expect(await gate().release({ assetId: held.assetId, revision: held.revision, decidedBy: person })).toMatchObject(
-        {
-          kind: 'released',
-          replacedRevision: 1,
-        },
-      );
+      // The policy releases it; from then on revision 1 is served to no one and revision 2 to an app that declares v3.
+      expect(await releaseOne(held)).toMatchObject({ kind: 'released', replacedRevision: 1 });
+      expect(await reviewOf(held)).toMatchObject({ state: 'released', decided_by: RELEASE_POLICY.decidedBy });
       expect(await assetOf(held)).toEqual({ status: 'admitted', revision: 2 });
       for (const capabilities of [v2Client, v3Client])
         expect(await render({ assetId: served.assetId, revision: 1, capabilities })).toEqual({ kind: 'not_found' });
@@ -271,6 +266,21 @@ describe('the release policy over a document v3 (labelled CI fixtures, real Post
         kind: 'cannot_render',
         reason: 'unsupported_document',
       });
+    });
+
+    it('still holds a document v3 that would replace a served v2 for the other checks (a topic nobody approved)', async () => {
+      const unit = documentV3Source('seasons')['explanationUnitId'] as string;
+      const served = await seedDocumentV2(database.db, 'seasons-stage-ci', undefined);
+      await database.db
+        .updateTable('content.asset_revisions')
+        .set({ explanation_unit_id: unit })
+        .where('asset_id', '=', served.assetId)
+        .execute();
+      const held = await ready('seasons', { existing: { assetId: served.assetId, revision: 2 } });
+      expect((await policy().revokeTopic({ topicId: 'earth.seasons', revokedBy: person })).kind).toBe('revoked');
+      expect(await releaseOne(held)).toEqual({ kind: 'refused', reason: 'topic_not_approved' });
+      expect((await policy().approveTopic({ topicId: 'earth.seasons', approvedBy: person })).kind).toBe('approved');
+      await discard(held);
     });
   });
 });
