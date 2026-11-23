@@ -55,7 +55,8 @@ See the content README, "The review gate".
 
 Related: #246.
 
-`AccountController` serves `GET /v1/account/sessions`, `POST /v1/account/sessions/end` and `.../end-others`
+`AccountController` serves `GET /v1/account/features` (D-436: `{ version: 'account-features.v1', madeToOrder }`, read from this process's `KS_MADE_TO_ORDER_ENABLED`; the one answer the app asks
+before it shows a way into "You asked", "What if" or "Another perspective", so the API stays the one source of truth; nothing personal, `private, no-store`), `GET /v1/account/sessions`, `POST /v1/account/sessions/end` and `.../end-others`
 (signing out another device; the presented session is refused with 409), `POST /v1/account/exports`,
 `GET /v1/account/exports`, `POST /v1/account/exports/link`, and `POST /v1/account/delete`. All take the
 ordinary session/scope pipeline. Deletion checks the epoch the person saw, accepts a durable operation (202)
@@ -405,8 +406,8 @@ a real PostgreSQL. *Implemented. Not yet run on dev.*
 routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed Social problem family
 (`invalid_input` to `INVALID_REQUEST`, `stale_revision` to `SHARING_REVISION_STALE`, `command_key_reused` to
 `COMMAND_KEY_REUSED`, `budget_unavailable` to `TOO_MANY_REQUESTS`, `unsupported` to `UNPROCESSABLE_REQUEST`,
-`unavailable` to `SHARING_UNAVAILABLE`). Membership, the parent's revision, the caps and idempotence are decided in the use
-cases; no handler waits for a model. The API also reads `KS_SUPPLY_ASK_DAILY_CAP` and `KS_SUPPLY_ASK_PERSON_DAILY_CAP` (a question the Scroll itself suggests makes its ask order in the create transaction, D-218), serves `READ_ASK_ORDER_AUDIENCE` beside the branch audience (an ask order's Scroll opens for the person who asked), and maps `recording_paused` and `recording_stale` on a create to `RECORDING_PAUSED` and `RECORDING_POLICY_STALE` (409). It also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (five a day per thread, D-158).
+`unavailable` and `made_to_order_off` to `SHARING_UNAVAILABLE`). Membership, the parent's revision, the caps and idempotence are decided in the use
+cases; no handler waits for a model. While `KS_MADE_TO_ORDER_ENABLED` is off (the default in every world, D-436) `draft` and `choose` answer `made_to_order_off`; `draft/read`, `list` and `remove` still work. The API also reads `KS_SUPPLY_ASK_DAILY_CAP` and `KS_SUPPLY_ASK_PERSON_DAILY_CAP` (a question the Scroll itself suggests makes its ask order in the create transaction, D-218), serves `READ_ASK_ORDER_AUDIENCE` beside the branch audience (an ask order's Scroll opens for the person who asked), and maps `recording_paused` and `recording_stale` on a create to `RECORDING_PAUSED` and `RECORDING_POLICY_STALE` (409). It also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (five a day per thread, D-158).
 Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*
 
 ### Quick answers (v3 S-9b, D-253 to D-255)

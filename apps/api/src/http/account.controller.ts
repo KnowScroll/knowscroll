@@ -94,6 +94,16 @@ export class AccountController {
     });
   }
 
+  /** The switches the app reads before it shows a way into a feature (D-436). Read per request: a switch changes with a restart. */
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.account.features)
+  featuresRoute() {
+    return implement(apiContract.account.features).handler(() => ({
+      version: 'account-features.v1' as const,
+      madeToOrder: this.config.madeToOrderEnabled,
+    }));
+  }
+
   @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.account.endSession)
   endSessionRoute(@Req() request: Request) {

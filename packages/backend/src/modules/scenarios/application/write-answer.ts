@@ -56,7 +56,8 @@ type Prepared =
  * card is refused without a call.
  * Failure/retry: the run ID is the branch ID, so a redelivery answers from the ledger and never pays twice, and an
  * attempt of unknown outcome is never resent: the card ends as unavailable and the run stays open for an operator.
- * With fewer than two claims to cite no model is asked at all.
+ * With fewer than two claims to cite no model is asked at all, and none is asked while `KS_MADE_TO_ORDER_ENABLED` is off
+ * (D-436): the card ends as unavailable.
  */
 export function makeWriteAnswer(p: AnswerWorkerPorts, harness: RecordingReasoningHarness): WriteAnswerStep {
   async function prepare(scope: PersonalScopeTx, nodeId: string): Promise<Prepared> {
@@ -122,7 +123,7 @@ export function makeWriteAnswer(p: AnswerWorkerPorts, harness: RecordingReasonin
     if (prepared.kind !== 'entered' || prepared.value.kind === 'skip') return;
     const { value } = prepared;
     let told: string | undefined;
-    if (value.kind === 'unavailable') {
+    if (value.kind === 'unavailable' || !p.madeToOrderEnabled) {
       const settled = await p.withScope(authority, (scope) => apply(scope, job.nodeId, { kind: 'unavailable' }));
       told = settled.kind === 'entered' ? settled.value : undefined;
     } else {

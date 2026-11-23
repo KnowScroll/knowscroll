@@ -8,7 +8,7 @@ const UTC_DAY_MS = 86_400_000;
 export type AskCommission =
   /** The order is recorded and its production job is sent in the caller's transaction. */
   | { readonly kind: 'commissioned'; readonly order: AskOrderLink }
-  /** A day's cap is full or ask orders are off: `limit` names which, so the person is told the truth (D-387). */
+  /** A day's cap is full or ask orders are off (the cap is 0, or the made-to-order switch is off): `limit` names which, so the person is told the truth (D-387). */
   | { readonly kind: 'unavailable'; readonly reason: 'budget_unavailable'; readonly limit: AskLimitKind }
   /** Nothing to research the answer from. */
   | { readonly kind: 'unavailable'; readonly reason: 'could_not_prepare' };
@@ -33,6 +33,10 @@ export function askLimitOf(refused: Extract<AskCommission, { kind: 'unavailable'
  * Two caps bound the spend, counted from the ledger and from the person's own asks: the world's UTC day
  * (`KS_SUPPLY_ASK_DAILY_CAP`, 0 turns ask orders off) and the person's (`KS_SUPPLY_ASK_PERSON_DAILY_CAP`).
  *
+ * While `KS_MADE_TO_ORDER_ENABLED` is off (D-436) nothing is made: the answer is the `off` limit, before any lock is taken,
+ * so every way to an order (a suggested question, a typed question the scope step placed with the Scroll, a typed question
+ * no library Scroll answers) closes the request the same honest way.
+ *
  * Authority: runs inside the caller's open personal scope, after the personal root and Content's locks. The
  * commissioning lock follows and is last in the lock order. No model call or network wait happens here: production
  * runs later in a worker. Retrying the same request makes no second order: the caller makes the order once, when the
@@ -43,6 +47,7 @@ export async function commissionAskOrder(
   scope: PersonalScopeTx,
   input: AskOrderInput,
 ): Promise<AskCommission> {
+  if (!p.madeToOrderEnabled) return { kind: 'unavailable', reason: 'budget_unavailable', limit: 'off' };
   await p.store.lockCommissioning(scope);
   const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
   if (p.askCaps.perDay === 0) return { kind: 'unavailable', reason: 'budget_unavailable', limit: 'off' };

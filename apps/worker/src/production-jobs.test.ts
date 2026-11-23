@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
-import { checkLibrarySupportJob } from '@knowscroll/backend/modules/content';
+import { checkLibrarySupportJob, produceScrollJob } from '@knowscroll/backend/modules/content';
 import { handOverHeldRevision, scrollProductionConsumers } from './production-jobs.js';
 
 /** A worker configuration with the production grant on or off: the only part of it these consumers read before they are asked to work. */
-const configWith = (productionEnabled: boolean) =>
-  ({ reasoning: { productionEnabled }, scrollProductionGeneration: 1 }) as unknown as WorkerConfig;
+const configWith = (productionEnabled: boolean, madeToOrderEnabled: boolean) =>
+  ({ reasoning: { productionEnabled }, scrollProductionGeneration: 1, madeToOrderEnabled }) as unknown as WorkerConfig;
 
-function consumers(productionEnabled: boolean) {
+function consumers(productionEnabled: boolean, madeToOrderEnabled = true) {
   const logged: { readonly name: string; readonly fields: unknown }[] = [];
   const logEvent = ((name: string, fields: unknown) => void logged.push({ name, fields })) as unknown as LogEvent;
   const built = scrollProductionConsumers({
-    config: configWith(productionEnabled),
+    config: configWith(productionEnabled, madeToOrderEnabled),
     db: {} as never,
     boss: {} as never,
     harness: {} as never,
@@ -51,6 +51,34 @@ describe('the Scroll production consumers of the worker', () => {
       },
     ]);
     expect(JSON.stringify(logged)).not.toContain('8a7d48fe');
+  });
+});
+
+describe('the production consumers and the made-to-order switch (D-436)', () => {
+  const delivery = { jobId: 'ci-job', retryCount: 0, signal: new AbortController().signal };
+  const orderKey = `order-${'a'.repeat(32)}`;
+
+  it('end every job of the answer queue, and every order of the library queue, as skipped without producing anything', async () => {
+    const { built, logged } = consumers(true, false);
+    const answer = built.find((consumer) => consumer.queue.name === 'content.produce-answer')!;
+    const library = built.find((consumer) => consumer.queue.name === 'content.produce-scroll')!;
+    // The database is unreachable in this fixture: a delivery that went on to produce would throw here instead of ending.
+    await answer.handle(produceScrollJob(orderKey), delivery);
+    await answer.handle(produceScrollJob('exoplanet-kinds'), delivery);
+    await library.handle(produceScrollJob(orderKey), delivery);
+    expect(logged.map((entry) => [entry.name, entry.fields])).toEqual(
+      [orderKey, 'exoplanet-kinds', orderKey].map((context) => [
+        'content.scroll_production_finished',
+        expect.objectContaining({ context, outcome: 'skipped', reasonCode: 'made_to_order_off' }) as unknown,
+      ]),
+    );
+  });
+
+  it('still lets a library recipe on the library queue go on to produce while the switch is off', async () => {
+    const { built, logged } = consumers(true, false);
+    const library = built.find((consumer) => consumer.queue.name === 'content.produce-scroll')!;
+    await expect(library.handle(produceScrollJob('exoplanet-kinds'), delivery)).rejects.toThrow();
+    expect(logged).toEqual([]);
   });
 });
 

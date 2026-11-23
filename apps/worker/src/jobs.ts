@@ -320,6 +320,7 @@ export const jobWiring: Provider[] = [
     withPersonalScope: WITH_PERSONAL_SCOPE,
     database: DATABASE,
     harness: RECORDING_REASONING_HARNESS,
+    config: WORKER_CONFIG,
   }),
   ...scenariosRecordingOwnerProviders(),
   // Same required PC-owned Composer adapter as the API; no legacy prepared-input binding.

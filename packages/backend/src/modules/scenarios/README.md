@@ -1,5 +1,16 @@
 # Scenarios: What if, Another perspective and the shared Scenario Planner
 
+## Switched off in every world (D-436, #784)
+
+`KS_MADE_TO_ORDER_ENABLED` (off unless `1`) turns off What if and Another perspective until the owner decides what they become; it is
+`DraftWorkerPorts.madeToOrderEnabled`, read from the process's configuration (`ScenarioTokens.config`). While it is off:
+`draft` and `choose` are refused as `made_to_order_off` before any scope is entered (the HTTP adapter answers `SHARING_UNAVAILABLE`, 404, the answer for a thread or
+branch that is not there), and Quartermaster refuses the order a second time (`off`); the planner step closes a draft that was waiting as `could_not_suggest` and asks no
+model; the short-answer step ends the card as unavailable and asks no model; the resolver sends no further take for a branch (it ages out as unable to prepare). The production job for an
+`order-…` recipe is ended by the worker (`made_to_order_off`, see the content module). Nothing is deleted: `readDraft`, `list` and `remove` still work, so a branch made earlier can be
+read by its members and taken down by whoever started it, and a draft that was waiting is still there when the switch is turned on again. The app draws none of it while the switch is off
+(`apps/client/README.md`, "The made-to-order switch"). Turning it back on needs a v3 writer first (D-436).
+
 ## Follow a branch choice
 
 A thread member first asks for directions. A worker may suggest them, but only the member's

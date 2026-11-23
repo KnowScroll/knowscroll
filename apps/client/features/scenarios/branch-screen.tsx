@@ -140,7 +140,8 @@ function BranchBody({
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const board = useScenarioBoard(scope, thread);
+  // The route draws this screen only while the made-to-order Scrolls are on (D-436), so the branches are always read here.
+  const board = useScenarioBoard(scope, thread, true);
   const { controller, state } = useContentThread(scope, thread);
   const place = useOwnPlace(scope, thread.threadId);
   useMarkHere(scope, thread.threadId, nodeId);

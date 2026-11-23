@@ -5,6 +5,7 @@ import {
   AccountDeletionStatusSchema,
   DELETE_ACCOUNT_CONFIRMATION,
   DEVELOPMENT_SESSION_COOKIE_NAME,
+  AccountFeaturesSchema,
   DataExportLinkSchema,
   ProblemDetailsSchema,
   SessionListSchema,
@@ -110,11 +111,23 @@ describe('account sessions, export and deletion through the installed release', 
     const f = await fixture();
     for (const [method, route] of [
       ['GET', '/v1/account/sessions'],
+      ['GET', '/v1/account/features'],
       ['GET', '/v1/account/exports'],
     ] as const) {
       expect(await problemCode(await call(method, route, {}))).toBe('UNAUTHENTICATED');
       expect(await problemCode(await call(method, route, bearer(f, 2)))).toBe('SCOPE_MISMATCH');
     }
+  });
+
+  it('says the made-to-order Scrolls are off while the switch is not set, in a world that never sets it (D-436)', async () => {
+    const f = await fixture();
+    const response = await call('GET', '/v1/account/features', bearer(f));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(AccountFeaturesSchema.parse(await response.json())).toEqual({
+      version: 'account-features.v1',
+      madeToOrder: false,
+    });
   });
 
   it('lists the sessions and signs another one out', async () => {

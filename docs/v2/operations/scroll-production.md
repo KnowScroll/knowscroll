@@ -101,6 +101,20 @@ never doubled). That also revives a job the queue dead-lettered. A run that paus
 the step's attempt slots (four unsent attempts per step, `attempts_exhausted`) and the take ends as
 `rejected`; the next take starts fresh.
 
+### The Scrolls made to order are switched off (D-436, #784)
+
+"You asked" (an ask order), "What if" and "Another perspective" (a branch inside a thread) are the Scrolls made to order: each is a production for one person or
+one thread, written with the v1 writer, which is deleted later in this step. One switch turns all three off together: `KS_MADE_TO_ORDER_ENABLED`, read by the API
+**and** the worker, **off in every world** unless it is `1` (the Ansible roles do not set it, so no world has it on). While it is off:
+
+- the API refuses to make one: an ask closes `budget_unavailable` with the limit `off`, a retry is `not_retryable`, a What if draft or a choice is `made_to_order_off` (answered as `SHARING_UNAVAILABLE`, 404);
+- the worker ends every `content.produce-answer` job and every `order-…` job of `content.produce-scroll` as skipped (`content.scroll_production_finished` with `outcome: skipped`, `reasonCode: made_to_order_off`). A skipped delivery is complete, so pg-boss never retries it, and no run, attempt or paid request is made;
+- the app (it asks the API, `GET /v1/account/features`) shows no way in: no Ask row or key, no suggested questions, no What if or Another perspective, no branch cards or Map, and no question asked from a Scroll in "Your requests".
+
+Nothing is deleted: orders and Scrolls already made stay in the database and can still be read by ID; the cleanup of the dev database is a separate step that needs the owner's go. To check the switch in a world,
+read `GET /v1/account/features` as a signed-in person: `madeToOrder` is `false` unless the API's environment sets it. **Turning them back on needs a v3 writer for these Scrolls first** (D-436); setting the switch alone
+would run the v1 writer.
+
 ### Research that is down
 
 A failed fetch (`dns_timeout`, `request_timeout`, `network_failed`, `http_refused`, or an unclassified error)

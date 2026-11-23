@@ -185,6 +185,9 @@ async function decide(
 ): Promise<Decided> {
   const closed = (reason: NonNullable<Demand['reason']>) =>
     ({ status: 'unavailable', decision: 'refuse', reason }) as const;
+  // While the made-to-order switch is off the whole ask-from-a-Scroll feature is off (D-436), whatever any verdict says.
+  if (!p.madeToOrderEnabled && d.command.intent.kind === 'ask')
+    return { ...closed('budget_unavailable'), askLimit: 'off' };
   if (verdict.kind === 'no_topic') return closed('unsupported_request');
   if (verdict.kind === 'unavailable') return closed(verdict.reason);
   if (verdict.kind === 'here') return decideHere(p, scope, d);
@@ -320,6 +323,9 @@ async function placeQuestion(
   signal: AbortSignal,
 ): Promise<void> {
   const { p, recording, readLibrary } = deps;
+  // A question still waiting to be placed when the switch is turned off (or created before it was) closes as switched off before
+  // any harness call: no scope step, no library check (D-436). `decide` words the closing; the reason here is only the fallback.
+  if (!p.madeToOrderEnabled) return closeUnplaced(p, authority, job.requestId, 'could_not_prepare');
   if (asked.kind === 'source_gone') return closeUnplaced(p, authority, job.requestId, 'source_unavailable');
   const shortlist = await shortlistOf(p, asked.release, asked.facts.question);
   const { outcome, purpose } = await proposeAtGeneration(

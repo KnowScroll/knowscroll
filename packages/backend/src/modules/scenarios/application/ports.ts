@@ -180,6 +180,11 @@ export interface DraftWorkerPorts {
   /** Whether the account takes part in the thread now: a read with no lock, for the worker's last check. */
   /** Whether an account takes part in a thread now, read on `on` (a caller in a transaction passes its scope). */
   readonly standing: (on: ReadOn, accountId: string, threadId: string) => Promise<boolean>;
+  /**
+   * `KS_MADE_TO_ORDER_ENABLED` (D-436). Off: no draft is started, no branch is chosen, the planner asks no model about a draft that was
+   * waiting and no short answer is written; what exists is still read and may still be removed.
+   */
+  readonly madeToOrderEnabled: boolean;
   readonly now: () => Date;
 }
 
@@ -215,7 +220,9 @@ export type ScenarioRefusal =
   /** The thread cannot be explored: nothing it rests on can be researched by code. */
   | 'unsupported'
   /** A cap is reached: the member's drafts of the day, the world's day of branches or the thread's branches. */
-  | 'budget_unavailable';
+  | 'budget_unavailable'
+  /** The made-to-order switch is off (D-436): nothing starts a draft or makes a branch, whatever the caps. */
+  | 'made_to_order_off';
 
 export type Result<T> =
   { readonly kind: 'ok'; readonly value: T } | { readonly kind: 'refused'; readonly code: ScenarioRefusal };

@@ -74,15 +74,20 @@ export function scrollProductionConsumers(deps: {
       harness: deps.harness,
       model: config.reasoning.minimax?.model ?? 'none',
     }),
+    { madeToOrderEnabled: config.madeToOrderEnabled },
   );
   const enqueueSupportCheck = makeEnqueueLibrarySupport(deps.boss);
   const runSupportCheck = makeRunLibrarySupportCheck(
     makeCheckLibrarySupport({ db: deps.db, authority, withScope: deps.withScope, harness: deps.harness }),
   );
   const sweepSupportChecks = makeSweepLibrarySupport({ db: deps.db, enqueue: enqueueSupportCheck });
-  const deliver = async (job: ProduceScrollJob, delivery: Parameters<typeof run>[1]): Promise<void> => {
+  const deliver = async (
+    job: ProduceScrollJob,
+    delivery: Parameters<typeof run>[1],
+    madeToOrderQueue = false,
+  ): Promise<void> => {
     const startedAt = performance.now();
-    const outcome = await run(job, delivery);
+    const outcome = await run(job, delivery, madeToOrderQueue);
     const durationMs = Math.round(performance.now() - startedAt);
     if (outcome.kind === 'skipped') {
       logEvent('content.scroll_production_finished', {
@@ -111,7 +116,8 @@ export function scrollProductionConsumers(deps: {
   };
   return [
     jobConsumer(produceScrollQueue, deliver),
-    jobConsumer(produceAnswerQueue, deliver),
+    // Every job of this queue is a Scroll made to order: it is held to the made-to-order switch whatever its key says (D-436).
+    jobConsumer(produceAnswerQueue, (job, delivery) => deliver(job, delivery, true)),
     jobConsumer(checkLibrarySupportQueue, async (job, delivery) => {
       const startedAt = performance.now();
       const outcome = await runSupportCheck(job, delivery);

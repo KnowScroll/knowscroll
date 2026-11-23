@@ -3,6 +3,7 @@ import { OpenAPIGenerator } from '@orpc/openapi';
 import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
 import {
   AccountDeletionAcceptanceSchema,
+  AccountFeaturesSchema,
   DELETE_ACCOUNT_CONFIRMATION,
   DataExportLinkSchema,
   DataExportSummarySchema,
@@ -12,6 +13,7 @@ import {
   SessionSummarySchema,
   accountContract,
   claimFirstOpenContract,
+  readAccountFeaturesContract,
 } from './account.js';
 import { SCOPE_HEADER, UNSCOPED_V1_ROUTES } from './identity.js';
 import { apiContract } from './router.js';
@@ -32,6 +34,20 @@ describe('account contracts', () => {
     expect(() => SessionSummarySchema.parse({ ...session, tokenHash: 'a'.repeat(64) })).toThrow();
     expect(() => SessionSummarySchema.parse({ ...session, deviceLabel: '' })).toThrow();
     expect(() => SessionListSchema.parse({ sessions: Array.from({ length: 21 }, () => session) })).toThrow();
+  });
+
+  it('says which features are on in one closed answer with no input', () => {
+    expect(AccountFeaturesSchema.parse({ version: 'account-features.v1', madeToOrder: false })).toEqual({
+      version: 'account-features.v1',
+      madeToOrder: false,
+    });
+    expect(AccountFeaturesSchema.safeParse({ version: 'account-features.v1' }).success).toBe(false);
+    expect(AccountFeaturesSchema.safeParse({ version: 'account-features.v1', madeToOrder: 'yes' }).success).toBe(false);
+    expect(
+      AccountFeaturesSchema.safeParse({ version: 'account-features.v1', madeToOrder: true, other: 1 }).success,
+    ).toBe(false);
+    expect(readAccountFeaturesContract['~orpc'].inputSchema).toBeUndefined();
+    expect(accountContract.features).toBe(readAccountFeaturesContract);
   });
 
   it('requires the exact confirmation, a receipt id and the epoch the person saw to delete an account', () => {
@@ -84,6 +100,7 @@ describe('account contracts', () => {
       '/v1/account/delete',
       '/v1/account/exports',
       '/v1/account/exports/link',
+      '/v1/account/features',
       '/v1/account/sessions',
       '/v1/account/sessions/end',
       '/v1/account/sessions/end-others',

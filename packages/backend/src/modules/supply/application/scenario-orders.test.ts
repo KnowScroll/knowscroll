@@ -15,7 +15,11 @@ const order = (id: string): MadeToOrderScroll => ({
 });
 
 /** In-memory ledger and ports: the use case's rules, without a database. */
-function world(caps: { perDay: number; perThreadPerDay: number }, start = new Date('2026-10-24T10:00:00Z')) {
+function world(
+  caps: { perDay: number; perThreadPerDay: number },
+  start = new Date('2026-10-24T10:00:00Z'),
+  enabled = true,
+) {
   const clock = { now: start };
   const rows: { orderId: string; threadId: string; createdAt: Date }[] = [];
   const recorded: string[] = [];
@@ -35,6 +39,7 @@ function world(caps: { perDay: number; perThreadPerDay: number }, start = new Da
     },
   };
   const commission = makeCommissionScenarioOrder({
+    enabled,
     store,
     recordOrder: (_, input) => {
       recorded.push(input.orderId);
@@ -113,5 +118,17 @@ describe('Quartermaster scenario Create', () => {
     expect(await w.commission(scope, { threadId: 't1', order: order('n2') })).toMatchObject({ reason: 'thread_cap' });
     w.clock.now = new Date('2026-10-25T00:00:00Z');
     expect(await w.commission(scope, { threadId: 't1', order: order('n3') })).toMatchObject({ kind: 'commissioned' });
+  });
+
+  it('orders nothing while the made-to-order switch is off, whatever the caps, and takes no lock (D-436)', async () => {
+    const w = world({ perDay: 100, perThreadPerDay: 100 }, new Date('2026-10-24T10:00:00Z'), false);
+    expect(await w.commission(scope, { threadId: 't1', order: order('n1') })).toEqual({
+      kind: 'refused',
+      reason: 'off',
+    });
+    expect(w.events).toEqual([]);
+    expect(w.recorded).toEqual([]);
+    expect(w.sent).toEqual([]);
+    expect(w.rows).toHaveLength(0);
   });
 });
