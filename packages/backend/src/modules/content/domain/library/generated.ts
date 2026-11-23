@@ -1,12 +1,14 @@
-import type { LibraryRecipe, ScrollV2Plan } from './plan.js';
+import { z } from 'zod';
+import { SCROLL_SHAPE_IDS, type LibraryRecipe, type ScrollV3Plan } from './plan.js';
 
 /**
  * Recipes that live in the database (`content.recipes`) rather than in the code-owned library plan (#674, D-412).
  *
- * A generated recipe is written as a `scroll-document.v2` Scroll, like a v2 library recipe, and is held for an operator's
- * read before anyone is served it (D-138). Its key always starts with `gen-`. That one reserved prefix is how every place
+ * A generated recipe is written as a `scroll-document.v3` Scroll, like a document v3 library recipe, and is held for an
+ * operator's read before anyone is served it (D-138). Its key always starts with `gen-`. That one reserved prefix is how every place
  * that only holds a key (a job payload, a production run row) tells a generated recipe from a code recipe without a lookup:
- * it decides the production version and the request bound. A library test keeps every code key off the prefix.
+ * it decides the production version and the request bound: **a `gen-` recipe is a document v3 recipe** (#781, owner decision 4 on
+ * #771). A library test keeps every code key off the prefix.
  */
 export const GENERATED_RECIPE_PREFIX = 'gen-';
 export type GeneratedRecipeKey = `gen-${string}`;
@@ -18,13 +20,44 @@ export const MAX_RECIPE_KEY_LENGTH = 64;
 export const isGeneratedRecipeKey = (key: string): key is GeneratedRecipeKey =>
   key.length <= MAX_RECIPE_KEY_LENGTH && GENERATED_KEY.test(key);
 
+/** A section intent is one short line: 1 to 120 characters in the database (migration 0124), 4 to 120 in a draft. */
+export const SECTION_INTENT_MAX = 120;
+/** A document v3 has two or three sections (the same bound as the database check). */
+export const SECTIONS_MIN = 2;
+export const SECTIONS_MAX = 3;
+
 /**
- * What every generated recipe asks of the v2 writer: explanation first (D-397). No misconception, no landmark, no picture,
- * no play block and no guide: those are a person's decision, one recipe at a time, and a proposal is never a person.
- * Zero calls are required, and the writer's own default of zero to three still applies.
+ * The plan a stored recipe holds in `content.recipes.scroll_v3`: the shape of the essay and one intent per section. Nothing else
+ * is stored: the writer picks the pictures from what its passages hold (a statement picture is always available), and a
+ * proposal never has a misconception. Strict, and the same rule the database check enforces; a row that does not parse is a
+ * defect the reader refuses (`bookRecipeOf`), never one it repairs.
  */
-export const GENERATED_SCROLL_V2_PLAN: ScrollV2Plan = Object.freeze({
-  variant: 'plain',
+export const StoredScrollV3Schema = z.strictObject({
+  shape: z.enum(SCROLL_SHAPE_IDS),
+  sections: z.array(z.string().min(1).max(SECTION_INTENT_MAX)).min(SECTIONS_MIN).max(SECTIONS_MAX),
+});
+export type StoredScrollV3 = z.infer<typeof StoredScrollV3Schema>;
+
+/**
+ * What a generated recipe asks of the document v3 writer (#781, decision 4): the proposal's own `shape` and section intents, with no
+ * misconception and no `pictures`. Without pictures the writer picks kinds from the closed set by what its passages hold, and the
+ * statement picture is always available. A kind or a purpose is a person's decision, one recipe at a time, and a proposal is never
+ * a person: the proposal says what the essay is and what each section is for, and nothing more.
+ */
+export function generatedScrollV3PlanOf(stored: StoredScrollV3): ScrollV3Plan {
+  return { shape: stored.shape, sections: [...stored.sections], misconception: { kind: 'none' } };
+}
+
+/**
+ * What the code that holds only a key (a job payload, a production run row) knows of a generated recipe's plan: that it is a document v3
+ * plan, and that it has no misconception. That is all the production version, the request bound, the standing and the plan refusal
+ * ask, so the key alone decides them (`scrollV3PlanOf`), as it did when SQL pinned every stored recipe to one v2 plan. The shape and the
+ * sections here are a placeholder and nothing may read them: the real ones are in the row, and reach the writer through
+ * `bookRecipeOf`, the subject's `scrollV3`.
+ */
+export const GENERATED_SCROLL_V3_MARKER: ScrollV3Plan = Object.freeze({
+  shape: 'argument',
+  sections: Object.freeze(['placeholder: read the stored row', 'placeholder: read the stored row']),
   misconception: Object.freeze({ kind: 'none' }),
 });
 

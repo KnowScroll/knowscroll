@@ -569,8 +569,12 @@ undone: a node is retired by a later release, never deleted, and its id is never
 ## New recipes for planets that exist (#674, slice 2.2, D-412)
 
 Recipes can live in the database, and the system proposes new ones for the planets and facets the library already has. It makes no
-planet, facet or system. Every Scroll made from a stored recipe is held for your read, like any v2 library Scroll, and nobody is served it before
-`content release`. The flow:
+planet, facet or system. A stored recipe is a **document v3** recipe (#781, owner decision 4 on #771): the proposal carries the `shape` of the essay
+(`argument`, `mechanism` or `story`) and one intent per section (two or three), and the writer picks the picture kinds from the closed set by what its passages
+hold; the statement picture is always available. A proposal may name a picture in its brief, but never a quiz or anything interactive. Every Scroll made from a
+stored recipe is held for your read, like any document v3 library Scroll, and nobody is served it before `content release`. **The document v3 writer produces a stored recipe
+(`content produce-library --only gen-<key>` runs it like a v3 library recipe, at `scroll-production-v3.v1`), and proposing and listing work.** A stored row that still holds the old plain v2 plan is refused as a plan problem (`plan_refused`, `stored_recipe_plan_not_v3`) and no job is
+reserved. The flow:
 
 1. **Propose.** `content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>]` asks the model once (and repairs once) and stores the
    drafts code accepts as `checked` recipes. It sends no production job. `--dry-run` prints the counts of what it would send and calls no provider. It needs
@@ -578,7 +582,8 @@ planet, facet or system. Every Scroll made from a stored recipe is held for your
    same request on the same UTC day reaches the same run and pays nothing again, even after other recipes were stored in between (the first delivery froze
    its context). Another day or another facet is a new request.
    The result lists the accepted recipes (key, facet, title, passage pool) and a count of refusals by code: `title_shape`, `brief_shape`,
-   `text_has_address`, `text_has_markup`, `brief_names_block`, `facet_unknown`, `facet_not_requested`, `pages_duplicate`, `page_not_candidate`,
+   `text_has_address`, `text_has_markup`, `brief_names_block` (a quiz or something interactive named in the brief), `sections_shape` (not two or three
+   distinct plain lines of 4 to 120 characters), `sections_name_block` (a quiz or something interactive named in a section), `facet_unknown`, `facet_not_requested`, `pages_duplicate`, `page_not_candidate`,
    `page_refused`, `pool_out_of_range`, `near_duplicate` (the same words, or the same facet on the same pages in other words), `identity_taken`. A refusal
    is a verdict on the draft, never a reason to loosen a check. The checks run again where the recipes are stored, under a lock for the planet, so
    two operators proposing at once cannot store the same angle.
@@ -590,7 +595,7 @@ planet, facet or system. Every Scroll made from a stored recipe is held for your
 3. **Produce.** Either wait for a reader's ask or the Planner's demand for the planet (Create may choose a stored recipe within
    `KS_SUPPLY_GROWTH_DAILY_CAP`, default 10 a day, counted apart from the people's and the Planner's caps), or send the job yourself with
    `content produce-library --only <key>` (or `content produce-scroll --topic <key>`). Your own runs are not capped, as before. Six paid requests at most a take,
-   three takes at most, like any v2 library recipe.
+   three takes at most, like any v2 or document v3 library recipe.
 4. **Read and release.** `content review-list` shows the held Scroll with its recipe key; `content review-show --asset <id>` and `content release` or
    `content reject` are as in "The review gate" above. After a release, `content admit-continuity` and `content readmit-coverage` as before.
 5. **Retire.** There is no command yet to retire a recipe. A recipe whose three takes were all rejected is `stopped` and never chosen again.

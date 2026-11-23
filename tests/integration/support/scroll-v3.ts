@@ -10,6 +10,9 @@ import {
   type ScrollDocumentV2,
   type ScrollDocumentV3,
 } from '@knowscroll/scroll-model';
+import { SCROLL_PROVENANCE_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model/internal';
+import type { WrittenScrollV3 } from '@knowscroll/scroll-model/producer';
+import { fixtureReplyV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/writer-v3.fixture.js';
 import { textCapabilities } from './scroll.js';
 
 /** A client that declares exactly these document schemas, with the v1 blocks the thin journey draws. */
@@ -116,3 +119,48 @@ export async function seedDocumentV2(
   });
   return { assetId, revision, document };
 }
+
+/**
+ * The labelled Orrin reply in the document v3 reply shape (`WrittenScrollV3`, arm (a)): the model's answer to the production writer of a
+ * stored (`gen-`) recipe, which is a document v3 recipe (#781). It cites the passages `e1` to `e8` of the Orrin page, so a test serves it
+ * the research of `orrinResearchFor`. The v2 tests answered with `plainOrrin()`; this is the same invented subject in the v3 shape.
+ */
+export const orrinV3 = (): WrittenScrollV3 => fixtureReplyV3();
+
+/**
+ * The plan columns of a stored recipe row inserted by hand: the document v3 plan the proposal carries (migration 0124) and no v2 plan, which the
+ * row's check requires. A test that produces such a row through the real job inserts these with the row, as the proposing step does.
+ */
+export const storedPlanColumns = (
+  plan: { readonly shape: 'argument' | 'mechanism' | 'story'; readonly sections: readonly string[] } = {
+    shape: 'mechanism',
+    sections: ['What the layers are', 'Why they build a cone'],
+  },
+) => ({ scroll_v2: null, scroll_v3: JSON.stringify(plan) }) as const;
+
+/** The formats a stored revision and its private provenance were written in, for a test that says a job wrote a document v3. */
+export async function storedFormatsOf(
+  db: Kysely<Database>,
+  assetId: string,
+  revision: number,
+): Promise<{ readonly document: string; readonly provenance: string }> {
+  const document = await db
+    .selectFrom('content.asset_revisions')
+    .select('document_version')
+    .where('asset_id', '=', assetId)
+    .where('revision', '=', revision)
+    .executeTakeFirstOrThrow();
+  const provenance = await db
+    .selectFrom('content.asset_provenance')
+    .select('provenance_version')
+    .where('asset_id', '=', assetId)
+    .where('revision', '=', revision)
+    .executeTakeFirstOrThrow();
+  return { document: document.document_version, provenance: provenance.provenance_version };
+}
+
+/** What `storedFormatsOf` gives for a document v3 written by the production job: `scroll-document.v3` and `scroll-provenance.v3`. */
+export const V3_FORMATS = {
+  document: SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
+  provenance: SCROLL_PROVENANCE_V3_SCHEMA_VERSION,
+} as const;

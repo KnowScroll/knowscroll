@@ -85,11 +85,14 @@ describe('production versions: a recipe is v1 unless the plan marks it v2', () =
 });
 
 describe('production versions: a recipe the plan marks document v3', () => {
-  it('has no v3 plan for a v1 recipe, an order or a stored recipe', () => {
+  it('has no v3 plan for a v1 recipe or an order, and a key-only v3 plan for a stored recipe', () => {
     expect(scrollV3PlanOf('exoplanet-kinds')).toBeUndefined();
     expect(scrollV3PlanOf(`order-${'a'.repeat(32)}`)).toBeUndefined();
-    // A stored recipe cannot carry the plan yet: its key alone decides, and says v2.
-    expect(scrollV3PlanOf(`gen-${'a'.repeat(32)}`)).toBeUndefined();
+    // A stored recipe is a document v3 recipe (#781): its key alone decides, and says v3 with no v2 plan.
+    expect(scrollV3PlanOf(`gen-${'a'.repeat(32)}`)).toMatchObject({ misconception: { kind: 'none' } });
+    expect(scrollV2PlanOf(`gen-${'a'.repeat(32)}`)).toBeUndefined();
+    expect(productionVersionOf(`gen-${'a'.repeat(32)}`)).toBe(SCROLL_PRODUCTION_V3_VERSION);
+    expect(requestBoundOf(`gen-${'a'.repeat(32)}`)).toBe(REQUEST_BOUND_V3_PER_TOPIC);
   });
 
   it('gives a marked recipe the v3 version, in the job it sends and the job it accepts', async () => {

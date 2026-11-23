@@ -3,7 +3,6 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { researchUrl, type ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ContextItem } from '../../../reasoning/public.js';
 import type { RecipeStatus } from '../domain/library/generated.js';
-import { GENERATED_SCROLL_V2_PLAN } from '../domain/library/generated.js';
 import type { AcceptedRecipe } from '../domain/library/recipe-draft.js';
 import { evidencePassageCount } from '../production/evidence.js';
 import { excerptOf } from '../production/recipe-brief.js';
@@ -195,7 +194,9 @@ export async function storeAcceptedRecipes(
         explanation_unit_id: recipe.explanationUnitId,
         brief: recipe.brief,
         pages: [...recipe.pages],
-        scroll_v2: JSON.stringify(GENERATED_SCROLL_V2_PLAN),
+        // A proposal is a document v3 recipe: the shape and the section intents it proposed, and no v2 plan (#781).
+        scroll_v2: null,
+        scroll_v3: JSON.stringify({ shape: recipe.shape, sections: recipe.sections }),
         proposing_run_id: runId,
         check_results: JSON.stringify({ pool: recipe.checks.pool, closest: recipe.checks.closest }),
       })

@@ -1,7 +1,7 @@
 import { RECIPES, type RecipeKey } from '../domain/library/index.js';
 import { ASK_SUPPORT_MAX_BATCHES } from '../domain/ask-support.js';
 import {
-  GENERATED_SCROLL_V2_PLAN,
+  GENERATED_SCROLL_V3_MARKER,
   isGeneratedRecipeKey,
   type GeneratedRecipeKey,
 } from '../domain/library/generated.js';
@@ -79,24 +79,40 @@ export function parseProductionRecipe(raw: string | undefined): ScrollTopic | Ge
 }
 
 /**
- * What the plan decides for a v2 recipe, or `undefined` for a recipe that stays a v1 Scroll. Every stored recipe is a v2
- * recipe with the same plan (plain, no misconception, D-397): a row cannot say otherwise, because SQL pins the plan it
- * stores, so the key alone is enough here.
+ * What the plan decides for a v2 recipe, or `undefined` for a recipe that stays a v1 Scroll. A stored (`gen-`) recipe is never a v2
+ * recipe: every proposal is a document v3 recipe (#781), so a stored key has no v2 plan.
  */
 export function scrollV2PlanOf(key: string): ScrollV2Plan | undefined {
-  if (isGeneratedRecipeKey(key)) return GENERATED_SCROLL_V2_PLAN;
+  if (isGeneratedRecipeKey(key)) return undefined;
   const topic = parseScrollTopic(key);
   return topic === undefined ? undefined : TOPICS[topic].scrollV2;
 }
 
 /**
- * What the plan decides for a document v3 recipe, or `undefined` for a recipe that is not one. No stored (`gen-`) recipe is a
- * v3 recipe yet: a later change lets a proposed recipe carry the plan, and this is the one place that will read it.
+ * What the plan decides for a document v3 recipe, or `undefined` for a recipe that is not one. A stored (`gen-`) recipe is a document v3
+ * recipe, always (#781, owner decision 4 on #771: dev holds no stored recipe, and stage and main do not run this code, so nothing older
+ * is left). Everything that holds only a key (`productionVersionOf`, `requestBoundOf`, the job queue, the standing) decides from this
+ * function, so it stays key-only and returns {@link GENERATED_SCROLL_V3_MARKER} for a stored key: a plan that says "document v3, no
+ * misconception" and nothing else. The recipe's real shape and sections are in its row and reach the writer through `bookRecipeOf`, the
+ * subject's `scrollV3`; a row whose plan is not a v3 one is refused as a plan problem ({@link storedPlanRefusalOf}).
  */
 export function scrollV3PlanOf(key: string): ScrollV3Plan | undefined {
-  if (isGeneratedRecipeKey(key)) return undefined;
+  if (isGeneratedRecipeKey(key)) return GENERATED_SCROLL_V3_MARKER;
   const topic = parseScrollTopic(key);
   return topic === undefined ? undefined : TOPICS[topic].scrollV3;
+}
+
+/**
+ * Why a stored recipe cannot be produced as the document v3 its key says it is, or `undefined`. The production version, the request bound
+ * and the takes of a `gen-` key are the document v3 ones, so a row that holds anything else (a v2 plan, which the database no longer
+ * writes but an older row could hold) must not be written by the v3 version silently: it is refused before any job is reserved and
+ * any request is sent. A code recipe and an order are never refused here.
+ */
+export function storedPlanRefusalOf(
+  key: string,
+  subject: { readonly scrollV3?: unknown },
+): 'stored_recipe_plan_not_v3' | undefined {
+  return isGeneratedRecipeKey(key) && subject.scrollV3 === undefined ? 'stored_recipe_plan_not_v3' : undefined;
 }
 
 /**

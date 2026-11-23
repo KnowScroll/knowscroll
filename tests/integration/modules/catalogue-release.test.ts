@@ -28,7 +28,8 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
-import { orrinResearchFor, plainOrrin } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3, storedFormatsOf, storedPlanColumns, V3_FORMATS } from '../support/scroll-v3.js';
 import { authoredWorld, geographyReader, seedAuthoredGeography } from '../support/visit-world.js';
 
 type Draft = Extract<Parameters<typeof appendRelease>[1][number], { readonly kind: 'add' }>['draft'];
@@ -223,7 +224,7 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
     let mappingBefore: unknown;
     const recipeKeys = ['gen-volcano-a-00000001', 'gen-volcano-b-00000002', 'gen-volcano-c-00000003'] as const;
     const facets = ['earth.volcanoes.magma', 'earth.volcanoes.plates', 'earth.volcanoes.magma'] as const;
-    const production = () => fixtureProduction(db(), () => answerWith(plainOrrin()), orrinResearchFor);
+    const production = () => fixtureProduction(db(), () => answerWith(orrinV3()), orrinResearchFor);
 
     beforeAll(async () => {
       person = await seedPerson(db());
@@ -266,6 +267,7 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
       expect(await catalogueStatus(db())).toMatchObject({ topics: 18, servableTopics: 17, waitingTopics: 1 });
     });
 
+    // #781: a stored recipe is a document v3 recipe, so the fake model answers the production writer in the document v3 reply shape (`orrinV3`).
     it('can be written for at once: production reads the new topic from the database, so its Scrolls are attributed and mapped to it', async () => {
       for (const [at, key] of recipeKeys.entries()) {
         await db()
@@ -282,6 +284,8 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
             brief:
               'Explain how the invented volcano Orrin Mons builds its cone from layers of ash and lava. Ask only for what the pages say about the layers. Do not claim a date for the next eruption.',
             pages: ['https://en.wikipedia.org/wiki/Volcano'],
+            // A stored recipe is a document v3 recipe (#781): its row carries the v3 plan and no v2 plan.
+            ...storedPlanColumns(),
             proposing_run_id: randomUUID(),
           })
           .execute();
@@ -289,6 +293,8 @@ describe('The topic catalogue as data (labelled CI fixtures, real PostgreSQL)', 
           outcome: 'published',
           held: true,
         });
+        // The Scroll is a document v3 with its `scroll-provenance.v3`, attributed and mapped as a library Scroll is (#781).
+        expect(await storedFormatsOf(db(), stableUuid(`content.recipe-asset:${key}`), 1)).toEqual(V3_FORMATS);
         const stored = await db()
           .selectFrom('content.encounter_topics')
           .select(['topic_id', 'role'])

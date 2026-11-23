@@ -236,7 +236,7 @@ export async function chooseScrollRecipeIn(
     aimedFacet === undefined
       ? await book.servingBrief(brief)
       : facetFirst(await book.servingBrief({ topicId: brief.topicId }), aimedFacet);
-  // A code recipe is Create's to make only while it is a v1 Scroll. A stored recipe has a status and is always v2.
+  // A code recipe is Create's to make only while it is a v1 Scroll. A stored recipe has a status and is always a document v3 (#781).
   const producible = ranked.filter(
     (recipe) => recipe.status !== undefined || (recipe.scrollV2 === undefined && recipe.scrollV3 === undefined),
   );

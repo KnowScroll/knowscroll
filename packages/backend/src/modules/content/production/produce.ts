@@ -20,7 +20,7 @@ import { subjectOf, type ProductionKey, type ProductionSubject } from './subject
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ClosingRun, ProduceScrollResult, RoleReceipt } from './types.js';
 import { HELD_FOR_REVIEW_CODE, isHeldForReview } from './review-hold.js';
-import { planRefusalOf, requestBoundOf } from './topics.js';
+import { planRefusalOf, requestBoundOf, storedPlanRefusalOf } from './topics.js';
 import { makeWriterStage } from './writer-stage.js';
 
 export interface ProduceScrollDependencies {
@@ -287,7 +287,8 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     const subject = await subjectOf(deps.db, key);
     if (subject === undefined) return { outcome: 'unknown_recipe', requestBound: requestBoundOf(key) };
     // A recipe the plan does not allow costs nothing: no job is reserved and no request is sent.
-    const refusal = planRefusalOf(key);
+    // That includes a stored recipe whose row holds no document v3 plan: its key says v3, so the v3 version must not write it.
+    const refusal = planRefusalOf(key) ?? storedPlanRefusalOf(key, subject);
     if (refusal !== undefined) return { outcome: 'plan_refused', requestBound: requestBoundOf(key), codes: [refusal] };
     // The bound of what an order answers is known only once the order is read (D-250).
     const result = await runJob(subject, key, signal, resume, take);

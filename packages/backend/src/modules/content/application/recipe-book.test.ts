@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BookRecipe } from '../domain/library/generated.js';
-import { GENERATED_SCROLL_V2_PLAN } from '../domain/library/generated.js';
+import { generatedScrollV3PlanOf } from '../domain/library/generated.js';
 import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { seedSnapshot } from '../domain/catalogue/seed.js';
@@ -29,7 +29,7 @@ const stored = (
   interactiveKind: null,
   brief: 'A brief that explains one thing. It asks only for what the pages say.',
   pages: ['https://en.wikipedia.org/wiki/Heart'],
-  scrollV2: GENERATED_SCROLL_V2_PLAN,
+  scrollV3: generatedScrollV3PlanOf({ shape: 'mechanism', sections: ['What happens', 'Why it matters'] }),
 });
 
 /** A fake database: the stored recipes it holds. */
