@@ -90,7 +90,7 @@ import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { seedScroll } from '../support/thread-fixtures.js';
-import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
+import { markScrollV1, v2Capabilities, markKitRecipesV2 } from '../support/scroll-v2.js';
 import type { FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -133,6 +133,11 @@ const limitsOf = (document: unknown) => {
     text: callouts[0]?.data.spans?.map((span) => span.text).join(''),
   };
 };
+
+// The recipes a drawing kit drew are document v3 recipes in the library since #787. This file tests the v2 path, so it makes them v2 stage recipes
+// again, with the kit and plan they had, for the file's own process.
+const restoreKitRecipes = markKitRecipesV2();
+afterAll(restoreKitRecipes);
 
 describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let database: TestDatabase<Database>;

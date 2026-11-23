@@ -72,18 +72,31 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.stars',
     facetId: 'space.stars.fusion',
-    // Fusion in the core, gravity against pressure and how mass sets how long a star shines are the three
-    // views the kit has.
-    stageKit: 'star.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'How a star shines and stays steady. When a cloud of gas collapses, pressure and temperature at its core rise until hydrogen fuses into helium; the energy flowing outward creates a pressure that counters gravity and holds the star in balance. Let the reader compare a star in balance with what would happen if either gravity or pressure won. Say that more massive stars use their fuel faster and live shorter lives. Do not say the Sun burns like a fire. Make no call and no claim about how metallicity changes a star’s main-sequence lifetime: the supplied passages disagree with each other on it.',
+      'How a star shines and stays steady. When a cloud of gas collapses, pressure and temperature at its core rise until hydrogen fuses into helium; the energy flowing outward creates a pressure that counters gravity and holds the star in balance. Say that the more massive a star is, the shorter its life on the main sequence. Do not say the Sun burns like a fire. Make no claim about how metallicity changes a star’s main-sequence lifetime.',
     pages: ['https://en.wikipedia.org/wiki/Main_sequence'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A collapsing gas cloud heats until hydrogen fuses into helium',
+        "Fusion's outward pressure balances gravity, so the star holds steady",
+        'The more massive a star is, the shorter its life on the main sequence',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'How a star comes to shine and hold steady, in order: gas cloud collapses under gravity; pressure and temperature rise at the core; hydrogen fuses into helium; heat flows outward as a pressure gradient; it counters the collapse (hydrostatic equilibrium).',
+        },
+        {
+          kind: 'statement',
+          purpose:
+            "A short labelled list of three: gravity pulls the star inward while the pressure from the core's energy pushes outward; stars spend most of their lives on the main sequence, fusing hydrogen in the core; the more massive a star is, the shorter its life there.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-steady-core', name: 'The Steady Core' },
     },
   },
   'stars-lifecycle': {
@@ -92,18 +105,31 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.stars',
     facetId: 'space.stars.lifecycle',
-    // The stages of a low-mass star and of a high-mass star, in order and without years, are the life view;
-    // code draws the end that fits the mass.
-    stageKit: 'star.v1',
     interactive: true,
     interactiveKind: 'timeline',
     brief:
       'How stars age and end. A star’s mass sets its path: a low-mass star swells into a giant and ends as a white dwarf, while a high-mass star can end in a supernova. Lay the stages out in order, without years, for a low-mass star and for a high-mass one. Do not say the Sun will become a supernova, and give no exact lifetimes.',
     pages: ['https://science.nasa.gov/universe/stars/'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'story',
+      sections: [
+        'Every star is born in a cloud and spends most of its life on the main sequence',
+        'A low-mass star swells into a giant and ends as a white dwarf',
+        'A high-mass star fuses heavier elements and can end in a supernova',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'The low-mass path, no years: molecular cloud; protostar; main-sequence star; giant; planetary nebula; white dwarf.',
+        },
+        {
+          kind: 'flow',
+          purpose:
+            'The high-mass path, no years: main sequence; fuses carbon into heavier elements; silicon fuses into iron; iron core collapses and rebounds; supernova; neutron star or black hole.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-ageing-star', name: 'The Ageing Star' },
     },
   },
   'stars-colour-brightness': {
@@ -112,18 +138,34 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.stars',
     facetId: 'space.stars.measurement',
-    // Colour from surface temperature, output from size and temperature together, dimming with distance and the
-    // chart of temperature against output with its main sequence, giants and white dwarfs are the views the kit has.
-    stageKit: 'starlight.v1',
     interactive: false,
     interactiveKind: null,
     brief:
       'What colour and brightness reveal about a star. Plotting stars by temperature or colour against luminosity sorts them into groups, such as the main sequence, giants and white dwarfs, in a chart called the Hertzsprung–Russell diagram. Explain how that chart lets astronomers read a star’s likely kind and stage. Do not claim colour alone gives a star’s age or that every main-sequence star is alike.',
-    pages: ['https://en.wikipedia.org/wiki/Hertzsprung%E2%80%93Russell_diagram'],
-    scrollV2: {
-      variant: 'stage',
+    pages: [
+      'https://en.wikipedia.org/wiki/Hertzsprung%E2%80%93Russell_diagram',
+      'https://en.wikipedia.org/wiki/Main_sequence',
+    ],
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A chart of brightness against temperature sorts stars into groups',
+        'The main sequence is where stars spend most of their lives; giants are far brighter than dwarfs',
+        'A star leaves the main sequence when its core hydrogen is used up',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            'A short labelled list of three on how to read the chart: stars of greater luminosity are toward the top; stars with higher surface temperature are toward the left; most stars fall in one continuous band, the main sequence, where they spend the majority of their lives.',
+        },
+        {
+          kind: 'flow',
+          purpose:
+            "How a star's place changes, in order: it spends most of its life on the main sequence; the hydrogen fuel at its core is used up; it evolves away from the main sequence into a supergiant, a red giant, or directly to a white dwarf. The more massive the star, the shorter its time on the main sequence.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-colour-chart', name: 'The Colour Chart' },
     },
   },
   'exoplanet-transit': {
@@ -132,18 +174,31 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.exoplanets',
     facetId: 'space.exoplanets.detection',
-    // The transit method is the subject: a planet crossing its star and the dip it makes, small against large.
-    // The wobble method is told in words only.
-    stageKit: 'transit.v1',
     interactive: true,
     interactiveKind: 'chart',
     brief:
-      'How planets are found by their effect on starlight. When a planet passes in front of its star the starlight dips slightly and regularly, the method used by the Kepler and TESS telescopes; a planet’s pull can also make its star wobble, which shows up as shifts in the starlight’s wavelengths. Let the reader compare the dip from a small and a large planet, in illustrative units. Say that different methods find different kinds of planets. Do not imply that most known planets were photographed directly.',
+      'How planets are found by their effect on starlight. When a planet passes in front of its star the starlight dips slightly and regularly, the method used by the Kepler and TESS telescopes; a planet’s pull can also make its star wobble, which shows up as shifts in the starlight’s wavelengths. Describe the dip in words only: the supplied passages give no figures for how deep it is. Say that different methods find different kinds of planets. Do not imply that most known planets were photographed directly.',
     pages: ['https://science.nasa.gov/exoplanets/how-we-find-and-characterize/'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A planet crossing its star dims the starlight slightly and regularly',
+        "A planet's pull makes its star wobble, shifting the starlight's wavelengths",
+        'Different methods find different kinds of planets',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            "The transit method in order: a planet passes in front of its star; the starlight dips slightly; the dips repeat with each orbit; the period and the star's mass give the planet's orbital size.",
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of four ways to find planets: rows radial velocity (wobble), transit (dip), microlensing (spike), direct imaging; columns what is seen and what it has found.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-small-dip', name: 'The Small Dip' },
     },
   },
   'exoplanet-habitable-zone': {
@@ -152,18 +207,31 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.exoplanets',
     facetId: 'space.exoplanets.habitability',
-    // The zones of three stars of different output, and a planet's orbit across them, are the view the kit has.
-    // It draws where liquid water could be possible and never that a planet has water or life.
-    stageKit: 'starlight.v1',
     interactive: true,
     interactiveKind: 'simulation',
     brief:
-      'What the habitable zone is: the region around a star where a planet could have liquid water on its surface. A planet’s distance from its star sets how much starlight it receives, and stars of different brightness have zones at different distances. Let the reader move a planet outward and see how the starlight it receives falls, labelled as illustrative. Stress that being in the zone does not make a planet habitable or inhabited, and do not claim that life has been found elsewhere.',
+      'What the habitable zone is: the range of orbits around a star within which a planetary surface could potentially support liquid water. Say that the range depends on the brightness of the star, so stars of different brightness have zones at different distances, and that whether a planet is in the zone depends on the radius of its orbit and the star’s radiative flux. Describe the inner and outer edges in words and give no distances or starlight figures. Stress that being in the zone does not make a planet habitable or inhabited, and do not claim that life has been found elsewhere.',
     pages: ['https://en.wikipedia.org/wiki/Circumstellar_habitable_zone'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'The habitable zone: the range of orbits where a planet could have liquid water on its surface',
+        "The star's brightness and the planet's orbit set the zone; its edges are where water boils off or freezes",
+        'Being in the zone does not make a planet habitable or inhabited',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            "A 2 x 2 of the zone's two edges: rows inner edge and outer edge, columns what happens to a planet's water there and what sets the limit. Inner: the star's light, trapped by greenhouse gases, boils the water off. Outer: the light is too weak, even with help from atmospheric gas, and the water freezes.",
+        },
+        {
+          kind: 'statement',
+          purpose:
+            "A short labelled list of three: the zone is the range of orbits where a planetary surface could potentially support liquid water; the range depends on the star's brightness; different climate models give different sizes of zone.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-temperate-band', name: 'The Temperate Band' },
     },
   },
   'exoplanet-kinds': {
@@ -186,18 +254,31 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.black-holes',
     facetId: 'space.black-holes.formation',
-    // A massive star's core collapsing when its fuel is gone, beside a star like the Sun that leaves a white dwarf,
-    // is the formation view. Supermassive black holes are told in words only.
-    stageKit: 'black-hole.v1',
     interactive: false,
     interactiveKind: null,
     brief:
-      'How black holes form. When a star with more than about eight times the Sun’s mass runs out of fuel, its core collapses and the star explodes as a supernova, and what remains can be a stellar-mass black hole. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. Do not say the Sun will become a black hole.',
+      'How black holes form. When a star with more than about eight times the Sun’s mass runs out of fuel, its core collapses and the star explodes as a supernova; what is left depends on the star’s mass before the explosion: a neutron star near that threshold, and a stellar-mass black hole if it had around 20 times the Sun’s mass or more. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. Do not say the Sun will become a black hole.',
     pages: ['https://science.nasa.gov/universe/black-holes/types/'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'story',
+      sections: [
+        "A star above about eight Suns' mass runs out of fuel and its core collapses",
+        'The supernova can leave a stellar-mass black hole',
+        'Supermassive black holes: origins unsolved, with a puzzling gap in sizes',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'How a stellar-mass black hole forms: a star above about eight Suns runs out of fuel; its core collapses and rebounds; it explodes as a supernova; if it was around 20 Suns or more, the core collapses to a black hole.',
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of three sizes of black hole: rows stellar-mass, intermediate, supermassive; columns mass range and what is known of their origin.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-collapsing-core', name: 'The Collapsing Core' },
     },
   },
   'black-hole-horizon': {
@@ -206,18 +287,31 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.black-holes',
     facetId: 'space.black-holes.horizon',
-    // Two black holes to scale with their horizons, the light near an edge and the same pull from far away are the
-    // horizon and pull views. Spaghettification is told in words only.
-    stageKit: 'black-hole.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'What the event horizon is. It is the black hole’s boundary, not a solid surface: inside it the speed needed to escape is greater than the speed of light, so nothing that crosses it can return. Let the reader compare the view from far away with what a spacecraft nearing the horizon would meet, including the stretching called spaghettification that strong tidal gravity causes. Do not describe the centre as understood.',
+      'What the event horizon is. It is the black hole’s boundary: inside it the speed needed to escape is greater than the speed of light, so nothing that crosses it can return. Compare the view from far away with what a spacecraft nearing the horizon would meet, including the stretching called spaghettification that strong tidal gravity causes. Do not call the horizon a solid surface and do not describe the centre as understood.',
     pages: ['https://science.nasa.gov/universe/black-holes/anatomy/', 'https://spaceplace.nasa.gov/black-holes/en/'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        "The event horizon is the black hole's boundary",
+        'Inside it, escaping would need more than the speed of light',
+        'From far away versus close in: the dark shadow, and spaghettification',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            "One labelled list of three about the event horizon: it is the black hole's boundary; inside it, escape would need more than the speed of light; its shadow looks about twice the size of the black hole.",
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 comparing two viewpoints: rows seen from far away and met by a spacecraft near the horizon, columns what is seen or felt and why.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-one-way-edge', name: 'The One-Way Edge' },
     },
   },
   'black-hole-evidence': {
@@ -226,17 +320,26 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.black-holes',
     facetId: 'space.black-holes.evidence',
-    // Stars orbiting an unseen mass, a glowing disc, the ripples of a merger and the shadow are the four clue views.
-    stageKit: 'black-hole.v1',
     interactive: false,
     interactiveKind: null,
     brief:
       'How astronomers know black holes exist when they emit no light of their own. Cover the gas and dust that glow in X-rays as they swirl in, stars whose orbits reveal an unseen heavy object at a galaxy’s centre, ripples in spacetime called gravitational waves, and the way a black hole bends light from objects behind it. Do not suggest that any one line of evidence alone settles the matter.',
     pages: ['https://science.nasa.gov/universe/black-holes/'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Black holes give off no light, so astronomers read their effects',
+        'Glowing gas and orbiting stars: the clues of light and motion',
+        'Ripples in space-time and bent light: the clues of gravity itself',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'Four lines of evidence: rows accretion disk, orbiting stars, gravitational waves, gravitational lensing; columns what is seen and what it reveals.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-unseen-weight', name: 'The Unseen Weight' },
     },
   },
 } as const satisfies SystemRecipes<typeof spaceSystem>;

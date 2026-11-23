@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { TOPICS, type ScrollTopic } from '../topics.js';
+import { scrollV3PlanOf, TOPICS, type ScrollTopic } from '../topics.js';
+import { KIT_PLANS_V2, kitPlanV2Of } from './kit-plans.js';
 import {
   parseSpikeBlocks,
   parseSpikeTopics,
@@ -13,6 +14,29 @@ import {
   SPIKE_TOPICS_V2,
   spikeRecipeV2,
 } from './topics.js';
+
+/** The kit a spike draws a recipe with: its own, or the one it had before it became a document v3 recipe (#787). */
+const kitOf = (topic: ScrollTopic) => TOPICS[topic].stageKit ?? kitPlanV2Of(topic)?.kit;
+/** The v2 plan a spike runs a recipe with: the library's, or the one a document v3 recipe had before (#787). */
+const planOf = (topic: ScrollTopic) => TOPICS[topic].scrollV2 ?? kitPlanV2Of(topic)?.plan;
+
+describe('the v2 plans of the recipes that became document v3 recipes (#787)', () => {
+  it('hold exactly the 22 recipes that had a kit, each now a v3 recipe with no kit and no v2 plan in the library', () => {
+    const held = Object.keys(KIT_PLANS_V2) as ScrollTopic[];
+    expect(held).toHaveLength(22);
+    for (const topic of held) {
+      expect(scrollV3PlanOf(topic), topic).toBeDefined();
+      expect(TOPICS[topic].stageKit, topic).toBeUndefined();
+      expect(TOPICS[topic].scrollV2, topic).toBeUndefined();
+      expect(KIT_PLANS_V2[topic as keyof typeof KIT_PLANS_V2].plan.variant, topic).toBe('stage');
+    }
+  });
+
+  it('hold nothing for a recipe the library still produces as v2', () => {
+    for (const topic of ['seasons-elsewhere', 'tides-coasts', 'greenhouse-limits', 'exoplanet-kinds'] as const)
+      expect(kitPlanV2Of(topic), topic).toBeUndefined();
+  });
+});
 
 describe('the twenty topics of the writer spike', () => {
   it('are twenty distinct library recipes, the three Seasons parts first', () => {
@@ -49,7 +73,7 @@ describe('the twenty topics of the writer spike', () => {
       'reflex-arc',
     ]);
     for (const topic of SPIKE_TOPICS_V2)
-      expect(spikeRecipeV2(topic).variant === 'stage', topic).toBe(TOPICS[topic].stageKit !== undefined);
+      expect(spikeRecipeV2(topic).variant === 'stage', topic).toBe(kitOf(topic) !== undefined);
     // The habitable zone is drawn by the starlight kit (D-204); kinds of planet have no kit and stay plain.
     expect(spikeRecipeV2('exoplanet-habitable-zone')).toMatchObject({ variant: 'stage', kit: 'starlight.v1' });
     expect(spikeRecipeV2('exoplanet-kinds').variant).toBe('plain');
@@ -59,7 +83,7 @@ describe('the twenty topics of the writer spike', () => {
   it('draw every stage recipe with the kit its library entry names', () => {
     for (const topic of Object.keys(TOPICS) as ScrollTopic[]) {
       const recipe = spikeRecipeV2(topic);
-      expect(recipe.kit, topic).toBe(TOPICS[topic].stageKit);
+      expect(recipe.kit, topic).toBe(kitOf(topic));
     }
   });
 
@@ -160,18 +184,18 @@ describe('the twenty topics of the writer spike', () => {
     // The recipes the plan decides (D-137, D-199) give no myth: the Seasons parts with none, and every
     // recipe of the first waves and the kit waves.
     expect(SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).misconception.kind === 'none')).toEqual(
-      SPIKE_TOPICS_V2.filter((topic) => topic !== 'seasons' && TOPICS[topic].scrollV2 !== undefined),
+      SPIKE_TOPICS_V2.filter((topic) => topic !== 'seasons' && planOf(topic) !== undefined),
     );
-    expect(SPIKE_TOPICS_V2.filter((topic) => TOPICS[topic].scrollV2 === undefined)).toEqual([]);
+    expect(SPIKE_TOPICS_V2.filter((topic) => planOf(topic) === undefined)).toEqual([]);
   });
 
-  it('spike a recipe the plan marks v2 exactly as the library will produce it', () => {
+  it('spike a recipe the plan marks v2 exactly as the library will produce it, and a recipe that became document v3 as it was a v2 recipe with its kit', () => {
     for (const topic of SPIKE_TOPICS_V2) {
-      const planned = TOPICS[topic].scrollV2;
+      const planned = planOf(topic);
       if (planned === undefined) continue;
       expect(spikeRecipeV2(topic), topic).toEqual({
         ...planned,
-        ...(TOPICS[topic].stageKit === undefined ? {} : { kit: TOPICS[topic].stageKit }),
+        ...(kitOf(topic) === undefined ? {} : { kit: kitOf(topic) }),
         defaulted: false,
       });
     }
