@@ -72,7 +72,9 @@ describe('known failures of the current code', () => {
  * A scenario kept as a regression for a fixed defect passes I3 only if it still reaches the code the defect lived in. With
  * no known failure left to demand it, this is what stops a renamed topic or a changed script from turning its pass into a
  * vacuous one: `link-reader-exoplanets` (the planned-demand duplicate of slice 1.3) must still make the Planner ask Supply
- * for missing content, and Supply must still hold the person's planned rows for it.
+ * for missing content, Supply must still hold the person's planned rows for it, and one of them must be a waiting
+ * (`deferred`) one, which is the row an older `ready` one hid from Supply's lookup (#712). A `ready` row alone reaches none
+ * of that code: it happens when Create has nothing to start for the topic.
  */
 describe('regression scenarios still reach what they were kept for', () => {
   const exoplanets = reports
@@ -89,6 +91,10 @@ describe('regression scenarios still reach what they were kept for', () => {
         .reduce((total, [, count]) => total + count, 0);
       expect(opportunities, 'the Planner named no missing content for the finished topic').toBeGreaterThan(0);
       expect(plannedRows, 'Supply holds no planned demand row for the finished topic').toBeGreaterThan(0);
+      expect(
+        exoplanets?.supplyRows['planner:deferred'] ?? 0,
+        'Supply holds no waiting (deferred) planned demand row for the finished topic: Create started nothing for it, so the scenario no longer reaches the code the #712 defect lived in (an older ready row hiding a waiting one from the lookup). Does the lab still store a recipe for space.exoplanets (seedStoredRecipe in library.ts) and leave the growth cap open (world.ts)?',
+      ).toBeGreaterThan(0);
     },
   );
 });

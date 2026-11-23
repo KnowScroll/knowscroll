@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { scrollV3PlanOf, TOPICS, type ScrollTopic } from '../topics.js';
-import { FORMER_V2_PLANS, formerV2PlanOf } from './former-v2-plans.js';
+import { FORMER_V2_PLANS, formerV2PlanOf, type FormerV2Plan } from './former-v2-plans.js';
 import {
   parseSpikeBlocks,
   parseSpikeTopics,
@@ -50,10 +50,8 @@ describe('the v2 plans of the recipes that became document v3 recipes (#787, #79
 // The library tests held these rules while the plans lived in the library (D-187, D-188, D-199, D-217). The spike and the v2 path's
 // tests still read the plans from here, so the rules move with them (#790).
 describe('the landmarks, myths and Final call controls the former v2 plans keep (D-187, D-188)', () => {
-  const formers = Object.entries(FORMER_V2_PLANS) as [
-    ScrollTopic,
-    (typeof FORMER_V2_PLANS)[keyof typeof FORMER_V2_PLANS],
-  ][];
+  // Read through the table's declared shape, so a plan that names no Final call or landmark reads as `undefined`.
+  const formers = Object.entries(FORMER_V2_PLANS) as [ScrollTopic, FormerV2Plan][];
   const landmarks = formers.flatMap(([, former]) => (former.plan.landmark === undefined ? [] : [former.plan.landmark]));
 
   it('name a landmark for every former v2 plan, in plain words that never claim mastery', () => {

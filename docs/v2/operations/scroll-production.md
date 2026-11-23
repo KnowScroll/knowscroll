@@ -475,7 +475,9 @@ The other 33 recipes of the library carry `scrollV3` too, so **no library recipe
 v2 plans are kept in `spike-v2/former-v2-plans.ts` for the v2 spike and tests only) and the v1 recipe `exoplanet-kinds`. As for the kit recipes, marking
 them changes nothing a reader is served: each keeps serving its current v1 or v2 Scroll until a v3 Scroll is produced, read and released, and
 until then `production-status` shows it `not_started`. Supply never commissions a recipe the plan marks v2 or v3, so only this operator run makes
-them. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
+them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
+a reader's ask or the Planner's demand for a Scroll the library has not made yet starts production only for a stored (`gen-`) recipe, within
+the growth cap; with none, the ask closes as `no_recipe_left` and is counted as a gap. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
 is inside one batch, except the three Earth & sky parts, which wait for their kit batches above: tides, greenhouse and Earth & sky):
 
 | # | Batch | Recipes | `--only` |

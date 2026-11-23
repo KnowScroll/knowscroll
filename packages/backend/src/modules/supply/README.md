@@ -60,10 +60,11 @@ under way), ready, unavailable with a coarse reason, cancelled. No percentages, 
    - the day's Create cap for this origin is used up, or Create is switched off for it (a cap of 0): `budget_unavailable`.
      People's asks count against `KS_SUPPLY_CREATE_DAILY_CAP`; the Planner's demand against its own, smaller
      `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (never above the first), so the Planner cannot starve an ask;
-   - no recipe is left (all published, or none can be taken again): `no_recipe_left`. A code recipe the plan marks v2 is
-     never chosen: its Scroll waits at the operator review gate before anyone is served it (D-138), so the operator's
-     library run makes those and an ask for such a meaning is answered once the Scroll is released. A recipe stored in
-     the database (D-412) is chosen, though its Scroll is held the same way, so the library grows; code recipes go first.
+   - no recipe is left (all published, or none can be taken again): `no_recipe_left`. A code recipe the plan marks v2 or
+     document v3 is never chosen: its Scroll waits at the operator review gate before anyone is served it (D-138), so the
+     operator's library run makes those and an ask for such a meaning is answered once the Scroll is released. Since #790
+     the plan marks every code recipe document v3, so no code recipe is chosen at all. A recipe stored in the database
+     (D-412) is chosen, though its Scroll is held the same way, so the library grows.
    - **Growth (D-412).** A stored recipe's production is growth and is counted apart: `KS_SUPPLY_GROWTH_DAILY_CAP` (default
      10, 0 turns it off) counts the groups started today with a stored recipe whoever asked, and the person's and the
      Planner's counts leave them out, so growth never uses what an ask or the Planner needs and is never taken from them.
