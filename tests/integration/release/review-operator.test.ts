@@ -2,14 +2,11 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
+import { orrinResearchFor, plainOrrin } from '../support/scroll-v2.js';
 import { releaseDirectory, startReleaseProcess } from '../support/processes.js';
 
 /**
@@ -20,7 +17,7 @@ import { releaseDirectory, startReleaseProcess } from '../support/processes.js';
 describe('the review gate commands from the built release', () => {
   let database: Awaited<ReturnType<typeof createEmptyDatabase>>;
   let handle: DatabaseHandle<Database>;
-  const recipe = TOPICS['seasons-hemispheres'];
+  const recipe = TOPICS['seasons-elsewhere'];
   const operatorName = 'ci-reviewer';
   let firstStopText = '';
 
@@ -34,11 +31,11 @@ describe('the review gate commands from the built release', () => {
       { onIdleClientError: () => undefined },
     );
     await enableProductionScope(handle.db);
-    const produced = await fixtureProduction(
-      handle.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    ).produce('seasons-hemispheres', false, signal());
+    const produced = await fixtureProduction(handle.db, () => answerWith(plainOrrin()), orrinResearchFor).produce(
+      'seasons-elsewhere',
+      false,
+      signal(),
+    );
     expect(produced).toMatchObject({ outcome: 'published', held: true, assetId: recipe.assetId, revision: 1 });
     const stored = await handle.db
       .selectFrom('content.asset_revisions')
@@ -80,7 +77,7 @@ describe('the review gate commands from the built release', () => {
       command: 'content review-list',
       count: 1,
       revisions: [
-        { assetId: recipe.assetId, recipe: 'seasons-hemispheres', revision: 1, state: 'held', coverage: 'mapped' },
+        { assetId: recipe.assetId, recipe: 'seasons-elsewhere', revision: 1, state: 'held', coverage: 'mapped' },
       ],
     });
     expect(listed.stdout).not.toContain(firstStopText.slice(0, 40));
@@ -91,7 +88,7 @@ describe('the review gate commands from the built release', () => {
     expect(shown.code).toBe(0);
     expect(shown.stdout).toContain(firstStopText);
     expect(shown.stdout).toContain('source passage:');
-    expect(shown.stdout.split('\n')[0]).toContain('seasons-hemispheres');
+    expect(shown.stdout.split('\n')[0]).toContain('seasons-elsewhere');
     expect(shown.stderr).not.toContain(firstStopText.slice(0, 40));
   });
 
@@ -137,7 +134,7 @@ describe('the review gate commands from the built release', () => {
       expect.objectContaining({
         event: 'content.review_decided',
         level: 'info',
-        context: 'seasons-hemispheres',
+        context: 'seasons-elsewhere',
         outcome: 'released',
         revision: 1,
       }),
@@ -190,13 +187,13 @@ describe('the review gate commands from the built release', () => {
   });
 
   it('shows the regeneration state of a served recipe in production-status, and the answer check of its take', async () => {
-    const status = await operator(['production-status', '--only', 'seasons-hemispheres']);
+    const status = await operator(['production-status', '--only', 'seasons-elsewhere']);
     expect(status.code).toBe(0);
     expect(lastLine(status.stdout)).toMatchObject({
       command: 'content production-status',
       recipes: [
         {
-          recipe: 'seasons-hemispheres',
+          recipe: 'seasons-elsewhere',
           state: 'published',
           takes: 1,
           takesLeft: 2,
@@ -208,13 +205,13 @@ describe('the review gate commands from the built release', () => {
   });
 
   it('plans a regeneration without sending anything, needs --only, and skips a recipe that is not a served v2 Scroll', async () => {
-    const dry = await operator(['regenerate', '--only', 'seasons-hemispheres,exoplanet-kinds', '--dry-run']);
+    const dry = await operator(['regenerate', '--only', 'seasons-elsewhere,exoplanet-kinds', '--dry-run']);
     expect(dry.code).toBe(0);
     expect(lastLine(dry.stdout)).toMatchObject({
       command: 'content regenerate',
       dryRun: true,
       requestBoundPerTake: 6,
-      wouldQueue: [{ recipe: 'seasons-hemispheres', take: 2 }],
+      wouldQueue: [{ recipe: 'seasons-elsewhere', take: 2 }],
       skipped: [{ recipe: 'exoplanet-kinds', reason: 'not_v2' }],
     });
     for (const args of [['regenerate'], ['regenerate', '--dry-run'], ['regenerate', '--only', 'no-such-recipe']]) {

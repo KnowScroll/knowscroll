@@ -22,7 +22,7 @@ import {
   verdicts,
 } from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
-import { markRecipesV1, orrinResearchFor, plainOrrin } from '../support/scroll-v2.js';
+import { markRecipesV1, orrinResearchFor, plainOrrin, markKitRecipesV2 } from '../support/scroll-v2.js';
 
 /**
  * The tooling for the library waves (S-6a, D-197 to D-199): regenerating a Scroll that is already
@@ -30,6 +30,11 @@ import { markRecipesV1, orrinResearchFor, plainOrrin } from '../support/scroll-v
  * the labelled Orrin fixture (an invented planet) produced through the real production job; the
  * "model" is a labelled CI fixture and nothing here is provider output.
  */
+// The recipes a drawing kit drew are document v3 recipes in the library since #787. This file tests the v2 path, so it makes them v2 stage recipes
+// again, with the kit and plan they had, for the file's own process.
+const restoreKitRecipes = markKitRecipesV2();
+afterAll(restoreKitRecipes);
+
 describe('regenerating a served v2 Scroll and checking its answers (labelled CI fixtures, real PostgreSQL)', () => {
   // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
   const restoreRecipes = markRecipesV1('tides');

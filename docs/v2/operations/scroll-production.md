@@ -401,7 +401,7 @@ As for the v2 spike: reconcile every `unknown` attempt first (`reasoning unknown
 
 ## Producing a document v3 Scroll (#783)
 
-A recipe becomes a `scroll-document.v3` Scroll only when the library plan marks it: `scrollV3` on the recipe, with the kind of essay (`shape`), one intent for each section, the pictures it must have (kind and purpose, optional: without them the writer chooses one to three kinds) and its `misconception`, either `none` or a myth whose source label a person has `reviewed`. A person decides it, recipe by recipe, in a pull request; the writer and the system never do. A recipe carries `scrollV3` or `scrollV2`, never both. Status: implemented, tested with a fixture model; **not yet run on real MiniMax**. No recipe is marked today.
+A recipe becomes a `scroll-document.v3` Scroll only when the library plan marks it: `scrollV3` on the recipe, with the kind of essay (`shape`), one intent for each section, the pictures it must have (kind and purpose, optional: without them the writer chooses one to three kinds) and its `misconception`, either `none` or a myth whose source label a person has `reviewed`. A person decides it, recipe by recipe, in a pull request; the writer and the system never do. A recipe carries `scrollV3` or `scrollV2`, never both. Status: implemented, tested with a fixture model; **not yet run on real MiniMax**. The 22 recipes that had a drawing kit are marked since #787 (next section); no other recipe is.
 
 The writer asks the model once for the whole Scroll (arm (a) of #771) and the harness repairs one refusal, so a take sends at most two paid requests. The model never sets the kicker, the theme, the framing or the misconception: the plan does. A v3 library Scroll is **held**, like a v2 one, and the commands are the same.
 
@@ -425,6 +425,49 @@ What happens after the job, with no person:
 A refusal of the writer's reply that the repair does not mend ends the take as `rejected` with `invalid_output`. The job's receipts and `content production-status` show the code and the attempts, never the model's text. Fix the plan or the instructions and bump the writer version, which gives every recipe new takes. A **paused** take (a spent daily cap or quota) sends nothing and resumes the same job on the next send.
 
 What to read for in a held v3 Scroll, besides what a v2 asks: the first paragraph stands alone as the cover; each picture says what its paragraph says (the support check reads the words of a picture, not what it draws); the "To sum up" is a person's plain ending, not the dek again; a negative figure is written with its sign.
+
+## The kit recipes as document v3 Scrolls, kit by kit (#787)
+
+The 22 recipes a drawing kit used to draw carry `scrollV3` and no kit. Marking them changes nothing a reader is served: each keeps serving its
+current v1 or v2 Scroll until a v3 Scroll is produced, read and released. Until then `production-status` shows the recipe `not_started` (its served
+Scroll is not a document v3), and `produce-library` queues its first take at `scroll-production-v3.v1`. Nothing was produced by the change; **an operator
+does it on dev, one kit at a time**, in this order, and reads each kit's rewrites before anyone deletes that kit's code:
+
+| # | Kit | Recipes | `--only` |
+|---|---|---|---|
+| 1 | transit (`transit.v1`) | `exoplanet-transit` | `exoplanet-transit` |
+| 2 | tides (`tides.v1`) | `tides`, `tides-spring-neap` | `tides,tides-spring-neap` |
+| 3 | greenhouse (`greenhouse.v1`) | `greenhouse`, `greenhouse-radiation`, `greenhouse-balance` | `greenhouse,greenhouse-radiation,greenhouse-balance` |
+| 4 | star (`star.v1`) | `stars-fusion`, `stars-lifecycle` | `stars-fusion,stars-lifecycle` |
+| 5 | black hole (`black-hole.v1`) | `black-hole-formation`, `black-hole-horizon`, `black-hole-evidence` | `black-hole-formation,black-hole-horizon,black-hole-evidence` |
+| 6 | starlight (`starlight.v1`) | `stars-colour-brightness`, `exoplanet-habitable-zone` | `stars-colour-brightness,exoplanet-habitable-zone` |
+| 7 | circulation (`circulation.v1`) | `cardiac-cycle`, `blood-pressure`, `oxygen-transport` | `cardiac-cycle,blood-pressure,oxygen-transport` |
+| 8 | nerve (`nerve.v1`) | `action-potential`, `synapse-signalling`, `reflex-arc` | `action-potential,synapse-signalling,reflex-arc` |
+| 9 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
+
+One recipe, the exact command (the first row; nothing is sent by the dry run):
+
+```sh
+# worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash
+node dist/operator.js content produce-library --dry-run --only exoplanet-transit   # wouldQueue, take 1 at scroll-production-v3.v1
+node dist/operator.js content produce-library --only exoplanet-transit             # queues the job; the dev worker writes it and it ends held
+node dist/operator.js content production-status --only exoplanet-transit           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
+node dist/operator.js content review-list
+node dist/operator.js content review-show --asset <asset id from review-list> --sources
+node dist/operator.js content release --asset <asset id> --revision <n>             # or reject with a reason; or leave it to the release policy
+```
+
+For a kit with several recipes, name them all in `--only`, as in the table. A v3 that replaces a served v1 or v2 is released by the release policy when every
+check passes; one that replaces a served v3 waits for a person (above). When the parts of a series are released, run `content admit-continuity` and
+`content readmit-coverage` (steps 6 of "Running a library wave"): the Seasons series also holds `seasons-elsewhere` (v2, unchanged), the tides series
+`tides-coasts` and the greenhouse series `greenhouse-limits`, so admit them after the v3 parts are released or after the v2 part is served, whichever is later.
+
+What to read for, besides the list under the previous section: the briefs of these recipes were narrowed to what their pages state (the library README says
+how), so a Scroll that states more than its page is a finding; every figure in a picture is in a passage the writer was offered. A recipe has three takes
+at the production version; if all are rejected, the plan or the brief needs a change (a code change), so stop and say so on #787.
+
+The deletion of a kit is a later change, one kit at a time, after the owner has read that kit's rewrites. Its recipes' v2 plans stay in `spike-v2/kit-plans.ts`
+until then, for the v2 spike only; the table and the kit leave together.
 
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
@@ -670,7 +713,7 @@ nothing from a host that is not on it.
 
 ## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 
-A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes, the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217).
+A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes, the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217). Since #787 the 22 recipes a kit drew are document v3 recipes: the commands below produce them as v3 Scrolls, and "The kit recipes as document v3 Scrolls, kit by kit" says in what order.
 
 Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time. A take can hold its worker claim for up to 35 minutes (six requests at the largest request timeout, 300 s, plus a margin); a job whose worker died is retried only after that, so do not expect a quick retry of a stuck take (`production-status` shows it as `running`).
 

@@ -7,14 +7,17 @@ import {
   type PlayBlockKind,
 } from '../../domain/library/plan.js';
 import { parseScrollTopic, TOPICS, type ScrollTopic } from '../topics.js';
+import { kitPlanV2Of } from './kit-plans.js';
 
 /**
  * What the writer spike decides for a library recipe before the model starts: whether the Scroll has
  * a pinned picture, and the misconception its first call tests.
  *
  * A recipe the library plan marks `scrollV2` is spiked exactly as it is produced: the plan's variant
- * and misconception (D-137), so a spike measures what the library will publish. For a recipe the plan
- * has not marked, whether there is a picture is recipe data (`stageKit`, D-125) and there is no
+ * and misconception (D-137), so a spike measures what the library will publish. A recipe the plan marks
+ * document v3 that had a drawing kit is spiked with the kit and v2 plan it had (`kit-plans.ts`, #787): the library
+ * does not produce it as a v2 Scroll any more, but the kit's measurements stay reproducible until the kit is deleted. For a
+ * recipe the plan has not marked, whether there is a picture is recipe data (`stageKit`, D-125) and there is no
  * misconception.
  */
 export interface SpikeRecipeV2 extends RecipeDataV2 {
@@ -147,11 +150,13 @@ export function parseSpikeBlocks(raw: string): ReadonlyMap<ScrollTopic, SpikeBlo
 }
 
 /**
- * The spike's decisions for a recipe. The picture and its kit come from the recipe's own `stageKit`;
- * a recipe the plan has not marked has no misconception, and the line says so.
+ * The spike's decisions for a recipe. The picture and its kit come from the recipe's own `stageKit`, or from the kit it had
+ * before it became a document v3 recipe (`kit-plans.ts`); a recipe the plan has not marked has no misconception, and the line says so.
  */
 export function spikeRecipeV2(topic: ScrollTopic, asked?: SpikeBlocks): SpikeRecipeV2 {
-  const { scrollV2: planned, stageKit } = TOPICS[topic];
+  const retired = kitPlanV2Of(topic);
+  const planned = TOPICS[topic].scrollV2 ?? retired?.plan;
+  const stageKit = TOPICS[topic].stageKit ?? retired?.kit;
   const kit = stageKit === undefined ? {} : { kit: stageKit };
   // What the operator asks for wins over what the plan holds: the spike is how a recipe's blocks are measured before it is marked.
   const extra =

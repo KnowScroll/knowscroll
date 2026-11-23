@@ -66,27 +66,34 @@ export const earthRecipes = {
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.axial-tilt',
     supportingFacetId: 'earth.seasons.limits',
-    stageKit: 'earth-sky.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'Why Earth has seasons: axial tilt changes daylight and sunlight angle; distance is not the cause. Include a useful interactive diagram with frames for opposite hemispheres. Explain the limits of the simplified picture.',
+      'Why Earth has seasons: axial tilt changes how directly the Sun’s rays reach each hemisphere through the year, and the two hemispheres have opposite timing; distance is not the cause. Explain the limits of the simplified picture: Earth’s orbit is a little lop-sided, so its distance from the Sun does change, but not in a way that makes the seasons.',
     pages: ['https://spaceplace.nasa.gov/seasons/en/'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Tilt, not distance, causes the seasons, against a common wrong idea',
+        'The tilt gives each hemisphere its turn toward the Sun, six months apart',
+        'What the simple picture leaves out: the orbit is a little lop-sided',
+      ],
+      pictures: [
+        {
+          kind: 'chart',
+          purpose:
+            "Bars of Earth's closest and farthest distance from the Sun, in miles, so the reader sees the two bars are nearly equal and distance cannot explain the seasons. Unit: miles. Caption: orbit not to scale.",
+        },
+        {
+          kind: 'grid',
+          purpose:
+            "A 2 x 2 of tilt and season: rows June and December, columns Northern and Southern Hemisphere; each cell says which pole tilts toward the Sun and the season that gives. The Southern cells say only that the timing is the opposite of the north's, since no passage names the Southern seasons.",
+        },
+      ],
       misconception: {
         kind: 'myth',
         claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
         source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
-      },
-      landmark: { key: 'the-leaning-axis', name: 'The Leaning Axis' },
-      finalCall: { kind: 'tilt' },
-      // The recap of the journey needs Earth on its orbit at two months at least (D-368); the first call turns the picture to the true
-      // one when the guess is wrong (D-383); the distances and the daylight are shown only where a cited passage states them (D-382).
-      stagePlan: {
-        orbitMonths: 2,
-        figures: ['nearest', 'farthest', 'june-daylight', 'december-daylight'],
-        reveal: true,
       },
     },
   },
@@ -96,16 +103,30 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.hemispheres',
-    stageKit: 'earth-sky.v1',
     interactive: true,
     interactiveKind: 'sequence',
     brief:
-      'Why the two hemispheres always have opposite seasons: through the year each hemisphere in turn tips toward the Sun and then away from it. Step through the two solstices and the two equinoxes and say what each means for daylight in each hemisphere. Daylight in a hemisphere starts to grow at its winter solstice and starts to shrink at its summer solstice; an equinox is when day and night are about equal, not when daylight starts to change, and from the December solstice to the March equinox, when northern spring begins, the north is in winter and the south in summer. Do not suggest that distance from the Sun sets the seasons, and give no invented dates or temperatures.',
+      'Why the two hemispheres always have opposite seasons: through the year each hemisphere in turn tips toward the Sun and then away from it. Step through the two solstices and the two equinoxes and say what each means for the tip toward the Sun and for daylight, as far as the supplied passage states it: at an equinox day and night are about equal, and around the March equinox the north has spring as its hours of daylight increase while the south has autumn as its daylight hours shorten. Do not say when daylight starts to grow or shrink at a solstice, do not suggest that distance from the Sun sets the seasons, and give no invented dates or temperatures.',
     pages: ['https://en.wikipedia.org/wiki/Season'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Why the two hemispheres always have opposite seasons',
+        'Four turning points in the year: two solstices and two equinoxes',
+        'What each point means for the tip toward the Sun and for daylight',
+      ],
+      pictures: [
+        {
+          kind: 'cycle',
+          purpose:
+            "The year as a ring of four turning points: March equinox, June solstice, September equinox, December solstice. Each item's note gives only what the passages state for that point: which hemisphere tips most toward the Sun at a solstice (the north about June 21, the south around December 21), equal day and night at an equinox, and spring with lengthening daylight in the north and autumn with shortening daylight in the south around the March equinox. Centre: the tilted Earth.",
+        },
+        {
+          kind: 'statement',
+          purpose: "One number: the tilt of Earth's axis, 23.4 degrees, labelled as the tilt that gives the seasons.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-turning-halves', name: 'The Turning Halves' },
     },
   },
   'seasons-limits': {
@@ -114,16 +135,31 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.limits',
-    stageKit: 'earth-sky.v1',
     interactive: false,
     interactiveKind: null,
     brief:
       'Why the tilt explanation needs care. Earth is nearest the Sun in early January and farthest in early July, yet the Northern Hemisphere is coldest when Earth is nearest, which is why tilt and not distance explains the seasons. Explain that the four seasons are marked by the solstices and equinoxes and say what the simple picture leaves out. Give no invented temperatures or dates beyond those in the supplied passages.',
     pages: ['https://en.wikipedia.org/wiki/Earth%27s_orbit'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'A puzzle: Earth is nearest the Sun in January, yet the north is coldest',
+        'So tilt, not distance, is the cause; the year is marked by four points',
+        'What the simple picture leaves out: a slightly elliptical orbit',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            'One number: about 7 per cent more total solar energy reaches Earth at perihelion than at aphelion, set against the fact that the Northern Hemisphere is coldest when Earth is nearest the Sun.',
+        },
+        {
+          kind: 'cycle',
+          purpose:
+            "The orbit as a ring of six marked points in order: perihelion (early January), March equinox, June solstice, aphelion (early July), September equinox, December solstice. Each note says whether the point marks a season or marks Earth's nearest or farthest distance from the Sun, so the reader sees the two sets of points are different.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-near-january', name: 'The Near January' },
     },
   },
   'seasons-elsewhere': {
@@ -151,21 +187,34 @@ export const earthRecipes = {
     topicId: 'earth.tides',
     facetId: 'earth.tides.forcing',
     supportingFacetId: 'earth.tides.coasts',
-    // The Moon's pull, the two bulges and spring and neap alignment are the subject, and the kit draws exactly
-    // those. Coasts are left to the text and the limits aside.
-    stageKit: 'tides.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'How the Moon and Sun make tides: differential gravity, both tidal bulges, spring and neap alignment, real coastlines. Include an interactive diagram. Avoid implying the far bulge is a pile of water pulled through Earth or that every coast has the same timing.',
+      'How the Moon and Sun make tides: differential gravity, both tidal bulges, and the Sun’s smaller part with spring and neap alignment. Avoid implying the far bulge is a pile of water pulled through Earth or that every coast has the same timing; the supplied passages say nothing about particular coasts.',
     pages: [
       'https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html',
       'https://oceanservice.noaa.gov/education/tutorial_tides/tides06_variations.html',
     ],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'The Moon pulls harder on the near side of Earth than on the far side',
+        'Gravity and inertia make two bulges that stay lined up with the Moon',
+        'The Sun adds a smaller pull and changes the size of the tides',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            "A 2 x 2 of the two bulges: rows near side and far side of Earth, columns what the Moon's gravity does there and what results. The near and far bulges must be shown as gravity beating inertia, then inertia beating gravity.",
+        },
+        {
+          kind: 'statement',
+          purpose:
+            "A short list of what changes the size of the tides beyond the Moon: the Sun (about half the Moon's effect), the Moon's changing distance, and Earth's changing distance from the Sun.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-two-bulges', name: 'The Two Bulges' },
     },
   },
   'tides-spring-neap': {
@@ -174,18 +223,31 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.tides',
     facetId: 'earth.tides.alignment',
-    // Spring and neap are the Sun and Moon lining up or standing at right angles, which the kit derives from
-    // the phase and draws as added or partly cancelled bulges and as bars for the four phases.
-    stageKit: 'tides.v1',
     interactive: true,
     interactiveKind: 'sequence',
     brief:
       'Why tides are larger at some times of the month than others. At new and full Moon the Sun, Moon and Earth line up and their pulls add, giving larger tidal ranges; about a week later the Sun and Moon are at right angles and the range is moderate. Step through these alignments. Say that the name spring tide has nothing to do with the season, and do not suggest every coast shows the same size or timing.',
     pages: ['https://oceanservice.noaa.gov/facts/springtide.html', 'https://oceanservice.noaa.gov/facts/tides.html'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Why tides swell and shrink over a month',
+        "New and full Moon: the Sun's pull adds to the Moon's, giving spring tides",
+        'A week on the pulls partly cancel, giving neap tides; not named for a season',
+      ],
+      pictures: [
+        {
+          kind: 'cycle',
+          purpose:
+            "The lunar month as a ring of four phases: new Moon, first quarter, full Moon, third quarter. Each item's note says spring (pulls add) or neap (pulls partly cancel) and what that does to high and low tides.",
+        },
+        {
+          kind: 'statement',
+          purpose:
+            'One labelled list of three: spring tide (Sun and Moon in line, at new and full Moon, ranges slightly larger); neap tide (at right angles, at the quarter Moons); neither name comes from the season.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-added-pulls', name: 'The Added Pulls' },
     },
   },
   'tides-coasts': {
@@ -213,18 +275,34 @@ export const earthRecipes = {
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.radiation',
     supportingFacetId: 'earth.greenhouse-effect.limits',
-    // Sunlight in, infrared out, a layer that returns some and the ground warming until in and out match are
-    // the subject; the kit draws them with one layer and makes no energy.
-    stageKit: 'greenhouse.v1',
     interactive: false,
     interactiveKind: null,
     brief:
-      'The greenhouse effect, a blanket made of gas: sunlight heats the surface; infrared absorption and emission slow cooling to space; the surface warms until energy balances. The blanket is an analogy, gases do not create energy or act as a solid lid. Distinguish the natural effect from strengthening it. Use comparison or disclosure.',
-    pages: ['https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/'],
-    scrollV2: {
-      variant: 'stage',
+      'The greenhouse effect, a blanket made of gas: sunlight heats the surface; greenhouse gases absorb most of the infrared the warmed Earth emits and send some of it back toward the surface, restricting the outward passage of heat; an energy budget out of balance warms or cools the atmosphere. The blanket is an analogy, gases do not create energy or act as a solid lid. Distinguish the natural effect from strengthening it.',
+    pages: [
+      'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
+      'https://science.nasa.gov/ems/13_radiationbudget/',
+    ],
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        "Gases act like a blanket, holding heat near Earth's surface",
+        'The blanket is an analogy: the gases absorb and return heat, and some still escapes to space',
+        'The natural effect, and how burning fossil fuels strengthens it',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            'One number: the average surface temperature of 15 degrees C that the natural greenhouse effect maintains.',
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 comparing the natural greenhouse effect with its human strengthening: rows natural and strengthened, columns what it is and what follows.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-warm-layer', name: 'The Warm Layer' },
     },
   },
   'greenhouse-radiation': {
@@ -233,10 +311,6 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.radiation',
-    // The radiation paths are what the kit draws: reflected sunlight, the ground's infrared, and the layer
-    // sending some up and some back down. It does not say all sunlight passes through or all infrared is
-    // blocked.
-    stageKit: 'greenhouse.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -245,10 +319,26 @@ export const earthRecipes = {
       'https://science.nasa.gov/ems/13_radiationbudget/',
       'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
     ],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Sunlight arrives as shortwave radiation: some reflected, some absorbed',
+        'Absorbed energy is emitted back out as longwave infrared radiation',
+        'Greenhouse gases absorb most of it and re-emit some toward the surface',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'The radiation path in order: sunlight arrives (shortwave); some is reflected by clouds, snow or ice; some is absorbed by the air; the rest is absorbed at the surface; the warmed surface and air emit longwave; greenhouse gases absorb most of it and the air re-emits some toward the surface and some to space. Six steps at most.',
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 contrasting incoming shortwave and outgoing longwave radiation: rows incoming and outgoing, columns what it is and what happens to it.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-returning-glow', name: 'The Returning Glow' },
     },
   },
   'greenhouse-balance': {
@@ -257,21 +347,34 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.balance',
-    // Balance and imbalance are the energy-balance view: two bars, equal once settled and unequal just after
-    // the layer thickens, with the ground warming until they match.
-    stageKit: 'greenhouse.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'Account at the system boundary: why can internal surface-atmosphere energy exchanges coexist with a stable planet-wide energy budget, and what changes when incoming and outgoing energy differ? Focus on the whole Earth system, radiative equilibrium versus imbalance, and the distinction between redistribution inside the system and energy leaving to space. Require an interactive canonical diagram comparing explicitly described balance and imbalance states, with an accessible text fallback. These are qualitative explanatory states, not a temperature model or a predicted time sequence. Keep radiation-path mechanics and blanket critique to brief context. Use only retained supplied passages, not later sections of a full web article. Do not present historical numerical estimates as current measurements. No forecast, invented temperature, timescale or equilibrium calculation.',
+      'Account at the system boundary: why can internal surface-atmosphere energy exchanges coexist with a stable planet-wide energy budget, and what changes when incoming and outgoing energy differ? Focus on the whole Earth system, radiative equilibrium versus imbalance, and the distinction between redistribution inside the system and energy leaving to space. Require an interactive canonical diagram comparing explicitly described balance and imbalance states, with an accessible text fallback. These are qualitative explanatory states, not a temperature model or a predicted time sequence. Keep radiation-path mechanics and blanket critique to brief context. Use only retained supplied passages, not later sections of a full web article. Do not present historical numerical estimates as current measurements, and give no percentage or power figure unless a passage states it as an estimate. No forecast, invented temperature, timescale or equilibrium calculation.',
     pages: [
       'https://science.nasa.gov/earth/earth-observatory/climate-and-earths-energy-budget/',
       'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
     ],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        "Energy swaps inside the Earth system while the planet's total stays steady",
+        'Balance: incoming sunlight equals heat leaving to space, so climate is stable',
+        'Imbalance: change either flow and global temperatures must rise or fall',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            "A short labelled list of three: inside the system, heat is moved around by evaporation, convection, rainfall, winds and ocean circulation; at the system's edge, heat flows back to space; when incoming solar energy equals the heat leaving to space, Earth is in radiative equilibrium.",
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 comparing balance and imbalance: rows balance and imbalance, columns incoming vs outgoing energy and what happens to temperature.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-even-ledger', name: 'The Even Ledger' },
     },
   },
   'greenhouse-limits': {

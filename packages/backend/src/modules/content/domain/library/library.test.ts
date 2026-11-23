@@ -206,6 +206,23 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
   });
 });
 
+/**
+ * The 22 recipes that had a drawing kit until #787. Each is now planned as a document v3 Scroll, which has no kit; the kit code
+ * stays until the owner has read that kit's rewrites, and is then deleted one kit at a time.
+ */
+const KIT_RECIPES_V3 = {
+  'earth-sky.v1': ['seasons', 'seasons-hemispheres', 'seasons-limits'],
+  'tides.v1': ['tides', 'tides-spring-neap'],
+  'greenhouse.v1': ['greenhouse', 'greenhouse-balance', 'greenhouse-radiation'],
+  'star.v1': ['stars-fusion', 'stars-lifecycle'],
+  'transit.v1': ['exoplanet-transit'],
+  'circulation.v1': ['blood-pressure', 'cardiac-cycle', 'oxygen-transport'],
+  'nerve.v1': ['action-potential', 'reflex-arc', 'synapse-signalling'],
+  'starlight.v1': ['exoplanet-habitable-zone', 'stars-colour-brightness'],
+  'black-hole.v1': ['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon'],
+} as const;
+const V3_KIT_KEYS: readonly string[] = Object.values(KIT_RECIPES_V3).flat();
+
 describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
   const byKit = (kit: string): string[] =>
     recipes
@@ -220,26 +237,26 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       if (recipe.stageKit !== undefined) expect(STAGE_KIT_IDS, recipe.key).toContain(recipe.stageKit);
   });
 
-  it('gives each kit exactly the recipes whose subject it draws, so adding one is a deliberate edit', () => {
-    expect(byKit('earth-sky.v1')).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
-    expect(byKit('tides.v1')).toEqual(['tides', 'tides-spring-neap']);
-    expect(byKit('greenhouse.v1')).toEqual(['greenhouse', 'greenhouse-balance', 'greenhouse-radiation']);
-    expect(byKit('star.v1')).toEqual(['stars-fusion', 'stars-lifecycle']);
-    expect(byKit('transit.v1')).toEqual(['exoplanet-transit']);
-    expect(byKit('circulation.v1')).toEqual(['blood-pressure', 'cardiac-cycle', 'oxygen-transport']);
-    expect(byKit('nerve.v1')).toEqual(['action-potential', 'reflex-arc', 'synapse-signalling']);
-    expect(byKit('starlight.v1')).toEqual(['exoplanet-habitable-zone', 'stars-colour-brightness']);
-    expect(byKit('black-hole.v1')).toEqual(['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon']);
-    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(22);
+  it('names no kit on any recipe: the 22 recipes that had one are planned as document v3 Scrolls, which have none (#787)', () => {
+    for (const kit of STAGE_KIT_IDS) expect(byKit(kit), kit).toEqual([]);
+    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toEqual([]);
   });
 
-  it('gives a kit only to recipes of the system whose subject it draws: Earth & sky, Space and the heart and nerves of the Human body', () => {
-    for (const recipe of recipes.filter((candidate) => candidate.stageKit !== undefined))
+  it('plans the 22 recipes that had a kit as document v3 Scrolls, each kit’s recipes together (#787)', () => {
+    expect(V3_KIT_KEYS).toHaveLength(22);
+    expect(
+      recipes
+        .filter((recipe) => recipe.scrollV3 !== undefined)
+        .map((recipe) => recipe.key)
+        .sort(),
+    ).toEqual([...V3_KIT_KEYS].sort());
+    for (const [kit, keys] of Object.entries(KIT_RECIPES_V3)) {
+      expect(STAGE_KIT_IDS, kit).toContain(kit);
+      for (const key of keys) expect(RECIPES[key].scrollV3, key).toBeDefined();
+    }
+    // Earth & sky, Space and the heart and nerves of the Human body: the systems whose subjects the kits drew.
+    for (const recipe of recipes.filter((candidate) => candidate.scrollV3 !== undefined))
       expect(['earth', 'space', 'human-body'], recipe.key).toContain(recipe.systemId);
-    for (const recipe of recipes.filter((candidate) =>
-      ['circulation.v1', 'nerve.v1'].includes(candidate.stageKit ?? ''),
-    ))
-      expect(recipe.systemId, recipe.key).toBe('human-body');
   });
 
   it('leaves the recipes no kit draws plain: coasts, the blanket audit, kinds of planet and other worlds', () => {
@@ -258,6 +275,14 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       expect(RECIPES[key].stageKit, key).toBeUndefined();
   });
 
+  it('keeps the recipes no kit drew as v2 plain Scrolls, not v3: coasts, the blanket audit and other worlds (#787)', () => {
+    for (const key of ['tides-coasts', 'greenhouse-limits', 'seasons-elsewhere'] as const) {
+      expect(RECIPES[key].scrollV2?.variant, key).toBe('plain');
+      expect(RECIPES[key].scrollV3, key).toBeUndefined();
+    }
+    expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV3');
+  });
+
   it('draws "Seasons elsewhere" from pages about Mars and Uranus, and keeps its brief to what they state', () => {
     const { brief, pages } = RECIPES['seasons-elsewhere'];
     expect(pages).toEqual(['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/']);
@@ -270,9 +295,13 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
 });
 
 const SEASONS = ['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons-limits'] as const;
-/** The recipes of the first waves (D-199): every recipe of these systems has no drawing kit. */
+/** The recipes of the first waves (D-199): the systems whose recipes were marked together. Six of them had a kit and are v3 since #787. */
 const WAVE_SYSTEMS = ['human-body', 'computing', 'machine-learning', 'history'];
 const WAVE_RECIPES = recipes.filter((recipe) => WAVE_SYSTEMS.includes(recipe.systemId)).map((recipe) => recipe.key);
+/** A recipe that had a kit is planned as a document v3 Scroll since #787, so it is not one of the v2 recipes below. */
+const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
+const SEASONS_V2 = SEASONS.filter((key) => !isV3(key));
+const WAVE_V2 = WAVE_RECIPES.filter((key) => !isV3(key));
 /**
  * The Earth and Space recipes marked after their kits landed (D-217): every recipe a kit draws, and the plain
  * parts of the same series. `exoplanet-kinds` has no kit and is in no series, so it is not marked.
@@ -294,17 +323,21 @@ const KIT_WAVE_RECIPES = [
   'black-hole-horizon',
   'black-hole-evidence',
 ] as const;
+const KIT_WAVE_V2 = KIT_WAVE_RECIPES.filter((key) => !isV3(key));
 
 describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => {
   const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
 
-  it('marks the four Seasons recipes, the first waves and the kit waves, and nothing else, so adding one is a deliberate edit', () => {
-    expect(v2.map((recipe) => recipe.key).sort()).toEqual([...SEASONS, ...WAVE_RECIPES, ...KIT_WAVE_RECIPES].sort());
+  it('marks the Seasons recipe no kit drew, the first waves and the plain kit-wave recipes, and nothing else: the 22 recipes that had a kit are document v3 since #787', () => {
+    expect(v2.map((recipe) => recipe.key).sort()).toEqual([...SEASONS_V2, ...WAVE_V2, ...KIT_WAVE_V2].sort());
+    expect(v2).toHaveLength(32);
   });
 
-  it('gives a picture exactly where a kit draws the subject: the variant follows stageKit', () => {
-    for (const recipe of v2)
-      expect(recipe.scrollV2?.variant === 'stage', recipe.key).toBe(recipe.stageKit !== undefined);
+  it('makes every v2 recipe a plain Scroll, because no recipe has a kit any more (#787)', () => {
+    for (const recipe of v2) {
+      expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
+      expect(recipe.stageKit, recipe.key).toBeUndefined();
+    }
   });
 
   it('ships only misconception sources a person has reviewed, because the library refuses the rest at dispatch', () => {
@@ -314,24 +347,16 @@ describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => 
     }
   });
 
-  it('keeps the one myth the V3 design documents, with its reviewed source, and gives the other three none', () => {
-    expect(RECIPES.seasons.scrollV2).toEqual({
-      variant: 'stage',
-      misconception: {
-        kind: 'myth',
-        claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
-        source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
-      },
-      landmark: { key: 'the-leaning-axis', name: 'The Leaning Axis' },
-      finalCall: { kind: 'tilt' },
-      stagePlan: {
-        orbitMonths: 2,
-        figures: ['nearest', 'farthest', 'june-daylight', 'december-daylight'],
-        reveal: true,
-      },
+  it('keeps the one myth the V3 design documents, with its reviewed source, in the document v3 plan of "seasons" (#787), and gives the other three none', () => {
+    expect(RECIPES.seasons.scrollV2).toBeUndefined();
+    expect(RECIPES.seasons.scrollV3?.misconception).toEqual({
+      kind: 'myth',
+      claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
+      source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
     });
-    for (const key of ['seasons-hemispheres', 'seasons-limits', 'seasons-elsewhere'] as const)
-      expect(RECIPES[key].scrollV2?.misconception, key).toEqual({ kind: 'none' });
+    for (const key of ['seasons-hemispheres', 'seasons-limits'] as const)
+      expect(RECIPES[key].scrollV3?.misconception, key).toEqual({ kind: 'none' });
+    expect(RECIPES['seasons-elsewhere'].scrollV2?.misconception).toEqual({ kind: 'none' });
   });
 });
 
@@ -348,24 +373,30 @@ describe('the waves marked for S-6 (D-199)', () => {
     'reflex-arc',
   ];
 
-  it('covers every recipe of the four systems, and only the six heart and nerve recipes have a kit', () => {
+  it('covers every recipe of the four systems; the six heart and nerve recipes a kit once drew are document v3 since #787, and none has a kit', () => {
     expect(waves).toHaveLength(35);
-    for (const recipe of waves)
-      if (DRAWN.includes(recipe.key)) expect(recipe.stageKit, recipe.key).toMatch(/^(circulation|nerve)\.v1$/u);
-      else expect(recipe.stageKit, recipe.key).toBeUndefined();
+    for (const recipe of waves) {
+      expect(recipe.stageKit, recipe.key).toBeUndefined();
+      expect(isV3(recipe.key), recipe.key).toBe(DRAWN.includes(recipe.key));
+    }
   });
 
-  it('makes each a v2 Scroll with calls and no myth, a stage Scroll exactly where a kit draws it and a plain one otherwise: none of its pages states a common wrong belief', () => {
+  it('makes each a v2 Scroll with calls and no myth (a plain one) or, for the six, a document v3 Scroll with no myth: none of its pages states a common wrong belief', () => {
     for (const recipe of waves) {
-      expect(recipe.scrollV2?.variant, recipe.key).toBe(DRAWN.includes(recipe.key) ? 'stage' : 'plain');
+      if (DRAWN.includes(recipe.key)) {
+        expect(recipe.scrollV2, recipe.key).toBeUndefined();
+        expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
+        continue;
+      }
+      expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
       expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
       expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
     }
   });
 
-  it('names a landmark for each, in plain words that never claim mastery', () => {
+  it('names a landmark for each v2 recipe, in plain words that never claim mastery', () => {
     const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
-    for (const recipe of waves) {
+    for (const recipe of waves.filter((candidate) => !DRAWN.includes(candidate.key))) {
       const landmark = recipe.scrollV2?.landmark;
       expect(landmark, recipe.key).toBeDefined();
       expect(landmark?.name, recipe.key).not.toMatch(mastery);
@@ -373,9 +404,11 @@ describe('the waves marked for S-6 (D-199)', () => {
     }
   });
 
-  it('marks every part of a series or none of it, so a series is admitted whole', () => {
+  it('marks every part of a series or none of it, as a v2 or a document v3 Scroll, so a series is admitted whole', () => {
     for (const series of LIBRARY_SERIES) {
-      const marked = series.parts.filter((part) => RECIPES[part].scrollV2 !== undefined);
+      const marked = series.parts.filter(
+        (part) => RECIPES[part].scrollV2 !== undefined || RECIPES[part].scrollV3 !== undefined,
+      );
       expect([0, series.parts.length], series.id).toContain(marked.length);
     }
   });
@@ -385,26 +418,31 @@ describe('the kit waves marked for S-6b (D-217)', () => {
   const waves = KIT_WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
   const PLAIN = ['tides-coasts', 'greenhouse-limits'];
 
-  it('marks every Earth and Space recipe a kit draws, and the plain parts of their series', () => {
-    const drawn = recipes
-      .filter((recipe) => ['earth', 'space'].includes(recipe.systemId) && recipe.stageKit !== undefined)
-      .map((recipe) => recipe.key)
-      .filter((key) => !key.startsWith('seasons'));
+  it('marks every Earth and Space recipe a kit drew (document v3 since #787), and the plain parts of their series (v2)', () => {
+    const drawn = V3_KIT_KEYS.filter(
+      (key) => ['earth', 'space'].includes(RECIPES[key as keyof typeof RECIPES].systemId) && !key.startsWith('seasons'),
+    );
     expect([...drawn, ...PLAIN].sort()).toEqual([...KIT_WAVE_RECIPES].sort());
     expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV2');
+    expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV3');
   });
 
-  it('makes a stage Scroll where a kit draws it and a plain one for the two audit and coast parts, with no myth and no Final call control', () => {
+  it('makes a document v3 Scroll where a kit drew the recipe and a plain v2 one for the two audit and coast parts, with no myth and no Final call control', () => {
     for (const recipe of waves) {
-      expect(recipe.scrollV2?.variant, recipe.key).toBe(PLAIN.includes(recipe.key) ? 'plain' : 'stage');
-      expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
-      expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
+      if (PLAIN.includes(recipe.key)) {
+        expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
+        expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
+        expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
+      } else {
+        expect(recipe.scrollV2, recipe.key).toBeUndefined();
+        expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
+      }
     }
   });
 
-  it('names a landmark for each, in plain words that never claim mastery', () => {
+  it('names a landmark for each v2 recipe, in plain words that never claim mastery', () => {
     const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
-    for (const recipe of waves) {
+    for (const recipe of waves.filter((candidate) => PLAIN.includes(candidate.key))) {
       const landmark = recipe.scrollV2?.landmark;
       expect(landmark, recipe.key).toBeDefined();
       expect(landmark?.name, recipe.key).not.toMatch(mastery);
@@ -422,7 +460,7 @@ describe('landmarks and the Final call control (D-187, D-188)', () => {
         .filter((recipe) => recipe.scrollV2?.landmark !== undefined)
         .map((recipe) => recipe.key)
         .sort(),
-    ).toEqual([...SEASONS, ...WAVE_RECIPES, ...KIT_WAVE_RECIPES].sort());
+    ).toEqual([...SEASONS_V2, ...WAVE_V2, ...KIT_WAVE_V2].sort());
   });
 
   it('gives every landmark a key and a name that fit the document, and no two the same key or name', () => {
@@ -438,11 +476,10 @@ describe('landmarks and the Final call control (D-187, D-188)', () => {
     expect(new Set(landmarks.map((landmark) => landmark.name)).size).toBe(landmarks.length);
   });
 
-  it('hands the reader the tilt of Earth only in the Scroll about the tilt, and only where the picture draws the axis', () => {
+  it('hands no reader the tilt of Earth now: the one Scroll that had it, "seasons", is a document v3 recipe with no picture to turn (#787)', () => {
     const bound = v2.filter((recipe) => recipe.scrollV2?.finalCall !== undefined).map((recipe) => recipe.key);
-    expect(bound).toEqual(['seasons']);
-    for (const recipe of v2.filter((candidate) => candidate.scrollV2?.finalCall !== undefined))
-      expect(recipe.stageKit, recipe.key).toBe('earth-sky.v1');
+    expect(bound).toEqual([]);
+    expect(RECIPES.seasons.scrollV2).toBeUndefined();
   });
 });
 
@@ -475,8 +512,8 @@ describe('what a recipe asks of its picture (D-382, D-383)', () => {
     expect([...STAGE_FIGURE_SLOT_IDS]).toEqual([...STAGE_FIGURE_SLOTS]);
   });
 
-  it('asks only of a stage Scroll drawn with Earth & sky, the one kit that draws orbits, figures and a reveal', () => {
-    expect(planned.map((recipe) => recipe.key)).toEqual(['seasons']);
+  it('is asked by no recipe now: the one that asked, "seasons", is a document v3 recipe (#787); a recipe that asks must be a stage Scroll drawn with Earth & sky, the one kit that draws orbits, figures and a reveal', () => {
+    expect(planned.map((recipe) => recipe.key)).toEqual([]);
     for (const recipe of planned) {
       expect(recipe.scrollV2?.variant, recipe.key).toBe('stage');
       expect(recipe.stageKit, recipe.key).toBe(EARTH_SKY_KIT);
@@ -515,5 +552,48 @@ describe('the document v3 plan (scrollV3, #771)', () => {
       expect(plan?.pictures?.length ?? 1, recipe.key).toBeLessThanOrEqual(3);
       for (const picture of plan?.pictures ?? []) expect(picture.purpose.trim(), recipe.key).not.toBe('');
     }
+  });
+
+  describe('the 22 recipes that had a kit (#787)', () => {
+    const kit = planned.filter((recipe) => isV3(recipe.key));
+
+    it('plan at least one picture each, of a kind from the closed set and never a quotation', () => {
+      expect(kit).toHaveLength(22);
+      for (const recipe of kit) {
+        const pictures = recipe.scrollV3?.pictures ?? [];
+        expect(pictures.length, recipe.key).toBeGreaterThanOrEqual(1);
+        for (const picture of pictures) {
+          expect(PICTURE_KIND_IDS, recipe.key).toContain(picture.kind);
+          // No page of these recipes quotes a person, so a statement picture here is a number or a list, never a quotation.
+          expect(picture.purpose, recipe.key).not.toMatch(/\bquot(?:e|ation)/iu);
+        }
+      }
+    });
+
+    it('name no source, publisher or page in a section or a picture: a Scroll never shows where it read', () => {
+      const names = /\b(?:NASA|NOAA|Wikipedia|Space Place|Earth Observatory|the page|this page)\b/u;
+      for (const recipe of kit) {
+        for (const text of [
+          ...(recipe.scrollV3?.sections ?? []),
+          ...(recipe.scrollV3?.pictures ?? []).map((picture) => picture.purpose),
+        ])
+          expect(text, recipe.key).not.toMatch(names);
+      }
+    });
+
+    it('keep the myth only where a page of the recipe documents it: "seasons" alone', () => {
+      expect(
+        kit.filter((recipe) => recipe.scrollV3?.misconception.kind === 'myth').map((recipe) => recipe.key),
+      ).toEqual(['seasons']);
+    });
+
+    it('keep their briefs free of made-up numbers and of controls the reader moves, which no page of theirs states', () => {
+      // The brief rule: a brief asks only for what its pages state (README). A brief that asks for illustrative or made-up
+      // numbers, or for an interactive control, was rewritten for these recipes; none may ask again.
+      for (const recipe of kit)
+        expect(recipe.brief, recipe.key).not.toMatch(
+          /illustrative|made-up|labelled as illustrative|let the reader (?:move|change)/iu,
+        );
+    });
   });
 });

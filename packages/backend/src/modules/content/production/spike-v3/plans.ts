@@ -2,10 +2,12 @@ import type { ScrollV3Plan } from '../../domain/library/plan.js';
 import type { ScrollTopic } from '../topics.js';
 
 /**
- * The ten recipes of the document v3 writer spike (#771). The library marks none of them as v3 yet, so the spike carries its
- * own plan for each: the kind of essay, what each of its three sections is for and, for a recipe a drawing kit once
+ * The ten recipes of the document v3 writer spike (#771). The spike carries its own plan for each, so a spike run is the same
+ * whatever the library plan says: the kind of essay, what each of its three sections is for and, for a recipe a drawing kit once
  * pictured, the pictures that replace the kit. A recipe with no `pictures` leaves the choice of kinds to the writer.
- * Every plan names no misconception.
+ * Every plan names no misconception. Five of the ten (`seasons`, `tides-spring-neap`, `greenhouse-radiation`, `cardiac-cycle`,
+ * `black-hole-formation`) are document v3 recipes in the library since #787, with a plan of their own written from their pages;
+ * the spike's plan for them is the measurement's, not the library's.
  */
 export const SPIKE_PLANS_V3 = {
   seasons: {
