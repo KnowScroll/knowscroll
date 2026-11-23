@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CancelContentRequestReceiptSchema,
   CancelContentRequestSchema,
+  ContentRequestListSchema,
   ContentRequestReceiptSchema,
   ContentRequestStatusSchema,
   CreateContentRequestSchema,
@@ -265,6 +266,16 @@ describe('Supply prerequisite wire contracts', () => {
       'person',
     ])
       expect(ContentRequestStatusSchema.safeParse({ ...closed, limit }).success).toBe(false);
+  });
+
+  it('marks a question asked from a Scroll in the list with a closed flag, and nothing else', () => {
+    const row = { title: 'Why is the far side cold?', format: 'scroll', status: preparing };
+    const list = (requests: unknown[]) => ({ version: 'content-request-list.v1', requests });
+    expect(ContentRequestListSchema.safeParse(list([row])).success).toBe(true);
+    expect(ContentRequestListSchema.safeParse(list([{ ...row, ask: true }])).success).toBe(true);
+    for (const ask of [false, 'yes', 1, null])
+      expect(ContentRequestListSchema.safeParse(list([{ ...row, ask }])).success).toBe(false);
+    expect(ContentRequestListSchema.safeParse(list([{ ...row, ask: true, other: 1 }])).success).toBe(false);
   });
 
   it('uses only fixed coarse unavailable reasons with no raw error or pending-work assertion', () => {

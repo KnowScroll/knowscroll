@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Text } from '@knowscroll/ui';
+import { useMadeToOrder } from '../../providers/made-to-order';
 
 interface Shortcut {
   /** The keys as drawn, one chip each; keys pressed together are joined with "+". */
@@ -8,6 +9,8 @@ interface Shortcut {
   /** The same keys in words, which is what a screen reader hears. */
   readonly spoken: string;
   readonly action: string;
+  /** Listed only while the Scrolls made to order are on (D-436): the key is not wired, so it is not promised, while they are off. */
+  readonly madeToOrder?: true;
 }
 
 interface ShortcutGroup {
@@ -62,8 +65,14 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
         keys: ['A', '?'],
         spoken: 'A or question mark',
         action: 'Ask about this (while reading a Scroll; also the first row of •••)',
+        madeToOrder: true,
       },
-      { keys: ['1', '2', '3'], spoken: '1, 2 or 3', action: 'In the Ask sheet: pick a suggested question' },
+      {
+        keys: ['1', '2', '3'],
+        spoken: '1, 2 or 3',
+        action: 'In the Ask sheet: pick a suggested question',
+        madeToOrder: true,
+      },
       { keys: ['T'], spoken: 'T', action: 'Text version: every figure as words' },
       { keys: ['F'], spoken: 'F', action: 'Switch between Reel and Scroll' },
       { keys: ['L'], spoken: 'L', action: 'In Explore: like this Scroll, or take the like back (the ♡ in the dock)' },
@@ -172,6 +181,7 @@ function Keys({ shortcut }: { readonly shortcut: Shortcut }) {
 
 /** The keyboard map as a sheet: reachable from Account and from the desktop Explore footer. */
 export function KeyboardMapSheet({ visible, onClose }: { readonly visible: boolean; readonly onClose: () => void }) {
+  const madeToOrder = useMadeToOrder();
   return (
     <BottomSheet visible={visible} title="Keyboard shortcuts" onClose={onClose}>
       <View style={styles.groups}>
@@ -184,20 +194,22 @@ export function KeyboardMapSheet({ visible, onClose }: { readonly visible: boole
               {group.where}
             </Text>
             <View role="list" style={styles.list}>
-              {group.shortcuts.map((shortcut) => (
-                <View
-                  key={shortcut.spoken}
-                  role="listitem"
-                  accessible
-                  accessibilityLabel={`${shortcut.spoken}: ${shortcut.action}`}
-                  style={styles.row}
-                >
-                  <Keys shortcut={shortcut} />
-                  <View aria-hidden style={styles.action}>
-                    <Text variant="bodyS">{shortcut.action}</Text>
+              {group.shortcuts
+                .filter((shortcut) => madeToOrder || shortcut.madeToOrder !== true)
+                .map((shortcut) => (
+                  <View
+                    key={shortcut.spoken}
+                    role="listitem"
+                    accessible
+                    accessibilityLabel={`${shortcut.spoken}: ${shortcut.action}`}
+                    style={styles.row}
+                  >
+                    <Keys shortcut={shortcut} />
+                    <View aria-hidden style={styles.action}>
+                      <Text variant="bodyS">{shortcut.action}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))}
             </View>
           </View>
         ))}

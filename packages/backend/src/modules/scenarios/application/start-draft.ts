@@ -21,7 +21,8 @@ type StartInput = z.infer<typeof StartScenarioDraftSchema>;
  * account gate (lock order: personal root, account gate, thread). Refused without a receipt: a
  * request whose origin message is not in this thread or has no words, a parent the caller saw at
  * another revision (`stale_revision`), a thread nothing of which can be researched by code
- * (`unsupported`), and a member past their day's drafts (`budget_unavailable`).
+ * (`unsupported`), and a member past their day's drafts (`budget_unavailable`). While `KS_MADE_TO_ORDER_ENABLED` is off
+ * (D-436) every request is refused as `made_to_order_off` before any scope is entered, so no draft, receipt or planner job exists.
  */
 export function makeStartDraft(p: ScenarioPorts) {
   return async function startDraft(
@@ -30,6 +31,7 @@ export function makeStartDraft(p: ScenarioPorts) {
   ): Promise<Result<z.infer<typeof ScenarioDraftStartedSchema>>> {
     const parsed = StartScenarioDraftSchema.safeParse(input);
     if (!parsed.success) return refuse('invalid_input');
+    if (!p.madeToOrderEnabled) return refuse('made_to_order_off');
     const command = parsed.data;
     const entered = await p.withScope(
       authority,

@@ -13,9 +13,22 @@ export type ProduceScroll = (
   take?: number,
 ) => Promise<ProduceScrollResult>;
 
+/** What the production job reads from the process's configuration. */
+export interface ScrollProductionSettings {
+  /**
+   * `KS_MADE_TO_ORDER_ENABLED` (D-436). Off, a job for an order placed from code (`order-…`: an ask order or a branch) ends at once
+   * without producing anything.
+   */
+  readonly madeToOrderEnabled: boolean;
+}
+
 export type ScrollProductionJobOutcome =
-  /** The job is not for this build: another recipe version, or a recipe this code does not hold. */
-  | { readonly kind: 'skipped'; readonly reason: 'policy_version' | 'unknown_recipe' }
+  /**
+   * The job is not for this build: another recipe version, or a recipe this code does not hold; or it is for a Scroll made to
+   * order while that is switched off (`made_to_order_off`). A skipped job is complete: it is never retried, and no run, attempt or
+   * paid request is made for it.
+   */
+  | { readonly kind: 'skipped'; readonly reason: 'policy_version' | 'unknown_recipe' | 'made_to_order_off' }
   /**
    * The delivery is done: the business run is terminal (published, rejected or unknown), or it paused
    * because a daily budget or the provider's quota is used up and waits for a later send, or the take
@@ -38,12 +51,20 @@ export type ScrollProductionJobOutcome =
  * call belongs to another running delivery, so this one fails to be tried again later. A transient
  * research failure (the network, a host that is slow or erroring) also fails the delivery, so the queue
  * tries it again with backoff; the job stays at its research stage and no take is spent.
+ *
+ * While `KS_MADE_TO_ORDER_ENABLED` is off (D-436) a job for an order placed from code is skipped as `made_to_order_off` before
+ * anything is read or run. `madeToOrderQueue` says the job came from the queue that holds only such orders
+ * (`content.produce-answer`), so a job there is held to the same rule whatever its recipe key says. Library recipes are never
+ * affected.
  */
-export function makeRunScrollProduction(produce: ProduceScroll) {
+export function makeRunScrollProduction(produce: ProduceScroll, settings: ScrollProductionSettings) {
   return async function runScrollProduction(
     job: ProduceScrollJob,
     delivery: { readonly signal: AbortSignal },
+    madeToOrderQueue = false,
   ): Promise<ScrollProductionJobOutcome> {
+    if (!settings.madeToOrderEnabled && (madeToOrderQueue || isMadeToOrderKey(job.recipe)))
+      return { kind: 'skipped', reason: 'made_to_order_off' };
     if (job.policyVersion !== productionVersionOf(job.recipe)) return { kind: 'skipped', reason: 'policy_version' };
     const recipe = parseProductionRecipe(job.recipe) ?? (isMadeToOrderKey(job.recipe) ? job.recipe : undefined);
     if (recipe === undefined) return { kind: 'skipped', reason: 'unknown_recipe' };

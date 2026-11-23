@@ -235,6 +235,26 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_GROWTH_DAILY_CAP: '-1' })).toThrow();
   });
+  it('keeps the Scrolls made to order off in every world, local included, until the switch is set to 1', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    for (const world of ['local', 'dev', 'stage', 'ci']) {
+      expect(worker({ KS_WORLD: world }).madeToOrderEnabled).toBe(false);
+      expect(api({ KS_WORLD: world }).madeToOrderEnabled).toBe(false);
+    }
+    expect(worker({ KS_WORLD: 'dev', KS_MADE_TO_ORDER_ENABLED: '1' }).madeToOrderEnabled).toBe(true);
+    expect(api({ KS_WORLD: 'dev', KS_MADE_TO_ORDER_ENABLED: '1' }).madeToOrderEnabled).toBe(true);
+    expect(worker({ KS_WORLD: 'dev', KS_MADE_TO_ORDER_ENABLED: '0' }).madeToOrderEnabled).toBe(false);
+    expect(api({ KS_WORLD: 'dev', KS_MADE_TO_ORDER_ENABLED: '0' }).madeToOrderEnabled).toBe(false);
+    // Anything but 0 or 1 is a mistake, never a quiet "on" or "off".
+    expect(() => worker({ KS_WORLD: 'dev', KS_MADE_TO_ORDER_ENABLED: 'yes' })).toThrow();
+    expect(() => api({ KS_WORLD: 'dev', KS_MADE_TO_ORDER_ENABLED: 'true' })).toThrow();
+    // The caps stay what they are: the switch is not a cap, and a cap does not turn the switch on.
+    expect(api({ KS_WORLD: 'local', KS_SUPPLY_ASK_DAILY_CAP: '8' }).madeToOrderEnabled).toBe(false);
+    expect(api({ KS_WORLD: 'local' }).supplyAskDailyCap).toBe(20);
+    expect(api({ KS_WORLD: 'local', KS_MADE_TO_ORDER_ENABLED: '1' }).supplyAskDailyCap).toBe(20);
+  });
   it('keeps the gap loop off in every world until it is switched on, and reads its depth target from one value', () => {
     const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
     const api = (env: Record<string, string>) =>

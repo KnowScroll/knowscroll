@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, ErrorState, RequestStatusChip, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import type { ContentRequestStatus } from '@knowscroll/contracts';
+import { useMadeToOrder } from '../../providers/made-to-order';
 import { canTryAgain, formatWord, unavailableMessage } from './request-copy';
 import type { ListedRequest, RequestsListSession } from './requests-list-session';
 
@@ -125,6 +126,10 @@ export function RequestsList({
   readonly onAsk?: () => void;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
+  // A question asked from a Scroll is a way into a Scroll made to order: while those are off the list does not show it or its
+  // status (D-436). Every other request stays.
+  const madeToOrder = useMadeToOrder();
+  const items = madeToOrder ? state.items : state.items.filter((item) => item.ask !== true);
   if (state.phase === 'loading') return <Skeleton rows={3} label="Loading your requests" />;
   if (state.phase === 'unavailable')
     return (
@@ -134,7 +139,7 @@ export function RequestsList({
         onRetry={() => void session.refresh()}
       />
     );
-  if (state.items.length === 0)
+  if (items.length === 0)
     return (
       <StateBlock
         title="Nothing requested yet"
@@ -149,7 +154,7 @@ export function RequestsList({
       {state.stale ? (
         <Banner kind="offline" lead="May be out of date." message="We couldn't refresh your requests just now." />
       ) : null}
-      {state.items.map((item) => (
+      {items.map((item) => (
         <RequestRow
           key={item.status.requestId}
           item={item}

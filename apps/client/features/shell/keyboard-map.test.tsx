@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider, FOLIO_KEY_NAMES } from '@knowscroll/ui';
 import { KEYBOARD_MAP, KeyboardMapSheet } from './keyboard-map';
 import { UNIVERSE_MAP_KEY_NAMES } from '../universe/universe-stage';
+import { MadeToOrderContext, type MadeToOrderState } from '../../providers/made-to-order';
 
 async function show(onClose = jest.fn()) {
   await render(
@@ -77,4 +78,32 @@ describe('the keyboard map', () => {
     await fireEvent.press(screen.getByRole('button', { name: /close/i }));
     expect(onClose).toHaveBeenCalled();
   });
+});
+
+describe('the keyboard map and the made-to-order switch (D-436)', () => {
+  const showWith = async (state: MadeToOrderState) => {
+    await render(
+      <DisplayProvider value={{ width: 1440, textScale: 1, reducedMotion: true }}>
+        <MadeToOrderContext.Provider value={state}>
+          <KeyboardMapSheet visible onClose={jest.fn()} />
+        </MadeToOrderContext.Provider>
+      </DisplayProvider>,
+    );
+  };
+
+  it('lists the Ask keys while the switch is on', async () => {
+    await showWith('on');
+    expect(
+      screen.getByLabelText('A or question mark: Ask about this (while reading a Scroll; also the first row of •••)'),
+    ).toBeOnTheScreen();
+    expect(screen.getByLabelText('1, 2 or 3: In the Ask sheet: pick a suggested question')).toBeOnTheScreen();
+  });
+
+  for (const state of ['off', 'unknown'] as const)
+    it(`does not promise the Ask keys while the switch is ${state}, and keeps the other Scroll keys`, async () => {
+      await showWith(state);
+      expect(screen.queryByLabelText(/Ask about this/)).toBeNull();
+      expect(screen.queryByLabelText(/In the Ask sheet/)).toBeNull();
+      expect(screen.getByLabelText('T: Text version: every figure as words')).toBeOnTheScreen();
+    });
 });

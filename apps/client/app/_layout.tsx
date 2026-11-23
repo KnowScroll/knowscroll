@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { DisplayRoot } from '@knowscroll/ui';
 import { AccountScopeProvider } from '../providers/account-scope';
+import { MadeToOrderProvider } from '../providers/made-to-order';
 import { parseDevicePreferences } from '../features/account/device-preferences';
 import { paintAppearance } from '../platform/appearance-page';
 import { devicePreferencesStore } from '../platform/device-preferences-store';
@@ -19,7 +20,8 @@ paintAppearance(parseDevicePreferences(devicePreferencesStore.read()).appearance
  * they chose (Light or Dark, Account: Appearance, #666) is applied once for the whole app. The
  * AccountScope (#226) reads the session once, then gives the tree the query client of the
  * signed-in scope (one per account and privacy epoch) or of the signed-out period, and remounts
- * the tree when that changes, so no state of one account survives into another.
+ * the tree when that changes, so no state of one account survives into another. The made-to-order switch (D-436) is read from
+ * the API once the scope is there, and every way into those features waits for it.
  */
 export default function RootLayout() {
   const [loaded, error] = useFonts(fontFamilies);
@@ -30,8 +32,10 @@ export default function RootLayout() {
         <PreferredDisplay>
           <PreferredAppearance>
             <AccountScopeProvider>
-              <StatusBar style="auto" />
-              <Stack screenOptions={{ headerShown: false }} />
+              <MadeToOrderProvider>
+                <StatusBar style="auto" />
+                <Stack screenOptions={{ headerShown: false }} />
+              </MadeToOrderProvider>
             </AccountScopeProvider>
           </PreferredAppearance>
         </PreferredDisplay>

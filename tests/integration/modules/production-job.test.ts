@@ -164,7 +164,10 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       proposeProduction: () => Promise.reject(new Error('CI_CRASH_BEFORE_WRITER')),
     };
     await expect(
-      makeRunScrollProduction(p.producer({ harness: crash }))(produceScrollJob('stars-fusion'), delivery()),
+      makeRunScrollProduction(p.producer({ harness: crash }), { madeToOrderEnabled: true })(
+        produceScrollJob('stars-fusion'),
+        delivery(),
+      ),
     ).rejects.toThrow('CI_CRASH_BEFORE_WRITER');
     expect(await runRow()).toMatchObject({ state: 'writer' });
     expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'running' });

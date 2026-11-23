@@ -69,7 +69,9 @@ describe('production versions: a recipe is v1 unless the plan marks it v2', () =
       policyVersion: SCROLL_PRODUCTION_V2_VERSION,
       take: 2,
     });
-    const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')));
+    const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')), {
+      madeToOrderEnabled: true,
+    });
     const abort = { signal: new AbortController().signal };
     // A job queued before the plan marked the recipe carries the old version and is dropped.
     expect(
@@ -97,7 +99,9 @@ describe('production versions: a recipe the plan marks document v3', () => {
       policyVersion: SCROLL_PRODUCTION_V3_VERSION,
       take: 2,
     });
-    const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')));
+    const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')), {
+      madeToOrderEnabled: true,
+    });
     const abort = { signal: new AbortController().signal };
     expect(
       await run({ v: 1, recipe: 'exoplanet-kinds', policyVersion: SCROLL_PRODUCTION_V2_VERSION, take: 1 }, abort),

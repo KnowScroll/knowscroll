@@ -125,6 +125,8 @@ export interface SupplySettings {
   readonly supplyGrowthDailyCap?: number;
   /** `KS_SUPPLY_GROWTH_ENABLED`: the gap loop notices content running out and proposes recipes (D-414); absent is off. */
   readonly supplyGrowthEnabled?: boolean;
+  /** `KS_MADE_TO_ORDER_ENABLED` (D-436): required, so no composition can leave the switch to a default. */
+  readonly madeToOrderEnabled: boolean;
   /** Ask orders (a short Scroll made for a person's question) Create may make per UTC day for the world; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -133,6 +135,8 @@ export interface SupplySettings {
 
 /** What scenario Create reads from the API's configuration. */
 export interface ScenarioOrderSettings {
+  /** `KS_MADE_TO_ORDER_ENABLED` (D-436): off, no branch is ordered. */
+  readonly madeToOrderEnabled: boolean;
   /** Branches Quartermaster may order per UTC day; 0 turns scenario Create off. */
   readonly supplyScenarioDailyCap: number;
   /** Branches one thread may have ordered per UTC day. */
@@ -253,6 +257,7 @@ export function supplyProviders(t: {
           }),
           logEvent,
         ),
+        madeToOrderEnabled: settings.madeToOrderEnabled,
         askCaps: { perDay: settings.supplyAskDailyCap, perPersonPerDay: settings.supplyAskPersonDailyCap },
         askLedger: askOrderLedger,
         plannedLedger: plannedDemandLedger,
@@ -460,6 +465,7 @@ export function scenarioOrderProviders(t: { readonly enqueueJob: symbol; readonl
       inject: [t.enqueueJob, t.config, RECORD_MADE_TO_ORDER_SCROLL],
       useFactory: (enqueue: EnqueueJob, settings: ScenarioOrderSettings, recordOrder: RecordMadeToOrderScroll) =>
         makeCommissionScenarioOrder({
+          enabled: settings.madeToOrderEnabled,
           store: scenarioOrderStore,
           recordOrder,
           enqueueProduction: sendProduction(enqueue),

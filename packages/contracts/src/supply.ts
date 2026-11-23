@@ -213,6 +213,12 @@ export const ContentRequestListSchema = z.strictObject({
         title: z.string().min(1).max(160),
         format: RequestedFormat,
         status: ContentRequestStatusSchema,
+        /**
+         * Present (`true`) only on a question asked from a Scroll ("You asked"), whether a library Scroll or one made to order
+         * answered it. A client leaves these out of the list while the made-to-order Scrolls are off (D-436); every other
+         * request, a catalogue topic or a Reel or Scroll asked for, never carries it.
+         */
+        ask: z.literal(true).optional(),
       }),
     )
     .max(50),

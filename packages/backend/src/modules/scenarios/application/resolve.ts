@@ -10,6 +10,8 @@ export interface ResolveBranchesPorts {
   /** Sends the production job of one take outside any transaction (the queue keeps one job per recipe, version and take). */
   readonly sendProduction: (recipe: string, take: number) => Promise<void>;
   readonly announce: AnnounceThread;
+  /** `KS_MADE_TO_ORDER_ENABLED` (D-436). Off, a branch whose production needs another take is left alone: no job is sent for it. */
+  readonly madeToOrderEnabled: boolean;
   readonly now: () => Date;
 }
 
@@ -56,6 +58,8 @@ export function makeResolveBranches(p: ResolveBranchesPorts) {
       };
       const progress = branchProgress(standing, p.now().getTime() - branch.createdAt.getTime());
       if (progress.kind === 'send') {
+        // Nothing is produced while the switch is off (D-436): the branch is left to age out as unable to prepare.
+        if (!p.madeToOrderEnabled) continue;
         await p.sendProduction(recipe, progress.take);
         sent += 1;
       } else if (progress.kind === 'wait') continue;

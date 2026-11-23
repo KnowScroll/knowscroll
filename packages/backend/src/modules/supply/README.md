@@ -154,6 +154,16 @@ waiter gets for waiting too long:
 
 ## Ask from here and ask orders (D-218, D-230, D-231; v3 S-7)
 
+**Switched off in every world (D-436, #784).** `KS_MADE_TO_ORDER_ENABLED` (off unless `1`, on the API and the worker) turns off every way to an ask order and
+every way to a scenario order (below) together; it is `SupplyPorts.madeToOrderEnabled`, read from the process's configuration by `supplyProviders`
+(`SupplySettings`, required, so no composition can leave it to a default). While it is off: `commissionAskOrder` answers the `off` limit before any lock is taken, so a suggested
+question, a typed question the scope step places with the Scroll and a typed question about another subject that no library Scroll answers all close the request as
+`budget_unavailable` with `ask_limit = 'off'` (the words the app already has for ask orders being off); a library Scroll that answers a typed question about another
+subject is still offered, because it makes nothing to order; `reopenedAskOrder` returns nothing, so the retry receipt is `not_retryable` and the request stays closed; and
+`advanceAskOrder` closes a waiting order's request the same way (`closeSwitchedOff`), even if its Scroll was admitted meanwhile, so the app never links to one made to order.
+Reading a request or the list is not refused; the list marks a question asked from a Scroll with `ask: true` so a client can leave it out. The switch is not a cap: `askCaps`
+keep their meaning (0 still turns ask orders off on its own). Turning it back on needs a v3 writer first (D-436).
+
 A person reading a v2 Scroll asks a question from one of its stops: `intent: { kind: 'ask', source, anchor: { kind: 'stop', stopId }, question, recordingGeneration }`.
 It is the same request row, the same states (E07), polling, cancel and retry; only where it goes differs.
 
@@ -316,6 +326,7 @@ A What if or Another perspective in a content thread (the `scenarios` module) is
 and does not match the catalogue. When a member chooses a direction, the scenarios module hands Supply a
 code-built order and `COMMISSION_SCENARIO_ORDER` runs inside the member's transaction, after the thread's lock:
 
+- it refuses with `off` before anything else while `KS_MADE_TO_ORDER_ENABLED` is off (D-436; the scenarios module has already refused the choice, so this is the second lock on the door);
 - it takes the commissioning lock (last in the lock order), so the day's count and the orders it admits agree;
 - it refuses with `day_cap` when the world's UTC day is full (`KS_SUPPLY_SCENARIO_DAILY_CAP`, 0 turns
   it off) or `thread_cap` when the thread has had all the branches it may today, five per UTC day (`KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP`, D-158);

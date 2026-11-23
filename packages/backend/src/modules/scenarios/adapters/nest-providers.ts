@@ -58,6 +58,13 @@ import { branchPoolStore, scenarioStore } from './postgres-store.js';
 export interface ScenarioTokens {
   readonly withPersonalScope: symbol;
   readonly database: symbol;
+  /** The process's configuration, which carries `madeToOrderEnabled` (`KS_MADE_TO_ORDER_ENABLED`, D-436). */
+  readonly config: symbol;
+}
+
+/** What the scenarios read from the process's configuration. */
+export interface ScenarioSettings {
+  readonly madeToOrderEnabled: boolean;
 }
 
 const SCENARIO_WORKER_PORTS = Symbol('scenarios.workerPorts');
@@ -65,18 +72,20 @@ const SCENARIO_WORKER_PORTS = Symbol('scenarios.workerPorts');
 /** The ports both processes share: the thread, the store and the thread-root metadata. */
 const workerPortsProvider = (tokens: ScenarioTokens) => ({
   provide: SCENARIO_WORKER_PORTS,
-  inject: [tokens.withPersonalScope, THREAD_GUEST, READ_SHAREABLE_CONTENT, READ_THREAD_STANDING],
+  inject: [tokens.withPersonalScope, THREAD_GUEST, READ_SHAREABLE_CONTENT, READ_THREAD_STANDING, tokens.config],
   useFactory: (
     withScope: WithPersonalScope,
     guest: ThreadGuest,
     readContent: ReadShareableContent,
     standing: ReadThreadStanding,
+    settings: ScenarioSettings,
   ): DraftWorkerPorts => ({
     withScope,
     guest,
     store: scenarioStore,
     readContent,
     standing,
+    madeToOrderEnabled: settings.madeToOrderEnabled,
     now: () => new Date(),
   }),
 });
@@ -210,14 +219,22 @@ export function scenarioWorkerProviders(tokens: ScenarioTokens & { readonly harn
     },
     {
       provide: RESOLVE_SCENARIO_BRANCHES,
-      inject: [tokens.database, READ_MADE_TO_ORDER_PRODUCTION, ENQUEUE_SCROLL_PRODUCTION, ANNOUNCE_THREAD],
+      inject: [
+        tokens.database,
+        READ_MADE_TO_ORDER_PRODUCTION,
+        ENQUEUE_SCROLL_PRODUCTION,
+        ANNOUNCE_THREAD,
+        tokens.config,
+      ],
       useFactory: (
         db: Kysely<Database>,
         readProduction: ReadMadeToOrderProduction,
         sendProduction: EnqueueScrollProduction,
         announce: AnnounceThread,
+        settings: ScenarioSettings,
       ) =>
         makeResolveBranches({
+          madeToOrderEnabled: settings.madeToOrderEnabled,
           store: branchPoolStore(db),
           readProduction,
           // A person is waiting on a branch: ahead of operator seeding, as Create sends it.

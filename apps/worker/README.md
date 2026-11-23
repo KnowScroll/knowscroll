@@ -129,6 +129,10 @@ from the personal harness. Nonpersonal Scroll supply requires explicit worker co
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
+The Scrolls made to order (an ask order, a What if, an Another perspective) are switched off in every world by `KS_MADE_TO_ORDER_ENABLED` (D-436, #784): while it is not `1`, the consumers below end every `content.produce-answer`
+job, and every `order-…` job of `content.produce-scroll`, as skipped (`made_to_order_off`: a complete delivery, never retried, no run or paid request), and the scenario steps ask no model (a waiting draft closes `could_not_suggest`, a short answer ends
+unavailable, the branch resolver sends no further take). Library recipes are not affected.
+
 The `content.produce-scroll` and `content.produce-answer` consumers (`src/production-jobs.ts`, #239, D-267) run the production use case for
 one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
 registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The

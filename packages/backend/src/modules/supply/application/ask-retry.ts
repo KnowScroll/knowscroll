@@ -9,6 +9,8 @@ import type { Demand, SupplyPorts } from './ports.js';
  * the request stays closed. The order's words and research pages were fixed when it was made, so a retry asks no model
  * and reads nothing new. An attempt of unknown outcome never reaches here: it stops the order's takes, so nothing is
  * sent. An order costs at most three takes whatever the retries, because the job counts takes, not requests.
+ * While `KS_MADE_TO_ORDER_ENABLED` is off (D-436) nothing can go again: the answer is nothing, so the request stays closed and
+ * the caller's receipt says `not_retryable`.
  *
  * Authority: the caller's open personal scope, under Create's lock order. Side effects: on a send, one production job
  * (same identity per take, so a repeat is a no-op) in the caller's transaction.
@@ -19,6 +21,7 @@ export async function reopenedAskOrder(
   d: Demand & { readonly askOrder: NonNullable<Demand['askOrder']> },
   requestRevision: number,
 ): Promise<Demand | undefined> {
+  if (!p.madeToOrderEnabled) return undefined;
   const recipe = madeToOrderKey(d.askOrder.orderId);
   const reading = await p.readOrderProduction(scope, recipe);
   const now = p.now().toISOString();

@@ -180,7 +180,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   }
 
   /** Composes the use cases with the given daily caps, the way the worker's providers do. */
-  function build(caps: { perDay: number; perPerson: number } = { perDay: 20, perPerson: 5 }) {
+  function build(caps: { perDay: number; perPerson: number; madeToOrder?: boolean } = { perDay: 20, perPerson: 5 }) {
     const SCOPE = Symbol('scope');
     const ENQUEUE = Symbol('enqueue');
     const CONFIG = Symbol('config');
@@ -202,6 +202,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
           supplyPlannerCreateDailyCap: 10,
           supplyAskDailyCap: caps.perDay,
           supplyAskPersonDailyCap: caps.perPerson,
+          // The suite runs with the switch on (D-436); the cases that need it off say so.
+          madeToOrderEnabled: caps.madeToOrder ?? true,
         },
       ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
@@ -422,6 +424,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         title: suggestions[1],
         format: 'scroll',
         status: { status: 'preparing' },
+        // A question asked from a Scroll says so, so the app can leave it out while it is switched off (D-436).
+        ask: true,
       });
     });
   });
@@ -2225,6 +2229,111 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         expect(subject?.readingTitle).toBe(readingTitle);
         expect(subject).not.toHaveProperty('question');
       });
+    });
+  });
+
+  describe('with the made-to-order switch off (D-436)', () => {
+    /** The same world, composed again with the switch off: what was made before it was turned off stays in the database. */
+    const switchOff = () => build({ perDay: 20, perPerson: 5, madeToOrder: false });
+    /** What has been made to order so far: its ledger, its stored orders and its queued jobs. */
+    const madeSoFar = async () => ({
+      ledger: await database.db.selectFrom('supply.ask_orders').select('order_id').execute(),
+      orders: await database.db.selectFrom('content.made_to_order_scrolls').select('recipe').execute(),
+      queued: await queuedProduction(),
+    });
+
+    it('closes a suggested question at once as switched off: no order, no ledger row, no job, no model call', async () => {
+      await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
+      const before = await madeSoFar();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
+      expect(await requestRow(requestId)).toMatchObject({ reason: 'budget_unavailable', ask_limit: 'off' });
+      expect(scopeModel.calls).toHaveLength(0);
+      expect(await madeSoFar()).toEqual(before);
+    });
+
+    it('closes a typed question the scope step places with the Scroll as switched off, and makes no order', async () => {
+      await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
+      const before = await madeSoFar();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'Why does the far side of Orrin stay cold?'));
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
+      expect(await madeSoFar()).toEqual(before);
+    });
+
+    it('closes a typed question about another subject as switched off when no library Scroll answers it', async () => {
+      await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
+      libraryScript = () => libraryReply(null, null);
+      const before = await madeSoFar();
+      const { person, exposure } = await reader();
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
+      expect(await madeSoFar()).toEqual(before);
+    });
+
+    it('still serves a library Scroll that answers a typed question about another subject: it makes nothing to order', async () => {
+      await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
+      libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+      const before = await madeSoFar();
+      const { person, exposure } = await reader();
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: library.assetId } });
+      expect(await madeSoFar()).toEqual(before);
+    });
+
+    it('closes an order made while it was on, when its request is next advanced, even if its Scroll was admitted meanwhile', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
+      const order = await orderOf(requestId);
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'published' } });
+      const queued = (await queuedProduction()).length;
+      switchOff();
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
+      // Nothing new is sent for it.
+      expect(await queuedProduction()).toHaveLength(queued);
+    });
+
+    it('does not try an ask order again: the receipt says not retryable and the request stays closed', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      writer = () => answerWith({ title: 'not a Scroll' });
+      const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
+      const order = await orderOf(requestId);
+      expect(await publish(order.recipe)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+
+      switchOff();
+      const queued = (await queuedProduction()).length;
+      expect(
+        await retry(person.authority, { version: 'content-request-retry.v1', commandId: randomUUID(), requestId }),
+      ).toMatchObject({ kind: 'ok', value: { outcome: 'not_retryable' } });
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await queuedProduction()).toHaveLength(queued);
     });
   });
 

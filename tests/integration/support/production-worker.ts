@@ -70,6 +70,6 @@ export function fixtureProductionWorker(
     librarySupportCalls: routed.librarySupportCalls,
     harness,
     producer,
-    run: makeRunScrollProduction(producer()),
+    run: makeRunScrollProduction(producer(), { madeToOrderEnabled: true }),
   };
 }
