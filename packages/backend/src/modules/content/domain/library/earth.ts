@@ -173,10 +173,26 @@ export const earthRecipes = {
     brief:
       'Seasons on other planets, and why Earth is not the template. Say what the supplied passages state about seasons on Mars and on Uranus: Mars’s axis is tilted much as Earth’s is, so it has distinct seasons, but they last longer, while Uranus’s axis lies nearly at a right angle to its orbit, which gives it the most extreme seasons in the Solar System. Compare each with Earth’s seasons and say what the tilt does in each case. Do not state the length of Earth’s seasons, and do not call them equal or three months long: Earth’s orbit is slightly elliptical too, and the supplied passages simplify this. Give every Martian season length in sols. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
     pages: ['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Earth is not the template: other planets have seasons too',
+        "Mars: a tilt much like Earth's, but longer and uneven seasons",
+        'Uranus: tipped nearly on its side, with the most extreme seasons',
+      ],
+      pictures: [
+        {
+          kind: 'chart',
+          purpose:
+            'Bars of axial tilt in degrees for Earth, Mars and Uranus, so the reader sees that Mars is close to Earth and Uranus is far from both. Values: Earth 23.4, Mars 25, Uranus 97.77. Unit: degrees.',
+        },
+        {
+          kind: 'chart',
+          purpose:
+            'Bars of the four Martian season lengths in sols (northern spring 194, summer 178, autumn 142, winter 154), to show that the seasons are unequal. Unit: sols.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-sideways-giant', name: 'The Sideways Giant' },
     },
   },
   tides: {
@@ -259,12 +275,23 @@ export const earthRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Why the same tide-raising pull gives very different tides on different coasts. The open ocean has a small tidal range, while some bays have a very large one and enclosed seas such as the Mediterranean have some of the smallest. Explain tidal resonance, where the shape and depth of a basin match the rhythm of the tide and amplify it, as in the Bay of Fundy. Do not present a tide height for any place as exact or current.',
+      'Why the same tide-raising pull gives very different tides on different coasts. The open ocean has a small tidal range, while some bays have a very large one and enclosed seas such as the Mediterranean have some of the smallest. Explain tidal resonance, where the shape and depth of a basin match the rhythm of the tide and amplify it, as in the Bay of Fundy. Do not present a tide height for any place as exact or current: give a range only as the mean range the supplied passages state, and say it is a mean.',
     pages: ['https://en.wikipedia.org/wiki/Tidal_range', 'https://en.wikipedia.org/wiki/Tidal_resonance'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'The same tide-raising pull gives very different tides on different coasts',
+        'The open ocean has a small range; some bays are huge, enclosed seas tiny',
+        "Resonance: a basin whose shape and depth match the tide's rhythm amplifies it",
+      ],
+      pictures: [
+        {
+          kind: 'chart',
+          purpose:
+            'Bars of mean tidal range in metres: the typical open ocean (1) against the Bay of Fundy (11.7), Ungava Bay (9.75) and the Bristol Channel (9.60). Unit: metres. The values are hidden, and the caption says they are mean ranges, not a forecast.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-sloshing-bay', name: 'The Sloshing Bay' },
     },
   },
   greenhouse: {
@@ -387,15 +414,26 @@ export const earthRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Audit the blanket analogy: which inferences does the comparison help with, and which must a reader reject? Organize the explanation around useful comparison versus misleading inference, using a canonical comparison or disclosure. Explain why continued energy escape and atmospheric absorption/emission make a sealed lid or energy-creating blanket misleading. Distinguish the natural greenhouse context from its human strengthening; a helpful natural effect does not imply additional greenhouse gas has no effect. Ground every correction in the supplied substantive passages and retain their caveats. This is an analogy-audit lesson, not a retelling of the complete radiation path or a second balance tutorial. The old broad greenhouse overview remains a separate unchanged recipe. Do not invent a glasshouse experiment, imply equivalence to a solid cover, or calculate a temperature forecast or numerical attribution.',
+      'Audit the blanket analogy: which inferences does the comparison help with, and which must a reader reject? Organize the explanation around useful comparison versus misleading inference. Explain why continued energy escape and atmospheric absorption/emission make a sealed lid or energy-creating blanket misleading. Distinguish the natural greenhouse context from its human strengthening; a helpful natural effect does not imply additional greenhouse gas has no effect. Ground every correction in the supplied substantive passages and retain their caveats. This is an analogy-audit lesson, not a retelling of the complete radiation path or a second balance tutorial. The old broad greenhouse overview remains a separate unchanged recipe. Do not invent a glasshouse experiment, imply equivalence to a solid cover, or calculate a temperature forecast or numerical attribution.',
     pages: [
       'https://science.nasa.gov/ems/13_radiationbudget/',
       'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
     ],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'The blanket analogy: what it gets right about holding heat near the surface',
+        'Where it misleads: it is not a sealed lid and it creates no energy',
+        'Natural effect and human strengthening: a helpful effect can still be added to',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 audit of the analogy: rows what the blanket suggests and what the atmosphere actually does, columns useful and misleading. Useful: heat is held near the surface. Misleading: a sealed lid; the gases absorb most of the infrared and return some of it, and some radiates out into space, so heat still leaves.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-leaky-blanket', name: 'The Leaky Blanket' },
     },
   },
 } as const satisfies SystemRecipes<typeof earthSystem>;

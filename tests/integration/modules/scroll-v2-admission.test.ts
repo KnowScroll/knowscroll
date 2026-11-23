@@ -24,17 +24,17 @@ import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
-import { markScrollV1, markScrollV2, v2Capabilities, markKitRecipesV2 } from '../support/scroll-v2.js';
+import { markScrollV1, markScrollV2, v2Capabilities, markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * A v2 Scroll is published through the production job, covered, served and read like a v1 one.
  * The model is a labelled CI fixture and the Scroll is the authored Orrin fixture: no provider,
  * no product content.
  */
-// The recipes a drawing kit drew are document v3 recipes in the library since #787. This file tests the v2 path, so it makes them v2 stage recipes
-// again, with the kit and plan they had, for the file's own process.
-const restoreKitRecipes = markKitRecipesV2();
-afterAll(restoreKitRecipes);
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;

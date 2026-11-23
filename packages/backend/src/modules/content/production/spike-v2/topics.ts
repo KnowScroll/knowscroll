@@ -7,18 +7,17 @@ import {
   type PlayBlockKind,
 } from '../../domain/library/plan.js';
 import { parseScrollTopic, TOPICS, type ScrollTopic } from '../topics.js';
-import { kitPlanV2Of } from './kit-plans.js';
+import { formerV2PlanOf } from './former-v2-plans.js';
 
 /**
  * What the writer spike decides for a library recipe before the model starts: whether the Scroll has
  * a pinned picture, and the misconception its first call tests.
  *
- * A recipe the library plan marks `scrollV2` is spiked exactly as it is produced: the plan's variant
- * and misconception (D-137), so a spike measures what the library will publish. A recipe the plan marks
- * document v3 that had a drawing kit is spiked with the kit and v2 plan it had (`kit-plans.ts`, #787): the library
- * does not produce it as a v2 Scroll any more, but the kit's measurements stay reproducible until the kit is deleted. For a
- * recipe the plan has not marked, whether there is a picture is recipe data (`stageKit`, D-125) and there is no
- * misconception.
+ * Every library recipe is a document v3 recipe since #790, so a spike runs a recipe with the v2 plan it had and, for the 22
+ * recipes a drawing kit drew, with that kit (`former-v2-plans.ts`, #787, #790). The library does not produce them as v2 Scrolls any
+ * more, but the spike's measurements stay reproducible until the v2 code is deleted (Phase 6). A recipe that carries its own
+ * `scrollV2` (a test marks one) is spiked exactly as it is produced: the plan's variant and misconception (D-137). For a recipe with
+ * no plan at all (`exoplanet-kinds`), whether there is a picture is recipe data (`stageKit`, D-125) and there is no misconception.
  */
 export interface SpikeRecipeV2 extends RecipeDataV2 {
   /** True for a recipe the plan has not marked: decided by its kit alone, with no misconception. */
@@ -151,10 +150,10 @@ export function parseSpikeBlocks(raw: string): ReadonlyMap<ScrollTopic, SpikeBlo
 
 /**
  * The spike's decisions for a recipe. The picture and its kit come from the recipe's own `stageKit`, or from the kit it had
- * before it became a document v3 recipe (`kit-plans.ts`); a recipe the plan has not marked has no misconception, and the line says so.
+ * before it became a document v3 recipe (`former-v2-plans.ts`); a recipe with no v2 plan has no misconception, and the line says so.
  */
 export function spikeRecipeV2(topic: ScrollTopic, asked?: SpikeBlocks): SpikeRecipeV2 {
-  const retired = kitPlanV2Of(topic);
+  const retired = formerV2PlanOf(topic);
   const planned = TOPICS[topic].scrollV2 ?? retired?.plan;
   const stageKit = TOPICS[topic].stageKit ?? retired?.kit;
   const kit = stageKit === undefined ? {} : { kit: stageKit };

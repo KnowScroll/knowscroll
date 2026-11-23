@@ -11,20 +11,36 @@ const v3: ScrollV3Plan = {
   misconception: { kind: 'none' },
 };
 
-/** Marks the v1 recipe `exoplanet-kinds` with a plan for one test, the way the plan will. */
+/**
+ * Gives the recipe `exoplanet-kinds` the plan a test asks for and nothing else, then puts its own back. The library plans every
+ * recipe as a document v3 Scroll since #790, so a test of a v1 or v2 recipe takes that plan away first.
+ */
 const undo: (() => void)[] = [];
 function mark(plan: { scrollV2?: ScrollV2Plan; scrollV3?: ScrollV3Plan }): void {
   const recipe = TOPICS['exoplanet-kinds'] as { scrollV2?: unknown; scrollV3?: unknown };
+  const { scrollV2, scrollV3 } = recipe;
+  delete recipe.scrollV2;
+  delete recipe.scrollV3;
   Object.assign(recipe, plan);
   undo.push(() => {
     delete recipe.scrollV2;
     delete recipe.scrollV3;
+    Object.assign(recipe, {
+      ...(scrollV2 === undefined ? {} : { scrollV2 }),
+      ...(scrollV3 === undefined ? {} : { scrollV3 }),
+    });
   });
 }
 afterEach(() => undo.splice(0).forEach((restore) => restore()));
 
 describe('which document a recipe must have to count as published', () => {
+  it('asks a recipe of the library for a document v3, because the plan marks every recipe so since #790', () => {
+    expect(plannedDocumentVersionOf('exoplanet-kinds')).toBe(SCROLL_DOCUMENT_V3_SCHEMA_VERSION);
+    expect(isPlannedAsV2OrV3('exoplanet-kinds')).toBe(true);
+  });
+
   it('lets any admitted Scroll satisfy a v1 recipe and an order', () => {
+    mark({});
     expect(plannedDocumentVersionOf('exoplanet-kinds')).toBeUndefined();
     expect(plannedDocumentVersionOf(`order-${'a'.repeat(32)}`)).toBeUndefined();
     expect(isPlannedAsV2OrV3('exoplanet-kinds')).toBe(false);

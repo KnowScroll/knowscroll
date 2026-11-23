@@ -49,7 +49,7 @@ import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+import { markRecipesV1, orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
 import { quotablePassages } from '../support/held-v3.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
@@ -63,6 +63,9 @@ const CONCEPTS = planSnapshot().all();
  * fixture and every page and Scroll is an authored fixture about an invented planet: nothing here is provider output.
  */
 describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', () => {
+  // The library plans every recipe as a document v3 Scroll since #790, and Create makes only v1 code recipes: the tests of its choice
+  // make the one code recipe they use a v1 recipe for this file's process.
+  const restoreCodeRecipes = markRecipesV1('exoplanet-kinds');
   let database: TestDatabase<Database>;
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
@@ -193,6 +196,7 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
     await holdPages();
   });
   afterAll(async () => {
+    restoreCodeRecipes();
     await content.close();
     await database.drop();
   });
@@ -630,7 +634,7 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect(closed).toEqual({ kind: 'none', capped: true });
     });
 
-    it('is exactly the old answer for a planet with no stored recipe: v2 code recipes are skipped, a v1 code recipe is chosen', async () => {
+    it('is exactly the old answer for a planet with no stored recipe: code recipes the plan marks document v3 are skipped, a v1 code recipe is chosen', async () => {
       expect(await inScope((scope) => chooseScrollRecipe(scope, { topicId: 'earth.seasons' }))).toEqual({
         kind: 'none',
       });

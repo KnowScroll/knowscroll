@@ -47,12 +47,23 @@ export const historyRecipes = {
     interactive: true,
     interactiveKind: 'timeline',
     brief:
-      'Why industrialisation began where it did. Historians point to several enabling factors, such as high agricultural productivity that freed workers from the land, and they debate the start, the end and the pace of the change. Lay the factors out in an order a reader can follow, without years, noting that no single cause is accepted by all. Do not present one cause as settled or Britain’s lead as inevitable.',
+      'Why industrialisation began where it did. Historians point to several enabling factors, such as high agricultural productivity that freed workers from the land, and they debate the start, the end and the pace of the change. Lay the factors out in an order a reader can follow, without years. Do not present one cause as settled or Britain’s lead as inevitable.',
     pages: ['https://en.wikipedia.org/wiki/Industrial_Revolution'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'A debated start: historians disagree about when it began and how fast it went',
+        'Enabling factors: food and workers, transport, resources, stability, capital',
+        'Several factors worked together, and the debate over how sudden it was goes on',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            'A short list of five enabling factors, one line each: high agricultural productivity (spare workers and food); ports, rivers, canals and roads; coal, iron and waterfalls; political stability and a legal system that supported business; financial capital to invest.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-many-causes', name: 'The Many Causes' },
     },
   },
   'steam-power': {
@@ -64,12 +75,23 @@ export const historyRecipes = {
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'How the steam engine turned heat into motion. The Watt engine is described as the first truly efficient steam engine and was a driving force of the Industrial Revolution; it improved on the earlier atmospheric engine. Let the reader step through the cycle of a simple engine. Do not credit a single inventor with creating steam power, and give no invented efficiencies.',
+      'How the steam engine turned heat into motion. The Watt engine is described as the first truly efficient steam engine and was a driving force of the Industrial Revolution; it improved on the earlier atmospheric engine. Go through the cycle of the engine stroke by stroke. Do not credit a single inventor with creating steam power, and give no invented efficiencies.',
     pages: ['https://en.wikipedia.org/wiki/Watt_steam_engine'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Earlier engines used steam, then a cold-water jet, wasting heat each stroke',
+        'Watt added a separate condenser so the working cylinder stayed hot',
+        'One cycle of the simple engine, stroke by stroke',
+      ],
+      pictures: [
+        {
+          kind: 'cycle',
+          purpose:
+            'One Watt-engine cycle as a ring: the power cylinder fills with steam; a valve opens to a separate water-cooled condenser; steam flows in and condenses, which draws the steam from the main cylinder and causes the power stroke; the valve closes; the power cylinder refills with steam as the piston moves to the top; repeat.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-steady-steam', name: 'The Steady Steam' },
     },
   },
   'factory-system': {
@@ -81,12 +103,23 @@ export const historyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'How factories changed the way goods were made. The factory system was first adopted in Britain at the start of the Industrial Revolution and replaced the putting-out, or domestic, system. Compare the two ways of working in terms of where work happened and who controlled it. Do not romanticise either way of working.',
+      'How factories changed the way goods were made. The factory system was first adopted in Britain at the start of the Industrial Revolution and replaced the putting-out, or domestic, system. Compare the two ways of working in terms of where work happened and who owned the machinery. Do not romanticise either way of working.',
     pages: ['https://en.wikipedia.org/wiki/Factory_system'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Before: much making was done in homes under the putting-out system',
+        'After: machinery, supervision and division of labour in one place',
+        'What changed: where work happened, who owned the machinery, and the skill needed',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of two ways of working: rows where work happened and who owned the machinery; columns putting-out (domestic) system and factory system. Putting-out: work carried out in homes, often with a single loom or spinning wheel, with machinery beyond what cottage workers could afford. Factory: workers and equipment centralised under supervision, with the equipment privately owned by wealthy individuals or corporations.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-factory-floor', name: 'The Factory Floor' },
     },
   },
   'industrial-towns': {
@@ -98,12 +131,28 @@ export const historyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'How industrialisation moved people to towns. For most of history the great majority of people worked the land; with the agricultural and Industrial Revolutions of the late eighteenth century, workers freed from farming converged on new industrial cities such as Manchester and Birmingham and urban populations grew as never before. Explain what pulled people in. Give no statistics the research page does not support, and do not reduce it to a verdict of good or bad.',
+      'How industrialisation moved people to towns. For most of history the great majority of people worked the land; with the agricultural and Industrial Revolutions of the late eighteenth century, workers freed from farming converged on new industrial cities such as Manchester and Birmingham and urban populations grew as never before. Explain what pulled people in. Give no statistics the supplied passages do not support, and do not reduce it to a verdict of good or bad.',
     pages: ['https://en.wikipedia.org/wiki/Urbanization'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'story',
+      sections: [
+        'For most of history nearly everyone worked the land',
+        'Farming needed fewer hands, and workers converged on new industrial cities',
+        'Towns grew as never before, with costs as well as chances',
+      ],
+      pictures: [
+        {
+          kind: 'chart',
+          purpose:
+            'Bars of the share of the population urbanised in 1891, on the broader definition of urbanisation: England and Wales 72, Prussia 41, France 37, United States 28. Unit: %.',
+        },
+        {
+          kind: 'chart',
+          purpose:
+            'A line of two points for England and Wales on the narrower definition, the share living in cities of more than 20,000 people: 17 in 1801 and 54 in 1891. Unit: %. Kept apart from the other chart, because the two use different definitions.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-crowded-towns', name: 'The Crowded Towns' },
     },
   },
   'industrial-debate': {
@@ -115,12 +164,23 @@ export const historyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Why did Western Europe pull ahead, and when? The Great Divergence is the term for that shift, and scholars have proposed many explanations, including mineral deposits, geography, institutions and culture, while the timing is disputed among historians. Compare the main kinds of explanation and what evidence each leans on. Do not declare a winner, and do not present Europe’s lead as inevitable.',
+      'Why did Western Europe pull ahead, and when? The Great Divergence is the term for that shift, and scholars have proposed many explanations, including mineral deposits, geography, culture, institutions and luck, while the timing is disputed among historians. Compare the main views of when it began and what each leans on, and say what the supplied passages state about coal, technology and culture. Do not declare a winner, and do not present Europe’s lead as inevitable.',
     pages: ['https://en.wikipedia.org/wiki/Great_Divergence'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'The Great Divergence: Western Europe pulled ahead of other Eurasian powers',
+        'Kinds of explanation proposed: mineral deposits, geography, culture, institutions and luck',
+        'The timing is disputed: the 16th century, around 1700, or the 19th century',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of three views of when the divergence began: rows the traditional dating, the dating around 1700 and the California school; columns when it began and what each leans on. Traditional: as early as the 16th (or even 15th) century, with Europe on a trajectory of higher growth since then, pointing to the early modern era. Around 1700: grain wages diverging more sharply from the early 18th century. California school: the period of most rapid divergence was the 19th century, because the surge in productivity came with the Industrial Revolution, citing nutrition data and European trade deficits.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-fork-in-the-road', name: 'The Fork in the Road' },
     },
   },
 } as const satisfies SystemRecipes<typeof historySystem>;

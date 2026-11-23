@@ -8,15 +8,18 @@ const PLAN: ScrollV3Plan = {
   sections: ['What happens', 'Why it matters'],
   misconception: { kind: 'none' },
 };
-// A recipe the library keeps as a v2 recipe: the test marks it and takes the mark away, and the real v3 plans stay.
+// The library plans every recipe as a document v3 Scroll since #790: a test of the v2 check takes this recipe's plan away and puts it back.
 const recipe = RECIPES['seasons-elsewhere'] as { scrollV3?: ScrollV3Plan };
+const planned = recipe.scrollV3;
 
 describe('the checker version of the Scroll a recipe produces', () => {
   afterEach(() => {
-    delete recipe.scrollV3;
+    if (planned === undefined) delete recipe.scrollV3;
+    else recipe.scrollV3 = planned;
   });
 
   it('is the v2 check’s for a recipe that is not planned as a document v3', () => {
+    delete recipe.scrollV3;
     expect(checkerVersionOfRecipe('seasons-elsewhere')).toBe(LIBRARY_CHECKER_VERSIONS.v2);
   });
 
@@ -25,7 +28,8 @@ describe('the checker version of the Scroll a recipe produces', () => {
     expect(checkerVersionOfRecipe('seasons-elsewhere')).toBe(LIBRARY_CHECKER_VERSIONS.v3);
   });
 
-  it('is the v3 check’s for a recipe the library plan marks scrollV3 since #787, with no mark from the test', () => {
+  it('is the v3 check’s for a recipe the library plan marks scrollV3 since #787 and #790, with no mark from the test', () => {
+    expect(checkerVersionOfRecipe('seasons-elsewhere')).toBe(LIBRARY_CHECKER_VERSIONS.v3);
     expect(checkerVersionOfRecipe('seasons')).toBe(LIBRARY_CHECKER_VERSIONS.v3);
     expect(checkerVersionOfRecipe('action-potential')).toBe(LIBRARY_CHECKER_VERSIONS.v3);
   });

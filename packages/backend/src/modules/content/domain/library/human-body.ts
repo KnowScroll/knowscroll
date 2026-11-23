@@ -276,10 +276,26 @@ export const humanBodyRecipes = {
     brief:
       'The body’s first, fast response to threats. The immune system has layers; the innate layer answers many kinds of threat in much the same way without earlier exposure, through barriers and cells that engulf invaders. Explain what this general defence does well and why it is not enough on its own. Give no advice about treating infections.',
     pages: ['https://en.wikipedia.org/wiki/Immune_system'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Layered defences: barriers first, then an immediate general response',
+        'The innate layer answers many threats the same way, with no earlier exposure',
+        'Why it is not enough on its own: it is non-specific and gives no lasting immunity',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of the innate and adaptive layers: rows kind of response, when it acts, what it leaves behind; columns innate and adaptive. Innate: a generic, non-specific response that is immediate and gives no long-lasting immunity. Adaptive: a tailored response, a second layer activated by the innate response, retained afterwards as immunological memory.',
+        },
+        {
+          kind: 'statement',
+          purpose:
+            'A short list of the first barriers, one line each: mechanical (skin, coughing and sneezing, flushing, mucus that traps microorganisms), chemical (antimicrobial peptides, enzymes, acid) and biological (commensal bacteria that compete with pathogens for food and space).',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-first-guard', name: 'The First Guard' },
     },
   },
   'adaptive-immunity': {
@@ -291,12 +307,23 @@ export const humanBodyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'How the immune system learns a specific threat. White blood cells called lymphocytes recognise particular molecules of an invader, and the matching cells multiply and make a tailored response, including antibodies. Explain recognition, multiplication and attack in plain terms. Do not describe immunity as all or nothing, and give no medical advice.',
+      'How the immune system learns a specific threat. White blood cells called lymphocytes recognise particular molecules of an invader, and the system makes a response tailored to that threat, including antibodies from B cells and a cell-mediated response from T cells. Explain recognition, the tailored response and the memory it leaves in plain terms. Do not describe immunity as all or nothing, and give no medical advice.',
     pages: ['https://en.wikipedia.org/wiki/Adaptive_immune_system'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Lymphocytes recognise particular molecules of an invader',
+        'The response is tailored to that threat: antibodies from B cells, a cell-mediated response from T cells',
+        'Memory is left behind, and immunity is not all or nothing',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'The adaptive response in order: recognition of a specific non-self antigen in the presence of self; a response tailored to eliminate that pathogen or the infected cells; the development of immunological memory through memory B cells and memory T cells. Three steps.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-tailored-defence', name: 'The Tailored Defence' },
     },
   },
   'immune-memory': {
@@ -308,12 +335,23 @@ export const humanBodyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Why a second exposure to a threat is handled faster. After an infection or a vaccine, memory cells remain, so a later encounter triggers a quicker and stronger response than the first. Explain that a vaccine lets the immune system practise on a harmless form of a threat. Give no vaccine schedules and no advice about any specific vaccine.',
+      'Why a second exposure to a threat is handled faster. After an infection, some T and B cells remain as long-living memory cells, so a later encounter with the same antigen triggers a faster and more robust response than the first. Say that immunological memory is the basis of vaccination, and that immunity to some diseases lasts a lifetime while immunity to many wears off. Give no vaccine schedules and no advice about any specific vaccine.',
     pages: ['https://en.wikipedia.org/wiki/Immunological_memory'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'A second exposure to a threat is handled faster than the first',
+        'After an infection, some T and B cells remain as long-living memory cells',
+        'Memory is the basis of vaccination, but it does not last equally for every disease',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'First exposure to later exposure, in order: the first encounter with an antigen (the primary response); some T and B cells persist in the body as long-living memory cells; a second encounter with the same antigen is recognised and met with a faster, more robust response.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-remembered-foe', name: 'The Remembered Foe' },
     },
   },
 } as const satisfies SystemRecipes<typeof humanBodySystem>;

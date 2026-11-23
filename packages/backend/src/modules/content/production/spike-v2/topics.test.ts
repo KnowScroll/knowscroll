@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { scrollV3PlanOf, TOPICS, type ScrollTopic } from '../topics.js';
-import { KIT_PLANS_V2, kitPlanV2Of } from './kit-plans.js';
+import { FORMER_V2_PLANS, formerV2PlanOf } from './former-v2-plans.js';
 import {
   parseSpikeBlocks,
   parseSpikeTopics,
@@ -16,25 +16,34 @@ import {
 } from './topics.js';
 
 /** The kit a spike draws a recipe with: its own, or the one it had before it became a document v3 recipe (#787). */
-const kitOf = (topic: ScrollTopic) => TOPICS[topic].stageKit ?? kitPlanV2Of(topic)?.kit;
+const kitOf = (topic: ScrollTopic) => TOPICS[topic].stageKit ?? formerV2PlanOf(topic)?.kit;
 /** The v2 plan a spike runs a recipe with: the library's, or the one a document v3 recipe had before (#787). */
-const planOf = (topic: ScrollTopic) => TOPICS[topic].scrollV2 ?? kitPlanV2Of(topic)?.plan;
+const planOf = (topic: ScrollTopic) => TOPICS[topic].scrollV2 ?? formerV2PlanOf(topic)?.plan;
 
-describe('the v2 plans of the recipes that became document v3 recipes (#787)', () => {
-  it('hold exactly the 22 recipes that had a kit, each now a v3 recipe with no kit and no v2 plan in the library', () => {
-    const held = Object.keys(KIT_PLANS_V2) as ScrollTopic[];
-    expect(held).toHaveLength(22);
+describe('the v2 plans of the recipes that became document v3 recipes (#787, #790)', () => {
+  it('hold every recipe but "exoplanet-kinds", each now a v3 recipe with no kit and no v2 plan in the library', () => {
+    const held = Object.keys(FORMER_V2_PLANS) as ScrollTopic[];
+    expect(held).toHaveLength(54);
+    expect(held).not.toContain('exoplanet-kinds');
+    expect(Object.keys(TOPICS).filter((topic) => !held.includes(topic as ScrollTopic))).toEqual(['exoplanet-kinds']);
     for (const topic of held) {
       expect(scrollV3PlanOf(topic), topic).toBeDefined();
       expect(TOPICS[topic].stageKit, topic).toBeUndefined();
       expect(TOPICS[topic].scrollV2, topic).toBeUndefined();
-      expect(KIT_PLANS_V2[topic as keyof typeof KIT_PLANS_V2].plan.variant, topic).toBe('stage');
     }
   });
 
-  it('hold nothing for a recipe the library still produces as v2', () => {
-    for (const topic of ['seasons-elsewhere', 'tides-coasts', 'greenhouse-limits', 'exoplanet-kinds'] as const)
-      expect(kitPlanV2Of(topic), topic).toBeUndefined();
+  it('keep the drawing kit of the 22 recipes that had one, as a stage plan, and a plain plan with a landmark for the other 32', () => {
+    const drawn = Object.entries(FORMER_V2_PLANS).filter(([, former]) => 'kit' in former);
+    expect(drawn).toHaveLength(22);
+    for (const [topic, former] of Object.entries(FORMER_V2_PLANS)) {
+      expect(former.plan.variant, topic).toBe('kit' in former ? 'stage' : 'plain');
+      if (!('kit' in former)) expect(former.plan.landmark, topic).toBeDefined();
+    }
+  });
+
+  it('hold nothing for a recipe that was never a v2 recipe', () => {
+    expect(formerV2PlanOf('exoplanet-kinds')).toBeUndefined();
   });
 });
 

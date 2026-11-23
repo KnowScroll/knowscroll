@@ -5,6 +5,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEVELOPMENT_SESSION_COOKIE_NAME, type CreateContentRequest } from '@knowscroll/contracts';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { apiClient } from '../support/api-client.js';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -299,7 +300,28 @@ describe('private Supply HTTP boundary in the installed release', () => {
   });
 
   it('cancels only its private waiter, replays cancellation and rejects command-key reuse', async () => {
-    // A topic with a v1 recipe: Create commissions only those (D-138), and every other recipe is v2.
+    // Create commissions only a v1 code recipe or a stored recipe (D-138, D-412), and the plan has no v1 recipe since #790: every recipe
+    // is a document v3 recipe, which only an operator's run produces. So this topic gets a stored recipe, a labelled CI fixture.
+    const storedKey = 'gen-release-00000007';
+    await handle.db
+      .insertInto('content.recipes')
+      .values({
+        key: storedKey,
+        origin: 'proposal',
+        status: 'checked',
+        title: 'CI fixture recipe release',
+        topic_id: 'space.exoplanets',
+        facet_id: RECIPES['exoplanet-kinds'].facetId,
+        asset_id: randomUUID(),
+        explanation_unit_id: `${storedKey}-v1`,
+        brief:
+          'A labelled CI fixture brief about an invented planet. Explain what the supplied passages state and nothing more.',
+        pages: [...RECIPES['exoplanet-kinds'].pages],
+        scroll_v2: null,
+        scroll_v3: JSON.stringify({ shape: 'mechanism', sections: ['What happens', 'Why it matters'] }),
+        proposing_run_id: randomUUID(),
+      })
+      .execute();
     const c = command('space.exoplanets', 'scroll');
     const a = await client().supply.create(c);
     const b = await client(stranger).supply.create({ ...c, commandId: randomUUID() });
@@ -346,7 +368,7 @@ describe('private Supply HTTP boundary in the installed release', () => {
       .select(['active', 'production_recipe'])
       .where('id', '=', work[0]!.work_id!)
       .executeTakeFirstOrThrow();
-    expect(shared).toEqual({ active: true, production_recipe: 'exoplanet-kinds' });
+    expect(shared).toEqual({ active: true, production_recipe: storedKey });
   });
 
   it('makes foreign and unknown request reads/cancels identical without private effects', async () => {
