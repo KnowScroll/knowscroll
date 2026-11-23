@@ -29,7 +29,7 @@ export function checkerVersionOfDocument(documentVersion: string): string | unde
 }
 
 /**
- * The checker version for the Scroll a recipe's production job stores: the v3 check's for a recipe the plan marks `scrollV3`, the v2 check's
+ * The checker version for the Scroll a recipe's production job stores: the v3 check's for a recipe the plan marks `scrollV3` and for a stored (`gen-`) recipe (a document v3 recipe, #781), the v2 check's
  * for every other. The delivery that held a revision knows its recipe and not yet the revision's document, so it asks here to send its check
  * at once under the version that reads what it stored (the sweep would find it anyway, up to ten minutes later).
  */

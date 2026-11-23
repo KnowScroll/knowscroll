@@ -11,6 +11,7 @@ import {
   utcDayOf,
   type RecipeBriefFacts,
 } from './recipe-brief.js';
+import { DRAFTS_PER_CALL } from '../domain/library/recipe-draft.js';
 
 const facts: RecipeBriefFacts = {
   topicId: 'human.heart',
@@ -102,5 +103,36 @@ describe('the brief role', () => {
     expect(role.instructions).toContain('copied exactly from the candidate pages');
     expect(role.outputSchema.safeParse({ drafts: [] }).success).toBe(true);
     expect(role.outputSchema.safeParse('prose').success).toBe(false);
+  });
+
+  it('is version 2: it asks for a shape and section intents, and no longer forbids naming a picture (#781)', () => {
+    const role = recipeBriefRole();
+    expect(RECIPE_BRIEF_ROLE_VERSION).toBe('recipe-brief.v2');
+    expect(role.instructions).toContain('"shape":"argument"');
+    expect(role.instructions).toContain('"sections":[');
+    expect(role.instructions).toContain('"argument"');
+    expect(role.instructions).toContain('"mechanism"');
+    expect(role.instructions).toContain('"story"');
+    expect(role.instructions).toMatch(/sections: 2 to 3 short lines/u);
+    expect(role.instructions).toContain('4 to 120 characters');
+    // Pictures are the writer's to choose; the proposal names none and may talk of them.
+    expect(role.instructions).toContain('Do not choose pictures');
+    expect(role.instructions).not.toMatch(/never name a diagram/iu);
+    expect(role.instructions).not.toMatch(/diagram, slider|picture or stage/iu);
+    // Document v3 has no place for a quiz or anything interactive.
+    expect(role.instructions).toContain('Never name a quiz or anything interactive');
+  });
+
+  it('keeps the draft count and the output bound', () => {
+    const role = recipeBriefRole();
+    expect(role.instructions).toContain(`At most ${String(DRAFTS_PER_CALL)} drafts`);
+    expect(DRAFTS_PER_CALL).toBe(3);
+    expect(role.maxOutputTokens).toBe(4000);
+  });
+
+  it('names a v2 request differently from a v1 one, so a role change is a new run', () => {
+    expect(recipeBriefRequestKey({ topicId: 'human.heart', day: '2026-11-11', retry: 0 })).toMatch(
+      /^recipe-brief\.v2\|/u,
+    );
   });
 });

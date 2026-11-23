@@ -30,9 +30,15 @@ It lives in `domain/` because the catalogue's import and its seed are pure funct
 - `serving.ts`: pure rules over the plan and over stored recipes: which recipes serve a catalogue brief (`servingOrder` over any list, `recipesServing` for the plan alone), a recipe's standing from
   its takes, which take a send should name, and what a library run queues.
 - `generated.ts` and `recipe-draft.ts` (D-412): recipes stored in the database. `generated.ts` holds the reserved `gen-` key prefix, the key,
-  explanation-unit and plan every stored recipe has, the `BookRecipe` shape the `RecipeBook` hands out and the statuses. `recipe-draft.ts` holds the
-  strict shape of a model's proposal and `checkRecipeDraft`, which decides it (shape, facet, candidate pages and the passage pool, near-duplicates,
-  identity). A code recipe key, unit or asset never starts with the prefix (`generated.test.ts`).
+  explanation-unit and plan every stored recipe has, the `BookRecipe` shape the `RecipeBook` hands out and the statuses. A stored recipe is a
+  **document v3** recipe (#781, owner decision 4 on #771): its plan is the proposal's own `shape` and section intents and nothing else
+  (`StoredScrollV3Schema`, the rule migration 0124 checks, `generatedScrollV3PlanOf`, which adds `misconception: none`); it names no pictures, so the
+  writer picks the kinds from the closed set by what its passages hold, and the statement picture is always available. `GENERATED_SCROLL_V3_MARKER`
+  is the key-only stand-in the code that holds just a key reads (its shape and sections are placeholders). `recipe-draft.ts` holds the
+  strict shape of a model's proposal (title, facet, brief, `shape`, two or three `sections` of 4 to 120 characters, pages) and `checkRecipeDraft`, which
+  decides it (shape, facet, candidate pages and the passage pool, near-duplicates, identity). The words a brief or a section may not name are `quiz`,
+  `quizzes` and `interactive`: document v3 has no place for them; a diagram, chart or picture may be named now. A code recipe key, unit or asset never
+  starts with the prefix (`generated.test.ts`).
 - `index.ts`: assembles the systems and the `RECIPES` record. `../../production/topics.ts` is a thin
   index over it.
 - `library.test.ts`: the plan's acceptance rules (50 to 60 recipes, at least 22 interactive over all

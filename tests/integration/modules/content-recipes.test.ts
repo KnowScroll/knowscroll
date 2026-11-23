@@ -33,8 +33,13 @@ import {
 } from '../../../packages/backend/src/modules/content/adapters/production-state.js';
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { evidencePassageCount } from '../../../packages/backend/src/modules/content/production/evidence.js';
+import { isHeldForReview } from '../../../packages/backend/src/modules/content/production/review-hold.js';
+import { makeCheckLibrarySupport } from '../../../packages/backend/src/modules/content/production/library-support-check.js';
+import { checkerVersionOfRecipe } from '../../../packages/backend/src/modules/content/production/library-support-kinds.js';
+import { LIBRARY_SUPPORT_V3_CHECK_VERSION } from '../../../packages/backend/src/modules/content/production/library-support-v3.js';
+import { subjectOf } from '../../../packages/backend/src/modules/content/production/subject.js';
 import {
-  SCROLL_PRODUCTION_V2_VERSION,
+  SCROLL_PRODUCTION_V3_VERSION,
   SCROLL_PRODUCTION_VERSION,
 } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -45,6 +50,9 @@ import { answerWith, enableProductionScope, fixtureProduction } from '../support
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+import { quotablePassages } from '../support/held-v3.js';
+import { fixtureProductionWorker } from '../support/production-worker.js';
+import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
 
 /** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
 const CONCEPTS = planSnapshot().all();
@@ -102,6 +110,8 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
     title,
     facetId,
     brief,
+    shape: 'mechanism' as const,
+    sections: ['What the two bulges are', 'Why they follow the moon round'],
     pages,
   });
 
@@ -167,6 +177,9 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         explanation_unit_id: `${key}-v1`,
         brief: angle.brief ?? goodDraft('x', facetId).brief,
         pages: angle.pages ?? [PAGE_A],
+        // A stored recipe is a document v3 recipe (#781): the plan is the proposal's shape and sections, and the v2 plan is null.
+        scroll_v2: null,
+        scroll_v3: JSON.stringify({ shape: 'mechanism', sections: ['What happens', 'Why it matters'] }),
         proposing_run_id: randomUUID(),
       })
       .execute();
@@ -231,7 +244,9 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         topic_id: PLANET,
         facet_id: FACET_A,
         pages: [PAGE_A, PAGE_B],
-        scroll_v2: { variant: 'plain', misconception: { kind: 'none' } },
+        // The proposal's own shape and section intents are stored as the document v3 plan; no v2 plan and no pictures (#781).
+        scroll_v2: null,
+        scroll_v3: { shape: 'mechanism', sections: ['What the two bulges are', 'Why they follow the moon round'] },
         proposing_run_id: result.kind === 'proposed' ? result.runId : '',
         check_results: { pool: 18 },
       });
@@ -690,7 +705,7 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect(jobs.rows.map((row: { data: { recipe: string; policyVersion: string } }) => row.data)).toContainEqual({
         v: 1,
         recipe: work.production_recipe,
-        policyVersion: SCROLL_PRODUCTION_V2_VERSION,
+        policyVersion: SCROLL_PRODUCTION_V3_VERSION,
         take: 1,
       });
 
@@ -709,6 +724,7 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect(row.commissioned_by).toBe('planner');
     });
 
+    // #781: a stored recipe is a document v3 recipe, so the fake model answers the production writer in the document v3 reply shape (`orrinV3`).
     it('produces the recipe through the real job, holds its Scroll for the operator and serves it only once released', async () => {
       const key = (await recipeRows()).find((row) => row.facet_id === FACET_A)!.key as `gen-${string}`;
       const asset = (await recipeRows()).find((row) => row.key === key)!.asset_id;
@@ -720,8 +736,12 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       };
       // A waiter on Create's own work keeps waiting while the job is queued or running (a code v2 recipe would read as stopped).
       expect(await readingOf()).toEqual({ state: 'not_started', take: 1 });
-      const run = fixtureProduction(database.db, () => answerWith(plainOrrin()), orrinResearchFor);
+      const run = fixtureProduction(database.db, () => answerWith(orrinV3()), orrinResearchFor);
       expect(await run.produce(key, false, signal(), true, 1)).toMatchObject({ outcome: 'published', held: true });
+      // The job asked the document v3 writer once (arm (a): the whole Scroll in one reply), not the v2 stage writer.
+      expect(run.calls).toHaveLength(1);
+      expect(run.calls[0]?.request.system).toContain('PICTURES.');
+      expect(run.calls[0]?.request.system).not.toContain('You stage one Scroll');
       // Held for the operator: nothing is coming that a waiter could be served, so it stops waiting.
       expect(await readingOf()).toEqual({ state: 'held' });
 
@@ -739,6 +759,9 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         .select('document')
         .where('asset_id', '=', asset)
         .executeTakeFirstOrThrow();
+      // The stored Scroll is a document v3 and its private provenance the v3 one (was: the plain v2 document), and a stored recipe names no
+      // misconception and has no stage.
+      expect(await storedFormatsOf(database.db, asset, 1)).toEqual(V3_FORMATS);
       expect((stored.document as { misconception: unknown; stage?: unknown }).misconception).toEqual({ kind: 'none' });
       expect((stored.document as { stage?: unknown }).stage).toBeUndefined();
       // Attributed to its planet and given coverage, as a library Scroll is, so the operator sees it would form.
@@ -756,7 +779,8 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
           readDiscoveryCandidates(scope, {
             languages: ['en'],
             formats: ['scroll'],
-            capabilities: v2Capabilities,
+            // A document v3 is offered only to a client that declares it (was: `v2Capabilities`), so the held and the released reads below are about the v3 Scroll.
+            capabilities: v3Client,
             limit: 100,
           }),
         );
@@ -779,6 +803,36 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect(await gate.recipeKeyOf(asset)).toBe(key);
     });
 
+    // #781: the check of a document v3 reads a stored recipe's Scroll under the v3 checker version, as it does a v3 code recipe's.
+    it("checks the stored recipe's Scroll with the document v3 support check, under the v3 checker version the recipe's key names", async () => {
+      const key = (await recipeRows()).find((row) => row.facet_id === FACET_A)!.key as `gen-${string}`;
+      const asset = (await recipeRows()).find((row) => row.key === key)!.asset_id;
+      expect(checkerVersionOfRecipe(key)).toBe(LIBRARY_SUPPORT_V3_CHECK_VERSION);
+      const stored = await database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', asset)
+        .where('revision', '=', 1)
+        .executeTakeFirstOrThrow();
+      // The labelled fake checker can quote a sentence only from a passage its part cites: make each part's sentences quotable, as the v3 publication test does.
+      await quotablePassages(database.db, {
+        assetId: asset,
+        revision: 1,
+        document: stored.document as Parameters<typeof quotablePassages>[1]['document'],
+      });
+      const worker = fixtureProductionWorker(database, () => answerWith(orrinV3()));
+      const checked = await makeCheckLibrarySupport({
+        db: database.db,
+        authority: { scopeId: 'scroll-supply', generation: 1 },
+        withScope: makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 }),
+        harness: worker.harness,
+      })({ assetId: asset, revision: 1, signal: signal() });
+      expect(checked).toMatchObject({
+        kind: 'stored',
+        check: { state: 'checked', verdict: 'passed', checkerVersion: LIBRARY_SUPPORT_V3_CHECK_VERSION },
+      });
+    });
+
     it('leaves the standing of a recipe it never produced untouched, and a retired recipe is never chosen', async () => {
       const retired = await storeRecipe('retired-one', 'computing.browsers', 'computing.browsers.mechanism');
       await sql`update content.recipes set status='retired' where key=${retired}`.execute(database.db);
@@ -790,6 +844,166 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect((await readLibraryStatus(database.db, [retired as `gen-${string}`]))[0]).toMatchObject({
         state: 'stopped',
       });
+    });
+  });
+
+  describe('the plan a stored recipe carries (migration 0124, #781, owner decision 4 on #771)', () => {
+    const V3 = { shape: 'story', sections: ['What happened first', 'What came of it', 'What it left behind'] };
+    const V2 = { variant: 'plain', misconception: { kind: 'none' } };
+    // The rows of this block are only about the plan: take them away, so no later test counts or chooses them.
+    afterAll(async () => {
+      await sql`delete from content.recipes where key like 'gen-plan-%'`.execute(database.db);
+    });
+    /** Inserts a row with exactly these plans, through the database as the old and the new code both reach it. */
+    const insertPlans = async (label: string, plans: { scroll_v2?: unknown; scroll_v3?: unknown }) => {
+      const key = `gen-plan-${label}-00000001`;
+      const row = {
+        key,
+        origin: 'proposal',
+        status: 'checked',
+        title: `CI fixture plan ${label}`,
+        topic_id: PLANET,
+        facet_id: FACET_A,
+        asset_id: stableUuid(`content.recipe-asset:${key}`),
+        explanation_unit_id: `${key}-v1`,
+        brief: BRIEFS[0],
+        pages: [PAGE_A],
+        proposing_run_id: randomUUID(),
+      };
+      const json = (value: unknown) => (value === undefined ? undefined : JSON.stringify(value));
+      const columns: Record<string, unknown> = { ...row };
+      if ('scroll_v2' in plans) columns['scroll_v2'] = plans.scroll_v2 === null ? null : json(plans.scroll_v2);
+      if ('scroll_v3' in plans) columns['scroll_v3'] = plans.scroll_v3 === null ? null : json(plans.scroll_v3);
+      await database.db
+        .insertInto('content.recipes')
+        .values(columns as never)
+        .execute();
+      return key;
+    };
+    /** The check that refuses the row, by name, or `undefined` when the row is accepted. */
+    const refusedBy = async (label: string, plans: { scroll_v2?: unknown; scroll_v3?: unknown }) => {
+      try {
+        await insertPlans(label, plans);
+        return undefined;
+      } catch (error) {
+        return (error as { constraint?: string }).constraint ?? String(error);
+      }
+    };
+
+    it('accepts a v3 plan with the v2 plan null, and a row inserted the old way (no v3, the default v2 plan)', async () => {
+      expect(
+        await refusedBy('v3-two', { scroll_v2: null, scroll_v3: { ...V3, sections: V3.sections.slice(0, 2) } }),
+      ).toBeUndefined();
+      expect(await refusedBy('v3-three', { scroll_v2: null, scroll_v3: V3 })).toBeUndefined();
+      // What a process from before the change writes: it names neither plan, and the default fills the v2 one.
+      const old = await insertPlans('old-code', {});
+      const row = await database.db
+        .selectFrom('content.recipes')
+        .select(['scroll_v2', 'scroll_v3'])
+        .where('key', '=', old)
+        .executeTakeFirstOrThrow();
+      expect(row).toEqual({ scroll_v2: V2, scroll_v3: null });
+      expect(await refusedBy('v2-explicit', { scroll_v2: V2, scroll_v3: null })).toBeUndefined();
+    });
+
+    it('refuses both plans at once and neither plan', async () => {
+      expect(await refusedBy('both', { scroll_v2: V2, scroll_v3: V3 })).toBe('recipes_plan_check');
+      expect(await refusedBy('neither', { scroll_v2: null, scroll_v3: null })).toBe('recipes_plan_check');
+      expect(
+        await refusedBy('v2-other', {
+          scroll_v2: { variant: 'stage', misconception: { kind: 'none' } },
+          scroll_v3: null,
+        }),
+      ).toBe('recipes_plan_check');
+    });
+
+    it('refuses a bad shape, a section count outside two to three, a bad section, and any other key', async () => {
+      const bad = (label: string, plan: unknown) => refusedBy(label, { scroll_v2: null, scroll_v3: plan });
+      expect(await bad('shape-essay', { ...V3, shape: 'essay' })).toBe('recipes_scroll_v3_check');
+      expect(await bad('shape-number', { ...V3, shape: 1 })).toBe('recipes_scroll_v3_check');
+      expect(await bad('shape-null', { ...V3, shape: null })).toBe('recipes_scroll_v3_check');
+      expect(await bad('shape-missing', { sections: V3.sections })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-one', { ...V3, sections: ['Only one'] })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-four', { ...V3, sections: ['One', 'Two', 'Three', 'Four'] })).toBe(
+        'recipes_scroll_v3_check',
+      );
+      expect(await bad('sections-missing', { shape: 'story' })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-object', { ...V3, sections: { a: 'One', b: 'Two' } })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-empty-string', { ...V3, sections: ['One', ''] })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-long', { ...V3, sections: ['One', 'x'.repeat(121)] })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-number', { ...V3, sections: ['One', 2] })).toBe('recipes_scroll_v3_check');
+      expect(await bad('sections-null-element', { ...V3, sections: ['One', 'Two', null] })).toBe(
+        'recipes_scroll_v3_check',
+      );
+      expect(await bad('extra-key', { ...V3, pictures: [] })).toBe('recipes_scroll_v3_check');
+      expect(await bad('extra-misconception', { ...V3, misconception: { kind: 'none' } })).toBe(
+        'recipes_scroll_v3_check',
+      );
+      expect(await bad('not-an-object', ['story'])).toBe('recipes_scroll_v3_check');
+      expect(await bad('scalar', 'story')).toBe('recipes_scroll_v3_check');
+      expect(await bad('empty-object', {})).toBe('recipes_scroll_v3_check');
+      // The limits themselves are accepted: 1 and 120 characters.
+      expect(await bad('limits', { shape: 'argument', sections: ['x', 'y'.repeat(120)] })).toBeUndefined();
+    });
+
+    it("reaches the production subject as a document v3 plan with the proposal's shape and sections, no picture and no v2 plan", async () => {
+      const key = (await recipeRows()).find((row) => row.facet_id === FACET_A && row.scroll_v3 !== null)!.key;
+      const subject = await subjectOf(database.db, key);
+      expect(subject).toMatchObject({
+        key,
+        mode: 'library',
+        attribution: 'library',
+        scrollV3: {
+          shape: 'mechanism',
+          sections: ['What the two bulges are', 'Why they follow the moon round'],
+          misconception: { kind: 'none' },
+        },
+      });
+      expect(subject!.scrollV3!.pictures).toBeUndefined();
+      expect(subject!.scrollV2).toBeUndefined();
+      expect(subject!.stageKit).toBeUndefined();
+      expect(isHeldForReview(subject!)).toBe(true);
+    });
+
+    it('refuses to produce a stored recipe whose row still holds the v2 plan: a plan problem with a code, no job and no request', async () => {
+      const key = (await insertPlans('legacy-v2', { scroll_v2: V2, scroll_v3: null })) as `gen-${string}`;
+      const subject = await subjectOf(database.db, key);
+      expect(subject?.scrollV2).toEqual(V2);
+      expect(subject?.scrollV3).toBeUndefined();
+      const run = fixtureProduction(database.db, () => answerWith(plainOrrin()), orrinResearchFor);
+      expect(await run.produce(key, false, signal(), true, 1)).toMatchObject({
+        outcome: 'plan_refused',
+        codes: ['stored_recipe_plan_not_v3'],
+      });
+      const jobs = await database.db
+        .selectFrom('content.scroll_production_runs')
+        .select('id')
+        .where('topic', '=', key)
+        .execute();
+      expect(jobs).toEqual([]);
+      expect(
+        await database.db.selectFrom('content.recipes').select('status').where('key', '=', key).executeTakeFirst(),
+      ).toEqual({
+        status: 'checked',
+      });
+    });
+
+    it('refuses a row whose plan does not parse when the book reads it, loudly, so the defect is seen', async () => {
+      // The database check refuses such a row, so drop it for this one row only, inside a transaction that is rolled back.
+      const key = 'gen-plan-defect-00000001';
+      await expect(
+        database.db.transaction().execute(async (tx) => {
+          await sql`alter table content.recipes drop constraint recipes_scroll_v3_check, drop constraint recipes_plan_check`.execute(
+            tx,
+          );
+          await sql`insert into content.recipes (key, origin, status, title, topic_id, facet_id, asset_id, explanation_unit_id, brief, pages, scroll_v2, scroll_v3, proposing_run_id)
+            values (${key}, 'proposal', 'checked', 'CI fixture plan defect', ${PLANET}, ${FACET_A}, ${stableUuid(`content.recipe-asset:${key}`)}::uuid, ${`${key}-v1`}, ${BRIEFS[0]}, array[${PAGE_A}], null, '{"shape":"essay","sections":["One","Two"]}'::jsonb, ${randomUUID()}::uuid)`.execute(
+            tx,
+          );
+          await subjectOf(tx, key);
+          throw new Error('CI: the read must have thrown');
+        }),
+      ).rejects.toThrow(/STORED_RECIPE_PLAN_INVALID/u);
     });
   });
 
