@@ -4,6 +4,7 @@ import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
+  checkerVersionOfRecipe,
   checkLibrarySupportJob,
   checkLibrarySupportQueue,
   produceAnswerQueue,
@@ -25,15 +26,17 @@ import type { ProductionReasoningHarness, WithProductionScope } from '@knowscrol
 /**
  * Sends the support check of a revision a delivery has just held for review (D-415). Only a delivery that stored a held Scroll
  * carries `held`. It is a hint, not the only way: it sits outside the transaction that held the Scroll, a failure to send it is
- * logged and swallowed, and the sweep finds every held revision that has no check.
+ * logged and swallowed, and the sweep finds every held revision that has no check. `checkerVersion` is the version that reads the
+ * document the delivery stored (a document v3's is not the v2's, D-435); a job under a version that does not read the revision is dropped.
  */
 export async function handOverHeldRevision(
   result: { readonly held?: true; readonly assetId?: string; readonly revision?: number },
   enqueue: (job: ReturnType<typeof checkLibrarySupportJob>) => Promise<'queued' | 'already_queued'>,
   onFailure: (error: unknown) => void,
+  checkerVersion?: string,
 ): Promise<void> {
   if (result.held !== true || result.assetId === undefined || result.revision === undefined) return;
-  await enqueue(checkLibrarySupportJob(result.assetId, result.revision)).catch(onFailure);
+  await enqueue(checkLibrarySupportJob(result.assetId, result.revision, checkerVersion)).catch(onFailure);
 }
 
 /**
@@ -91,8 +94,12 @@ export function scrollProductionConsumers(deps: {
       return;
     }
     const { result } = outcome;
-    await handOverHeldRevision(result, enqueueSupportCheck, (error) =>
-      logEvent('content.library_support_not_queued', { context: job.recipe, revision: result.revision ?? 0, error }),
+    await handOverHeldRevision(
+      result,
+      enqueueSupportCheck,
+      (error) =>
+        logEvent('content.library_support_not_queued', { context: job.recipe, revision: result.revision ?? 0, error }),
+      checkerVersionOfRecipe(job.recipe),
     );
     logEvent('content.scroll_production_finished', {
       context: job.recipe,

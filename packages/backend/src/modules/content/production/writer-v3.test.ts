@@ -31,7 +31,7 @@ import { writerInstructionsV3 } from './writer-v3-instructions.js';
 // CI fixtures only: an invented planet, never product content (see `spike-v3/writer-v3.fixture.ts`).
 const passages = evidencePassages([fixtureResearchPageV2]);
 const context = (key: SpikeTopicV3 = 'seasons'): WriterV3Context =>
-  writerContextV3(RECIPES.seasons, spikePlanV3(key), passages, [fixtureResearchPageV2]);
+  writerContextV3(RECIPES.seasons, 1, spikePlanV3(key), passages, [fixtureResearchPageV2]);
 const production = { kind: 'fixture', label: 'CI fixture' } as const;
 
 /** A reply, a prose or a staging as plain data, so a test can break one thing in it. */

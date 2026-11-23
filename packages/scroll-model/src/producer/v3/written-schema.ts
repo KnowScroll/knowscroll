@@ -109,7 +109,12 @@ export const WrittenPictureV3 = z.discriminatedUnion('kind', [
       .array(
         z.strictObject({
           label: written(1, POINT_LABEL_CHARS),
-          value: z.string().trim().pipe(FigureText),
+          // A research page writes a negative figure with the Unicode minus; the stored figure has the hyphen-minus.
+          value: z
+            .string()
+            .trim()
+            .transform((text) => text.replace(/^[\u2212\u2012\u2013]/u, '-'))
+            .pipe(FigureText),
           tone: Tone.optional(),
           note: written(1, F.itemNoteChars).optional(),
         }),

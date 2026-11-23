@@ -1,4 +1,4 @@
-import type { AuthoredScroll, AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
+import type { AuthoredScroll, AuthoredScrollV2, WrittenScrollV3 } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue, CompileOutcome } from '../application/ports.js';
@@ -6,12 +6,15 @@ import { trimAskAnswer, unchanged, type CodeMadeLines, type TrimCounts } from '.
 import type { EvidencePassage } from './evidence.js';
 import type { ProductionSubject } from './subject.js';
 import { storedScrollV2, type ModelProduction } from './stored-v2.js';
+import { storedScrollV3 } from './stored-v3.js';
 import { parseProductionRecipe } from './topics.js';
 import { publicationV2, WRITER_V2_PROMPT_VERSION, writerRoleV2, type WriterV2Context } from './writer-v2.js';
+import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
+import { writerContextV3, writerRoleV3One } from './writer-v3.js';
 import { askTrimRules, compileGeneratedScroll, generatedProvenance, promptVersionOf, writerRole } from './writer.js';
 
 /**
- * What differs between a v1 and a v2 Scroll in the production job: the role the model is asked, and
+ * What differs between a v1, a v2 and a document v3 Scroll in the production job: the role the model is asked, and
  * how an accepted answer is compiled into what admission stores. The job's stages, its attempt
  * ledger, its single repair and its publication are the same for both.
  */
@@ -108,11 +111,27 @@ function v2Plan(input: WriterPlanInput, plan: NonNullable<ProductionSubject['scr
 }
 
 /**
- * The writer plan of a job: the v2 writer for a recipe the library plan marks `scrollV2`, the v1 writer for every other.
- * A recipe marked `scrollV3` has no writer yet: it is refused before any request, so the v1 writer never writes a recipe
- * planned as a document v3 and spends paid requests on the wrong format. The v3 writer replaces the refusal.
+ * The plan of a recipe the library plan marks `scrollV3`: the whole Scroll in one reply (arm (a), `writerRoleV3One`), compiled
+ * into a stored document v3. Only a library recipe (a code recipe or a stored `gen-` one) has a v3 plan; a Scroll ordered from
+ * code stays v1, so a subject that is not a library recipe is refused before any request.
+ */
+function v3Plan(input: WriterPlanInput, plan: NonNullable<ProductionSubject['scrollV3']>): WriterPlan {
+  if (parseProductionRecipe(input.subject.key) === undefined) throw new Error('SCROLL_V3_REQUIRES_LIBRARY_RECIPE');
+  const context = writerContextV3(input.subject.identity, input.revision, plan, input.passages, input.pages);
+  return {
+    role: writerRoleV3One(context),
+    promptVersion: WRITER_V3_PROMPT_VERSION,
+    prepare: (output) => ({ authored: output, issues: [] }),
+    compile: (output, production) => storedScrollV3(output as WrittenScrollV3, context, production),
+  };
+}
+
+/**
+ * The writer plan of a job: the document v3 writer for a recipe the library plan marks `scrollV3`, the v2 writer for one it
+ * marks `scrollV2`, the v1 writer for every other. A v3 subject that is not a library recipe is refused before any request,
+ * so the v1 writer never writes a Scroll planned as a document v3 and spends paid requests on the wrong format.
  */
 export function writerPlanFor(input: WriterPlanInput): WriterPlan {
-  if (input.subject.scrollV3 !== undefined) throw new Error('SCROLL_V3_WRITER_NOT_IMPLEMENTED');
+  if (input.subject.scrollV3 !== undefined) return v3Plan(input, input.subject.scrollV3);
   return input.subject.scrollV2 === undefined ? v1Plan(input) : v2Plan(input, input.subject.scrollV2);
 }

@@ -470,7 +470,7 @@ export function makeWriterSpikeV3(deps: WriterSpikeV3Deps) {
       const code = error instanceof EvidenceRefusal ? error.code : 'evidence_failed';
       return { line: { ...line, outcome: 'evidence_insufficient', code, wallMs: beforeWriter } };
     }
-    const context = writerContextV3(TOPICS[key], spikePlanV3(key), passages, pages);
+    const context = writerContextV3(TOPICS[key], 1, spikePlanV3(key), passages, pages);
     const job: JobStart = { key, arm, started, researched, context, signal };
     return arm === 'a' ? armA(job, passages) : armB(job, passages);
   }

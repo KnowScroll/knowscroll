@@ -71,6 +71,21 @@ describe('handing the check of a held revision to its queue', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('sends the check under the version that reads the document the delivery stored (a document v3 has its own, D-435)', async () => {
+    const sent: { checkerVersion: string }[] = [];
+    const enqueue = (job: { checkerVersion: string }) => {
+      sent.push(job);
+      return Promise.resolve('queued' as const);
+    };
+    await handOverHeldRevision(
+      { held: true, assetId: ASSET, revision: 2 },
+      enqueue,
+      () => undefined,
+      'support-check-v3.00000000',
+    );
+    expect(sent.map((job) => job.checkerVersion)).toEqual(['support-check-v3.00000000']);
+  });
+
   it('never fails the delivery when the send fails: the failure is reported and the sweep finds the revision', async () => {
     const failures: unknown[] = [];
     await handOverHeldRevision(

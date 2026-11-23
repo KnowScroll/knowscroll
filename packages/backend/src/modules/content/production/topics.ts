@@ -40,8 +40,10 @@ export const REQUEST_BOUND_PER_TOPIC = 2;
  */
 export const REQUEST_BOUND_V2_PER_TOPIC = 6;
 /**
- * A document v3 library recipe's take sends at most as many paid requests as a v2 one for now. The writer pull request sets
- * this once the pipeline is chosen (the answer check of a v3 has no calls and sends none).
+ * The most paid requests a document v3 library recipe's take may send. The v3 writer is one reply (arm (a)): the writer once and the
+ * harness's one repair, so two in practice, and the answer check of a v3 has no calls and sends none. The bound is kept at a v2
+ * take's, an upper bound that the queue's claim (`PRODUCE_SCROLL_CLAIM_SECONDS`) already covers, so a writer that grows a step (the
+ * two-step arm (b), say) needs no new claim; `versions.test.ts` holds it there.
  */
 export const REQUEST_BOUND_V3_PER_TOPIC = 6;
 /**
