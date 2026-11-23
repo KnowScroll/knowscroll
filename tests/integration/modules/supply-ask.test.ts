@@ -2257,46 +2257,63 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await madeSoFar()).toEqual(before);
     });
 
-    it('closes a typed question the scope step places with the Scroll as switched off, and makes no order', async () => {
+    it('closes a typed question at create as switched off: no matching job, no scope step, no library check, no order', async () => {
       await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
       const before = await madeSoFar();
       const { person, exposure } = await reader();
       const requestId = await ask(person, askCommand(exposure, 'Why does the far side of Orrin stay cold?'));
-      await resolve(job(person, requestId));
       expect(await status(person, requestId)).toMatchObject({
         status: 'unavailable',
         reason: 'budget_unavailable',
         limit: { kind: 'off' },
       });
+      expect(await requestRow(requestId)).toMatchObject({ state: 'unavailable', ask_limit: 'off' });
+      expect(scopeModel.calls).toHaveLength(0);
+      expect(libraryCalls()).toHaveLength(0);
       expect(await madeSoFar()).toEqual(before);
+      // Nothing waits for a worker: no resolver job was queued for it.
+      const jobs = await sql<{
+        n: string;
+      }>`select count(*) as n from pgboss.job where name = 'supply.resolve-request' and data->>'requestId' = ${requestId}`.execute(
+        database.db,
+      );
+      expect(Number(jobs.rows[0]!.n)).toBe(0);
     });
 
-    it('closes a typed question about another subject as switched off when no library Scroll answers it', async () => {
-      await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
-      libraryScript = () => libraryReply(null, null);
-      const before = await madeSoFar();
-      const { person, exposure } = await reader();
-      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
-      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
-      await resolve(job(person, requestId));
-      expect(await status(person, requestId)).toMatchObject({
-        status: 'unavailable',
-        reason: 'budget_unavailable',
-        limit: { kind: 'off' },
-      });
-      expect(await madeSoFar()).toEqual(before);
-    });
-
-    it('still serves a library Scroll that answers a typed question about another subject: it makes nothing to order', async () => {
+    it('closes a typed question about another subject at create as switched off, with no library check, even when a library Scroll would answer it', async () => {
       await setup({ perDay: 20, perPerson: 5, madeToOrder: false });
       libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
       const before = await madeSoFar();
       const { person, exposure } = await reader();
-      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
       const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
-      await resolve(job(person, requestId));
-      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: library.assetId } });
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
+      expect(scopeModel.calls).toHaveLength(0);
+      expect(libraryCalls()).toHaveLength(0);
       expect(await madeSoFar()).toEqual(before);
+    });
+
+    it('closes a typed question that was already waiting to be placed when the switch was turned off, before any model call', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, 'How do ships know where the land begins?'));
+      expect((await requestRow(requestId)).state).toBe('matching');
+      libraryScript = () => libraryReply('s1', LIBRARY_QUOTE);
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      switchOff();
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+        limit: { kind: 'off' },
+      });
+      expect(scopeModel.calls).toHaveLength(0);
+      expect(libraryCalls()).toHaveLength(0);
+      expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
     });
 
     it('closes an order made while it was on, when its request is next advanced, even if its Scroll was admitted meanwhile', async () => {

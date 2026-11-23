@@ -154,18 +154,13 @@ waiter gets for waiting too long:
 
 ## Ask from here and ask orders (D-218, D-230, D-231; v3 S-7)
 
-**Switched off in every world (D-436, #784).** `KS_MADE_TO_ORDER_ENABLED` (off unless `1`, on the API and the worker) turns off every way to an ask order and
-every way to a scenario order (below) together; it is `SupplyPorts.madeToOrderEnabled`, read from the process's configuration by `supplyProviders`
-(`SupplySettings`, required, so no composition can leave it to a default). While it is off: `commissionAskOrder` answers the `off` limit before any lock is taken, so a suggested
-question, a typed question the scope step places with the Scroll and a typed question about another subject that no library Scroll answers all close the request as
-`budget_unavailable` with `ask_limit = 'off'` (the words the app already has for ask orders being off); a library Scroll that answers a typed question about another
-subject is still offered, because it makes nothing to order; `reopenedAskOrder` returns nothing, so the retry receipt is `not_retryable` and the request stays closed; and
-`advanceAskOrder` closes a waiting order's request the same way (`closeSwitchedOff`), even if its Scroll was admitted meanwhile, so the app never links to one made to order.
-Reading a request or the list is not refused; the list marks a question asked from a Scroll with `ask: true` so a client can leave it out. The switch is not a cap: `askCaps`
-keep their meaning (0 still turns ask orders off on its own). Turning it back on needs a v3 writer first (D-436).
-
-A person reading a v2 Scroll asks a question from one of its stops: `intent: { kind: 'ask', source, anchor: { kind: 'stop', stopId }, question, recordingGeneration }`.
-It is the same request row, the same states (E07), polling, cancel and retry; only where it goes differs.
+**Switched off in every world (D-436, #784).** `KS_MADE_TO_ORDER_ENABLED` (off unless `1`, on the API and the worker) turns off the whole ask-from-a-Scroll feature and every way to a scenario order (below);
+it is `SupplyPorts.madeToOrderEnabled`, read from the process's configuration by `supplyProviders` (`SupplySettings`, required, so no composition can leave it to a default). While it is off:
+every ask, suggested or typed, closes at create as `budget_unavailable` with `ask_limit = 'off'` (the words the app already has for ask orders being off), before any matching job exists, so no scope step, no library check and
+no order is made or paid for; a typed question already `matching` when the switch is turned off (or made before it) closes the same way in the worker before any harness call (`placeQuestion`, and `decide` for any verdict); `commissionAskOrder`
+also answers the `off` limit before any lock is taken; `reopenedAskOrder` returns nothing, so the retry receipt is `not_retryable` and the request stays closed; and `advanceAskOrder` closes a waiting order's request the same way
+(`closeSwitchedOff`), even if its Scroll was admitted meanwhile, so the app never links to one made to order. Reading a request or the list is not refused; the list marks a question asked from a Scroll with `ask: true` so a
+client can leave it out. The switch is not a cap: `askCaps` keep their meaning (0 still turns ask orders off on its own). Turning it back on needs a v3 writer first (D-436).
 
 1. **Gate.** The create transaction refuses an ask while recording is paused or its generation is stale (`recording_paused`, `recording_stale`; no receipt),
    checks the exact activated source, and reads the anchor from the exact immutable revision (`READ_SCROLL_ASK_FACTS`): a stop that is not there is `source_unavailable`.
