@@ -180,6 +180,25 @@ describe('arm a: the whole Scroll in one reply', () => {
     expect(role.outputSchema.safeParse(fixtureReplyV3()).success).toBe(true);
   });
 
+  it('accepts a reply whose only fault is a link that cannot be placed, so it needs no repair, and lists the link as a notice', () => {
+    const misplaced = edited(fixtureReplyV3(), (draft) => {
+      // Item 2 shows nothing of its own; picture 1 is on screen from item 1, with the part "value" and no part "Nowhere".
+      const words = String(draft.items[2]?.text).split(' ').slice(0, 3).join(' ');
+      patch(draft.items, 2, {
+        links: [
+          { phrase: words, part: 'Nowhere' },
+          { phrase: 'a phrase this paragraph never says', part: 'value' },
+        ],
+      });
+    });
+    expect(findingsOf(role.outputSchema.safeParse(misplaced))).toEqual([]);
+    const outcome = compileGeneratedScrollV3(misplaced as never, context(), production);
+    expect(outcome.kind === 'compiled' ? outcome.notices : undefined).toEqual([
+      { code: 'link_part_unknown', path: 'items.2.links.0.part' },
+      { code: 'link_phrase_not_once', path: 'items.2.links.1.phrase' },
+    ]);
+  });
+
   it('refuses a reply that breaks several rules at once, each finding at the model’s own item, with fixed codes', () => {
     const broken = edited(fixtureReplyV3(), (draft) => {
       patch(draft.items, 1, { text: `This ${String(draft.items[1]?.text)}` });

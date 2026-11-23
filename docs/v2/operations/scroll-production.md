@@ -415,7 +415,9 @@ node dist/operator.js content review-show --asset <asset id> --sources         #
 node dist/operator.js content release --asset <asset id> --revision <n>        # or reject, with a reason; or leave it to the release policy
 ```
 
-A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]`. A take is refused until the earlier one was rejected, or released (a document v3 may be taken again after a release, as a v2 may: the new revision is held and the served one keeps serving). A recipe has three takes at a production version (`scroll-production-v3.v1`).
+A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]`. A take is refused until the earlier one was rejected, or released (a document v3 may be taken again after a release, as a v2 may: the new revision is held and the served one keeps serving). A recipe has three takes at a production version; the current one for a document v3 is `scroll-production-v3.v2` (D-438). Takes made at `.v1` do not count against `.v2`, so every recipe whose served Scroll is not yet a document v3 has three new takes, and a recipe whose served Scroll is already a document v3 is still skipped by `produce-library`. The revisions `.v1` wrote still read, release and are served.
+
+**D-438.** A link of a paragraph that the writer's compile cannot place (its phrase is not in the paragraph exactly once, it overlaps a link kept before it, no picture is on screen, or its label is not a part of that picture) is dropped, and the Scroll is not refused for it. The job's `outcomes` then hold a receipt `{role: 'checks', kind: 'links_dropped', dropped: n}` with the count, never the words. The validator is as strict as before. A control that lights an item (a scrub along items, a pick) also reveals it, so a reader who chooses an item the beat's `upTo` had not reached sees it; the support check reads the words of that revealed state.
 
 What happens after the job, with no person:
 
@@ -657,7 +659,7 @@ planet, facet or system. A stored recipe is a **document v3** recipe (#781, owne
 (`argument`, `mechanism` or `story`) and one intent per section (two or three), and the writer picks the picture kinds from the closed set by what its passages
 hold; the statement picture is always available. A proposal may name a picture in its brief, but never a quiz or anything interactive. Every Scroll made from a
 stored recipe is held for your read, like any document v3 library Scroll, and nobody is served it before `content release`. **The document v3 writer produces a stored recipe
-(`content produce-library --only gen-<key>` runs it like a v3 library recipe, at `scroll-production-v3.v1`), and proposing and listing work.** A stored row that still holds the old plain v2 plan is refused as a plan problem (`plan_refused`, `stored_recipe_plan_not_v3`) and no job is
+(`content produce-library --only gen-<key>` runs it like a v3 library recipe, at `scroll-production-v3.v2`), and proposing and listing work.** A stored row that still holds the old plain v2 plan is refused as a plan problem (`plan_refused`, `stored_recipe_plan_not_v3`) and no job is
 reserved. The flow:
 
 1. **Propose.** `content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>]` asks the model once (and repairs once) and stores the

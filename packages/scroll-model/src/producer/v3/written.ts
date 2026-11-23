@@ -99,6 +99,12 @@ export type WrittenCompileOutcome =
       readonly provenance: ScrollProvenanceV3;
       /** The claims each part rests on, by the document's own ids (`b3`, `a1`, `p1`, `takeaway`). Internal; never served. */
       readonly citations: Readonly<Record<string, readonly string[]>>;
+      /**
+       * The links the compile left out because they could not be placed, one notice each (code and path, the shape of an
+       * issue) at the model's own item (`items.6.links.0.phrase`). Not a finding: the document is whole without them. The
+       * caller records how many there were.
+       */
+      readonly notices: readonly IssueV3[];
     }
   | { readonly kind: 'refused'; readonly issues: readonly IssueV3[] };
 
@@ -208,25 +214,78 @@ function readShow(
 }
 
 /**
- * The links of a beat. A link names a part of the picture on screen: the beat's own, else the last one its section
- * showed (the validator's rule). A show that names no picture has its own finding, so its links are not judged.
+ * How many times `phrase` occurs in `text`, overlapping matches counted: the validator's count (`occurrences` in
+ * `v3/validate.ts`), kept in step with it because a link kept here must be one the validator accepts. A phrase that could be
+ * found in two places ("aa" in "aaa") is not "once".
+ */
+function occurrences(text: string, phrase: string): number {
+  // The reply schema holds a phrase to one character or more; an empty one would match at every index and never end the loop.
+  if (phrase === '') return 0;
+  let count = 0;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(phrase, from);
+    if (at < 0) return count;
+    count += 1;
+    from = at + 1;
+  }
+}
+
+/**
+ * The links of a beat, with the ones that cannot be placed left out. A link is optional: the reader already leaves out a
+ * phrase it cannot find, so a link that does not fit costs the Scroll a nicety and not the Scroll itself. A link is left out,
+ * and a notice (never an issue) says so at the model's own path, when its phrase is not in `text` exactly once
+ * (`link_phrase_not_once`), when it shares words with a link kept before it (`link_phrases_overlap`), when no picture is on
+ * screen (`link_without_picture`) or when its label is not a part of that picture (`link_part_unknown`). One notice a link,
+ * for the first of these it fails. A label that names two parts is the picture's fault, so it stays an issue
+ * (`picture_label_duplicate`). The validator is as strict as ever: what is kept here is what it accepts.
+ *
+ * A link names a part of the picture on screen: the beat's own, else the last one its section showed (the validator's
+ * rule). A show that names no picture has its own finding, so its links are judged by their words only.
  */
 function readLinks(
   written: ParaItem['links'],
+  text: string,
   onScreen: BuiltPicture | undefined,
   judged: boolean,
   path: string,
   issues: IssueV3[],
+  notices: IssueV3[],
 ): Link[] {
-  return (written ?? []).map(({ phrase, part }, index) => {
-    const id = judged ? onScreen?.parts.get(part) : undefined;
-    if (judged && onScreen !== undefined && id === undefined)
-      issues.push({
-        code: onScreen.ambiguous.has(part) ? 'picture_label_duplicate' : 'link_part_unknown',
-        path: `${path}.links.${index}.part`,
-      });
-    return { phrase, part: id ?? UNKNOWN_ID };
+  const kept: Link[] = [];
+  const spans: (readonly [number, number])[] = [];
+  (written ?? []).forEach(({ phrase, part }, index) => {
+    const linkPath = `${path}.links.${index}`;
+    if (occurrences(text, phrase) !== 1) {
+      notices.push({ code: 'link_phrase_not_once', path: `${linkPath}.phrase` });
+      return;
+    }
+    const start = text.indexOf(phrase);
+    const end = start + phrase.length;
+    // Only a kept link can be overlapped: a link left out is not in the document.
+    if (spans.some(([from, to]) => from < end && start < to)) {
+      notices.push({ code: 'link_phrases_overlap', path: `${linkPath}.phrase` });
+      return;
+    }
+    let id: string | undefined;
+    if (judged) {
+      if (onScreen === undefined) {
+        notices.push({ code: 'link_without_picture', path: linkPath });
+        return;
+      }
+      id = onScreen.parts.get(part);
+      if (id === undefined) {
+        if (!onScreen.ambiguous.has(part)) {
+          notices.push({ code: 'link_part_unknown', path: `${linkPath}.part` });
+          return;
+        }
+        issues.push({ code: 'picture_label_duplicate', path: `${linkPath}.part` });
+      }
+    }
+    spans.push([start, end]);
+    kept.push({ phrase, part: id ?? UNKNOWN_ID });
   });
+  return kept;
 }
 
 function readControl(
@@ -247,11 +306,20 @@ function readBeat(
   pictures: readonly BuiltPicture[],
   cite: Cite,
   issues: IssueV3[],
+  notices: IssueV3[],
 ): AuthoredBeatV3 {
   const path = `items.${at}`;
   const shown = readShow(item.show, pictures, path, issues);
   const picture = item.show === undefined ? section.onScreen : shown.picture;
-  const links = readLinks(item.links, picture, item.show === undefined || shown.picture !== undefined, path, issues);
+  const links = readLinks(
+    item.links,
+    item.text,
+    picture,
+    item.show === undefined || shown.picture !== undefined,
+    path,
+    issues,
+    notices,
+  );
   if (shown.picture !== undefined) section.onScreen = shown.picture;
   const own = {
     text: item.text,
@@ -281,6 +349,8 @@ function readBeat(
 interface ReadItems {
   readonly sections: ReadSection[];
   readonly asides: ReadAside[];
+  /** The links left out because they could not be placed, at the model's own paths. */
+  readonly notices: IssueV3[];
 }
 
 /** Walks the flat item list: a `section` opens a section, a paragraph or quotation is its beat, an aside follows its beat. */
@@ -292,6 +362,7 @@ function readItems(
 ): ReadItems {
   const sections: ReadSection[] = [];
   const asides: ReadAside[] = [];
+  const notices: IssueV3[] = [];
   if (items[0]?.type !== 'section') issues.push({ code: 'section_first_missing', path: 'items.0' });
   let lastBeatItem: number | undefined;
   items.forEach((item, at) => {
@@ -316,11 +387,11 @@ function readItems(
         sections.push({ title: IMPLICIT_SECTION_TITLE, item: undefined, beats: [], onScreen: undefined });
       const section = sections[sections.length - 1];
       if (section === undefined) return;
-      section.beats.push({ beat: readBeat(item, at, section, pictures, cite, issues), item: at });
+      section.beats.push({ beat: readBeat(item, at, section, pictures, cite, issues, notices), item: at });
       lastBeatItem = at;
     }
   });
-  return { sections, asides };
+  return { sections, asides, notices };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -588,6 +659,8 @@ function repeatsOwn(issue: IssueV3, own: readonly IssueV3[]): boolean {
 
 interface Analysis {
   readonly issues: readonly IssueV3[];
+  /** The links left out, at the model's own paths. */
+  readonly notices: readonly IssueV3[];
   readonly authored: AuthoredScrollV3;
   readonly document: ScrollDocumentV3 | undefined;
 }
@@ -641,6 +714,7 @@ function analyse(input: WrittenCompileInput): Analysis {
       : [];
   return {
     issues: uniqueIssuesV3([...checks, ...fromDocument]),
+    notices: read.notices,
     authored,
     document: validated?.kind === 'valid' ? validated.document : undefined,
   };
@@ -672,7 +746,10 @@ function validateAssembled(authored: AuthoredScrollV3, publication: PublicationV
  * Compiles the model's whole-Scroll reply into a stored document v3 and its provenance, or into every finding at once.
  *
  * Code assigns every id (`p1…`, `s1…`, `b1…`, `a1…`) and turns the model's handles, picture numbers and labels into
- * them; each unresolved one is a finding at the model's own item. It then runs, merged and never stopping at the first
+ * them; each unresolved one is a finding at the model's own item, except a link: a link that cannot be placed (its phrase
+ * is not in its paragraph exactly once, it shares words with an earlier link, no picture is on screen, or its label is not
+ * a part of that picture) is left out of the document and returned as a notice, because a link is optional and the
+ * Scroll is whole without it. It then runs, merged and never stopping at the first
  * stage: the structure (a first section, an aside after a beat, the planned picture kinds); the evidence rule in its
  * strict mode (every figure in prose by `unstatedFigures`, chart values by `pointAgrees`, quotations word for word, no
  * copied run against any research text); the writer rules (enough distinct passages, no opening that points back, no
@@ -683,7 +760,7 @@ function validateAssembled(authored: AuthoredScrollV3, publication: PublicationV
  * than two beats) gets its findings from everything else and none from the document's rules, which cannot read it.
  */
 export function compileWrittenV3(input: WrittenCompileInput): WrittenCompileOutcome {
-  const { issues, authored, document } = analyse(input);
+  const { issues, notices, authored, document } = analyse(input);
   if (issues.length > 0 || document === undefined) return { kind: 'refused', issues };
   const citations = citationsOf(authored, document);
   const cited = new Set(citations.flatMap((entry) => entry.claimIds));
@@ -695,6 +772,7 @@ export function compileWrittenV3(input: WrittenCompileInput): WrittenCompileOutc
     kind: 'compiled',
     document,
     citations: Object.fromEntries(citations.map((entry) => [entry.partId, entry.claimIds])),
+    notices,
     provenance: {
       schemaVersion: SCROLL_PROVENANCE_V3_SCHEMA_VERSION,
       assetId: input.code.publication.assetId,

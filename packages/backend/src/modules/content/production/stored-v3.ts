@@ -22,7 +22,8 @@ const asIssues = (issues: readonly AdmissionIssue[]): AdmissionIssue[] =>
  * which only names the arm in the attempt ledger).
  *
  * Refuses, with codes and paths and never text, what the producer refuses (at the model's own items, so a repair can fix it),
- * and a document or provenance that does not hold once written out as the exact stored bytes. Pure and deterministic.
+ * and a document or provenance that does not hold once written out as the exact stored bytes. A link the producer could not
+ * place is not a refusal: the document is stored without it and `notices` says where it was (D-438). Pure and deterministic.
  */
 export function storedScrollV3(
   reply: WrittenScrollV3,
@@ -57,5 +58,6 @@ export function storedScrollV3(
     language: document.language,
     title: document.title,
     readingFacts: readingFactsOfV3(document),
+    ...(generated.notices.length === 0 ? {} : { notices: asIssues(generated.notices) }),
   };
 }

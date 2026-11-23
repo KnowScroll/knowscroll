@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, spacing } from '@knowscroll/design-tokens';
 import type { Picture, PictureState } from '@knowscroll/scroll-model';
-import { canonicalJson, describePicture } from '../model';
+import { canonicalJson, describePicture, lightItem } from '../model';
 import { useFocusRing } from '../../display/focus-ring';
 import { radioGroupSemantics, radioSemantics, toggleSemantics } from '../../display/semantics';
 import { spaceActivates } from '../../display/space-key';
@@ -127,6 +127,7 @@ function SwitchControl({
 }
 
 function PickControl({
+  picture,
   control,
   base,
   onState,
@@ -137,7 +138,8 @@ function PickControl({
     const item = control.items[index];
     if (item === undefined) return;
     setChosen(index);
-    onState({ ...base, lit: [item.id] });
+    // Lighting an item also reveals it: a lit item that `upTo` has not reached would draw as nothing.
+    onState(lightItem(picture, base, item.id));
   };
   const item = chosen === undefined ? undefined : control.items[chosen];
   return (

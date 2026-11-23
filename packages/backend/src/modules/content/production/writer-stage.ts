@@ -105,6 +105,15 @@ const NO_HISTORY: History = { receipts: [], closing: [] };
 const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollResult => 'outcome' in value;
 
 /**
+ * The receipt of the links a document v3's compile left out (D-438): a count and nothing else, because the job's outcomes are
+ * kept and read by operators and a link's words are model text. None when every link was placed.
+ */
+function linksDroppedReceipt(compiled: Compiled): readonly RoleReceipt[] {
+  const dropped = compiled.notices?.length ?? 0;
+  return dropped === 0 ? [] : [{ role: 'checks', kind: 'links_dropped', dropped }];
+}
+
+/**
  * The writer stage of a production job: ask the writer, compile its answer and publish it. For a v2
  * library recipe the answer check sits between the two (D-198), and for the answer to a person's question
  * the support check does (D-250). The stage sends at most two writer requests (the first draft with the
@@ -218,7 +227,8 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
             },
           ];
     const flagged = flaggedCalls(checked.record.verdicts ?? []);
-    const receipts = [draft.receipt, ...history.receipts, checked.receipt];
+    // A document v3 has no calls to flag, so its one draft is published here, with the count of links its compile left out.
+    const receipts = [draft.receipt, ...linksDroppedReceipt(draft.compiled), ...history.receipts, checked.receipt];
     if (flagged.length === 0)
       return ops.publish(stage.subject, row, receipts, draft.authored, draft.compiled, draft.runId, [
         ...history.closing,

@@ -3,6 +3,7 @@ import { Control, Show } from './document.js';
 import {
   controlIssues,
   figureValue,
+  lightItem,
   orderedItems,
   partIds,
   pickItems,
@@ -531,11 +532,78 @@ describe('scrubPositions', () => {
       ]);
     });
 
+    it('reveals each item the beat’s upTo has not reached, and keeps upTo for the ones it has', () => {
+      expect(scrubPositions(flow(), state({ upTo: 1 }), 'items').map((position) => position.state)).toEqual([
+        { upTo: 1, lit: ['aa'] },
+        { upTo: 2, lit: ['bb'] },
+        { upTo: 3, lit: ['cc'] },
+      ]);
+      expect(scrubPositions(chartOf(), state({ upTo: 2 }), 'items').map((position) => position.state)).toEqual([
+        { upTo: 2, lit: ['p1'] },
+        { upTo: 2, lit: ['p2'] },
+        { upTo: 3, lit: ['p3'] },
+      ]);
+      expect(scrubPositions(cycle, state({ upTo: 1 }), 'items').map((position) => position.state.upTo)).toEqual([
+        1, 2, 3,
+      ]);
+    });
+
+    it('leaves a state with no upTo as it was: everything is revealed already', () => {
+      expect(scrubPositions(flow(), state({ lit: ['cc'] }), 'items').map((position) => position.state)).toEqual([
+        { lit: ['aa'] },
+        { lit: ['bb'] },
+        { lit: ['cc'] },
+      ]);
+    });
+
+    it('reveals a grid cell by its row, since upTo counts rows', () => {
+      const cells = [gridCell('c2', 'dear', 'slow'), gridCell('c1', 'cheap', 'fast')];
+      expect(scrubPositions(gridOf(cells), state({ upTo: 1 }), 'items').map((position) => position.state)).toEqual([
+        { upTo: 1, lit: ['c1'] },
+        { upTo: 2, lit: ['c2'] },
+      ]);
+    });
+
     it('replaces a base lit state, and has nowhere to go on a statement number or quotation', () => {
       expect(scrubPositions(flow(), state({ lit: ['cc'] }), 'items')[0]?.state).toEqual({ lit: ['aa'] });
       expect(scrubPositions(statementNumber, state(), 'items')).toEqual([]);
       expect(scrubPositions(statementQuote, state(), 'items')).toEqual([]);
     });
+  });
+});
+
+describe('lightItem', () => {
+  it('lights the item and raises upTo to its place when upTo has not reached it', () => {
+    expect(lightItem(flow(), state({ upTo: 1 }), 'cc')).toEqual({ upTo: 3, lit: ['cc'] });
+    expect(lightItem(chartOf(), state({ upTo: 1 }), 'p2')).toEqual({ upTo: 2, lit: ['p2'] });
+    expect(lightItem(cycle, state({ upTo: 2 }), 'zz')).toEqual({ upTo: 3, lit: ['zz'] });
+  });
+
+  it('keeps an upTo that already reveals the item, and a state with no upTo', () => {
+    expect(lightItem(flow(), state({ upTo: 3 }), 'bb')).toEqual({ upTo: 3, lit: ['bb'] });
+    expect(lightItem(flow(), state({ upTo: 1 }), 'aa')).toEqual({ upTo: 1, lit: ['aa'] });
+    expect(lightItem(flow(), state(), 'cc')).toEqual({ lit: ['cc'] });
+  });
+
+  it('keeps the other keys of the state and replaces a lit one', () => {
+    expect(lightItem(planOf(), state({ step: 1, lit: ['pump-a'] }), 'pump-c')).toEqual({ step: 1, lit: ['pump-c'] });
+  });
+
+  it('changes nothing about upTo where it counts nothing (a statement list, a plan) or the id is no item', () => {
+    expect(lightItem(statementList, state(), 'two')).toEqual({ lit: ['two'] });
+    expect(lightItem(flow(), state({ upTo: 1 }), 'nowhere')).toEqual({ upTo: 1, lit: ['nowhere'] });
+  });
+
+  it('reveals a grid cell by its row', () => {
+    const grid = gridOf([gridCell('c2', 'dear', 'slow'), gridCell('c1', 'cheap', 'fast')]);
+    expect(lightItem(grid, state({ upTo: 1 }), 'c2')).toEqual({ upTo: 2, lit: ['c2'] });
+    expect(lightItem(grid, state({ upTo: 1 }), 'c1')).toEqual({ upTo: 1, lit: ['c1'] });
+  });
+
+  it('gives a state the picture can be in, so a scrub or a pick never leaves the picture’s own rules', () => {
+    const picture = flow();
+    for (const id of ['aa', 'bb', 'cc'])
+      expect(pictureStateIssues(picture, lightItem(picture, state({ upTo: 1 }), id), 'p')).toEqual([]);
   });
 });
 

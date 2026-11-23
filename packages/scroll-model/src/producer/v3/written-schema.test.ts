@@ -45,6 +45,18 @@ describe('WrittenScrollV3', () => {
     expect(issues).toContainEqual({ code: 'schema_too_big', path: 'pictures.0.steps.0.label' });
   });
 
+  it('refuses a link phrase that is empty or only space, at the link, so the compile never searches for nothing', () => {
+    for (const phrase of ['', '   ']) {
+      const issues = refusedAt(
+        mutated((reply) => {
+          const item = reply.items[6];
+          if (item?.type === 'para') item.links = [{ phrase, part: 'Bubbles' }];
+        }),
+      );
+      expect(issues).toContainEqual({ code: 'schema_too_small', path: 'items.6.links.0.phrase' });
+    }
+  });
+
   it('refuses a key the shape does not have, a bad handle and a bad chart value', () => {
     const issues = refusedAt(
       mutated((reply) => {
