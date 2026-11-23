@@ -84,6 +84,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   common_guess_invalid: 'The common guess is the second option of the first call_it of a myth Scroll; code sets it.',
   common_guess_missing: 'The common guess is the second option of the first call_it of a myth Scroll; code sets it.',
   common_guess_unexpected: 'Only the first call_it of a myth Scroll has a common guess; code sets it.',
+  stage_kit_unknown:
+    'The recipe names a drawing kit the code no longer has; no Scroll with a picture can be made from it.',
   stage_state_unsettled: 'A stage state holds only what its view draws; code settles it.',
   measures_mismatch: 'The reading measures are computed by code.',
   integrity_mismatch: 'The integrity hash is computed by code.',

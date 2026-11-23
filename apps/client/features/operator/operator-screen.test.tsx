@@ -312,6 +312,11 @@ describe('the Operator screen', () => {
     expect(await screen.findByText(/world local · 01234567/)).toBeOnTheScreen();
   });
 
+  it('links to the review of held Scrolls from its header', async () => {
+    await mount(operatorAnswers);
+    expect(await screen.findByRole('link', { name: 'Review held Scrolls' })).toBeOnTheScreen();
+  });
+
   it('lists the reports by kind, reason and what they are about, saying only whether a note exists', async () => {
     await mount(operatorAnswers);
     expect(await screen.findByRole('heading', { name: '7 · Reports' })).toBeOnTheScreen();

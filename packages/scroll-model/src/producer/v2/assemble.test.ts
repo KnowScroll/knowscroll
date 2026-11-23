@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { authoredV2, PUBLICATION_V2, recipeV2 } from '../../test-support/v2-fixtures.js';
+import { authoredV2, liveStageOf, PUBLICATION_V2, recipeV2 } from '../../test-support/v2-fixtures.js';
 import { EARTH_SKY_KIT, INITIAL_STAGE_STATE } from '../../v2/kit.js';
 import { isKitPatch, kitDefinition } from '../../v2/kits/index.js';
 import { assembleScrollV2, shuffleOptions } from './assemble.js';
@@ -88,8 +88,9 @@ describe('assembleScrollV2', () => {
 
   it('records every state of the stage with the description its physics gives, never one the writer chose', () => {
     const { document } = assemble();
-    const kit = kitDefinition(document.stage?.kit ?? EARTH_SKY_KIT);
-    for (const entry of document.stage?.states ?? []) expect(entry.alt).toBe(kit.describe(entry.state));
+    const stage = liveStageOf(document);
+    const kit = kitDefinition(stage.kit);
+    for (const entry of stage.states) expect(entry.alt).toBe(kit.describe(entry.state));
     expect(Object.keys(document.stage?.states[0]?.state ?? {}).sort()).toEqual(['earthAt', 'focus', 'moonAt', 'view']);
   });
 

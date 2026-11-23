@@ -28,6 +28,11 @@ export const STAGE_KIT_IDS = [
 ] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
+/** Whether `id` names a kit the code still defines. A stored stage may name one it no longer does (a legacy stage). */
+export function isStageKitId(id: string): id is StageKitId {
+  return (STAGE_KIT_IDS as readonly string[]).includes(id);
+}
+
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [EARTH_SKY_KIT]: EARTH_SKY_KIT_DEFINITION,
   [TIDES_KIT]: TIDES_KIT_DEFINITION,
@@ -40,8 +45,13 @@ const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [BLACK_HOLE_KIT]: BLACK_HOLE_KIT_DEFINITION,
 };
 
-/** The generic definition of a kit: its words, its first state, how it settles and describes a state. */
+/**
+ * The generic definition of a kit: its words, its first state, how it settles and describes a state. It throws for a
+ * kit the code does not define, so nothing is made of a kit that is gone; code that meets a stored stage checks
+ * `isStageKitId` first.
+ */
 export function kitDefinition(id: StageKitId): KitDefinition {
+  if (!isStageKitId(id)) throw new Error(`Unknown stage kit "${String(id)}".`);
   return KITS[id];
 }
 

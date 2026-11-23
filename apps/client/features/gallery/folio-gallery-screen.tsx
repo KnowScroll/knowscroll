@@ -30,6 +30,7 @@ import {
 import {
   Button,
   DisplayProvider,
+  drawableStage,
   EssayCover,
   FigureView,
   FolioReader,
@@ -297,11 +298,10 @@ interface CoverFixture {
 
 /** A v2 fixture document as a cover: its own words and reading time, and the first state of its stage as the figure. */
 function coverOf(id: string, label: string, source: ScrollDocumentV2, way: 'read' | 'continue' = 'read'): CoverFixture {
-  const first = source.stage?.states[0];
+  const stage = drawableStage(source.stage);
+  const first = stage?.states[0];
   const figure =
-    source.stage === undefined || first === undefined
-      ? undefined
-      : stageFigureAt(source.stage, source.stops, first.stop);
+    stage === undefined || first === undefined ? undefined : stageFigureAt(stage, source.stops, first.stop);
   return {
     id,
     label,

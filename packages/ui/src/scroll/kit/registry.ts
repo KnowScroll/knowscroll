@@ -148,3 +148,15 @@ export const KIT_PICTURES = {
     Picture: BlackHolePicture,
   }),
 } as const satisfies Record<string, KitPicture>;
+
+/** The id of a kit this build draws. */
+export type KitPictureId = keyof typeof KIT_PICTURES;
+
+/**
+ * Whether this build draws the kit a stage names. A stored stage may name a kit that has since been removed (its
+ * revision stays readable and is served to older apps), so every reader that looks a kit up by a stored or wire `kit`
+ * asks first and draws nothing for one it lacks. Own keys only: a name such as `constructor` is no kit.
+ */
+export function isKitPictureId(kit: string): kit is KitPictureId {
+  return Object.hasOwn(KIT_PICTURES, kit);
+}

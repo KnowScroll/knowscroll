@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { authoredV2, compileInputV2, EVIDENCE_V2, PASSAGES_V2, recipeV2 } from '../../test-support/v2-fixtures.js';
+import {
+  authoredV2,
+  compileInputV2,
+  EVIDENCE_V2,
+  liveStageOf,
+  PASSAGES_V2,
+  recipeV2,
+} from '../../test-support/v2-fixtures.js';
 import { validateDocumentV2 } from '../../v2/validate.js';
 import type { ScrollDocumentV2 } from '../../v2/document.js';
 import type { StagePlanV2 } from './assemble.js';
@@ -230,7 +237,9 @@ describe('what a recipe’s stage plan asks of the picture (D-382)', () => {
 
   it('accepts a picture that stands on the orbit at two different months, so the recap of the journey can draw', () => {
     const outcome = compiled(compile(authoredOrbit(), plan));
-    expect(outcome.document.stage?.states.filter((entry) => entry.state.view.startsWith('orbit'))).toHaveLength(2);
+    expect(liveStageOf(outcome.document).states.filter((entry) => entry.state.view.startsWith('orbit'))).toHaveLength(
+      2,
+    );
   });
 
   it('refuses a picture that stands on the orbit at one month, and one that never goes there', () => {
@@ -307,7 +316,7 @@ describe('a state with figures, once stored, is admitted only as code made it (D
     const kept = JSON.stringify(draft);
     const refusedWith = (change: (state: { figures?: unknown[]; view: string }) => void): string[] => {
       const copy = JSON.parse(kept) as ScrollDocumentV2;
-      const held = copy.stage?.states.find((candidate) => candidate.stop === 's3');
+      const held = liveStageOf(copy).states.find((candidate) => candidate.stop === 's3');
       if (held === undefined) throw new Error('fixture has the state');
       change(held.state);
       const outcome = validateDocumentV2(copy, { verify: false });

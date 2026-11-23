@@ -324,6 +324,94 @@ To read a refused answer: `node dist/operator.js reasoning rejected --attempt <a
 
 Each run starts fresh and remembers nothing. Before running again, reconcile every attempt the last run left `unknown` with `reasoning unknown` (or write it off): re-running that topic before then would send a second paid request while the first is unsettled. Then re-run only the topics in `notStarted` plus `stoppedBy.key`, which is not in `notStarted`. Re-running all twenty repeats the finished ones and pays for them again.
 
+## The v3 writer spike (#771)
+
+Before any recipe is planned as a `scroll-document.v3`, the team measures how the document v3 writer does on real recipes, in two arms. Arm `a` asks for the whole Scroll in one reply. Arm `b` asks for the prose, then asks a second request to stage it (the pictures, and what each paragraph shows, links and controls). The command **admits and publishes nothing** and needs no migration. Status: implemented, **not yet run on real MiniMax**.
+
+```sh
+# worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash (the only model it accepts)
+node dist/operator.js content writer-spike-v3 --topics <recipe key,…> --arms <a,b> [--raw-dir <absolute dir>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
+node dist/operator.js content writer-spike-v3-blind --in <out file> --page <html file> --key <key file> [--seed <n>]
+```
+
+The ten recipes, each with a plan of the spike's own (the library marks none as v3). Every plan has three sections and no misconception. A recipe with named pictures must write exactly those kinds; for the others the writer chooses one to three kinds.
+
+| Recipe | Shape | Named pictures |
+|---|---|---|
+| `seasons` | argument | a statement, a grid |
+| `tides-spring-neap` | mechanism | a cycle |
+| `greenhouse-radiation` | mechanism | two flows |
+| `cardiac-cycle` | mechanism | a cycle, a grid |
+| `black-hole-formation` | story | a flow, a grid |
+| `gradient-descent` | mechanism | the writer chooses |
+| `dns-lookup` | mechanism | the writer chooses |
+| `industrial-causes` | argument | the writer chooses |
+| `immune-memory` | mechanism | the writer chooses |
+| `exoplanet-kinds` | argument | the writer chooses |
+
+Each recipe runs in each arm: `--topics` times `--arms` jobs. A job sends at most two requests in arm `a` and four in arm `b` (the writer or the stager, and one repair of each). All ten recipes in both arms is at most 60 requests. Run them in two halves of five recipes if the MiniMax window is short; the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) apply as for every production call.
+
+```sh
+node dist/operator.js content writer-spike-v3 --topics seasons,tides-spring-neap,greenhouse-radiation,cardiac-cycle,black-hole-formation --arms a,b --concurrency 2 --spike-id writer-v3-1 --raw-dir /var/tmp/ks-v3-spike/raw --out /var/tmp/ks-v3-spike/writer-v3-1.jsonl
+node dist/operator.js content writer-spike-v3 --topics gradient-descent,dns-lookup,industrial-causes,immune-memory,exoplanet-kinds --arms a,b --concurrency 2 --spike-id writer-v3-2 --raw-dir /var/tmp/ks-v3-spike/raw --out /var/tmp/ks-v3-spike/writer-v3-2.jsonl
+```
+
+### Reading the output
+
+One JSON line on stdout for the start (`result: "starting"`), one for each job as it finishes (`result: "job"`), and one for the end (`done` or `stopped`). The exit status is as for the v2 spike: 0, 2 when refused or stopped early, 1 on a failure. A job line never holds any text of the Scroll.
+
+| Field | Meaning |
+|---|---|
+| `key`, `arm`, `spikeId` | The recipe, the arm and this spike run. |
+| `outcome` | As for v2: `accepted_first_take` (no step needed a repair), `accepted_after_repair`, `rejected` (a step and its repair were both refused), `research_failed`, `evidence_insufficient`, `provider_failed`, `model_mismatch`, `paused`, `unknown`, `refused`, `scope_refused`. In arm `b` a refused prose means the staging was never sent. |
+| `steps` | One entry for each harness run: `step` (`one`; or `prose` then `staging`), `runId`, `roleVersion`, `outcome`, `requests`, `findings` (`{attempt, code, path}` for each refused answer: the repair's reason, at the model's own item or at `stage.N` for staging), `tokens`, `attempts`, `models` and `wallMs`. |
+| `requests`, `tokens`, `wallMs` | Totals over the steps (`wallMs` has `research` and `total`). `tokens.output` includes thinking. |
+| `document` | For an accepted job: `sections`, `beats`, `words` (the paragraphs' words, which the 350 to 700 bound counts), `readingMinutes`, `picturesByKind`, `shows`, `links`, `controls`, `asides`, `takeawayWords`, and `plannedKinds` against `writtenKinds`. `null` otherwise. |
+| `rawFiles`, `rawFilesFailed` | The raw reply files written, and how many could not be. |
+
+To compare the arms: for each recipe, put the two lines side by side. Compare the outcome, the requests and tokens (arm `b` always pays at least two requests), the findings, and the `document` numbers. Then read the essays blind.
+
+### Raw replies and the blind read
+
+With `--raw-dir`, every paid attempt is written to `<raw dir>/<spike id>/<recipe>.<arm>.<step>.<n>.json`: `{ key, arm, step, attempt, attemptId, state, model, text }`. `text` is the accepted output (written again as JSON), or the refused answer the harness kept (`null` if it kept none). Read a refused answer's findings with `reasoning rejected --attempt <attemptId>` as for v2.
+
+`--out` appends one line for each accepted job: `{ key, arm, spikeId, document, citations }`.
+
+`content writer-spike-v3-blind` turns the `--out` file into one HTML page and a key file. The page shows each essay under a letter (Essay A, B, C and so on, in an order the seed decides): title, dek, section titles, paragraphs, quotations with who, work and year, asides marked as asides, "To sum up", and a boxed line wherever a paragraph shows a picture, with the picture's title and the words a screen reader would hear. The page names no arm, recipe, run or model. It is one self-contained file: open it in a browser, on a phone or in dark mode. The key file maps each letter to `{ key, arm }`; open it only after reading. Without `--seed` the command picks one and prints it, so the same order can be made again.
+
+The raw folder, the `--out` file, the page and the key hold the model's own text about public sources. They are local files: keep them outside the repository, and never paste them, or the essays, into an issue or a pull request. Paste the job lines (they hold no text) instead.
+
+### Running it again
+
+As for the v2 spike: reconcile every `unknown` attempt first (`reasoning unknown`), then re-run only the jobs in `notStarted` and `stoppedBy.job`. A new `--spike-id` gives a new raw folder.
+
+## Producing a document v3 Scroll (#783)
+
+A recipe becomes a `scroll-document.v3` Scroll only when the library plan marks it: `scrollV3` on the recipe, with the kind of essay (`shape`), one intent for each section, the pictures it must have (kind and purpose, optional: without them the writer chooses one to three kinds) and its `misconception`, either `none` or a myth whose source label a person has `reviewed`. A person decides it, recipe by recipe, in a pull request; the writer and the system never do. A recipe carries `scrollV3` or `scrollV2`, never both. Status: implemented, tested with a fixture model; **not yet run on real MiniMax**. No recipe is marked today.
+
+The writer asks the model once for the whole Scroll (arm (a) of #771) and the harness repairs one refusal, so a take sends at most two paid requests. The model never sets the kicker, the theme, the framing or the misconception: the plan does. A v3 library Scroll is **held**, like a v2 one, and the commands are the same.
+
+Once a recipe is marked and the build is on dev:
+
+```sh
+node dist/operator.js content produce-library --dry-run --only <recipe key,…>   # lists the recipe as wouldQueue; a recipe that already has a document v3 is skipped
+node dist/operator.js content produce-library --only <recipe key,…>
+node dist/operator.js content production-status --only <recipe key,…>          # `held` once produced; `published` only after release
+node dist/operator.js content review-show --asset <asset id> --sources         # read it as a reader does, with the passages each part cites
+node dist/operator.js content release --asset <asset id> --revision <n>        # or reject, with a reason; or leave it to the release policy
+```
+
+A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]`. A take is refused until the earlier one was rejected, or released (a document v3 may be taken again after a release, as a v2 may: the new revision is held and the served one keeps serving). A recipe has three takes at a production version (`scroll-production-v3.v1`).
+
+What happens after the job, with no person:
+
+1. The delivery that held the Scroll sends its **support check**, under the checker version that reads a document v3 (`support-check-v3.…`). The sweep (every ten minutes) sends any it missed. `review-list --show-check` shows the verdict, once you have decided to look at it (D-415).
+2. The **release policy** (when the owner has switched it on and approved the topic) releases the Scroll if every check passes, and holds it, with a code, if any does not. A document v3 that replaces a served v1 or v2 is released by the policy too, and its release retires the v1 or v2 (decisions 6 and 9 on #771). A v3 that would replace a served v3 (`replaces_served`) waits for a person: no decision covers releasing a served v3 again without one.
+
+A refusal of the writer's reply that the repair does not mend ends the take as `rejected` with `invalid_output`. The job's receipts and `content production-status` show the code and the attempts, never the model's text. Fix the plan or the instructions and bump the writer version, which gives every recipe new takes. A **paused** take (a spent daily cap or quota) sends nothing and resumes the same job on the next send.
+
+What to read for in a held v3 Scroll, besides what a v2 asks: the first paragraph stands alone as the cover; each picture says what its paragraph says (the support check reads the words of a picture, not what it draws); the "To sum up" is a person's plain ending, not the dek again; a negative figure is written with its sign.
+
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
 A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
@@ -355,6 +443,16 @@ node dist/operator.js content reject  --asset <asset id> --revision <n> --reason
 ```
 
 All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shared database only, and call no provider. `review-list` prints one JSON line with titles and counts, never body text. `review-show` prints the text to the terminal and nowhere else: do not paste it into an issue or a pull request. `--sources` adds, under each stop, aside and the recap, the exact source passages it cites, and the pages at the end, so a statement can be checked against its source. `release` and `reject` record who ran them (`cli:<your user>`) and when, write a `content.review_decided` line to the event log on stderr (recipe key, outcome, revision, a refusal's code; no text), and are safe to repeat: a second `release` answers `already_released`, a second `reject` answers `already_rejected` and keeps the first reason. Exit status is 0 for a decision or a repeat and 2 for a refusal (`not_under_review`, `revision_rejected`, `revision_released`, `not_newer_than_served`, `asset_withdrawn`, `reason_invalid`).
+
+### Reviewing in the app (#780)
+
+On `dev` and `stage` an operator can do the same read in the app instead of a terminal. Sign in with an operator account (`KS_OPERATOR_ACCOUNTS`), open `/operator`, and press **Review held Scrolls** (`/operator/review`).
+
+1. The list shows every held revision, oldest first: title, kicker, document version, topic, recipe, when it was held, and in words what the support check and the answer check said and whether coverage is mapped. **Refresh** reads it again.
+2. Open one. You see its **cover** as Explore draws it, with the checks in plain words above it (a model's opinion that informs the read and decides nothing). Press **Read** to open the essay in Folio, with its pictures drawn by the real renderer. **Sources** puts, under each beat, the passages it cites word for word with the title of their page, and the parts no beat carries (a picture, "To sum up") at the end. **Unfold** and **Fold** show or hide the checks; the sentences the support check could not clear are listed first.
+3. At the end of the essay, **Release** and **Reject** each ask once, in the page. Reject needs a reason (up to 500 characters). Both call the same review gate as `content release` and `content reject`: idempotent, one transaction under the asset's lock. After a decision the app returns to the list. If the gate refuses (for example `coverage_missing`: a document v3 cannot be released until its coverage is mapped), the page says why in words and stays.
+
+Only an operator account sees any of it, and only in an operator world (`dev`, `stage`, `ci`, `local`, as the CLI): in `live` every route answers not found even to an address in `KS_OPERATOR_ACCOUNTS`. Anyone else, and a revision that is no longer held, gets the same "This page isn't here". A decision made in the app records `app:` and a short fingerprint of your account id as who decided it, never your address. It is not counted by the support check's replay (D-415), because the app shows you the verdict: for the measure, keep deciding blind with `review-list` and `review-show` (no `--show-check`). After a release, run `content admit-continuity` and `content readmit-coverage` as before: the app does not run them.
 
 ### The answer check (S-6a, D-198)
 
@@ -723,7 +821,7 @@ All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shar
 
 | Hold code | Why it stays for a person |
 |---|---|
-| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). Only a new asset is released by the policy. |
+| `replaces_served` | An earlier revision of the asset is served (a `content regenerate` take). The policy releases a new asset, and a document v3 over a served v1 or v2; a v2 over a served Scroll, and a v3 over a served v3, wait for a person. |
 | `no_topic` | The revision has no single primary topic. |
 | `sensitive` | The catalogue puts its topic in a sensitive category (all of Human body and History), its words match the data file (`domain/release-sensitive-data.ts`: medicine, health, law, finance, political or religious history, current events, safety, or a year from 2023 to 2100), the topic is not in the catalogue, or a raise was recorded against it. |
 | `topic_not_approved` | No live approval of its topic. |
@@ -733,7 +831,7 @@ All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shar
 
 **Turning it on is the owner's decision, after the measure above says the support check can be trusted.** The steps are then: approve the first topics with `approve-topic`; set `KS_CONTENT_AUTO_RELEASE_ENABLED=1` (and, if five a day is wrong, `KS_CONTENT_AUTO_RELEASE_DAILY_CAP`) in the world's worker environment file and restart the worker; watch `content policy status` and the `content.release_policy_released` and `content.release_policy_swept` log lines. **Turning it off:** set the switch to `0` and restart the worker. A Scroll the policy released that should not have been: `withdraw` it (the asset stops being served everywhere, nobody can lock a call, ask or get a quick answer from it any more, its topic's approval is revoked so nothing more of the topic is released unread, and who withdrew it and when is kept in `content.release_withdrawals`). `withdraw` leaves a Scroll you released yourself alone.
 
-A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v1` (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
+A policy release is recorded in `content.revision_reviews` with `decided_by = policy:approved-topic-supported.v2` (releases made before the v3 rule were recorded as `…v1`) (`review-list --all` shows it). **The support-check replay counts only your own decisions (`cli:`), never a policy release**, so the measurement stays yours. After the switch is on, the Scrolls you still decide are the ones the policy held, so the measure no longer grows: measure first.
 
 ## Facts about the model
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { unstatedFigures } from './figures.js';
+import { pointAgrees, readingsOf, unstatedFigures } from './figures.js';
 
 /** CI fixtures: invented passages, never library text. */
 const DRIFT = 'The satellite drifts away from its planet by about 3.8 centimetres every year.';
@@ -113,5 +113,49 @@ describe('numbers written in words (D-302)', () => {
     expect(unstatedFigures('Millions watch it.', ['A million watch it.'])).toEqual([]);
     expect(unstatedFigures('It is twenty-one metres wide.', ['It is twenty-one metres wide.'])).toEqual([]);
     expect(unstatedFigures('It is twenty-two metres wide.', ['It is twenty-one metres wide.'])).toEqual(['twenty two']);
+  });
+});
+
+/** CI fixture: an invented passage in the way a research page writes a nerve cell's voltages, with the Unicode minus (U+2212). */
+const ACTION_POTENTIAL =
+  'At rest the membrane of the invented cell sits at \u221270 mV. A strong enough signal lifts it to \u221255 mV, the threshold, and the cell fires, peaking near +30 mV before it falls back.';
+
+describe('a minus sign in any of its spellings (U+2212, U+2012, U+2013, hyphen) reads as the same sign', () => {
+  const HYPHEN = '-';
+  const SPELLINGS = [HYPHEN, '\u2212', '\u2012', '\u2013'];
+
+  it('states a prose figure written with one spelling when a passage writes it with another, both ways round', () => {
+    for (const sign of SPELLINGS) {
+      expect(unstatedFigures(`The cell fires at ${sign}55 mV.`, [ACTION_POTENTIAL]), `text ${sign}`).toEqual([]);
+      expect(unstatedFigures(`The cell fires at ${sign}55 mV.`, [ACTION_POTENTIAL.replaceAll('\u2212', sign)])).toEqual(
+        [],
+      );
+    }
+    expect(unstatedFigures('The cell fires at -55 mV.', ['The cell fires at 55 mV.'])).toEqual(['-55']);
+    expect(unstatedFigures('The cell fires at 55 mV.', [ACTION_POTENTIAL])).toEqual(['55']);
+  });
+
+  it('keeps reading a range with a dash between two figures as a range, never as a minus sign', () => {
+    expect(unstatedFigures('It takes 1\u20133 minutes.', ['It takes 1-3 minutes.'])).toEqual([]);
+    expect(unstatedFigures('It takes 1\u20133 minutes.', ['It takes 3 minutes.'])).toEqual(['1', '3']);
+    expect(unstatedFigures('It takes 1\u20123 minutes.', ['It takes 1\u20133 minutes.'])).toEqual([]);
+    expect(readingsOf('3', ['It takes 1\u20133 minutes.'])).toEqual([
+      expect.objectContaining({ negative: false, otherEnd: '1' }),
+    ]);
+  });
+
+  it('finds a signed chart value where a passage writes it with the Unicode minus', () => {
+    for (const sign of SPELLINGS) {
+      expect(readingsOf(`${sign}70`, [ACTION_POTENTIAL]), sign).toHaveLength(1);
+      expect(pointAgrees({ value: `${sign}70` }, [ACTION_POTENTIAL], new Set(['-70', '-55']))).toBe(true);
+    }
+    expect(readingsOf('-70', ['It sits at 70 mV above the floor.'])).toEqual([]);
+    expect(readingsOf('70', [ACTION_POTENTIAL])).toHaveLength(1);
+  });
+
+  it('holds a signed value to the word the passage writes after it, as for any figure', () => {
+    const million = 'The balance fell to \u22123 million dollars.';
+    expect(pointAgrees({ value: '-3', magnitude: 'million' }, [million], new Set(['-3']))).toBe(true);
+    expect(pointAgrees({ value: '-3' }, [million], new Set(['-3']))).toBe(false);
   });
 });

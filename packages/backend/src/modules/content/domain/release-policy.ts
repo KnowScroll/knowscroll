@@ -15,15 +15,16 @@ import {
  * generated Scroll. This is the rule that, once the owner turns it on, lets a worker release a later Scroll of a topic a person has approved,
  * and no other. Everything here is pure: the adapter reads the facts and applies the decision, and nothing here is ever evidence.
  *
- * What a policy release needs, all of it: a new Scroll (nothing is served for the asset yet), a topic a person approved, no sensitive category
+ * What a policy release needs, all of it: a new Scroll (nothing is served for the asset yet, or only a document v1 or v2 that a document v3 replaces: D-435, decisions 6 and 9 on #771), a topic a person approved, no sensitive category
  * by the catalogue, the words or a recorded raise, a readable and mapped document, an answer check that passed, and a library support check
- * of the current checker version that passed. Anything else stays held for a person.
+ * of the current checker version that passed. Anything else stays held for a person. The same rules judge a document v2 and a document v3 (D-435); "the
+ * current checker version" is the one that reads the revision's own document, which the adapter chooses before these facts reach here.
  */
 
 /** The decision's name in `content.revision_reviews.decided_by` (`policy:<name>`). Any change to what the policy requires is a new name. */
 export const RELEASE_POLICY = {
-  id: 'approved-topic-supported.v1',
-  decidedBy: 'policy:approved-topic-supported.v1',
+  id: 'approved-topic-supported.v2',
+  decidedBy: 'policy:approved-topic-supported.v2',
 } as const;
 
 /** Every decision this policy makes starts with this; a person's decision starts with `cli:`. The replay of the support check counts `cli:` decisions only. */
@@ -116,15 +117,16 @@ function namesRecentYear(text: string): boolean {
  * Every string of a stored document that is its words, joined by line breaks: the title, kicker and dek, each stop's lines, simpler words, guide, play
  * blocks and calls, the asides, the recap, the Ask suggestions, the picture's descriptions and the misconception. It walks the document's own fields and takes
  * every string except the values under {@link NON_PROSE_KEYS} (identity, versions, measures, the integrity hash, references between parts), so nothing is
- * filtered out of a text by its look and a field added to the format is scanned until the owner says it is not words. Pure.
+ * filtered out of a text by its look and a field added to the format is scanned until the owner says it is not words. A document v3 is read with
+ * `NON_PROSE_KEYS_V3` (`nonProseKeys`), which adds the references its parts make to one another; a v1 or v2 document is read with the default, as it always was. Pure.
  */
-export function proseOf(value: unknown): string {
+export function proseOf(value: unknown, nonProseKeys: ReadonlySet<string> = NON_PROSE_KEYS): string {
   const strings: string[] = [];
   const walk = (node: unknown): void => {
     if (typeof node === 'string') strings.push(node);
     else if (Array.isArray(node)) for (const item of node) walk(item);
     else if (typeof node === 'object' && node !== null)
-      for (const [key, child] of Object.entries(node)) if (!NON_PROSE_KEYS.has(key)) walk(child);
+      for (const [key, child] of Object.entries(node)) if (!nonProseKeys.has(key)) walk(child);
   };
   walk(value);
   return strings.join('\n');
@@ -176,7 +178,7 @@ export function assessRisk(input: {
 export type AnswerCheckFact = 'passed' | 'repaired' | 'unchecked' | 'flagged' | 'none';
 
 /**
- * What the library support check (D-415) said, for the checker version of this build only.
+ * What the library support check (D-415) said, for the checker version of this build that reads the revision's document only (a v2's or a v3's, D-435).
  * - `none`: no result at all.
  * - `stale`: results exist, but only for another checker version, which says nothing about the sentences as they are checked now.
  * - `unchecked`: the current version ran and gave nothing usable.
@@ -190,8 +192,15 @@ export type SupportCheckFact =
 
 /** The facts a policy release is decided from, all read from stored rows. */
 export interface AutoReleaseFacts {
-  /** The asset's status: only a new asset (`held`, nothing served yet) is eligible. A replacement of a served Scroll is a person's call. */
+  /**
+   * The asset's status: a new asset (`held`, nothing served yet) is eligible. A replacement of a served Scroll is a person's call, except
+   * for a document v3 over a served document v1 or v2 (`mayReplaceServed`).
+   */
   readonly assetStatus: 'held' | 'admitted' | 'withdrawn';
+  /** The schema of the revision judged (`scroll-document.v2` or `.v3`). */
+  readonly documentVersion: string;
+  /** The schema of the revision the asset serves now, or `null` when it serves none (a new asset, or a withdrawn one). */
+  readonly servedDocumentVersion: string | null;
   readonly topicId: string | null;
   /** A person approved this topic and has not revoked it. */
   readonly topicApproved: boolean;
@@ -243,12 +252,33 @@ export type AutoReleaseDecision =
 
 const hold = (reason: AutoReleaseHold): AutoReleaseDecision => ({ kind: 'hold', reason });
 
+// The domain is pure (no import of scroll-model), so the document versions are named here, as `traits.ts` names them; the
+// release policy's tests pin them to scroll-model's constants.
+const DOCUMENT_V3 = 'scroll-document.v3';
+const OLDER_DOCUMENTS: readonly string[] = ['scroll-document.v1', 'scroll-document.v2'];
+
+/**
+ * Whether a revision may take the place of the one a reader is served without a person (decisions 6 and 9 on #771, D-435): a document v3 over a served
+ * document v1 or v2, which its release then retires. A v2 over a served revision, a v3 over a served v3 (no decision covers releasing one again) and anything
+ * over a withdrawn asset still wait for a person.
+ */
+export function mayReplaceServed(
+  facts: Pick<AutoReleaseFacts, 'assetStatus' | 'documentVersion' | 'servedDocumentVersion'>,
+): boolean {
+  return (
+    facts.assetStatus === 'admitted' &&
+    facts.documentVersion === DOCUMENT_V3 &&
+    facts.servedDocumentVersion !== null &&
+    OLDER_DOCUMENTS.includes(facts.servedDocumentVersion)
+  );
+}
+
 /**
  * Whether the policy may release the Scroll now. The first failing rule is the reason, strictest first: what is sensitive is named before what
  * is merely not approved, so a count of holds never hides a sensitive topic behind a missing approval.
  */
 export function decideAutoRelease(facts: AutoReleaseFacts): AutoReleaseDecision {
-  if (facts.assetStatus !== 'held') return hold('replaces_served');
+  if (facts.assetStatus !== 'held' && !mayReplaceServed(facts)) return hold('replaces_served');
   if (facts.topicId === null) return hold('no_topic');
   if (facts.risk.riskClass === 'sensitive') return hold('sensitive');
   if (!facts.topicApproved) return hold('topic_not_approved');

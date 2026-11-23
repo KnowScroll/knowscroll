@@ -194,6 +194,15 @@ describe('Share a moment', () => {
     expect(screen.queryByTestId('moment-picture')).toBeNull();
   });
 
+  it('draws no picture, and still shows the words, for a stored stage of a kit this build does not draw', async () => {
+    const states = (document.stage?.states ?? []).map((entry) => ({ ...entry, state: { old: 'word' } }));
+    const gone = { ...document, stage: { kit: 'gone.v1', states } } as unknown as ScrollDocumentV2;
+    await show({ scroll: { ...scroll, document: gone } });
+    expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
+    expect(screen.getByTestId('moment-quote')).toHaveTextContent(`“${momentOf(document, readStop.id)!.quote}”`);
+    expect(screen.queryByTestId('moment-picture')).toBeNull();
+  });
+
   it('offers only the joined threads whose series holds the Scroll, and asks each one once', async () => {
     await show({});
     expect(await screen.findByText('Share into a thread')).toBeOnTheScreen();

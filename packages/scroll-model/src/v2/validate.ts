@@ -1,12 +1,13 @@
 import { canonicalJson, canonicalSha256, canonicalSize } from '../canonical.js';
 import { INTEGRITY_METHOD } from '../document.js';
 import { issueFromSchema } from '../issues.js';
+import type { z } from '../zod.js';
 import { countWords } from '../text.js';
 import { type Interactive, type ScaleBlock, type SortBlock } from './blocks.js';
-import { callsOf, ScrollDocumentV2, type CallItStop, type FinalCallStop, type Stop } from './document.js';
+import { callsOf, isLiveStage, ScrollDocumentV2, type CallItStop, type FinalCallStop, type Stop } from './document.js';
 import { uniqueIssuesV2, type IssueV2 } from './issues.js';
 import { EARTH_SKY_KIT, tiltMatters } from './kit.js';
-import { kitDefinition } from './kits/index.js';
+import { kitDefinition, type WordState } from './kits/index.js';
 import { LIMITS_V2 } from './limits.js';
 import { computeMeasuresV2, READING_SECONDS_V2 } from './measures.js';
 import { restates } from './similarity.js';
@@ -234,6 +235,8 @@ function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
   const invalid: IssueV2[] = [{ code: 'final_call_binding_invalid', path: `stops.${finalIndex}.binding` }];
   const stopIndex = new Map(document.stops.map((stop, index) => [stop.id, index]));
   const stage = document.stage;
+  // A stage of a kit the code no longer defines was checked when it was stored; its binding is not judged by physics we lack.
+  if (stage !== undefined && !isLiveStage(stage)) return [];
   // Only the Earth & sky kit draws an axis to turn; a stage of any other kit cannot honour a tilt.
   const held =
     stage?.kit === EARTH_SKY_KIT
@@ -295,13 +298,17 @@ function asideIssues(document: ScrollDocumentV2): IssueV2[] {
  * The stage: states in stop order from the first stop, each describing itself, enough of them to be
  * a stage. A state sits on a read stop, never on a call, so the picture cannot show an answer before
  * the reader has given one (D-124). Each state holds only what its view draws, and its physics (tilt,
- * pins, Ray) follows from the month, so there is nothing else to contradict.
+ * pins, Ray) follows from the month, so there is nothing else to contradict. The stage of a kit the code
+ * no longer defines (a legacy stage, kept readable for stored revisions) keeps every structural rule and skips the
+ * kit's own: there is no kit left to settle or describe its states.
  */
 function stageIssues(document: ScrollDocumentV2): IssueV2[] {
   const stage = document.stage;
   if (stage === undefined) return [];
   const issues: IssueV2[] = [];
-  const kit = kitDefinition(stage.kit);
+  const kit = isLiveStage(stage) ? kitDefinition(stage.kit) : undefined;
+  // A live stage's states passed that kit's own schema; a legacy stage never reaches `kit`, so the cast below is only for the live ones.
+  const wordsOf = (state: unknown): WordState => state as WordState;
   const stopIndex = new Map(document.stops.map((stop, index) => [stop.id, index]));
   let previousIndex = -1;
   stage.states.forEach((entry, index) => {
@@ -314,9 +321,10 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
     }
     if (at !== undefined && document.stops[at]?.kind !== 'read')
       issues.push({ code: 'stage_state_on_call', path: `${path}.stop` });
-    if (canonicalJson(kit.settle(entry.state)) !== canonicalJson(entry.state))
+    if (kit !== undefined && canonicalJson(kit.settle(wordsOf(entry.state))) !== canonicalJson(entry.state))
       issues.push({ code: 'stage_state_unsettled', path: `${path}.state` });
-    if (entry.alt !== kit.describe(entry.state)) issues.push({ code: 'stage_alt_mismatch', path: `${path}.alt` });
+    if (kit !== undefined && entry.alt !== kit.describe(wordsOf(entry.state)))
+      issues.push({ code: 'stage_alt_mismatch', path: `${path}.alt` });
     const before = stage.states[index - 1];
     if (before !== undefined && canonicalJson(before.state) === canonicalJson(entry.state))
       issues.push({ code: 'stage_state_repeated', path });
@@ -325,6 +333,26 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
     issues.push({ code: 'stage_first_state_missing', path: 'stage.states' });
   if (stage.states.length < LIMITS_V2.minStageStates) issues.push({ code: 'stage_too_static', path: 'stage.states' });
   return issues;
+}
+
+/**
+ * The findings of a failed parse. A stage is a union of one arm per live kit and the legacy arm, and the parser reports a
+ * failed union as one finding at `stage`. A person fixing a stage needs the arm of its kit, so this reports that arm's own
+ * findings at their own paths (an unknown key in a state, a word the kit does not have), as the parser did when the
+ * stage was a union discriminated by kit. An arm that fails on `kit` itself belongs to another kit and is not the one.
+ */
+function schemaIssuesOf(issues: readonly z.core.$ZodIssue[]): ReturnType<typeof issueFromSchema>[] {
+  return issues.flatMap((issue) => {
+    if (issue.code !== 'invalid_union' || issue.path.length !== 1 || issue.path[0] !== 'stage')
+      return [issueFromSchema(issue)];
+    const ownKit = issue.errors.filter(
+      (arm) => !arm.some((found) => found.path.length === 1 && found.path[0] === 'kit'),
+    );
+    const arm = ownKit[0] ?? issue.errors.at(-1) ?? [];
+    return arm.length === 0
+      ? [issueFromSchema(issue)]
+      : arm.map((found) => issueFromSchema({ ...found, path: [...issue.path, ...found.path] }));
+  });
 }
 
 /** Measures, reading time and the integrity hash: always recomputed from the document itself. */
@@ -356,7 +384,7 @@ export function validateDocumentV2(input: unknown, options: ValidateV2Options = 
     return { kind: 'invalid', issues: [{ code: 'document_not_object', path: '$' }] };
   }
   const parsed = ScrollDocumentV2.safeParse(input);
-  if (!parsed.success) return { kind: 'invalid', issues: uniqueIssuesV2(parsed.error.issues.map(issueFromSchema)) };
+  if (!parsed.success) return { kind: 'invalid', issues: uniqueIssuesV2(schemaIssuesOf(parsed.error.issues)) };
   const document = parsed.data;
   const issues: IssueV2[] = [
     ...idIssues(document),

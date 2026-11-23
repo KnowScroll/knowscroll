@@ -56,5 +56,6 @@ export * from './public-content-shares.js';
 
 export * from './account.js';
 export * from './operator.js';
+export * from './operator-review.js';
 export * from './feedback.js';
 export * from './play.js';

@@ -136,7 +136,8 @@ export type RejectResult =
   | { readonly kind: 'rejected' | 'already_rejected'; readonly assetId: string; readonly revision: number }
   | { readonly kind: 'refused'; readonly reason: RejectRefusal | 'reason_invalid' };
 
-interface ListingRow {
+/** One row of the review gate's read: a revision's review state, stored document and the facts a reviewer needs beside it. */
+export interface ListingRow {
   asset_id: string;
   revision: number;
   state: ReviewState;
@@ -169,7 +170,7 @@ async function recipeKeyOfAsset(db: Kysely<Database>, assetId: string): Promise<
 }
 
 /** What the answer check said about the job that made a revision, with the text of its flagged calls; `null` when no check ran. */
-function answerCheckOf(outcomes: unknown): AnswerCheckSummary | null {
+export function answerCheckOf(outcomes: unknown): AnswerCheckSummary | null {
   return summariseAnswerChecks(answerChecksOf(outcomes)) ?? null;
 }
 
@@ -249,7 +250,7 @@ function listingOf(row: ListingRow, support: SupportView): ReviewListing | undef
 }
 
 /** The support check results of the current checker version for the revisions of these rows, by `assetId:revision`. */
-function readSupportChecks(
+export function readSupportChecks(
   db: Kysely<Database> | Transaction<Database>,
   rows: readonly ListingRow[],
 ): Promise<ReadonlyMap<string, StoredLibraryCheck>> {
@@ -261,7 +262,7 @@ function readSupportChecks(
 }
 
 /** The review rows of one asset or of every asset, with what the operator's list needs. */
-async function readListingRows(
+export async function readListingRows(
   db: Kysely<Database> | Transaction<Database>,
   where: { readonly assetId?: string; readonly revision?: number; readonly onlyHeld: boolean },
 ): Promise<readonly ListingRow[]> {
@@ -288,15 +289,23 @@ async function readListingRows(
   return rows;
 }
 
+/** The claims, sources and citations of a stored revision's provenance: the part a v2 and a document v3 share. */
+export interface CitedProvenance {
+  readonly claims: readonly { readonly claimId: string; readonly quote: string; readonly sourceId: string }[];
+  readonly sources: readonly { readonly sourceId: string; readonly title: string; readonly url: string }[];
+  /** For each part (a stop or beat, an aside, a picture, `recap` or `takeaway`), the claims it cites in order. */
+  readonly citations: readonly { readonly partId: string; readonly claimIds: readonly string[] }[];
+}
+
 /**
- * The quotes each part of a stored v2 or document v3 Scroll cites and the pages they come from, for a factual read. The parts of
+ * The provenance of a stored v2 or document v3 Scroll, or `undefined` when none is stored or it does not parse as either. The parts of
  * a v3 are its beat, aside and picture ids and `takeaway`; the provenance says which schema it is.
  */
-async function readEvidence(
+export async function readCitedProvenance(
   db: Kysely<Database> | Transaction<Database>,
   assetId: string,
   revision: number,
-): Promise<ReviewEvidence | undefined> {
+): Promise<CitedProvenance | undefined> {
   const row = await db
     .selectFrom('content.asset_provenance')
     .select('provenance')
@@ -305,7 +314,16 @@ async function readEvidence(
     .executeTakeFirst();
   const parsedV2 = ScrollProvenanceV2.safeParse(row?.provenance);
   const parsedV3 = parsedV2.success ? undefined : ScrollProvenanceV3.safeParse(row?.provenance);
-  const provenance = parsedV2.success ? parsedV2.data : parsedV3?.success ? parsedV3.data : undefined;
+  return parsedV2.success ? parsedV2.data : parsedV3?.success ? parsedV3.data : undefined;
+}
+
+/** The quotes each part of a stored v2 or document v3 Scroll cites and the pages they come from, for a factual read. */
+async function readEvidence(
+  db: Kysely<Database> | Transaction<Database>,
+  assetId: string,
+  revision: number,
+): Promise<ReviewEvidence | undefined> {
+  const provenance = await readCitedProvenance(db, assetId, revision);
   if (provenance === undefined) return undefined;
   const quoteOf = new Map(provenance.claims.map((claim) => [claim.claimId, claim.quote]));
   const quotesByPart = new Map(

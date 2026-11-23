@@ -3,8 +3,7 @@
  * words and lists of numbers; a move inside one view blends the numbers and switches the words at the
  * middle. Nothing here knows a kit's physics: it only interpolates what the scene function derived.
  */
-
-export const lerp = (from: number, to: number, progress: number): number => from + (to - from) * progress;
+import { lerp } from '../picture/blend';
 
 /** The shortest way round between two angles, so a Moon or a planet never travels the long way round. */
 export function lerpAngle(from: number, to: number, progress: number): number {

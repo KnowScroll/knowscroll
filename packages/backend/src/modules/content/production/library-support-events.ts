@@ -19,7 +19,8 @@ export type CheckLibrarySupportJob = z.infer<typeof CheckLibrarySupportJobSchema
 /**
  * A check of a revision sends up to eleven requests, one for each batch and one more for the harness's repair of an unusable reply,
  * and each may run to the largest request timeout the transport accepts plus the waits around it (reasoning README, "Queue settings
- * for a job that calls `propose`"): 11 x 320 s + 180 s = 3,700 s. A shorter claim would be lost while the check was still working.
+ * for a job that calls `propose`"): 11 x 320 s + 180 s = 3,700 s. A shorter claim would be lost while the check was still working. A document v3's
+ * check keeps the same bound (D-435): it has larger batches, not more of them.
  */
 export const CHECK_LIBRARY_SUPPORT_CLAIM_SECONDS = claimSecondsFor(LIBRARY_SUPPORT_REQUEST_BOUND);
 
@@ -41,12 +42,19 @@ export const checkLibrarySupportQueue = defineQueue({
 export const checkLibrarySupportSingletonKey = (job: CheckLibrarySupportJob): string =>
   `${job.assetId}:${String(job.revision)}:${job.checkerVersion}`;
 
-/** The job a sender enqueues for a revision under the current checker version. */
-export const checkLibrarySupportJob = (assetId: string, revision: number): CheckLibrarySupportJob => ({
+/**
+ * The job a sender enqueues for a revision under a checker version of this build: the v2 check's unless the sender says another (a document v3's is
+ * `LIBRARY_SUPPORT_V3_CHECK_VERSION`, D-435). A job for a revision that the version does not read is dropped by the check.
+ */
+export const checkLibrarySupportJob = (
+  assetId: string,
+  revision: number,
+  checkerVersion: string = LIBRARY_SUPPORT_CHECK_VERSION,
+): CheckLibrarySupportJob => ({
   v: 1,
   assetId,
   revision,
-  checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+  checkerVersion,
 });
 
 /** The payload of the sweep: its version only. It names no revision: which ones are due is read from the rows. */

@@ -16,6 +16,7 @@ import { makeLibrarySupportReplay } from '../../../packages/backend/src/modules/
 import { releasePolicyStore } from '../../../packages/backend/src/modules/content/adapters/release-policy-store.js';
 import { libraryCheckStore } from '../../../packages/backend/src/modules/content/production/library-support-store.js';
 import { LIBRARY_SUPPORT_CHECK_VERSION } from '../../../packages/backend/src/modules/content/production/library-support.js';
+import { LIBRARY_CHECKER_VERSIONS } from '../../../packages/backend/src/modules/content/production/library-support-kinds.js';
 import {
   FIXTURE_SOURCE_V2,
   fixtureAuthoredV2,
@@ -986,7 +987,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       const never = '00000000-0000-4000-8000-000000000050';
       await sql`delete from content.release_policy_looks where asset_id = ${never}::uuid`.execute(database.db);
       const page = await releasePolicyStore.heldSummaries(database.db, {
-        checkerVersion: LIBRARY_SUPPORT_CHECK_VERSION,
+        checkerVersions: LIBRARY_CHECKER_VERSIONS,
         onlyReady: true,
         limit: 3,
         paging: { rulesVersion: 'no such rules', lookedBefore: '2100-01-01 00:00:00+00' },

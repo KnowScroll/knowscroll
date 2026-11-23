@@ -34,8 +34,8 @@ const UNKNOWN_SCALERS = new Set([
 /** A number as a passage writes it: digits with thousands separators and a decimal part, never ending in a comma or a point. */
 const NUMBER = /(?<![\p{L}\p{N}.,])\d+(?:,\d{3})*(?:\.\d+)?(?![\p{N}])/gu;
 const FIGURE = String.raw`\d+(?:,\d{3})*(?:\.\d+)?`;
-const RANGE_AFTER = new RegExp(String.raw`^\s*(?:to|–|—|-|−)\s*(${FIGURE})`, 'iu');
-const RANGE_BEFORE = new RegExp(String.raw`(${FIGURE})\s*(?:to|–|—|-|−)\s*$`, 'iu');
+const RANGE_AFTER = new RegExp(String.raw`^\s*(?:to|‒|–|—|-|−)\s*(${FIGURE})`, 'iu');
+const RANGE_BEFORE = new RegExp(String.raw`(${FIGURE})\s*(?:to|‒|–|—|-|−)\s*$`, 'iu');
 
 /** The figure as a number text: no thousands separators. */
 export const plainFigure = (text: string): string => text.replaceAll(',', '');
@@ -74,9 +74,17 @@ export interface Occurrence {
   readonly otherEnd?: string;
 }
 
+/**
+ * The spellings of a minus sign a passage may use before a figure: the hyphen-minus, the Unicode minus (U+2212, which research
+ * pages write: "−70 mV"), the figure dash (U+2012) and the en dash (U+2013). They all read as the same sign.
+ */
+const MINUS_SIGN = String.raw`[-\u2212\u2012\u2013]`;
+const LEADING_MINUS = new RegExp(String.raw`^${MINUS_SIGN}`, 'u');
+const MINUS_BEFORE = new RegExp(MINUS_SIGN, 'u');
+
 /** Whether a minus sign, and not a hyphen in a word or a dash in a range, stands just before the figure at `index`. */
 function isNegative(text: string, index: number): boolean {
-  if (!/[-\u2212\u2013]/u.test(text.charAt(index - 1))) return false;
+  if (!MINUS_BEFORE.test(text.charAt(index - 1))) return false;
   return index < 2 || !/[\p{L}\p{N}]/u.test(text.charAt(index - 2));
 }
 
@@ -85,19 +93,26 @@ export function digitFiguresIn(text: string): string[] {
   return [...text.matchAll(NUMBER)].map((match) => plainFigure(match[0]));
 }
 
-/** Every way the cited passages write `figure`. */
+/**
+ * Every way the cited passages write `figure`. A figure that starts with a minus sign (any spelling of it: "-70", "−70") is
+ * written only where a passage puts a minus sign before it, whichever spelling the passage uses; a figure with no sign is read
+ * wherever its digits are, as it always was (the prose rule compares the signs itself, `unstatedFigures`).
+ */
 export function readingsOf(figure: string, quotes: readonly string[]): readonly Occurrence[] {
+  const signed = LEADING_MINUS.test(figure);
+  const digits = signed ? figure.slice(1) : figure;
   const found: Occurrence[] = [];
   for (const quote of quotes)
     for (const match of quote.matchAll(NUMBER)) {
-      if (plainFigure(match[0]) !== figure) continue;
+      if (plainFigure(match[0]) !== digits) continue;
       const end = match.index + match[0].length;
       const negative = isNegative(quote, match.index);
+      if (signed && !negative) continue;
       // The "10" and the exponent of a power of ten are part of the scaled figure, never a figure of their own.
       const lead = quote.slice(0, match.index);
       if (
         POWER_BEFORE.test(lead) ||
-        (figure === '10' && TEN_BEFORE.test(lead) && EXPONENT_AFTER.test(quote.slice(end)))
+        (digits === '10' && TEN_BEFORE.test(lead) && EXPONENT_AFTER.test(quote.slice(end)))
       ) {
         found.push({ index: match.index, reading: 'unknown', negative });
         continue;

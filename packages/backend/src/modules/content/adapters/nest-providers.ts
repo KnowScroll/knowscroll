@@ -347,6 +347,7 @@ export { listStoredRecipes } from './recipe-proposals.js';
 export {
   makeWriterSpikeV2,
   runSpikeBatch,
+  runSpikeJobs,
   SPIKE_MAX_CONCURRENCY,
   SPIKE_MODEL,
   type SpikeBatchSummary,
@@ -354,6 +355,27 @@ export {
   type SpikeResult,
 } from '../production/spike-v2/run.js';
 export { parseSpikeBlocks, parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
+/**
+ * The operator's writer spike for the document v3 writer (#771): the ten recipes' plans, the two arms, the spike that
+ * writes one recipe in one arm, and what the blind-read page needs of a stored document. Nothing is admitted or published.
+ */
+export {
+  makeWriterSpikeV3,
+  SPIKE_ID_PATTERN,
+  spikeJobLabel,
+  type SpikeJobV3,
+  type SpikeLineV3,
+  type SpikeResultV3,
+} from '../production/spike-v3/run.js';
+export {
+  parseSpikeArms,
+  parseSpikeTopicsV3,
+  SPIKE_ARMS,
+  SPIKE_TOPICS_V3,
+  type SpikeArm,
+  type SpikeTopicV3,
+} from '../production/spike-v3/plans.js';
+export { describePicture, ScrollDocumentV3 } from '@knowscroll/scroll-model';
 /**
  * The operator's replay of the support check over stored ask answers (D-250): the checker run again on answers already
  * served, writing nothing. The line it prints holds counts only; the detail goes to a file the operator reads.
@@ -394,6 +416,8 @@ export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
 /** The operator's review gate for library v2 Scrolls: list, show, release, reject (D-138). */
 export { makeReviewGate, type ReviewGate } from './review-gate.js';
+/** The review gate on the app's operator screen (#780): the API composition root binds it with its operator check. */
+export { deciderOfAccount, makeOperatorReview } from './operator-review.js';
 /**
  * The release policy of held library Scrolls (#674, D-418): the worker's release step (off until switched on), the operator's topic approvals,
  * the withdrawal that also revokes a topic and the status of counts. Every release goes through the review gate's own.

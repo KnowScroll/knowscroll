@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { threadRowView, threadsHolding, type AccountScope, type ThreadsHolding } from '@knowscroll/client-core';
 import type { ContentThreadRef, ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Skeleton, Stage, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
+import { Banner, Button, drawableStage, Skeleton, Stage, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
 import { momentAnchorOf, type NoMoment } from '@knowscroll/scroll-model';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
@@ -213,7 +213,7 @@ function SendMoment({
 
 /**
  * What is about to be shared, shown before any thread is chosen (V3 G5, "This stop, with its picture"): for a v2 Scroll
- * the stop's picture as the reader draws it at that stop, when the Scroll has one, and the words the card will quote. The
+ * the stop's picture as the reader draws it at that stop, when the Scroll has one this build draws, and the words the card will quote. The
  * picture is the reader's own drawing, so nothing about it is sent; the card carries the stop and a hash (D-292). A v3
  * Scroll's moment is one beat and shows words alone: the card never carries a picture, so the sheet does not promise one.
  */
@@ -221,12 +221,14 @@ function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedScrollFolio;
   const moment = momentOfPlace(scroll, stopId);
   if (moment === undefined) return null;
   const { document } = scroll;
+  // A stored stage of a kit this build no longer draws has no picture to show: the sheet then shows the words alone.
+  const stage = isScrollV2(scroll) ? drawableStage(scroll.document.stage) : undefined;
   return (
     <View style={styles.preview} testID="moment-preview">
-      {isScrollV2(scroll) && scroll.document.stage !== undefined ? (
+      {isScrollV2(scroll) && stage !== undefined ? (
         <View style={styles.picture} testID="moment-picture">
           <Stage
-            document={{ stops: scroll.document.stops, stage: scroll.document.stage }}
+            document={{ stops: scroll.document.stops, stage }}
             stopId={stopId}
             reducedMotion
             height={PICTURE_HEIGHT}

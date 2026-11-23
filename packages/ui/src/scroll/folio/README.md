@@ -9,7 +9,7 @@ scroll-document.v2 ──readingModelOfV2──► ReadingModel ──► FolioR
 ```
 
 - `reading-model.ts` is what the reader draws: sections of blocks, each a **beat** (one unit of reading, named by the document's unit id), a **figure** (a picture state, with a control under it when it has one) or a **hold** (one figure and two or three beats, with the figure's state for each). The reader knows no document version.
-- `from-v2.ts` makes one from a released `scroll-document.v2`. Every layout choice is made there, from the document alone, so the server sends nothing new. Its doc comment lists the rules.
+- `from-v2.ts` makes one from a released `scroll-document.v2`. Every layout choice is made there, from the document alone, so the server sends nothing new. Its doc comment lists the rules. A stage whose kit this build does not draw (a stored revision of a kit since removed, which stays readable) is read as no stage: every beat is text and nothing is drawn, so the old revision never throws (`drawableStage`).
 - `from-v3.ts` does the same for a `scroll-document.v3` (below); the reader needed no new idea for it beyond what the model now carries. The screens that name a unit to the server (Ask, Quick answer, Share a moment, Challenge, Keep, Report and the reading record) send a stop id today; a v3 beat id needs those contracts too.
 
 ## The pieces
