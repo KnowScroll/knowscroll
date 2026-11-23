@@ -71,7 +71,13 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       [ENQUEUE, makeEnqueueJob(content.boss)],
       [
         CONFIG,
-        { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 },
+        {
+          supplyCreateDailyCap: 50,
+          supplyPlannerCreateDailyCap: 5,
+          supplyAskDailyCap: 20,
+          supplyAskPersonDailyCap: 5,
+          madeToOrderEnabled: true,
+        },
       ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],

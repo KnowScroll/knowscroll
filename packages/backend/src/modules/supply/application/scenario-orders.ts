@@ -12,8 +12,11 @@ export interface ScenarioOrder {
 export type ScenarioOrderOutcome =
   /** The order is recorded and its production job is sent in the caller's transaction. */
   | { readonly kind: 'commissioned'; readonly recipe: string }
-  /** The world's day is full (or scenario Create is off), or the thread has had all the branches it may today. */
-  | { readonly kind: 'refused'; readonly reason: 'day_cap' | 'thread_cap' };
+  /**
+   * The world's day is full (or scenario Create is off), or the thread has had all the branches it may today, or the made-to-order
+   * switch is off (`off`, D-436: no branch is ordered, whatever the caps).
+   */
+  | { readonly kind: 'refused'; readonly reason: 'day_cap' | 'thread_cap' | 'off' };
 
 /** Quartermaster's ledger of scenario orders: names no person and no words, only the counts the caps read. */
 export interface ScenarioOrderStore {
@@ -26,6 +29,8 @@ export interface ScenarioOrderStore {
 }
 
 export interface ScenarioOrderPorts {
+  /** `KS_MADE_TO_ORDER_ENABLED` (D-436). Off: every order is refused as `off` before any lock is taken. */
+  readonly enabled: boolean;
   readonly store: ScenarioOrderStore;
   readonly recordOrder: RecordMadeToOrderScroll;
   /** Sends the production job of one take of a recipe in the caller's transaction (idempotent per recipe, version and take). */
@@ -52,6 +57,7 @@ export type CommissionScenarioOrder = (scope: PersonalScopeTx, input: ScenarioOr
  */
 export function makeCommissionScenarioOrder(p: ScenarioOrderPorts): CommissionScenarioOrder {
   return async (scope, input) => {
+    if (!p.enabled) return { kind: 'refused', reason: 'off' };
     await p.store.lockCommissioning(scope);
     const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
     if ((await p.store.countSince(scope, startOfDay)) >= p.caps.perDay) return { kind: 'refused', reason: 'day_cap' };

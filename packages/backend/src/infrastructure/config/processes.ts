@@ -98,6 +98,8 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly supplyGrowthDailyCap: number;
   /** `KS_SUPPLY_GROWTH_ENABLED`: the gap loop notices content running out and proposes recipes for it (D-414). Off unless set. */
   readonly supplyGrowthEnabled: boolean;
+  /** `KS_MADE_TO_ORDER_ENABLED`: the Scrolls made for one person or one branch (You asked, What if, Another perspective). Off unless set to `1`, in every world (D-436). */
+  readonly madeToOrderEnabled: boolean;
   /** Ask orders (a short Scroll made for a person's question, D-218) Quartermaster may make per UTC day; 0 turns them off. */
   readonly supplyAskDailyCap: number;
   /** Ask orders one person may have made per UTC day. */
@@ -175,6 +177,8 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyGrowthDailyCap: number;
   /** `KS_SUPPLY_GROWTH_ENABLED`: the gap loop notices content running out and proposes recipes for it (D-414). Off unless set. */
   readonly supplyGrowthEnabled: boolean;
+  /** `KS_MADE_TO_ORDER_ENABLED`: the Scrolls made for one person or one branch (You asked, What if, Another perspective). Off unless set to `1`, in every world (D-436). */
+  readonly madeToOrderEnabled: boolean;
   /** `KS_SUPPLY_GAP_DEPTH_TARGET`: released explanations a planet should have before the gap loop stops calling it shallow (D-414). */
   readonly supplyGapDepthTarget: number;
   /** `KS_SUPPLY_GAP_MAX_ROUNDS`: how many failed production rounds (a rejected take, recipes that all ended) reject a gap (D-414). */
@@ -326,6 +330,14 @@ const supplyGrowthCapVariable = z.coerce.number().int().min(0).max(500).default(
 const supplyGrowthEnabledVariable = z.enum(['0', '1']).default('0');
 
 /**
+ * `KS_MADE_TO_ORDER_ENABLED`: the Scrolls made to order (D-436): "You asked" (an ask order, a short Scroll made for a question a
+ * person asks from a Scroll), "What if" and "Another perspective" (a branch inside a content thread). One switch turns all three off:
+ * while it is not `1` nothing makes them (the API refuses every command that would, the worker ends every job that would) and the app
+ * shows no way in. Off by default in every world, `local` included. Reading one that already exists is not refused.
+ */
+const madeToOrderEnabledVariable = z.enum(['0', '1']).default('0');
+
+/**
  * `KS_SUPPLY_GAP_DEPTH_TARGET`: how many released explanations a planet should hold before the loop stops calling it shallow
  * (the one value the depth rule reads, D-414). It is never below the floor of three explanations a planet needs. Default 6.
  */
@@ -455,6 +467,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
       KS_SUPPLY_GROWTH_DAILY_CAP: supplyGrowthCapVariable,
       KS_SUPPLY_GROWTH_ENABLED: supplyGrowthEnabledVariable,
+      KS_MADE_TO_ORDER_ENABLED: madeToOrderEnabledVariable,
       KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
       KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
       KS_SUPPLY_QUICK_ANSWER_DAILY_CAP: supplyQuickAnswerDailyCapVariable,
@@ -483,6 +496,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
       'KS_SUPPLY_GROWTH_DAILY_CAP',
       'KS_SUPPLY_GROWTH_ENABLED',
+      'KS_MADE_TO_ORDER_ENABLED',
       'KS_SUPPLY_ASK_DAILY_CAP',
       'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
       'KS_SUPPLY_QUICK_ANSWER_DAILY_CAP',
@@ -532,6 +546,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     supplyGrowthDailyCap: parsed.KS_SUPPLY_GROWTH_DAILY_CAP,
     supplyGrowthEnabled: parsed.KS_SUPPLY_GROWTH_ENABLED === '1',
+    madeToOrderEnabled: parsed.KS_MADE_TO_ORDER_ENABLED === '1',
     supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
     supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
     supplyQuickAnswerDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_QUICK_ANSWER_DAILY_CAP, release.world),
@@ -886,6 +901,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
         KS_SUPPLY_GROWTH_DAILY_CAP: supplyGrowthCapVariable,
         KS_SUPPLY_GROWTH_ENABLED: supplyGrowthEnabledVariable,
+        KS_MADE_TO_ORDER_ENABLED: madeToOrderEnabledVariable,
         KS_SUPPLY_GAP_DEPTH_TARGET: supplyGapDepthTargetVariable,
         KS_SUPPLY_GAP_MAX_ROUNDS: supplyGapMaxRoundsVariable,
         KS_TOPIC_GROWTH_ENABLED: topicGrowthEnabledVariable,
@@ -910,6 +926,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
         'KS_SUPPLY_GROWTH_DAILY_CAP',
         'KS_SUPPLY_GROWTH_ENABLED',
+        'KS_MADE_TO_ORDER_ENABLED',
         'KS_SUPPLY_GAP_DEPTH_TARGET',
         'KS_SUPPLY_GAP_MAX_ROUNDS',
         'KS_TOPIC_GROWTH_ENABLED',
@@ -947,6 +964,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     supplyGrowthDailyCap: parsed.KS_SUPPLY_GROWTH_DAILY_CAP,
     supplyGrowthEnabled: parsed.KS_SUPPLY_GROWTH_ENABLED === '1',
+    madeToOrderEnabled: parsed.KS_MADE_TO_ORDER_ENABLED === '1',
     supplyGapDepthTarget: parsed.KS_SUPPLY_GAP_DEPTH_TARGET,
     supplyGapMaxRounds: parsed.KS_SUPPLY_GAP_MAX_ROUNDS,
     topicGrowthEnabled: parsed.KS_TOPIC_GROWTH_ENABLED === '1',

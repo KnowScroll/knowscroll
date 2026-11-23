@@ -119,6 +119,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
           supplyPlannerCreateDailyCap: options.plannerCap ?? options.cap ?? 10,
           supplyAskDailyCap: 20,
           supplyAskPersonDailyCap: 5,
+          madeToOrderEnabled: true,
         },
       ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],

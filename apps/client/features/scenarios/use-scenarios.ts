@@ -30,6 +30,8 @@ const THINKING_POLL_MS = 1_500;
 export function useScenarioBoard(
   scope: AccountScope,
   thread: ContentThreadRef,
+  /** False while the made-to-order Scrolls are off or not yet known (D-436): the branches are not read, and the board stays empty. */
+  enabled: boolean,
 ): { readonly controller: ScenarioBoardController; readonly state: ScenarioBoardState } {
   const [controller] = useState(() => createScenarioBoard({ scope, thread, newId: newCommandId }));
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
@@ -40,6 +42,7 @@ export function useScenarioBoard(
       await controller.load();
       return Date.now();
     },
+    enabled,
     staleTime: 0,
     refetchInterval: preparing ? PREPARING_POLL_MS : IDLE_POLL_MS,
     refetchOnWindowFocus: true,

@@ -354,7 +354,12 @@ export {
  * is composed in the worker from `nest-providers`.
  */
 export { growTopicsQueue, GrowTopicsPayloadSchema, type GrowTopicsPayload } from './production/topic-growth-events.js';
-export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
+export type {
+  RunScrollProduction,
+  ScrollProductionJobOutcome,
+  ScrollProductionSettings,
+  ProduceScroll,
+} from './production/job.js';
 /**
  * The support check of a library Scroll (D-415): one check job for a held revision, and the sweep that hands over every held revision
  * that has no result. IDs only; the worker consumes both and sends the check after the delivery that held a revision.

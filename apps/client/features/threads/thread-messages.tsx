@@ -36,6 +36,7 @@ import {
 } from '../conversations/message-views';
 import { TalkMessage, type AvailableTalkMessage, type TalkMessageBody } from '../conversations/talk-message';
 import { useMessageJump } from '../conversations/use-message-jump';
+import { useMadeToOrder } from '../../providers/made-to-order';
 import { BranchCard } from '../scenarios/branch-card';
 import type { AvailableMessage } from '../scenarios/message-step';
 import { SnippetCard } from './snippet-card';
@@ -133,7 +134,8 @@ function bodyOf(
   mine: boolean,
   partOf: (assetId: string) => string | undefined,
   onOpenSnippet: (messageId: string) => void,
-  onWhatIf: (message: AvailableMessage) => void,
+  /** Absent while the made-to-order Scrolls are off (D-436): a shared moment then has no What if… under it. */
+  onWhatIf: ((message: AvailableMessage) => void) | undefined,
   theme: ReturnType<typeof useTalkTheme>,
 ): TalkMessageBody {
   if (message.body.kind === 'text') return { kind: 'text', text: message.body.text };
@@ -154,7 +156,7 @@ function bodyOf(
           partLabel={partOf(snippet.content.target.assetId)}
           onOpen={() => onOpenSnippet(message.messageId)}
         />
-        {snippet.content.status === 'unavailable' ? null : (
+        {snippet.content.status === 'unavailable' || onWhatIf === undefined ? null : (
           <Button label="What if…" size="sm" variant="space" icon="hypothetical" onPress={() => onWhatIf(message)} />
         )}
       </View>
@@ -229,6 +231,9 @@ export function ThreadMessages({
   onReport,
 }: ThreadMessagesProps) {
   const theme = useTalkTheme();
+  // What if and Another perspective, and the branch cards they make, are drawn only while the API says Scrolls made to order
+  // are on (D-436). Nothing else in the thread moves: no gap, no empty menu section.
+  const madeToOrder = useMadeToOrder();
   const { reducedMotion } = useDisplay();
   const jumper = useMessageJump(scrollRef, reducedMotion);
   const now = new Date();
@@ -269,7 +274,7 @@ export function ThreadMessages({
         </Text>
       ) : null}
       <View style={styles.messages}>
-        {dividedByDay(timeline(state.messages, branches)).map((group) => (
+        {dividedByDay(timeline(state.messages, madeToOrder ? branches : [])).map((group) => (
           <View key={group.key + entryKey(group.items[0])} style={styles.messages}>
             <DateCapsule label={capsuleLabel(group.at, now)} />
             <View
@@ -323,7 +328,7 @@ export function ThreadMessages({
                             mineOf(entry.message),
                             partOf,
                             onOpenSnippet,
-                            (message) => onAsk(message, 'what_if'),
+                            madeToOrder ? (message) => onAsk(message, 'what_if') : undefined,
                             theme,
                           )}
                           onReply={onReply}
@@ -331,7 +336,7 @@ export function ThreadMessages({
                           onReport={mineOf(entry.message) ? undefined : onReport}
                           onJump={jump}
                           extraRows={(close) =>
-                            entry.message.status === 'available' ? (
+                            madeToOrder && entry.message.status === 'available' ? (
                               <AskRows
                                 message={entry.message}
                                 onAsk={(message, kind) => {

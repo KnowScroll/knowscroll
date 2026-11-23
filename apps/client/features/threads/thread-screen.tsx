@@ -47,6 +47,7 @@ import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
 import type { AvailableTalkMessage } from '../conversations/talk-message';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
+import { useMadeToOrder } from '../../providers/made-to-order';
 import { AsksBar } from '../scenarios/asks-bar';
 import { BranchSheets } from '../scenarios/branch-sheets';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
@@ -125,7 +126,10 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const theme = useTalkTheme();
   // A reply waits only while its original stands: once it is removed there is nothing to answer.
   const waitingReply = liveReplyTarget(replyTo, state.messages);
-  const board = useScenarioBoard(scope, thread);
+  // What if and Another perspective are a way into Scrolls made to order: every part of them is drawn, and read, only while the
+  // API says those are on (D-436).
+  const madeToOrder = useMadeToOrder();
+  const board = useScenarioBoard(scope, thread, madeToOrder);
   const positionRef = useRef<ReelPositionHandle>(null);
   const {
     ref: scrollRef,
@@ -196,12 +200,13 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   ) : (
     <ThreadPeople participants={state.participants} />
   );
-  const showMap = branches.mapOffered
-    ? () => {
-        setSeriesOpen(false);
-        branches.map.show();
-      }
-    : undefined;
+  const showMap =
+    madeToOrder && branches.mapOffered
+      ? () => {
+          setSeriesOpen(false);
+          branches.map.show();
+        }
+      : undefined;
   const parts =
     current === undefined ? null : (
       <PartsSection
@@ -347,7 +352,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
               onClose={() => setCallPart(undefined)}
             />
           )}
-          <AsksBar onAsk={branches.scenarios.askFromRoot} />
+          {madeToOrder ? <AsksBar onAsk={branches.scenarios.askFromRoot} /> : null}
           <Composer
             name={composerAddressees(
               state.participants.filter((participant) => !participant.you).map((participant) => participant.person),
@@ -404,16 +409,18 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
           </>
         )}
       </PullDownSheet>
-      <BranchSheets
-        scope={scope}
-        thread={thread}
-        scenarios={branches.scenarios}
-        map={branches.map}
-        suggestions={board.state.suggestions}
-        navigate="push"
-        onChosen={branches.scenarios.branchStarted}
-        onOpenEpisode={place.select}
-      />
+      {madeToOrder ? (
+        <BranchSheets
+          scope={scope}
+          thread={thread}
+          scenarios={branches.scenarios}
+          map={branches.map}
+          suggestions={board.state.suggestions}
+          navigate="push"
+          onChosen={branches.scenarios.branchStarted}
+          onOpenEpisode={place.select}
+        />
+      ) : null}
       <OptionsSheet
         visible={menu}
         onClose={() => setMenu(false)}

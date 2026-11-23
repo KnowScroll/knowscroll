@@ -60,6 +60,12 @@ export interface EncounterFixtureOptions {
    * the app's own later writes survive a reload (`{ textSize: 'largest' }`, for instance).
    */
   readonly devicePreferences?: Record<string, unknown>;
+  /**
+   * What `GET /v1/account/features` says about the Scrolls made to order (D-436): on (the default, so the specs that exercise Ask
+   * from here keep doing so) or off (`false`: the app shows no way into them). The answer is authored here, so this proves what the
+   * screen does with it, not what the API decides.
+   */
+  readonly madeToOrder?: boolean;
   /** Play on the served v2 Scroll: whether recording is paused (D-083). */
   readonly play?: { readonly recordingPaused?: boolean };
   /**
@@ -318,6 +324,13 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       declaredCover = declaredCoverSchema(
         (body.capabilities as { documentSchemas?: string[] } | undefined)?.documentSchemas ?? [],
       );
+    if (path === '/v1/account/features') {
+      await route.fulfill({
+        json: { version: 'account-features.v1', madeToOrder: options.madeToOrder !== false },
+        headers: { 'cache-control': 'private, no-store' },
+      });
+      return;
+    }
     if (path === '/v1/privacy/recording/read') {
       await route.fulfill({
         json: {

@@ -23,6 +23,7 @@ import { newCommandId } from '../../platform/command-id';
 import { useFormatSiblings } from '../encounter/use-format-siblings';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
+import { useMadeToOrder } from '../../providers/made-to-order';
 import { useKeepSurface } from '../saved/use-keep-surface';
 import { KeepWriteStatus } from '../saved/keep-detail';
 import { RemovalNotice } from '../saved/removal-notice';
@@ -311,6 +312,8 @@ function ReadyScrollFolio({ scope, scroll }: { readonly scope: AccountScope; rea
   const [sharing, setSharing] = useState(false);
   const currentStop = useCallback(() => reader.current?.capture()?.stopId, []);
   const ask = useDirectAsk(scope, scroll, currentStop);
+  // The Ask sheet is a way into a Scroll made to order: it is drawn only while the API says those are on (D-436).
+  const madeToOrder = useMadeToOrder();
   useLayoutEffect(() => {
     recorder.start();
     return () => recorder.end();
@@ -419,7 +422,7 @@ function ReadyScrollFolio({ scope, scroll }: { readonly scope: AccountScope; rea
           />
         </View>
       </View>
-      {ask.open ? (
+      {ask.open && madeToOrder ? (
         <EncounterOverlay label="Ask" presentation="sheet" onClose={ask.close}>
           <RequestPanel session={ask.session} onClose={ask.close} ask={{ scroll }} />
         </EncounterOverlay>

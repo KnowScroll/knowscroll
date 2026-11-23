@@ -12,7 +12,12 @@ import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../token
  * Needs Social's thread guest and content's reads, which the social and content wiring provide.
  */
 export const scenarioWiring: Provider[] = [
-  ...scenarioProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, database: DATABASE, enqueueJob: ENQUEUE_JOB }),
+  ...scenarioProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    database: DATABASE,
+    enqueueJob: ENQUEUE_JOB,
+    config: API_CONFIG,
+  }),
   ...scenarioOrderProviders({ enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
   ...askOrderAudienceProviders({ database: DATABASE }),
   ...madeToOrderProviders({ database: DATABASE, orderAudiences: [READ_ORDER_AUDIENCE, READ_ASK_ORDER_AUDIENCE] }),

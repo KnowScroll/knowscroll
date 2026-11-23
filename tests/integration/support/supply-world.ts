@@ -71,7 +71,13 @@ export async function supplyWorld(purpose: string) {
     [ENQUEUE, makeEnqueueJob(content.boss)],
     [
       CONFIG,
-      { supplyCreateDailyCap: 10, supplyPlannerCreateDailyCap: 10, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 },
+      {
+        supplyCreateDailyCap: 10,
+        supplyPlannerCreateDailyCap: 10,
+        supplyAskDailyCap: 20,
+        supplyAskPersonDailyCap: 5,
+        madeToOrderEnabled: true,
+      },
     ],
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, content.readExploration],

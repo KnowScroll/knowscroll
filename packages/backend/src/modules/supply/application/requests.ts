@@ -43,7 +43,9 @@ type AskIntent = Extract<CreateContentRequest['intent'], { kind: 'ask' }>;
 /**
  * What a fresh ask from here becomes. A question the Scroll itself suggests (its exact authored words) is about that
  * Scroll by construction, so its ask order is made now with no model call. Any other question waits to be placed: a
- * worker asks the scope step whether it is about this Scroll or names another subject.
+ * worker asks the scope step whether it is about this Scroll or names another subject. While `KS_MADE_TO_ORDER_ENABLED` is off
+ * (D-436) the whole feature is off: every ask, suggested or typed, closes at once as switched off (`budget_unavailable`, limit
+ * `off`) before any matching job exists, so no model is asked for it.
  */
 async function askDemand(
   p: SupplyPorts,
@@ -52,6 +54,7 @@ async function askDemand(
   ask: AskIntent,
   facts: ScrollAskFacts,
 ): Promise<Demand> {
+  if (!p.madeToOrderEnabled) return { ...demand, reason: 'budget_unavailable' as const, askLimit: 'off' as const };
   if (!isSuggestedQuestion(ask.question, facts.suggestions))
     return { ...demand, status: 'matching', decision: 'pending', reason: undefined };
   const commissioned = await commissionAskOrder(p, scope, { source: ask.source, facts, question: ask.question });

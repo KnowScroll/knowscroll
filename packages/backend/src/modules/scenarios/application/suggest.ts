@@ -56,6 +56,7 @@ type Prepared =
  * Failure/retry: the run ID is the draft ID, so a redelivery answers from the ledger and never pays
  * twice, and an attempt of unknown outcome is never resent: the draft closes as `could_not_suggest`
  * and the run stays open for an operator.
+ * While `KS_MADE_TO_ORDER_ENABLED` is off (D-436) no model is asked: a draft that was waiting closes as `could_not_suggest`.
  */
 export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasoningHarness): SuggestStep {
   async function prepare(scope: PersonalScopeTx, draftId: string): Promise<Prepared> {
@@ -138,6 +139,12 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: RecordingReasonin
     const prepared = await p.withScope(authority, (scope) => prepare(scope, job.draftId));
     if (prepared.kind !== 'entered' || prepared.value.kind === 'skip') return;
     const { value } = prepared;
+    if (value.kind === 'ready' && !p.madeToOrderEnabled) {
+      await p.withScope(authority, (scope) =>
+        apply(scope, job.draftId, { kind: 'failed', failure: 'could_not_suggest' }),
+      );
+      return;
+    }
     if (value.kind !== 'ready') {
       await p.withScope(authority, (scope) =>
         value.kind === 'withdrawn'

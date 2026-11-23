@@ -134,7 +134,7 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
   let orderAudience: ReadOrderAudience;
   let standing: ReturnType<typeof makeReadThreadStanding>;
-  let compose: (caps: { perDay: number; perThreadPerDay: number }) => ScenarioUseCases;
+  let compose: (caps: { perDay: number; perThreadPerDay: number; madeToOrder?: boolean }) => ScenarioUseCases;
   let writeAnswer: WriteAnswerStep;
   let answerScript: (sequence: number) => FixtureScenario | Promise<FixtureScenario>;
   let plannerScript: () => FixtureScenario | Promise<FixtureScenario>;
@@ -168,12 +168,23 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
     const DATABASE = Symbol('database');
     const CONFIG = Symbol('config');
     const HARNESS = Symbol('harness');
-    const shared = (harnessModel: typeof planner, caps: { perDay: number; perThreadPerDay: number }) =>
+    const shared = (
+      harnessModel: typeof planner,
+      caps: { perDay: number; perThreadPerDay: number; madeToOrder?: boolean },
+    ) =>
       new Map<symbol, unknown>([
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [ENQUEUE, makeEnqueueJob(content.boss)],
         [DATABASE, database.db],
-        [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadDailyCap: caps.perThreadPerDay }],
+        [
+          CONFIG,
+          {
+            supplyScenarioDailyCap: caps.perDay,
+            supplyScenarioThreadDailyCap: caps.perThreadPerDay,
+            // The suite runs with the switch on (D-436); the cases that need it off say so.
+            madeToOrderEnabled: caps.madeToOrder ?? true,
+          },
+        ],
         [
           HARNESS,
           fixtureRecordingHarness(database.db, { model: harnessModel, beforeApply: () => beforeApply() }).harness,
@@ -194,9 +205,9 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
         ],
       ]);
     const providers = [
-      ...scenarioProviders({ withPersonalScope: SCOPE, database: DATABASE, enqueueJob: ENQUEUE }),
+      ...scenarioProviders({ withPersonalScope: SCOPE, database: DATABASE, enqueueJob: ENQUEUE, config: CONFIG }),
       ...scenarioOrderProviders({ enqueueJob: ENQUEUE, config: CONFIG }),
-      ...scenarioWorkerProviders({ withPersonalScope: SCOPE, database: DATABASE, harness: HARNESS }),
+      ...scenarioWorkerProviders({ withPersonalScope: SCOPE, database: DATABASE, harness: HARNESS, config: CONFIG }),
     ];
     const build = <T>(token: symbol, values: Map<symbol, unknown>) => buildRecursively(providers, token, values) as T;
     compose = (caps) => build<ScenarioUseCases>(SCENARIO_USE_CASES, shared(planner, caps));
@@ -722,6 +733,7 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
 
     const sweep = (afterMs: number) =>
       makeResolveBranches({
+        madeToOrderEnabled: true,
         store: branchPoolStore(database.db),
         readProduction: makeReadMadeToOrderProduction(database.db),
         sendProduction: () => Promise.resolve(),

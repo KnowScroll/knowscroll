@@ -22,7 +22,7 @@ render values and report semantic actions; backend authority remains on the serv
 | Friends | [guide](friends/README.md) | Exact handle lookup, invitations, rosters and leased availability |
 | Talk | [conversations-screen.tsx](conversations/conversations-screen.tsx) | Direct inbox and conversation screen |
 | Threads | [thread-screen.tsx](threads/thread-screen.tsx) | Member-only discussion, coarse shared places and per-person reading |
-| What if | [branch-screen.tsx](scenarios/branch-screen.tsx) | Open a thread branch; choosing a direction is separate from proposing one |
+| What if | [branch-screen.tsx](scenarios/branch-screen.tsx) | Open a thread branch; choosing a direction is separate from proposing one. Off in every world (D-436): [the switch](../providers/made-to-order.tsx) decides whether any of it is drawn |
 | Rooms | [room-workspace.tsx](rooms/room-workspace.tsx) | Shared room context for General, discussions, Today and activities |
 | Sharing | [shared-links-screen.tsx](sharing/shared-links-screen.tsx) | List/revoke the person's links; API serves the public `/s` landing |
 | Privacy | [guide](privacy/README.md) | Recording, export, Clear and deletion |

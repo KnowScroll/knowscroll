@@ -63,7 +63,11 @@ const startOfUtcDay = () => {
   return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 };
 
-export function whatIfWorld() {
+/**
+ * `madeToOrder` is what `GET /v1/account/features` says (D-436): on by default, so the specs that drive What if keep doing so.
+ * Off, the world still serves its branches and routes as a server that has them would, so a spec can prove the app draws none.
+ */
+export function whatIfWorld(options: { readonly madeToOrder?: boolean } = {}) {
   const party = partyWorld();
   const nodes: Node[] = [];
   const drafts = new Map<string, { who: Who; text: string }>();
@@ -249,6 +253,8 @@ export function whatIfWorld() {
       const answer = party.handler(who);
       return (path: string, body: Record<string, unknown>) => {
         requests.push({ who, path, body });
+        if (path === '/v1/account/features')
+          return { json: { version: 'account-features.v1', madeToOrder: options.madeToOrder !== false } };
         return path.startsWith('/v1/social/scenarios/') ? scenarioRoute(who, path, body) : answer(path, body);
       };
     },
