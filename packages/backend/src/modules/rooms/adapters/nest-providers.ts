@@ -859,3 +859,4 @@ export function roomsWorkerProviders(tokens: {
     },
   ];
 }
+export { roomsOldScrollRemoval } from './old-scroll-removal.js';

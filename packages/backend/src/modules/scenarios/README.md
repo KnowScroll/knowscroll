@@ -253,3 +253,11 @@ what-if branch standing with its short answer still being made.
 - Runtime, real model, the first part: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
   first take was rejected as `OUTPUT_SCHEMA_MISMATCH` and the sweep sent take 2, which published). Screenshots and numbers
   are in the pull request for #244.
+
+## Removing the Scrolls of the retired formats (#791, D-437)
+
+`adapters/old-scroll-removal.ts` is the branches' part of `content cleanup-old-scrolls` (see the content README and [the runbook](../../../../../docs/v2/operations/scroll-cleanup.md)). A branch of a
+thread rooted at an old revision goes with the thread. A branch of a thread that stays whose own Scroll is old is closed as
+`removeNode` closes one (`status 'removed'`, revision up by one, short answer cleared) and also lets go of `asset_revision`, because
+the revision is deleted; it is then the bare placeholder the list already draws. Drafts are not touched: Clear deletes every one
+first. Implemented; verified by `old-scroll-cleanup.test.ts`.

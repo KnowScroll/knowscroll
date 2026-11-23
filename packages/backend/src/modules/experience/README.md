@@ -570,3 +570,10 @@ taken back. The reads that tell a person what they opened leave a marked exposur
 Composer reads no exposure: its routing history reads `encounter_lineage` and `recording_segments`, and a paused-time
 opening writes neither, so repeat avoidance already ignores it.
 *Implemented; CI-verified against PostgreSQL; runtime-verified on dev (2 Nov, journeys-final: four opens made while paused are absent from the export's encounters, and the next open after Resume appears).*
+
+## Removing the Scrolls of the retired formats (#791, D-437)
+
+`adapters/old-scroll-removal.ts` is Experience's part of `content cleanup-old-scrolls` (see the content README and [the runbook](../../../../../docs/v2/operations/scroll-cleanup.md)). Clear, which
+the cleanup runs for every account first, keeps Saved items and places. A Keep of an asset that goes whole, or pinned to an old revision
+of one that stays, is deleted with its place, as Unsave deletes one. Everything else of a reading is Clear's. Implemented; verified by
+`old-scroll-cleanup.test.ts`.

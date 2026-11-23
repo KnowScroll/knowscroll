@@ -423,6 +423,17 @@ the systems they share (never a heartbeat, a public ID or who the friends are). 
 - A failed refresh: the job retries; the visitors keep the last copy, and the next successful projection or the
   owner's next change redraws it.
 
+## Removing the Scrolls of the retired formats (#791, D-437)
+
+`adapters/old-scroll-removal.ts` is Social's part of `content cleanup-old-scrolls` (see the content README and [the runbook](../../../../../docs/v2/operations/scroll-cleanup.md)). It reads the
+old revisions Content wrote to a temporary table. A thread rooted at an old revision goes whole (messages, snippets, reactions,
+call reveals, shares, members, the link and the conversation; a member's picks and places were removed by Clear first). In a
+thread that stays and in every direct conversation, a card to an old revision becomes a tombstone the way account deletion makes one
+(no author, words, card, note or challenge stop; the same place and number; a fresh change number, with the conversation's last change
+number moved so catch-up replaces the bubble), and its snippets and reactions go. Shares and call reveals of an old revision are
+deleted. Each active member of a conversation that lost something gets the next inbox revision. Lock order: the cleanup's one
+transaction; no thread or inbox lock is held across a wait. Implemented; verified by `old-scroll-cleanup.test.ts`.
+
 ## Related
 
 - Blueprint 02d sections 14 and 17; decisions D-049 (what other modules may do in a thread), D-042 (conversations and links), D-043 (deleted accounts), D-046
