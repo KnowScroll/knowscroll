@@ -44,7 +44,8 @@ import { fixtureModel, fixtureSettings, signal, silent } from '../support/fixtur
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
-import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
 import { authoredWorld, geographyReader, seedAuthoredGeography } from '../support/visit-world.js';
 
 /**
@@ -752,7 +753,7 @@ describe('Topic growth (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
   });
 
   describe('what the gap loop does with it', () => {
-    const production = () => fixtureProduction(db(), () => answerWith(plainOrrin()), orrinResearchFor);
+    const production = () => fixtureProduction(db(), () => answerWith(orrinV3()), orrinResearchFor);
     const TOPIC = 'earth.orrin-seas';
     const facets = [
       'earth.orrin-seas.daily-rhythm',
@@ -796,9 +797,8 @@ describe('Topic growth (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       });
     });
 
-    // #781: a stored recipe is a document v3 recipe and no document v3 writer exists yet (SCROLL_V3_WRITER_NOT_IMPLEMENTED), so a stored recipe cannot be
-    // produced through the real job here; the writer pull request restores this test with a v3 fixture.
-    it.skip('becomes servable only when the library has released three explanations over two of its facets, in a release of its own', async () => {
+    // #781: a stored recipe is a document v3 recipe, so the fake model answers the production writer in the document v3 reply shape (`orrinV3`).
+    it('becomes servable only when the library has released three explanations over two of its facets, in a release of its own', async () => {
       const fixture = fixtureModel(
         () =>
           answerWith({
@@ -868,6 +868,9 @@ describe('Topic growth (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
           outcome: 'published',
           held: true,
         });
+      // Every one is a document v3 with its `scroll-provenance.v3` (a stored recipe's plan, #781).
+      for (const key of keys)
+        expect(await storedFormatsOf(db(), stableUuid(`content.recipe-asset:${key}`), 1)).toEqual(V3_FORMATS);
       // Held for a read: no supply, so the topic still waits, and discovery offers a reader none of the held Scrolls, asked for the topic or not.
       const reader = await seedPerson(db());
       const assets = new Set(keys.map((key) => stableUuid(`content.recipe-asset:${key}`)));
@@ -876,7 +879,8 @@ describe('Topic growth (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
           readDiscoveryCandidates(scope, {
             languages: ['en'],
             formats: ['scroll'],
-            capabilities: v2Capabilities,
+            // A document v3 is offered only to a client that declares it (was: `v2Capabilities`), so "offers none" is about the held v3 Scrolls.
+            capabilities: v3Client,
             limit: 100,
             ...(topicIds === undefined ? {} : { topicIds }),
           }),

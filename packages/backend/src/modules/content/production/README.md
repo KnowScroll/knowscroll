@@ -365,8 +365,10 @@ the plan refusal hold only a key, so they stay key-only: `scrollV3PlanOf` return
 misconception, nothing more) and `scrollV2PlanOf` returns nothing; the real shape and sections reach the writer from the row through `bookRecipeOf`.
 A row whose plan is not a v3 one (a v2 plan an older process wrote) is refused before any job is reserved or request sent: `plan_refused`,
 `stored_recipe_plan_not_v3` (`storedPlanRefusalOf`). A row whose `scroll_v3` does not parse is a defect: `bookRecipeOf` throws
-`STORED_RECIPE_PLAN_INVALID`. **There is no document v3 writer yet**, so a stored recipe cannot be produced until the writer pull request lands:
-`writerPlanFor` throws `SCROLL_V3_WRITER_NOT_IMPLEMENTED` for a v3 subject before any request.
+`STORED_RECIPE_PLAN_INVALID`. **The document v3 writer produces it** (#783, "Producing a document v3 Scroll" above): `writerPlanFor` takes `subject.scrollV3`
+into `v3Plan` (`parseProductionRecipe` accepts a `gen-` key), the role is `writerRoleV3One`, the job runs at `scroll-production-v3.v1`, and the Scroll is stored
+as a `scroll-document.v3` with its `scroll-provenance.v3`, held for a read, attributed to its planet and given coverage, exactly as a v3 code recipe's is. The
+integration tests that produce a stored recipe through the real job answer it with the labelled Orrin reply in the document v3 shape (`orrinV3`).
 `store.create` moves the recipe from `checked` to `queued` with the job row, and `store.finish` moves it to `produced` with the stored Scroll.
 
 `propose-recipes.ts` and `recipe-brief.ts` are the proposing step. The role `content.recipe-brief` (version `recipe-brief.v2`, which asks each draft for a `shape` and two or three section intents and no longer forbids naming a picture, background class, one

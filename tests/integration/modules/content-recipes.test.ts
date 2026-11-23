@@ -34,6 +34,9 @@ import {
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { evidencePassageCount } from '../../../packages/backend/src/modules/content/production/evidence.js';
 import { isHeldForReview } from '../../../packages/backend/src/modules/content/production/review-hold.js';
+import { makeCheckLibrarySupport } from '../../../packages/backend/src/modules/content/production/library-support-check.js';
+import { checkerVersionOfRecipe } from '../../../packages/backend/src/modules/content/production/library-support-kinds.js';
+import { LIBRARY_SUPPORT_V3_CHECK_VERSION } from '../../../packages/backend/src/modules/content/production/library-support-v3.js';
 import { subjectOf } from '../../../packages/backend/src/modules/content/production/subject.js';
 import {
   SCROLL_PRODUCTION_V3_VERSION,
@@ -47,6 +50,9 @@ import { answerWith, enableProductionScope, fixtureProduction } from '../support
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+import { quotablePassages } from '../support/held-v3.js';
+import { fixtureProductionWorker } from '../support/production-worker.js';
+import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
 
 /** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
 const CONCEPTS = planSnapshot().all();
@@ -718,9 +724,8 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       expect(row.commissioned_by).toBe('planner');
     });
 
-    // #781: a stored recipe is a document v3 recipe and no document v3 writer exists yet (SCROLL_V3_WRITER_NOT_IMPLEMENTED), so a stored recipe cannot be
-    // produced through the real job here; the writer pull request restores this test with a v3 fixture.
-    it.skip('produces the recipe through the real job, holds its Scroll for the operator and serves it only once released', async () => {
+    // #781: a stored recipe is a document v3 recipe, so the fake model answers the production writer in the document v3 reply shape (`orrinV3`).
+    it('produces the recipe through the real job, holds its Scroll for the operator and serves it only once released', async () => {
       const key = (await recipeRows()).find((row) => row.facet_id === FACET_A)!.key as `gen-${string}`;
       const asset = (await recipeRows()).find((row) => row.key === key)!.asset_id;
       const waiter = await seedPerson(database.db);
@@ -731,8 +736,12 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       };
       // A waiter on Create's own work keeps waiting while the job is queued or running (a code v2 recipe would read as stopped).
       expect(await readingOf()).toEqual({ state: 'not_started', take: 1 });
-      const run = fixtureProduction(database.db, () => answerWith(plainOrrin()), orrinResearchFor);
+      const run = fixtureProduction(database.db, () => answerWith(orrinV3()), orrinResearchFor);
       expect(await run.produce(key, false, signal(), true, 1)).toMatchObject({ outcome: 'published', held: true });
+      // The job asked the document v3 writer once (arm (a): the whole Scroll in one reply), not the v2 stage writer.
+      expect(run.calls).toHaveLength(1);
+      expect(run.calls[0]?.request.system).toContain('PICTURES.');
+      expect(run.calls[0]?.request.system).not.toContain('You stage one Scroll');
       // Held for the operator: nothing is coming that a waiter could be served, so it stops waiting.
       expect(await readingOf()).toEqual({ state: 'held' });
 
@@ -750,6 +759,9 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         .select('document')
         .where('asset_id', '=', asset)
         .executeTakeFirstOrThrow();
+      // The stored Scroll is a document v3 and its private provenance the v3 one (was: the plain v2 document), and a stored recipe names no
+      // misconception and has no stage.
+      expect(await storedFormatsOf(database.db, asset, 1)).toEqual(V3_FORMATS);
       expect((stored.document as { misconception: unknown; stage?: unknown }).misconception).toEqual({ kind: 'none' });
       expect((stored.document as { stage?: unknown }).stage).toBeUndefined();
       // Attributed to its planet and given coverage, as a library Scroll is, so the operator sees it would form.
@@ -767,7 +779,8 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
           readDiscoveryCandidates(scope, {
             languages: ['en'],
             formats: ['scroll'],
-            capabilities: v2Capabilities,
+            // A document v3 is offered only to a client that declares it (was: `v2Capabilities`), so the held and the released reads below are about the v3 Scroll.
+            capabilities: v3Client,
             limit: 100,
           }),
         );
@@ -788,6 +801,36 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
       });
       expect((await offered()).map((encounter) => encounter.assetRevision)).toEqual([1]);
       expect(await gate.recipeKeyOf(asset)).toBe(key);
+    });
+
+    // #781: the check of a document v3 reads a stored recipe's Scroll under the v3 checker version, as it does a v3 code recipe's.
+    it("checks the stored recipe's Scroll with the document v3 support check, under the v3 checker version the recipe's key names", async () => {
+      const key = (await recipeRows()).find((row) => row.facet_id === FACET_A)!.key as `gen-${string}`;
+      const asset = (await recipeRows()).find((row) => row.key === key)!.asset_id;
+      expect(checkerVersionOfRecipe(key)).toBe(LIBRARY_SUPPORT_V3_CHECK_VERSION);
+      const stored = await database.db
+        .selectFrom('content.asset_revisions')
+        .select('document')
+        .where('asset_id', '=', asset)
+        .where('revision', '=', 1)
+        .executeTakeFirstOrThrow();
+      // The labelled fake checker can quote a sentence only from a passage its part cites: make each part's sentences quotable, as the v3 publication test does.
+      await quotablePassages(database.db, {
+        assetId: asset,
+        revision: 1,
+        document: stored.document as Parameters<typeof quotablePassages>[1]['document'],
+      });
+      const worker = fixtureProductionWorker(database, () => answerWith(orrinV3()));
+      const checked = await makeCheckLibrarySupport({
+        db: database.db,
+        authority: { scopeId: 'scroll-supply', generation: 1 },
+        withScope: makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 }),
+        harness: worker.harness,
+      })({ assetId: asset, revision: 1, signal: signal() });
+      expect(checked).toMatchObject({
+        kind: 'stored',
+        check: { state: 'checked', verdict: 'passed', checkerVersion: LIBRARY_SUPPORT_V3_CHECK_VERSION },
+      });
     });
 
     it('leaves the standing of a recipe it never produced untouched, and a retired recipe is never chosen', async () => {

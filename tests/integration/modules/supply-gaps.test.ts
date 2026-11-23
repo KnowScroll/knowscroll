@@ -49,7 +49,8 @@ import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+import { orrinResearchFor, v2Capabilities } from '../support/scroll-v2.js';
+import { orrinV3, storedFormatsOf, V3_FORMATS } from '../support/scroll-v3.js';
 
 /** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
 const CONCEPTS = planSnapshot().all();
@@ -766,19 +767,20 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       for (const key of after.recipes) expect(await jobsFor(key)).toBe(1);
     });
 
-    // #781: a stored recipe is a document v3 recipe and no document v3 writer exists yet (SCROLL_V3_WRITER_NOT_IMPLEMENTED), so a stored recipe cannot be
-    // produced through the real job here; the writer pull request restores this test with a v3 fixture.
-    it.skip('produces a recipe through the real job and keeps its Scroll held: nothing is served until an operator releases it', async () => {
+    // #781: a stored recipe is a document v3 recipe, so the fake model answers the production writer in the document v3 reply shape (`orrinV3`).
+    it('produces a recipe through the real job and keeps its Scroll held: nothing is served until an operator releases it', async () => {
       const [gap] = (await gaps()).filter((row) => row.status === 'commissioned' && row.planet === PLANET);
       const key = gap!.recipes[0] as `gen-${string}`;
       const asset = (
         await db().selectFrom('content.recipes').select('asset_id').where('key', '=', key).executeTakeFirstOrThrow()
       ).asset_id;
-      const production = fixtureProduction(db(), () => answerWith(plainOrrin()), orrinResearchFor);
+      const production = fixtureProduction(db(), () => answerWith(orrinV3()), orrinResearchFor);
       expect(await production.produce(key, false, signal(), true, 1)).toMatchObject({
         outcome: 'published',
         held: true,
       });
+      // The stored recipe is a document v3 recipe: the job wrote a `scroll-document.v3` with its `scroll-provenance.v3` (#781).
+      expect(await storedFormatsOf(db(), asset, 1)).toEqual(V3_FORMATS);
       expect(
         await db().selectFrom('content.assets').select('status').where('id', '=', asset).executeTakeFirst(),
       ).toEqual({ status: 'held' });
@@ -1038,9 +1040,8 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
     const oneDraft = (tag: string) =>
       answerWith({ drafts: [draft(`How the moon Orrin raises two bulges in its seas, ${tag}`, FACET_A, BRIEFS[0])] });
 
-    // #781: a stored recipe is a document v3 recipe and no document v3 writer exists yet (SCROLL_V3_WRITER_NOT_IMPLEMENTED), so a stored recipe cannot be
-    // produced through the real job here; the writer pull request restores this test with a v3 fixture.
-    it.skip('does not strand a gap whose take an operator rejected: the stored recipe is commissioned again with no model call, each round is counted, and the bound rejects the gap', async () => {
+    // #781: a stored recipe is a document v3 recipe, so the fake model answers the production writer in the document v3 reply shape (`orrinV3`).
+    it('does not strand a gap whose take an operator rejected: the stored recipe is commissioned again with no model call, each round is counted, and the bound rejects the gap', async () => {
       const gap = await openTidesGap();
       const first = loop({ day: 9, script: () => oneDraft('rejected take') });
       expect(await first.brief()).toMatchObject({ proposed: 1, commissioned: 1 });
@@ -1048,12 +1049,14 @@ describe('The gap loop (labelled CI fixtures, real PostgreSQL and pg-boss)', () 
       const asset = (
         await db().selectFrom('content.recipes').select('asset_id').where('key', '=', key).executeTakeFirstOrThrow()
       ).asset_id;
-      const production = fixtureProduction(db(), () => answerWith(plainOrrin()), orrinResearchFor);
+      const production = fixtureProduction(db(), () => answerWith(orrinV3()), orrinResearchFor);
       const reject = async (take: number) => {
         expect(await production.produce(key, false, signal(), true, take)).toMatchObject({
           outcome: 'published',
           held: true,
         });
+        // Each take is a document v3 (`scroll-document.v3`) written by the stored recipe's own plan (#781).
+        expect(await storedFormatsOf(db(), asset, take)).toEqual(V3_FORMATS);
         expect(
           await makeReviewGate(db()).reject({
             assetId: asset,

@@ -114,8 +114,8 @@ main facet and at most one supporting facet. The target (`adapters/coverage-targ
 Scroll as well as a model's. **No document v3 is served without its coverage** (decision G1): the editorial import stores
 the revision, attributes its recipe's planet as its topic (`adapters/topic-attribution.ts`, shared with publication) and
 admits its coverage in one transaction, or rolls back and refuses `coverage_missing`; the release command refuses a
-document v3 revision that has no active head (`coverage_missing`). The policy release holds a document v3 as unreadable
-until the writer step teaches it the format.
+document v3 revision that has no active head (`coverage_missing`). The writer exists (#783), so the policy release reads a model-written
+document v3: it releases one when the v3 support check passes and it replaces no served v3 (`production/README.md`, "Producing a document v3 Scroll").
 
 `lockCurrentCoverageAuthorities` is the recheck every apply path makes: each named authority must still be the current mapping
 head, held under a `SHARE` lock until the transaction ends. `readCurrentCoverageAuthorities` (D-411) is the same recheck without
@@ -402,7 +402,7 @@ live in `content.recipes`, and the system can propose new ones for planets and f
   shape (`subjectOf` then asks the database, and refuses a retired or missing row). Its plan is the proposal's `shape` and section intents
   (`content.recipes.scroll_v3`, read strictly by `bookRecipeOf` into `scrollV3`), with no misconception and no pictures: the writer picks the kinds from
   the closed set by what its passages hold, and the statement picture is always available. A stored row that still holds the old plain v2 plan is refused
-  as a plan problem (`stored_recipe_plan_not_v3`), never written by the v3 version. There is no document v3 writer yet, so none is produced until it lands.
+  as a plan problem (`stored_recipe_plan_not_v3`), never written by the v3 version. The document v3 writer produces a stored recipe (#783): a held `scroll-document.v3`, as a v3 code recipe's is.
 - **Proposing** (`production/propose-recipes.ts`, role `production/recipe-brief.ts`): the operator's `content propose-recipes --topic <planet>
   [--facet <facet>] [--retry <1-2>] [--dry-run]` builds the frozen context (the planet, its facets and how many recipes each has, the title and one
   line of every recipe it has, and the pages code already holds for it, read from the research its recipes' jobs froze), freezes it in
