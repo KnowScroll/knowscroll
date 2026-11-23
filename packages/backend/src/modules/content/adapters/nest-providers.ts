@@ -481,3 +481,10 @@ export { contentReelStores } from './reel/stores.js';
 export { postgresReelPublisher } from './reel/postgres-publisher.js';
 export type { ReelOperator } from '../application/reel/operator.js';
 export type { PublishReel } from '../application/reel/ports.js';
+
+export {
+  contentOldScrollRemoval,
+  prepareOldScrolls,
+  withdrawOldAssets,
+  withOldScrollCleanupLock,
+} from './old-scroll-removal.js';

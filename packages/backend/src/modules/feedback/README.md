@@ -80,6 +80,12 @@ action on a report is built.
   deletion job retries and de-identifies the new row (the same pattern as messages in rooms).
 - A purge that runs late or twice is harmless: it deletes only rows already past `retain_until`.
 
+## Removing the Scrolls of the retired formats (#791, D-437)
+
+`adapters/old-scroll-removal.ts` is Feedback's part of `content cleanup-old-scrolls` (see the content README and [the runbook](../../../../../docs/v2/operations/scroll-cleanup.md)). Clear keeps
+reports. A report about an old revision of a Scroll has nothing left to be about (its foreign key is `restrict`), so it is deleted.
+Reports about a person, a message or a Reel are never touched. Implemented; verified by `old-scroll-cleanup.test.ts`.
+
 ## Related
 
 Decision D-055. Contracts: `packages/contracts/src/feedback.ts`, `rooms.ts` (`reports`), `operator.ts`. Client:

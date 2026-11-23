@@ -91,6 +91,15 @@ shared family keeps its own inventory and test that proves it: the Reel order st
 (`contentReelStores`) and the Region projection
 (`contentRegionStores`) survive both erasers by design.
 
+## Removing a retired Scroll format (#791)
+
+`old-scrolls.ts` is the shared vocabulary of `content cleanup-old-scrolls`, which is not an erasure of a person but reads the same
+schema: a temporary table of the old revisions (`OLD_SCROLL_REVISIONS`, written by Content), predicate helpers over it
+(`namesOldRevision`, `namesRemovedAsset`), a `RemovalStep` (a table, an action and one predicate that both counts and changes the
+rows, so a dry run and a run cannot disagree), and `OldScrollRemoval`, which each module implements in its own
+`adapters/old-scroll-removal.ts`. The cleanup first runs the registry's selective Clear (`eraseCurrentExploration`) for every account,
+so the personal stores need no step of their own. See `docs/v2/operations/scroll-cleanup.md`.
+
 ## Recording witness
 
 The recording lifecycle witness (Pause and Resume, #388) records that a root elected the lifecycle

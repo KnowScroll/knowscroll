@@ -247,3 +247,4 @@ export function scenarioWorkerProviders(tokens: ScenarioTokens & { readonly harn
     },
   ];
 }
+export { scenariosOldScrollRemoval } from './old-scroll-removal.js';

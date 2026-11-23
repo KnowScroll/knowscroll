@@ -149,7 +149,8 @@ Admission takes the per-asset/revision advisory lock, then the asset SHARE lock,
 UPDATE lock. The standalone path opens its own short Content transaction. The generated path joins
 the production transaction after the revision is stored. Expected head revision fences concurrent
 corrections, and an identical decision replays without appending. Database triggers reject revision
-update/delete and nonmonotonic/removed heads. Failure rolls the whole transaction back. Admission
+update/delete and nonmonotonic/removed heads, with one exemption for the cleanup of the retired
+document formats ("Removing the Scrolls of the retired formats", below). Failure rolls the whole transaction back. Admission
 never takes a personal root or performs network/model waits.
 
 `READ_ADMITTED_COVERAGE_MAPPING` reads one exact revision in an existing personal transaction and
@@ -297,6 +298,45 @@ Jobs: none. Lock order: an advisory lock on the asset ID, then the asset row; ad
 root and never takes one. Erasure: none (shared content; stated above).
 
 `reading_facts` (v2, v3 or v4, by the document's schema) is a refreshable derived view, separate from immutable document/provenance bytes. Re-importing an unchanged source repairs it under the asset admission lock without creating a revision.
+
+## Removing the Scrolls of the retired formats (#791, D-437)
+
+`content cleanup-old-scrolls (--dry-run | --run)` (worker operator, `apps/worker/src/old-scroll-cleanup*.ts`) removes every
+`scroll-document.v1` and `scroll-document.v2` Scroll from the database it runs on, and everything that points at them, in the
+worlds `local`, `ci` and `dev` only. The steps, the order and how to run it on dev are in
+[the runbook](../../../../../docs/v2/operations/scroll-cleanup.md). Status: implemented, and runtime-verified on real PostgreSQL by
+`tests/integration/modules/old-scroll-cleanup.test.ts`; not run on a deployed database.
+
+Content decides what is old and removes what is its own; every other module removes or closes what points at an old revision through
+its own `adapters/old-scroll-removal.ts` (`OldScrollRemoval`, `infrastructure/erasure/old-scrolls.ts`), and the worker composes them.
+
+- **Old.** A revision of a Scroll asset (`content.assets.kind = 'scroll'`) whose `document_version` is `scroll-document.v1` or
+  `scroll-document.v2`. `prepareOldScrolls` writes them to a temporary table, `old_scroll_revisions`, that ends with the transaction,
+  with `whole_asset` true when every revision of the asset is old. Reels and document v3 are never old.
+- **Whole assets** go with their revisions, provenance, reviews, support checks, release-policy rows, discovery chain, coverage, region
+  bindings, series units and continuity links (either end old), then the asset. **A mixed asset** (a v3 revision beside old ones)
+  keeps its v3 revisions and loses the old ones; when its current revision was old, `content.assets.revision` moves to its newest
+  revision that is not held or rejected by the review gate. When none is left the asset is withdrawn, or held when the newest kept
+  revision still waits for a decision, so the move never serves an unreleased revision.
+- **Rows with no foreign key** of a removed asset: its `content.made_to_order_scrolls` row; the `content.scroll_production_runs` that
+  published an old revision or belong to a removed order; `content.recipes` whose asset went go back from `queued` or `produced`
+  to `checked`; queued `content.check-library-support` jobs that name an old revision and queued produce jobs for a removed order
+  (pg-boss `job` rows, also dead-lettered). Deleting a production run frees the take it spent along with the Scroll that take made.
+  Every other run of the recipe (rejected, unknown, in progress) stays and still counts, and the reasoning ledger's runs and
+  attempts (`writer_run_id`) stay, so no paid attempt is lost or sent again.
+- **The guard exemption (0125).** The triggers on `content.coverage_revisions`, `content.coverage_heads` and
+  `content.release_risk_raises` refuse every update and delete. Their function bodies now let a **delete** through only when the
+  transaction set `knowscroll.old_scroll_cleanup` to `v1` (`set_config(..., true)`, local to the transaction) **and** the row's revision
+  is a v1 or v2 revision in `content.asset_revisions` (`content.old_scroll_cleanup_allows`). The cleanup sets it around those three
+  tables' deletes only. A delete with no setting, the coverage of a document v3 revision or a Reel, and every update are refused
+  as before. The triggers themselves are unchanged.
+- **Lock order and rollout.** One session advisory lock keeps two cleanups apart. The assets that go whole are withdrawn first in a
+  short transaction; then every account is cleared; then one transaction removes everything else and takes row locks as it deletes.
+  It does not stop the worker: a job that writes a reading of a removed Scroll between the Clear and the removal makes the removal fail
+  and roll back (nothing changes), so stop the worker first, as the runbook says. It changes no table or index.
+- **The authored starter Scroll** (`starter/why-the-sky-is-blue.editorial-scroll.json`, v1) is removed with the rest. Nothing imports
+  it at start-up or on deploy: it is admitted only by the manual `content import-editorial` step, by the Maestro fixture world and by
+  tests, all of which use their own databases except the manual step, which is not to be run on dev again.
 
 ## Document v3 editorial import and reading facts v4 (#759)
 
