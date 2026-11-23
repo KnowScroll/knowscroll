@@ -28,9 +28,15 @@ export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v22';
  * The production recipe of a recipe the plan marks `scrollV3`: the same job with the document v3 writer. Like the v2 version it
  * is a version of its own, so a recipe already served as a v2 Scroll is a new job here and its Scroll becomes a new revision of
  * the same asset. It must change whenever the v3 writer's instructions (`WRITER_V3_PROMPT_VERSION`) or the job's steps change,
- * which gives every recipe fresh takes; `versions.test.ts` pins the pair.
+ * which gives every recipe fresh takes; `versions.test.ts` pins the pair. v2 (D-438): the compile leaves out a link it cannot place
+ * (`WRITER_V3_PROMPT_VERSION` `scroll-writer-v3.v2`), so a recipe whose Scroll is not yet a document v3 gets three new takes.
  */
-export const SCROLL_PRODUCTION_V3_VERSION = 'scroll-production-v3.v1';
+export const SCROLL_PRODUCTION_V3_VERSION = 'scroll-production-v3.v2';
+/**
+ * The document v3 production version before D-438. No new job is made at it; its revisions stay stored, released and served, and the
+ * publication lineage keeps accepting the pair it wrote (`lineagePairsOf`, `publication-topic.ts`).
+ */
+export const SCROLL_PRODUCTION_V3_FIRST_VERSION = 'scroll-production-v3.v1';
 /** One writer call and at most one repair, per take. */
 export const REQUEST_BOUND_PER_TOPIC = 2;
 /**

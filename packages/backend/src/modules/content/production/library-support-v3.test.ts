@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   beatsOfV3,
   describePicture,
+  lightItem,
   parseDocumentV3,
   pickItems,
   scrubPositions,
@@ -230,6 +231,30 @@ describe('the sentences of a document v3 Scroll that the support check reads (D-
       .map((sentence) => sentence.text);
     for (const sentence of describePicture(flipped, flip.control.to).split(/(?<=\.)\s+/u))
       expect(flippedWords.join(' ')).toContain(sentence.trim().slice(0, 20));
+  });
+
+  it('reads the words of a pick item the beat has not revealed yet, as the reader sees them once the item is chosen (D-438)', () => {
+    const seasons = structuredClone(fixture('seasons-v3-ci'));
+    const beats = seasons.sections.flatMap((section) => section.beats);
+    const pick = beats.find((beat) => beat.kind === 'plain' && beat.control?.kind === 'pick');
+    if (pick?.show === undefined) throw new Error('CI expected a pick');
+    const picked = seasons.pictures.find((picture) => picture.id === pick.show!.picture)!;
+    // No other beat lights an item of this picture, so only the pick can give the words of a lit item.
+    for (const beat of beats) if (beat !== pick && beat.show?.picture === picked.id) beat.show.state = {};
+    // The beat has revealed only the first point; choosing a later item reveals that item too.
+    pick.show.state = { upTo: 1 };
+    const listed = sentencesOfScrollV3(seasons, evidenceOf(seasons));
+    if (listed.kind !== 'sentences') throw new Error('CI expected sentences');
+    const words = listed.sentences.filter((sentence) => sentence.part === picked.id).map((sentence) => sentence.text);
+    const items = pickItems(picked);
+    expect(items.length).toBeGreaterThan(2);
+    for (const item of items) {
+      // "Standing out: Mars." is only in the words of a state that has revealed Mars and lit it.
+      expect(words).toContain(`Standing out: ${item.label}.`);
+      expect(describePicture(picked, lightItem(picked, { upTo: 1 }, item.id))).toContain(
+        `Standing out: ${item.label}.`,
+      );
+    }
   });
 
   it('refuses, and sends no request, when a beat, an aside, a picture or the takeaway rests on no passage', () => {

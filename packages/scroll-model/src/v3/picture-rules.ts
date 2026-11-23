@@ -222,9 +222,41 @@ export interface ScrubPosition {
   readonly state: PictureState;
 }
 
+/** The 1-based place of an item in what `upTo` reveals (a grid's cell by its row), or undefined where `upTo` counts nothing or the id is no item. */
+function revealPlace(picture: Picture, itemId: string): number | undefined {
+  switch (picture.kind) {
+    case 'flow':
+    case 'cycle':
+    case 'chart': {
+      const at = orderedItems(picture).findIndex((item) => item.id === itemId);
+      return at < 0 ? undefined : at + 1;
+    }
+    case 'grid': {
+      const cell = picture.cells.find((each) => each.id === itemId);
+      const row = cell === undefined ? -1 : picture.rows.findIndex((each) => each.id === cell.row);
+      return row < 0 ? undefined : row + 1;
+    }
+    case 'statement':
+    case 'plan':
+      return undefined;
+  }
+}
+
+/**
+ * The state a control gives when it lights one item: the beat's state with that item lit, and revealed. A lit item that
+ * `upTo` has not reached is drawn as nothing, so a chip that lit it would change nothing a reader can see; the state
+ * raises `upTo` to the item's place instead. With no `upTo` everything is revealed already, and a state that
+ * reveals more than the item's place is kept. Shared by the scrub along items and the pick, so they cannot drift. Pure.
+ */
+export function lightItem(picture: Picture, base: PictureState, itemId: string): PictureState {
+  const place = revealPlace(picture, itemId);
+  const raised = place !== undefined && base.upTo !== undefined && base.upTo < place ? { upTo: place } : {};
+  return { ...base, ...raised, lit: [itemId] };
+}
+
 /**
  * Where a scrub can go, from the beat's own state. `steps`: a plan's steps, or the picture's items revealed one more at
- * a time. `items`: the picture's items lit one at a time. A scrub needs two positions or it has nowhere to go.
+ * a time. `items`: the picture's items lit one at a time, each revealed if the beat's `upTo` had not reached it (`lightItem`). A scrub needs two positions or it has nowhere to go.
  */
 export function scrubPositions(
   picture: Picture,
@@ -232,7 +264,7 @@ export function scrubPositions(
   along: 'steps' | 'items',
 ): readonly ScrubPosition[] {
   if (along === 'items')
-    return orderedItems(picture).map((item) => ({ label: item.label, state: { ...base, lit: [item.id] } }));
+    return orderedItems(picture).map((item) => ({ label: item.label, state: lightItem(picture, base, item.id) }));
   if (picture.kind === 'plan') return (picture.steps ?? []).map((label, step) => ({ label, state: { ...base, step } }));
   const count = revealCount(picture);
   const labels =

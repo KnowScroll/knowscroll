@@ -182,6 +182,19 @@ describe('the pick control (Compare the leans)', () => {
     });
   });
 
+  it('reveals a chosen item the beat’s upTo has not reached, so lighting it changes what the reader sees', async () => {
+    // The leans are a chart of three points; the beat has revealed only the first.
+    await show({ ...block, figure: { ...block.figure, state: { upTo: 1 } } } as FigureBlock);
+    expect(drawn().state).toEqual({ upTo: 1 });
+    await press('Uranus', 'radio');
+    expect(drawn().state).toEqual({ upTo: 3, lit: ['uranus'] });
+    await press('Mars', 'radio');
+    expect(drawn().state).toEqual({ upTo: 2, lit: ['mars'] });
+    // An item already revealed keeps the beat's upTo; nothing is taken back.
+    await press('Earth', 'radio');
+    expect(drawn().state).toEqual({ upTo: 1, lit: ['earth'] });
+  });
+
   it('moves with the arrow keys', async () => {
     await show(block);
     const earth = screen.getByRole('radio', { name: 'Earth' });

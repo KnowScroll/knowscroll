@@ -78,6 +78,7 @@ export {
   isIllustrative,
   isInteractiveBlock,
   isSortRight,
+  lightItem,
   lifetimeInSunLifetimes,
   loopPhysics,
   mainSequenceLuminosityAt,

@@ -26,7 +26,10 @@ export interface RoleReceipt {
     readonly kind: UnsupportedKind;
     readonly code?: RuleCode;
   }[];
-  /** For a `sentences_dropped` receipt: how many sentences the support check still found unsupported and the job served the answer without (D-311). A number, never a sentence. */
+  /**
+   * For a `sentences_dropped` receipt: how many sentences the support check still found unsupported and the job served the answer without (D-311). For a `links_dropped`
+   * receipt: how many links of a document v3 the compile left out because it could not place them (D-438). A number, never a sentence or a phrase.
+   */
   readonly dropped?: number;
   /**
    * For an `answer_trimmed` receipt: how many sentences code took out of the writer's draft before it was checked, because they copied

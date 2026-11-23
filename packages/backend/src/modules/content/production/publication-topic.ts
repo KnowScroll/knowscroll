@@ -30,8 +30,13 @@ import { codeRecipeOf } from '../application/recipe-book.js';
 import type { BookRecipe } from '../domain/library/generated.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
-import { PRODUCTION_VERSIONS, productionVersionOf } from './topics.js';
-import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
+import {
+  PRODUCTION_VERSIONS,
+  productionVersionOf,
+  SCROLL_PRODUCTION_V3_FIRST_VERSION,
+  scrollV3PlanOf,
+} from './topics.js';
+import { WRITER_V3_PROMPT_VERSION, WRITER_V3_PROMPT_VERSION_V1 } from './writer-v3-version.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
 const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
@@ -116,7 +121,7 @@ async function readPublishedRevision(
     ])
     .where('job.id', '=', jobId)
     .where('job.state', '=', 'published')
-    .where('job.policy_version', 'in', PRODUCTION_VERSIONS)
+    .where('job.policy_version', 'in', [...PRODUCTION_VERSIONS, SCROLL_PRODUCTION_V3_FIRST_VERSION])
     .where('job.writer_run_id', '=', writerRunId)
     .where('job.scope_generation', '=', generation)
     .where('revision.provenance_kind', '=', 'generated')
@@ -146,8 +151,6 @@ interface StoredLineage {
     readonly documentSha256: string;
     readonly production: ProductionRecord;
   };
-  /** The writer instructions a Scroll of this schema must name. */
-  readonly writerPromptVersion: string;
 }
 
 /**
@@ -159,18 +162,39 @@ function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
     const document = parseDocumentV3(row.document);
     const provenance = ScrollProvenanceV3.safeParse(row.provenance);
     if (document.kind !== 'valid' || !provenance.success) return undefined;
-    return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_V3_PROMPT_VERSION };
+    return { document: document.document, provenance: provenance.data };
   }
   if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
     const document = parseDocumentV2(row.document);
     const provenance = ScrollProvenanceV2.safeParse(row.provenance);
     if (document.kind !== 'valid' || !provenance.success) return undefined;
-    return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_V2_PROMPT_VERSION };
+    return { document: document.document, provenance: provenance.data };
   }
   const document = parseDocument(row.document);
   const provenance = ScrollProvenance.safeParse(row.provenance);
   if (document.kind !== 'valid' || !provenance.success) return undefined;
-  return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_PROMPT_VERSION };
+  return { document: document.document, provenance: provenance.data };
+}
+
+/**
+ * The pairs of a job's production version and the writer prompt version its Scroll names that the lineage accepts for a recipe's
+ * Scroll of this document schema. A pair is the version of the job and the instructions that ran under it, so a Scroll never
+ * names a prompt its job did not run. A document v3 of a recipe the plan marks `scrollV3` also accepts the first pair (D-438): the
+ * revisions `scroll-production-v3.v1` wrote keep their lineage after the version moved, and no new job is made at it. Pure.
+ */
+export function lineagePairsOf(
+  key: string,
+  documentVersion: string,
+): readonly (readonly [production: string, prompt: string])[] {
+  const current = [productionVersionOf(key), promptVersionOf(documentVersion)] as const;
+  return documentVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION && scrollV3PlanOf(key) !== undefined
+    ? [current, [SCROLL_PRODUCTION_V3_FIRST_VERSION, WRITER_V3_PROMPT_VERSION_V1]]
+    : [current];
+}
+
+function promptVersionOf(documentVersion: string): string {
+  if (documentVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) return WRITER_V3_PROMPT_VERSION;
+  return documentVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION ? WRITER_V2_PROMPT_VERSION : WRITER_PROMPT_VERSION;
 }
 
 /** The stored document and provenance are the recipe's, at the revision the job targeted. */
@@ -179,8 +203,7 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string, recipe: P
     recipe === undefined ||
     row.asset_id !== recipe.assetId ||
     row.revision !== row.target_revision ||
-    row.explanation_unit_id !== recipe.explanationUnitId ||
-    row.policy_version !== productionVersionOf(recipe.key)
+    row.explanation_unit_id !== recipe.explanationUnitId
   )
     return undefined;
   const stored = storedLineage(row);
@@ -199,7 +222,10 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string, recipe: P
     provenance.documentSha256 !== row.document_sha256 ||
     production.kind !== 'model' ||
     production.runId !== writerRunId ||
-    production.promptVersion !== stored.writerPromptVersion
+    !lineagePairsOf(recipe.key, row.document_version).some(
+      ([policyVersion, promptVersion]) =>
+        policyVersion === row.policy_version && promptVersion === production.promptVersion,
+    )
   )
     return undefined;
   return { recipe, production };

@@ -98,6 +98,7 @@ describe('the renderer on the device', () => {
       // A document v3 picture's own words and items (#762): pure lookups over a parsed picture, nothing that proves it.
       'describePicture',
       'figureValue',
+      'lightItem',
       'orderedItems',
       'partIds',
       'pickItems',

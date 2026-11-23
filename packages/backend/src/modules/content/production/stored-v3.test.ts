@@ -62,6 +62,32 @@ describe('what admission stores for a document v3 Scroll (labelled CI fixture)',
     expect(second).toEqual(first);
   });
 
+  it('stores the document without a link it could not place and says where, never in words: the same bytes as the reply without it', () => {
+    const baseline = storedScrollV3(fixtureReplyV3(), context(), production);
+    const outcome = storedScrollV3(
+      edited((draft) => {
+        // Item 2 shows nothing of its own; picture 1 is on screen from item 1, with the part "value" and no part "Nowhere".
+        const words = String(draft.items[2]?.['text']).split(' ').slice(0, 3).join(' ');
+        draft.items[2] = {
+          ...draft.items[2],
+          links: [
+            { phrase: words, part: 'Nowhere' },
+            { phrase: 'a phrase this paragraph never says', part: 'value' },
+          ],
+        };
+      }),
+      context(),
+      production,
+    );
+    if (outcome.kind !== 'compiled' || baseline.kind !== 'compiled') throw new Error('CI expected both to compile');
+    expect(outcome.documentSha256).toBe(baseline.documentSha256);
+    expect(outcome.notices).toEqual([
+      { code: 'link_part_unknown', path: 'items.2.links.0.part' },
+      { code: 'link_phrase_not_once', path: 'items.2.links.1.phrase' },
+    ]);
+    expect(baseline).not.toHaveProperty('notices');
+  });
+
   it('refuses a reply with a finding at the model’s own path, with a code and no text', () => {
     const outcome = storedScrollV3(
       edited((draft) => {

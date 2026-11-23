@@ -1,5 +1,6 @@
 import {
   describePicture,
+  lightItem,
   pickItems,
   scrubPositions,
   type Beat,
@@ -101,7 +102,7 @@ export const NOT_COVERED_V3: readonly string[] = [
 
 /**
  * The states a reader can see a beat's picture in: the state the beat shows, the state a switch flips to, each stop of a scrub and each item a pick
- * lights. A state that gives the same words as another adds nothing, so the caller drops a sentence it has already listed.
+ * lights, each revealed as the reader's control reveals it (`lightItem`). A state that gives the same words as another adds nothing, so the caller drops a sentence it has already listed.
  */
 function statesOfBeat(picture: Picture, beat: Beat): readonly PictureState[] {
   const base = beat.show?.state ?? {};
@@ -113,7 +114,7 @@ function statesOfBeat(picture: Picture, beat: Beat): readonly PictureState[] {
         ? [control.to]
         : control.kind === 'scrub'
           ? scrubPositions(picture, base, control.along).map((position) => position.state)
-          : pickItems(picture).map((item) => ({ ...base, lit: [item.id] }));
+          : pickItems(picture).map((item) => lightItem(picture, base, item.id));
   return [base, ...reachable];
 }
 

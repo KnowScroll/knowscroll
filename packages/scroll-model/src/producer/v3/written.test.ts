@@ -279,22 +279,24 @@ describe('compileWrittenV3: references, handles and structure', () => {
     expect(issues).toContainEqual(at('show_state_invalid', 'items.3.control.to.lit.0'));
   });
 
-  it('link_part_unknown: a label the picture on screen does not have', () => {
-    const issues = refused((reply) => {
-      const beat = para(reply, 6);
-      beat.links = [{ phrase: 'pocket of water vapour', part: 'Vapour' }];
+  it('a link whose label is not a part of the picture on screen is left out, with a notice and no issue', () => {
+    const outcome = compiled((reply) => {
+      para(reply, 6).links = [{ phrase: 'pocket of water vapour', part: 'Vapour' }];
     });
-    expect(issues).toContainEqual(at('link_part_unknown', 'items.6.links.0.part'));
-    expect(issues.filter((issue) => issue.code === 'link_part_unknown')).toHaveLength(1);
+    expect(outcome.notices).toEqual([at('link_part_unknown', 'items.6.links.0.part')]);
+    expect(outcome.document.sections.flatMap((section) => section.beats)[4]?.links).toEqual([]);
   });
 
-  it('link_without_picture: a link in a section whose picture has not been shown yet', () => {
-    const issues = refused((reply) => {
+  it('a link in a section whose picture has not been shown yet is left out, with a notice and no issue', () => {
+    const outcome = compiled((reply) => {
+      // The paragraph that opened the second section's picture moves to the next one, so the section starts without it.
       const beat = para(reply, 9);
+      const next = para(reply, 10);
+      next.show = beat.show;
       delete beat.show;
       beat.links = [{ phrase: 'vapour pressure', part: 'value' }];
     });
-    expect(issues).toContainEqual(at('link_without_picture', 'items.9.links.0'));
+    expect(outcome.notices).toEqual([at('link_without_picture', 'items.9.links.0')]);
   });
 
   it('a link may name a part of the picture an earlier beat of the section showed', () => {
@@ -563,13 +565,14 @@ describe('compileWrittenV3: every finding at once', () => {
   it('reports three problems in three places together, and does not stop at the first stage', () => {
     const issues = refused((reply) => {
       para(reply, 2).cites = ['e1', 'e9'];
-      para(reply, 6).links = [{ phrase: 'pocket of water vapour', part: 'Vapour' }];
+      const control = para(reply, 3);
+      control.control = { kind: 'switch', label: 'Flip it', to: { upTo: 1, lit: ['Nowhere'] } };
       const aside = reply.items[7];
       if (aside?.type === 'aside') aside.text = 'This plays a crucial role in the limits of the picture.';
       para(reply, 10).text = Array.from({ length: 80 }, () => 'word').join(' ');
     });
     expect(issues).toContainEqual(at('authoring_cite_unknown', 'items.2'));
-    expect(issues).toContainEqual(at('link_part_unknown', 'items.6.links.0.part'));
+    expect(issues).toContainEqual(at('show_state_invalid', 'items.3.control.to.lit.0'));
     expect(issues).toContainEqual(at('machine_phrase', 'items.7.text'));
     expect(issues).toContainEqual(at('beat_too_long', 'items.10.text'));
   });
@@ -675,6 +678,133 @@ describe('arm (b): the merge and the prose compile', () => {
     expect(
       issues.some((issue) => /^(picture_|show_|link_|control_)/u.test(issue.code) || issue.path.startsWith('pictures')),
     ).toBe(false);
+  });
+});
+
+describe('compileWrittenV3: a link that cannot be placed is left out', () => {
+  /*
+   * Item 6 (picture 1 on screen) carries three links: the good one, then a phrase that overlaps it, then one that occurs
+   * twice. Item 5 (no show of its own; picture 1 stays on screen) carries an absent phrase and an unknown label. Item 9
+   * has no picture on screen once the second picture's show moves to item 10.
+   */
+  const TWICE = 'water';
+  const withBadLinks: Change = (reply) => {
+    para(reply, 6).links = [
+      { phrase: 'pocket of water vapour', part: 'Bubbles' },
+      { phrase: 'water vapour', part: 'Bubbles' },
+      { phrase: TWICE, part: 'Heat in' },
+    ];
+    para(reply, 5).links = [
+      { phrase: 'a phrase the paragraph never says', part: 'Heat in' },
+      { phrase: 'temperature climbs', part: 'Nowhere' },
+    ];
+    const beat = para(reply, 9);
+    const next = para(reply, 10);
+    next.show = beat.show;
+    delete beat.show;
+    beat.links = [{ phrase: 'vapour pressure', part: 'value' }];
+  };
+
+  it('keeps only the good link and lists each dropped link by code and path, at the model’s own item', () => {
+    const outcome = compiled(withBadLinks);
+    const beats = outcome.document.sections.flatMap((section) => section.beats);
+    expect(beats[3]?.links).toEqual([]);
+    expect(beats[4]?.links).toEqual([{ phrase: 'pocket of water vapour', part: 'p1-s3' }]);
+    expect(beats[5]?.links).toEqual([]);
+    expect(outcome.notices).toEqual([
+      at('link_phrase_not_once', 'items.5.links.0.phrase'),
+      at('link_part_unknown', 'items.5.links.1.part'),
+      at('link_phrases_overlap', 'items.6.links.1.phrase'),
+      at('link_phrase_not_once', 'items.6.links.2.phrase'),
+      at('link_without_picture', 'items.9.links.0'),
+    ]);
+  });
+
+  it('compiles a document the validator accepts, and the validator is as strict as before about a dangling link', () => {
+    const outcome = compiled(withBadLinks);
+    const stored = JSON.parse(JSON.stringify(outcome.document)) as unknown;
+    expect(validateDocumentV3(stored)).toMatchObject({ kind: 'valid', notices: [] });
+    // A link the compile left out, put back on the document, is refused by the validator.
+    const document = JSON.parse(JSON.stringify(outcome.document)) as {
+      sections: { beats: { links: { phrase: string; part: string }[] }[] }[];
+    };
+    const beat = document.sections[0]?.beats[4];
+    if (beat === undefined) throw new Error('the fixture has this beat');
+    beat.links.push({ phrase: TWICE, part: 'p1-s2' });
+    const result = validateDocumentV3(document, { verify: false });
+    expect(result.kind === 'invalid' ? result.issues.map((issue) => issue.code) : []).toContain('link_phrase_not_once');
+  });
+
+  it('a link that overlaps a link that was itself left out is kept: a dropped link holds no words', () => {
+    const outcome = compiled((reply) => {
+      para(reply, 6).links = [
+        { phrase: 'a phrase the paragraph never says', part: 'Bubbles' },
+        { phrase: 'pocket of water vapour', part: 'Bubbles' },
+      ];
+    });
+    expect(outcome.notices).toEqual([at('link_phrase_not_once', 'items.6.links.0.phrase')]);
+    expect(outcome.document.sections.flatMap((section) => section.beats)[4]?.links).toEqual([
+      { phrase: 'pocket of water vapour', part: 'p1-s3' },
+    ]);
+  });
+
+  it('judges a quotation’s links by the quotation’s own words', () => {
+    const outcome = compiled((reply) => {
+      const beat = para(reply, 2);
+      reply.items[2] = {
+        type: 'quote',
+        text: HEAT,
+        simple: beat.simple,
+        who: 'A fixture author',
+        cites: ['e1'],
+        links: [
+          { phrase: 'electric current', part: 'Heat in' },
+          { phrase: 'not in the quotation at all', part: 'Heat in' },
+        ],
+      };
+    });
+    expect(outcome.notices).toEqual([at('link_phrase_not_once', 'items.2.links.1.phrase')]);
+    expect(outcome.document.sections.flatMap((section) => section.beats)[1]?.links).toEqual([
+      { phrase: 'electric current', part: 'p1-s2' },
+    ]);
+  });
+
+  it('keeps a label that names two parts an issue, next to links that are only left out', () => {
+    const issues = refused((reply) => {
+      reply.pictures[1] = {
+        kind: 'grid',
+        title: 'Two kettles',
+        cites: ['e2'],
+        columns: [{ label: 'Small' }, { label: 'Large' }],
+        rows: [{ label: 'Boils fast' }],
+        cells: [
+          { row: 'Boils fast', column: 'Small', text: 'Yes' },
+          { row: 'Boils fast', column: 'Large', text: 'Yes' },
+        ],
+      };
+      // Two cells say "Yes": a link to "Yes" names no one part. The other link only misses, and is left out.
+      para(reply, 10).links = [
+        { phrase: 'fixed temperature', part: 'Yes' },
+        { phrase: 'a phrase the paragraph never says', part: 'Small' },
+      ];
+    });
+    expect(issues).toContainEqual(at('picture_label_duplicate', 'items.10.links.0.part'));
+    expect(issues.some((issue) => issue.path.startsWith('items.10.links.1'))).toBe(false);
+  });
+
+  it('records no notice for a reply whose links all fit', () => {
+    expect(compiled().notices).toEqual([]);
+  });
+
+  it('still refuses the whole reply for another finding, and then carries no notices', () => {
+    const outcome = compile((reply, input) => {
+      withBadLinks(reply, input);
+      para(reply, 2).cites = ['e1', 'e9'];
+    });
+    expect(outcome.kind).toBe('refused');
+    const issues = outcome.kind === 'refused' ? outcome.issues : [];
+    expect(issues).toContainEqual(at('authoring_cite_unknown', 'items.2'));
+    expect(issues.some((issue) => issue.code.startsWith('link_'))).toBe(false);
   });
 });
 

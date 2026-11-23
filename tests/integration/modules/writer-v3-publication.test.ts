@@ -17,6 +17,7 @@ import { fixtureReplyV3 } from '../../../packages/backend/src/modules/content/pr
 import {
   productionVersionOf,
   REQUEST_BOUND_V3_PER_TOPIC,
+  SCROLL_PRODUCTION_V3_FIRST_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
   TOPICS,
 } from '../../../packages/backend/src/modules/content/production/topics.js';
@@ -44,6 +45,20 @@ const on = { enabled: true, dailyCap: 5 } as const;
 function pointingBack(): unknown {
   const draft = JSON.parse(JSON.stringify(fixtureReplyV3())) as { items: { text?: string }[] };
   draft.items[1] = { ...draft.items[1], text: `This ${draft.items[1]?.text ?? ''}` };
+  return draft;
+}
+
+/** The recorded reply with two links that cannot be placed (an unknown part, a phrase the paragraph never says) on a paragraph that shows nothing of its own. */
+function misplacedLinks(): unknown {
+  const draft = JSON.parse(JSON.stringify(fixtureReplyV3())) as { items: { text?: string; links?: unknown[] }[] };
+  const words = (draft.items[2]?.text ?? '').split(' ').slice(0, 3).join(' ');
+  draft.items[2] = {
+    ...draft.items[2],
+    links: [
+      { phrase: words, part: 'Nowhere' },
+      { phrase: 'a phrase this paragraph never says', part: 'value' },
+    ],
+  };
   return draft;
 }
 
@@ -234,6 +249,40 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
     });
   });
 
+  it('still releases, serves and reads as published a revision written at the first v3 version, after the version moved (D-438)', async () => {
+    await produce();
+    // Make the stored revision what `scroll-production-v3.v1` wrote: its job's policy version and the prompt version it named.
+    await database.db
+      .updateTable('content.scroll_production_runs')
+      .set({ policy_version: SCROLL_PRODUCTION_V3_FIRST_VERSION })
+      .where('topic', '=', key)
+      .execute();
+    const provenance = (await provenanceOf(1)) as { production: Record<string, unknown> };
+    await database.db
+      .updateTable('content.asset_provenance')
+      .set({
+        provenance: { ...provenance, production: { ...provenance.production, promptVersion: 'scroll-writer-v3.v1' } },
+      })
+      .where('asset_id', '=', recipe.assetId)
+      .where('revision', '=', 1)
+      .execute();
+    // The revision is still a valid held document v3, and a person can release it and it is served.
+    expect(await gate().release({ assetId: recipe.assetId, revision: 1, decidedBy: person })).toMatchObject({
+      kind: 'released',
+    });
+    expect(
+      await makeRenderScroll(database.db)({ assetId: recipe.assetId, revision: 1, capabilities: v3Client }),
+    ).toMatchObject({ kind: 'rendition' });
+    // The recipe's served Scroll is a document v3, so it is published and `produce-library` has nothing to queue for it; the
+    // takes of the old version are not counted at the new one.
+    expect((await readLibraryStatus(database.db, [key]))[0]).toMatchObject({
+      state: 'published',
+      assetId: recipe.assetId,
+      revision: 1,
+      takes: 0,
+    });
+  });
+
   describe('checked and released', () => {
     it('is checked by the v3 support check, then released by the release policy with no person when every check passes', async () => {
       const { worker, result } = await produce();
@@ -334,6 +383,36 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
       expect(production.promptVersion).toBe(WRITER_V3_PROMPT_VERSION);
       expect(result.attempts).not.toContainEqual(expect.objectContaining({ code: 'attribution_unverified' }));
       expect(await reviewOf(1)).toMatchObject({ state: 'held' });
+    });
+
+    it('is published on the first write when its only fault is a link that cannot be placed: no repair, the links left out and counted (D-438)', async () => {
+      const worker = setup(() => answerWith(misplacedLinks()));
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(1);
+      const { production } = await provenanceOf(1);
+      expect(production.attemptIds).toHaveLength(1);
+      expect(result.attempts).not.toContainEqual(expect.objectContaining({ code: 'attribution_unverified' }));
+      // The stored document is the recorded one: neither misplaced link is in it.
+      const stored = await storedRevision(1);
+      expect(JSON.stringify(stored.document)).not.toContain('Nowhere');
+      expect(JSON.stringify(stored.document)).not.toContain('never says');
+      const outcomes = await database.db
+        .selectFrom('content.scroll_production_runs')
+        .select('outcomes')
+        .where('topic', '=', key)
+        .executeTakeFirstOrThrow();
+      expect(outcomes.outcomes).toContainEqual({ role: 'checks', kind: 'links_dropped', dropped: 2 });
+    });
+
+    it('records no links_dropped receipt when every link is placed', async () => {
+      await produce();
+      const outcomes = await database.db
+        .selectFrom('content.scroll_production_runs')
+        .select('outcomes')
+        .where('topic', '=', key)
+        .executeTakeFirstOrThrow();
+      expect(outcomes.outcomes).not.toContainEqual(expect.objectContaining({ kind: 'links_dropped' }));
     });
 
     it('ends the job rejected when the repair is refused too, with nothing stored and no third request', async () => {

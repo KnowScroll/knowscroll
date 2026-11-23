@@ -53,6 +53,12 @@ export type CompileOutcome =
       readonly language: string;
       readonly title: string;
       readonly readingFacts: ReadingFacts;
+      /**
+       * Parts the compile left out because it could not place them (a document v3's links, `link_*`), at the model's own
+       * paths. Not findings: the document is whole without them, and absent when nothing was left out. The caller records
+       * how many, never which words.
+       */
+      readonly notices?: readonly AdmissionIssue[];
     }
   | { readonly kind: 'refused'; readonly stage: string; readonly issues: readonly AdmissionIssue[] };
 
