@@ -2,14 +2,20 @@ import type { ScrollTopic } from '../topics.js';
 import type { ScrollV2Plan, StageKitId } from '../../domain/library/plan.js';
 
 /**
- * What the 22 recipes that had a drawing kit were, as `scroll-document.v2` recipes, before the library plan made them document
- * v3 recipes (#787): the kit that drew each and the v2 plan it had. The library plan no longer holds either, because a v3
- * recipe has no kit and no v2 plan, and no job reads them from it. The v2 writer spike (`content writer-spike`) and the v2
- * writer's tests still run these recipes with their kit until the kit is deleted, one kit at a time, after the owner has read
- * that kit's rewrites; the entries of a kit leave this table with it. The spike measures and publishes nothing, so a recipe
- * listed here is never produced as a v2 Scroll by the library.
+ * What every library recipe but one was, as a `scroll-document.v2` recipe, before the library plan made it a document v3 recipe:
+ * the v2 plan it had and, for the 22 recipes a drawing kit drew, the kit (#787, #790). The library plan holds neither, because a
+ * v3 recipe has no kit and no v2 plan, and no job reads them from it. The v2 writer spike (`content writer-spike`), the v2 writer's
+ * tests and the integration tests of the v2 path still run these recipes as v2 recipes, with their kit where they had one, until
+ * the v2 code is deleted (Phase 6); the entries of a kit leave this table with it. The spike measures and publishes nothing, so a
+ * recipe listed here is never produced as a v2 Scroll by the library. `exoplanet-kinds` was never a v2 recipe and is not listed.
  */
-export const KIT_PLANS_V2 = {
+/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (the 22 recipes of #787). */
+export interface FormerV2Plan {
+  readonly kit?: StageKitId;
+  readonly plan: ScrollV2Plan;
+}
+
+export const FORMER_V2_PLANS = {
   seasons: {
     kit: 'earth-sky.v1',
     plan: {
@@ -236,9 +242,233 @@ export const KIT_PLANS_V2 = {
       landmark: { key: 'the-quick-loop', name: 'The Quick Loop' },
     },
   },
-} as const satisfies Readonly<Partial<Record<ScrollTopic, { readonly kit: StageKitId; readonly plan: ScrollV2Plan }>>>;
+  'seasons-elsewhere': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-sideways-giant', name: 'The Sideways Giant' },
+    },
+  },
+  'tides-coasts': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-sloshing-bay', name: 'The Sloshing Bay' },
+    },
+  },
+  'greenhouse-limits': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-leaky-blanket', name: 'The Leaky Blanket' },
+    },
+  },
+  'innate-immunity': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-first-guard', name: 'The First Guard' },
+    },
+  },
+  'adaptive-immunity': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-tailored-defence', name: 'The Tailored Defence' },
+    },
+  },
+  'immune-memory': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-remembered-foe', name: 'The Remembered Foe' },
+    },
+  },
+  'dns-lookup': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-address-book', name: 'The Address Book' },
+    },
+  },
+  'https-handshake': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-secret-handshake', name: 'The Secret Handshake' },
+    },
+  },
+  'web-caching': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-saved-copy', name: 'The Saved Copy' },
+    },
+  },
+  'rendering-pipeline': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-pixel-path', name: 'The Pixel Path' },
+    },
+  },
+  'event-loop': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-patient-loop', name: 'The Patient Loop' },
+    },
+  },
+  'same-origin-policy': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-wall-between-sites', name: 'The Wall Between Sites' },
+    },
+  },
+  'big-o-growth': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-growth-curve', name: 'The Growth Curve' },
+    },
+  },
+  'hybrid-sorting': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-sorted-runs', name: 'The Sorted Runs' },
+    },
+  },
+  'hash-tables': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-labelled-shelf', name: 'The Labelled Shelf' },
+    },
+  },
+  'industrial-causes': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-many-causes', name: 'The Many Causes' },
+    },
+  },
+  'steam-power': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-steady-steam', name: 'The Steady Steam' },
+    },
+  },
+  'factory-system': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-factory-floor', name: 'The Factory Floor' },
+    },
+  },
+  'industrial-towns': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-crowded-towns', name: 'The Crowded Towns' },
+    },
+  },
+  'industrial-debate': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-fork-in-the-road', name: 'The Fork in the Road' },
+    },
+  },
+  'attention-mechanism': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-weighted-glance', name: 'The Weighted Glance' },
+    },
+  },
+  'attention-example': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-aligned-words', name: 'The Aligned Words' },
+    },
+  },
+  'attention-limits': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-edge-of-attention', name: 'The Edge of Attention' },
+    },
+  },
+  'transformer-architecture': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-stacked-blocks', name: 'The Stacked Blocks' },
+    },
+  },
+  'token-embeddings': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-word-map', name: 'The Word Map' },
+    },
+  },
+  'next-token-generation': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-next-word', name: 'The Next Word' },
+    },
+  },
+  'gradient-descent': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-downhill-walk', name: 'The Downhill Walk' },
+    },
+  },
+  'training-by-example': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-example-trail', name: 'The Example Trail' },
+    },
+  },
+  overfitting: {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-too-close-fit', name: 'The Too-Close Fit' },
+    },
+  },
+  'long-input-cost': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-growing-bill', name: 'The Growing Bill' },
+    },
+  },
+  'mixture-of-experts': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-specialist-team', name: 'The Specialist Team' },
+    },
+  },
+  'subword-tokens': {
+    plan: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-word-pieces', name: 'The Word Pieces' },
+    },
+  },
+} as const satisfies Readonly<Partial<Record<ScrollTopic, FormerV2Plan>>>;
 
-/** The kit and v2 plan a recipe had before it became a document v3 recipe, or `undefined` for every other recipe. */
-export function kitPlanV2Of(topic: ScrollTopic): { readonly kit: StageKitId; readonly plan: ScrollV2Plan } | undefined {
-  return Object.hasOwn(KIT_PLANS_V2, topic) ? KIT_PLANS_V2[topic as keyof typeof KIT_PLANS_V2] : undefined;
+/** The kit and v2 plan a recipe had before it became a document v3 recipe, or `undefined` for a recipe that was never a v2 recipe. */
+export function formerV2PlanOf(topic: ScrollTopic): FormerV2Plan | undefined {
+  return Object.hasOwn(FORMER_V2_PLANS, topic) ? FORMER_V2_PLANS[topic as keyof typeof FORMER_V2_PLANS] : undefined;
 }

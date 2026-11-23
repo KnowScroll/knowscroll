@@ -247,6 +247,22 @@ export const spaceRecipes = {
     brief:
       'A kind of world with no counterpart in the Solar System: the super-Earth, a planet more massive than Earth but well below Uranus and Neptune. Explain that the name describes mass alone and says nothing about temperature, composition, orbit or habitability. Compare it with the planets of the Solar System. Do not call any planet Earth-like without saying in what way, and do not claim that any is known to host life.',
     pages: ['https://en.wikipedia.org/wiki/Super-Earth'],
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'A kind of world with no counterpart in the Solar System: the super-Earth',
+        'The name counts mass only, not temperature, make-up, orbit or habitability',
+        'How super-Earths compare with Earth, Uranus and Neptune',
+      ],
+      pictures: [
+        {
+          kind: 'chart',
+          purpose:
+            'Bars of mass in Earth masses: the usual upper bound for a super-Earth (10), Uranus (14.5) and Neptune (17.1), so the reader sees a super-Earth is well below the two ice giants. Unit: Earth masses.',
+        },
+      ],
+      misconception: { kind: 'none' },
+    },
   },
   'black-hole-formation': {
     explanationUnitId: 'space-black-holes-formation-v1',

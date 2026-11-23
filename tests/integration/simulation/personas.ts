@@ -208,8 +208,10 @@ function everyScrollOfOnePlanetThenTwoAgain(library: Library) {
 }
 
 /**
- * Reads every unit of the one planet that has a recipe Create may still choose (`space.exoplanets`), then returns to two
- * of them. Each reading wakes the Planner, which asks for more of a topic the reader has now run out of.
+ * Reads every unit of `space.exoplanets`, then returns to two of them. Each reading wakes the Planner, which asks for more
+ * of a topic the reader has now run out of. No code recipe can be chosen by Create since #790 (every one is planned as
+ * document v3), so the lab stores one recipe for this planet (`seedStoredRecipe`, `library.ts`): that is what lets the demand
+ * start work and leave a waiting (`deferred`) row, which is what this scenario is kept for.
  */
 export const linkReaderExoplanets: PersonaSpec = {
   id: 'link-reader-exoplanets',

@@ -5,7 +5,10 @@ import type {
   ScrollV3Plan,
   StageKitId,
 } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
-import { KIT_PLANS_V2 } from '../../../packages/backend/src/modules/content/production/spike-v2/kit-plans.js';
+import {
+  FORMER_V2_PLANS,
+  type FormerV2Plan,
+} from '../../../packages/backend/src/modules/content/production/spike-v2/former-v2-plans.js';
 import type { ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import {
@@ -39,10 +42,9 @@ export const v2Capabilities = {
 type PlannedRecipe = { scrollV2?: ScrollV2Plan; scrollV3?: ScrollV3Plan };
 
 /**
- * Marks a library recipe as a v2 recipe for the duration of a test and returns the undo. The plan marks
- * the plain recipes of the waves and the recipes no drawing kit drew (D-137, D-199, D-217); a test uses this
- * for another recipe, or for a different plan. A recipe the plan marks document v3 (#787) loses that plan while
- * it is marked v2, because a recipe never carries both.
+ * Marks a library recipe as a v2 recipe for the duration of a test and returns the undo. The plan marks no recipe v2 since #790 (a
+ * recipe's former v2 plan is `FORMER_V2_PLANS`, see `markFormerV2Recipe`); a test uses this for a recipe with a different plan. A
+ * recipe the plan marks document v3 loses that plan while it is marked v2, because a recipe never carries both.
  */
 export function markScrollV2(key: ScrollTopic, plan: ScrollV2Plan): () => void {
   const recipe = RECIPES[key] as PlannedRecipe;
@@ -57,17 +59,19 @@ export function markScrollV2(key: ScrollTopic, plan: ScrollV2Plan): () => void {
 }
 
 /**
- * Makes one of the 22 recipes that had a drawing kit a v2 stage recipe again for the duration of a test, with the kit and the v2 plan it
- * had before #787 (`KIT_PLANS_V2`), and returns the undo. The library plans these recipes as document v3 Scrolls, which have no
- * kit; the v2 production path and the kit code stay until each kit is deleted, and the tests of that path run on a kit recipe this way.
+ * Makes a library recipe a v2 recipe again for the duration of a test, with the v2 plan it had before the library plan made it a
+ * document v3 recipe (`FORMER_V2_PLANS`: #787 for the 22 that had a drawing kit, #790 for the rest) and the kit it had, and returns the
+ * undo. The library plans every recipe as a document v3 Scroll, which has no kit and no v2 plan; the v2 production path and the kit
+ * code stay until the v2 code is deleted (Phase 6), and the tests of that path run on these recipes this way.
  */
-export function markKitRecipeV2(key: keyof typeof KIT_PLANS_V2): () => void {
+export function markFormerV2Recipe(key: keyof typeof FORMER_V2_PLANS): () => void {
   const recipe = RECIPES[key] as PlannedRecipe & { stageKit?: StageKitId };
   const { scrollV2, scrollV3, stageKit } = recipe;
-  const { kit, plan } = KIT_PLANS_V2[key];
+  const former: FormerV2Plan = FORMER_V2_PLANS[key];
   delete recipe.scrollV3;
-  recipe.scrollV2 = plan;
-  recipe.stageKit = kit;
+  recipe.scrollV2 = former.plan;
+  if (former.kit === undefined) delete recipe.stageKit;
+  else recipe.stageKit = former.kit;
   return () => {
     if (scrollV2 === undefined) delete recipe.scrollV2;
     else recipe.scrollV2 = scrollV2;
@@ -78,12 +82,15 @@ export function markKitRecipeV2(key: keyof typeof KIT_PLANS_V2): () => void {
 }
 
 /**
- * Makes all 22 recipes that had a drawing kit v2 stage recipes again until the undo is called (see `markKitRecipeV2`). A file that
- * tests the v2 path (production of a stage Scroll, the check of a v2 Scroll, the release policy over v2 Scrolls) uses a kit recipe as its
- * example. Call it in the describe body and the undo in `afterAll`: a test file has a process of its own.
+ * Makes every recipe that was a v2 recipe (all but `exoplanet-kinds`) a v2 recipe again until the undo is called (see
+ * `markFormerV2Recipe`). A file that tests the v2 path (production of a v2 Scroll, the check of a v2 Scroll, the release policy over
+ * v2 Scrolls) uses one of them as its example. Call it in the describe body and the undo in `afterAll`: a test file has a process of
+ * its own.
  */
-export function markKitRecipesV2(): () => void {
-  const undoAll = (Object.keys(KIT_PLANS_V2) as (keyof typeof KIT_PLANS_V2)[]).map((key) => markKitRecipeV2(key));
+export function markFormerV2Recipes(): () => void {
+  const undoAll = (Object.keys(FORMER_V2_PLANS) as (keyof typeof FORMER_V2_PLANS)[]).map((key) =>
+    markFormerV2Recipe(key),
+  );
   return () => undoAll.reverse().forEach((undo) => undo());
 }
 
@@ -100,7 +107,7 @@ export function markLibraryV1(): () => void {
 
 /**
  * Makes a library recipe a v1 recipe for the duration of a test and returns the undo. The plan marks
- * recipes v2 or document v3 (the 22 that had a kit, #787); this is how a test publishes the v1 revision that a
+ * every recipe document v3 (#787, #790); this is how a test publishes the v1 revision that a
  * v2 or v3 regeneration follows, the way the library's Scrolls were before D-137.
  */
 export function markScrollV1(key: ScrollTopic): () => void {
@@ -115,9 +122,8 @@ export function markScrollV1(key: ScrollTopic): () => void {
 }
 
 /**
- * Makes the named library recipes v1 recipes until the undo is called. The plan marks the Seasons recipes
- * and the kit and wave recipes v2 or, for the 22 that had a kit, document v3 (D-137, D-199, D-217, #787); a file that tests the v1 path (who publishes
- * straight to admitted, the production job) names the recipes it uses as v1 examples. Call it in the
+ * Makes the named library recipes v1 recipes until the undo is called. The plan marks every recipe document v3 (#787, #790);
+ * a file that tests the v1 path (who publishes straight to admitted, the production job) names the recipes it uses as v1 examples. Call it in the
  * describe body and the undo in `afterAll`: a test file has a process of its own.
  */
 export function markRecipesV1(...keys: ScrollTopic[]): () => void {

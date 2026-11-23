@@ -151,6 +151,9 @@ export async function simulationWorld(name: string, config: SimConfig): Promise<
   const plannerDemand = realPlannerDemand(database, c.boss, {
     createDailyCap: 10,
     plannerCreateDailyCap: 5,
+    // Dev's growth cap (KS_SUPPLY_GROWTH_DAILY_CAP, default 10): a stored recipe counts against it and not against the caps
+    // above, and since #790 only a stored recipe is one Create may choose, so with it closed no demand could start work.
+    growthDailyCap: 10,
     readExploration: c.readExploration,
   });
   const catalogue = catalogueOf(database.db);

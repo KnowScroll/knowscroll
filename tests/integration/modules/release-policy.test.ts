@@ -36,7 +36,7 @@ import {
 } from '../support/generated-scroll.js';
 import { seedPerson } from '../support/fixtures.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
-import { markKitRecipesV2 } from '../support/scroll-v2.js';
+import { markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * The words of the labelled Orrin fixture (an invented planet) with the six sentences reworded that the library check could never quote, as in
@@ -94,10 +94,10 @@ interface Held {
  * production job and checked by the real support-check use case, with a labelled CI fixture in place of the writer and of the checker. This
  * proves what the policy reads, releases, holds and refuses, never what a model says about a Scroll.
  */
-// The recipes a drawing kit drew are document v3 recipes in the library since #787. This file tests the v2 path, so it makes them v2 stage recipes
-// again, with the kit and plan they had, for the file's own process.
-const restoreKitRecipes = markKitRecipesV2();
-afterAll(restoreKitRecipes);
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('the release policy of held library Scrolls (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;

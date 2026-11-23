@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { scrollV3PlanOf, TOPICS, type ScrollTopic } from '../topics.js';
-import { KIT_PLANS_V2, kitPlanV2Of } from './kit-plans.js';
+import { FORMER_V2_PLANS, formerV2PlanOf, type FormerV2Plan } from './former-v2-plans.js';
 import {
   parseSpikeBlocks,
   parseSpikeTopics,
@@ -16,25 +16,77 @@ import {
 } from './topics.js';
 
 /** The kit a spike draws a recipe with: its own, or the one it had before it became a document v3 recipe (#787). */
-const kitOf = (topic: ScrollTopic) => TOPICS[topic].stageKit ?? kitPlanV2Of(topic)?.kit;
+const kitOf = (topic: ScrollTopic) => TOPICS[topic].stageKit ?? formerV2PlanOf(topic)?.kit;
 /** The v2 plan a spike runs a recipe with: the library's, or the one a document v3 recipe had before (#787). */
-const planOf = (topic: ScrollTopic) => TOPICS[topic].scrollV2 ?? kitPlanV2Of(topic)?.plan;
+const planOf = (topic: ScrollTopic) => TOPICS[topic].scrollV2 ?? formerV2PlanOf(topic)?.plan;
 
-describe('the v2 plans of the recipes that became document v3 recipes (#787)', () => {
-  it('hold exactly the 22 recipes that had a kit, each now a v3 recipe with no kit and no v2 plan in the library', () => {
-    const held = Object.keys(KIT_PLANS_V2) as ScrollTopic[];
-    expect(held).toHaveLength(22);
+describe('the v2 plans of the recipes that became document v3 recipes (#787, #790)', () => {
+  it('hold every recipe but "exoplanet-kinds", each now a v3 recipe with no kit and no v2 plan in the library', () => {
+    const held = Object.keys(FORMER_V2_PLANS) as ScrollTopic[];
+    expect(held).toHaveLength(54);
+    expect(held).not.toContain('exoplanet-kinds');
+    expect(Object.keys(TOPICS).filter((topic) => !held.includes(topic as ScrollTopic))).toEqual(['exoplanet-kinds']);
     for (const topic of held) {
       expect(scrollV3PlanOf(topic), topic).toBeDefined();
       expect(TOPICS[topic].stageKit, topic).toBeUndefined();
       expect(TOPICS[topic].scrollV2, topic).toBeUndefined();
-      expect(KIT_PLANS_V2[topic as keyof typeof KIT_PLANS_V2].plan.variant, topic).toBe('stage');
     }
   });
 
-  it('hold nothing for a recipe the library still produces as v2', () => {
-    for (const topic of ['seasons-elsewhere', 'tides-coasts', 'greenhouse-limits', 'exoplanet-kinds'] as const)
-      expect(kitPlanV2Of(topic), topic).toBeUndefined();
+  it('keep the drawing kit of the 22 recipes that had one, as a stage plan, and a plain plan with a landmark for the other 32', () => {
+    const drawn = Object.entries(FORMER_V2_PLANS).filter(([, former]) => 'kit' in former);
+    expect(drawn).toHaveLength(22);
+    for (const [topic, former] of Object.entries(FORMER_V2_PLANS)) {
+      expect(former.plan.variant, topic).toBe('kit' in former ? 'stage' : 'plain');
+      if (!('kit' in former)) expect(former.plan.landmark, topic).toBeDefined();
+    }
+  });
+
+  it('hold nothing for a recipe that was never a v2 recipe', () => {
+    expect(formerV2PlanOf('exoplanet-kinds')).toBeUndefined();
+  });
+});
+
+// The library tests held these rules while the plans lived in the library (D-187, D-188, D-199, D-217). The spike and the v2 path's
+// tests still read the plans from here, so the rules move with them (#790).
+describe('the landmarks, myths and Final call controls the former v2 plans keep (D-187, D-188)', () => {
+  // Read through the table's declared shape, so a plan that names no Final call or landmark reads as `undefined`.
+  const formers = Object.entries(FORMER_V2_PLANS) as [ScrollTopic, FormerV2Plan][];
+  const landmarks = formers.flatMap(([, former]) => (former.plan.landmark === undefined ? [] : [former.plan.landmark]));
+
+  it('name a landmark for every former v2 plan, in plain words that never claim mastery', () => {
+    const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
+    for (const [topic, former] of formers) {
+      const landmark = former.plan.landmark;
+      expect(landmark, topic).toBeDefined();
+      expect(landmark?.name, topic).not.toMatch(mastery);
+      expect(landmark?.name.split(' ').length, topic).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('give every landmark a key and a name that fit the document, and no two the same key or name', () => {
+    expect(landmarks).toHaveLength(formers.length);
+    for (const landmark of landmarks) {
+      expect(landmark.key).toMatch(/^[a-z][a-z0-9-]{1,39}$/u);
+      expect(landmark.name.length).toBeGreaterThanOrEqual(4);
+      expect(landmark.name.length).toBeLessThanOrEqual(40);
+    }
+    expect(new Set(landmarks.map((landmark) => landmark.key)).size).toBe(landmarks.length);
+    expect(new Set(landmarks.map((landmark) => landmark.name)).size).toBe(landmarks.length);
+  });
+
+  it('keep no myth and no Final call control for a plain plan: none of their pages states a common wrong belief', () => {
+    for (const [topic, former] of formers.filter(([, candidate]) => !('kit' in candidate))) {
+      expect(former.plan.misconception, topic).toEqual({ kind: 'none' });
+      expect(former.plan.finalCall, topic).toBeUndefined();
+    }
+  });
+
+  it('keep the tilt for "seasons" alone, the one plan that handed the reader Earth’s axis', () => {
+    expect(formers.filter(([, former]) => former.plan.finalCall !== undefined).map(([topic]) => topic)).toEqual([
+      'seasons',
+    ]);
+    expect(FORMER_V2_PLANS.seasons.plan.finalCall).toEqual({ kind: 'tilt' });
   });
 });
 

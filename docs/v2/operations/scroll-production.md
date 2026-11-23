@@ -459,19 +459,60 @@ node dist/operator.js content release --asset <asset id> --revision <n>         
 
 For a kit with several recipes, name them all in `--only`, as in the table. A v3 that replaces a served v1 or v2 is released by the release policy when every
 check passes; one that replaces a served v3 waits for a person (above). When the parts of a series are released, run `content admit-continuity` and
-`content readmit-coverage` (steps 6 of "Running a library wave"): the Seasons series also holds `seasons-elsewhere` (v2, unchanged), the tides series
-`tides-coasts` and the greenhouse series `greenhouse-limits`, so admit them after the v3 parts are released or after the v2 part is served, whichever is later.
+`content readmit-coverage` (steps 6 of "Running a library wave"): the Seasons series also holds `seasons-elsewhere`, the tides series
+`tides-coasts` and the greenhouse series `greenhouse-limits` (document v3 recipes since #790, produced by "The other 33 recipes as document v3 Scrolls, by system" below), so admit those series after every part is released.
 
 What to read for, besides the list under the previous section: the briefs of these recipes were narrowed to what their pages state (the library README says
 how), so a Scroll that states more than its page is a finding; every figure in a picture is in a passage the writer was offered. A recipe has three takes
 at the production version; if all are rejected, the plan or the brief needs a change (a code change), so stop and say so on #787.
 
-The deletion of a kit is a later change, one kit at a time, after the owner has read that kit's rewrites. Its recipes' v2 plans stay in `spike-v2/kit-plans.ts`
+The deletion of a kit is a later change, one kit at a time, after the owner has read that kit's rewrites. Its recipes' v2 plans stay in `spike-v2/former-v2-plans.ts`
 until then, for the v2 spike only; the table and the kit leave together.
+
+## The other 33 recipes as document v3 Scrolls, by system (#790)
+
+The other 33 recipes of the library carry `scrollV3` too, so **no library recipe is planned as v1 or v2 now**: the 32 plain v2 recipes (their
+v2 plans are kept in `spike-v2/former-v2-plans.ts` for the v2 spike and tests only) and the v1 recipe `exoplanet-kinds`. As for the kit recipes, marking
+them changes nothing a reader is served: each keeps serving its current v1 or v2 Scroll until a v3 Scroll is produced, read and released, and
+until then `production-status` shows it `not_started`. Supply never commissions a recipe the plan marks v2 or v3, so only this operator run makes
+them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
+a reader's ask or the Planner's demand for a Scroll the library has not made yet starts production only for a stored (`gen-`) recipe, within
+the growth cap; with none, the ask closes as `no_recipe_left` and is counted as a gap. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
+is inside one batch, except the three Earth & sky parts, which wait for their kit batches above: tides, greenhouse and Earth & sky):
+
+| # | Batch | Recipes | `--only` |
+|---|---|---|---|
+| 1 | Space (v1 today) | `exoplanet-kinds` | `exoplanet-kinds` |
+| 2 | Human body, immune system | `innate-immunity`, `adaptive-immunity`, `immune-memory` | `innate-immunity,adaptive-immunity,immune-memory` |
+| 3 | History | `industrial-causes`, `steam-power`, `factory-system`, `industrial-towns`, `industrial-debate` | `industrial-causes,steam-power,factory-system,industrial-towns,industrial-debate` |
+| 4 | Computing | `dns-lookup`, `https-handshake`, `web-caching`, `rendering-pipeline`, `event-loop`, `same-origin-policy`, `big-o-growth`, `hybrid-sorting`, `hash-tables` | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
+| 5 | Machine learning, attention and its neighbours | `attention-mechanism`, `attention-example`, `attention-limits`, `transformer-architecture`, `token-embeddings`, `next-token-generation` | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation` |
+| 6 | Machine learning, training and cost | `training-by-example`, `gradient-descent`, `overfitting`, `long-input-cost`, `mixture-of-experts`, `subword-tokens` | `training-by-example,gradient-descent,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
+| 7 | Earth & sky, after kit batches 2, 3 and 9 | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
+
+One batch, the exact command (the first batch of three recipes, number 2; nothing is sent by the dry run):
+
+```sh
+# worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash
+node dist/operator.js content produce-library --dry-run --only innate-immunity,adaptive-immunity,immune-memory   # wouldQueue, take 1 each at scroll-production-v3.v1
+node dist/operator.js content produce-library --only innate-immunity,adaptive-immunity,immune-memory             # queues the jobs; the dev worker writes them and each ends held
+node dist/operator.js content production-status --only innate-immunity,adaptive-immunity,immune-memory           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
+node dist/operator.js content review-list
+node dist/operator.js content review-show --asset <asset id from review-list> --sources
+node dist/operator.js content release --asset <asset id> --revision <n>             # or reject with a reason; or leave it to the release policy
+```
+
+When a batch is released, run `content admit-continuity` and `content readmit-coverage` (steps 6 of "Running a library wave"): the immune-system, web-requests, algorithms, Industrial
+Revolution, attention and training series are each inside one batch, so each can be admitted whole.
+
+What to read for: the briefs of these recipes were narrowed to what their pages state, and three recipes got a second page because the first one did not state the brief's central point
+(`dns-lookup`, `attention-limits`, `next-token-generation`), so a Scroll that states more than its pages is a finding. Every figure in a
+picture is in a passage the writer was offered; a chart that shows `142` for the autumn of Mars (`seasons-elsewhere`) rests on a page that writes it as "142 days" beside three lengths in sols,
+which fill the Martian year, so check that Scroll's chart. A recipe has three takes at the production version; if all are rejected, the plan or the brief needs a change (a code change): stop and say so on #790.
 
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
-A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
+A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. Since #790 the plan marks no recipe v2: the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217) were v2 recipes, and are document v3 recipes now (#787 for the 22 a kit drew, #790 for the other 33). The v2 production path stays for the v2 spike and the tests, with the v2 plan each recipe had kept in `spike-v2/former-v2-plans.ts`. What follows describes that path. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
 
 **A produced v2 library Scroll is held, not published (D-138).** The job stores it with its provenance and coverage and then waits: nobody is served it until you have read it and released it (next section). The commands that start a job are the same for every recipe; the plan decides which writer runs and the gate decides what happens to the result.
 
@@ -713,7 +754,7 @@ nothing from a host that is not on it.
 
 ## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 
-A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes, the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217). Since #787 the 22 recipes a kit drew are document v3 recipes: the commands below produce them as v3 Scrolls, and "The kit recipes as document v3 Scrolls, kit by kit" says in what order.
+A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marked the Seasons recipes, the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217). Since #787 the 22 recipes a kit drew are document v3 recipes, and since #790 all the others are: the commands below produce them as v3 Scrolls, and "The kit recipes as document v3 Scrolls, kit by kit" and "The other 33 recipes as document v3 Scrolls, by system" say in what order.
 
 Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time. A take can hold its worker claim for up to 35 minutes (six requests at the largest request timeout, 300 s, plus a margin); a job whose worker died is retried only after that, so do not expect a quick retry of a stuck take (`production-status` shows it as `running`).
 

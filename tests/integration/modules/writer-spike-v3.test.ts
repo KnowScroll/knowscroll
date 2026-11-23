@@ -13,7 +13,6 @@ import {
   type HarnessSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { runSpikeJobs, SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-v2/run.js';
-import { fixtureResearchPageV2 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import {
   makeWriterSpikeV3,
   spikeJobLabel,
@@ -27,6 +26,7 @@ import {
 } from '../../../packages/backend/src/modules/content/production/spike-v3/writer-v3.fixture.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel, fixtureSettings, signal, silent } from '../support/fixture-model.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
 import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port.js';
 
 // The model is a labelled CI fixture and the essay is the authored Orrin fixture: no provider, no product content.
@@ -89,7 +89,8 @@ describe('the v3 writer spike (CI fixture model + real PostgreSQL; no provider n
       model: model.model,
       spikeId: 'ci-spike',
       rawDir,
-      research: () => Promise.resolve(fixtureResearchPageV2),
+      // A recipe with two pages (`dns-lookup` since #790) gets two different pages: the same page twice is refused as a duplicate.
+      research: (url) => Promise.resolve(orrinResearchFor(url)),
       newRunId: uuidv7,
       findingsOf: async (attemptId) => {
         const shown = await reasoning.showRejectedAnswer(attemptId);

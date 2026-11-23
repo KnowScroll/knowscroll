@@ -222,6 +222,7 @@ const KIT_RECIPES_V3 = {
   'black-hole.v1': ['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon'],
 } as const;
 const V3_KIT_KEYS: readonly string[] = Object.values(KIT_RECIPES_V3).flat();
+const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
 
 describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
   const byKit = (kit: string): string[] =>
@@ -244,19 +245,22 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
 
   it('plans the 22 recipes that had a kit as document v3 Scrolls, each kit’s recipes together (#787)', () => {
     expect(V3_KIT_KEYS).toHaveLength(22);
-    expect(
-      recipes
-        .filter((recipe) => recipe.scrollV3 !== undefined)
-        .map((recipe) => recipe.key)
-        .sort(),
-    ).toEqual([...V3_KIT_KEYS].sort());
     for (const [kit, keys] of Object.entries(KIT_RECIPES_V3)) {
       expect(STAGE_KIT_IDS, kit).toContain(kit);
       for (const key of keys) expect(RECIPES[key].scrollV3, key).toBeDefined();
     }
     // Earth & sky, Space and the heart and nerves of the Human body: the systems whose subjects the kits drew.
-    for (const recipe of recipes.filter((candidate) => candidate.scrollV3 !== undefined))
-      expect(['earth', 'space', 'human-body'], recipe.key).toContain(recipe.systemId);
+    for (const key of V3_KIT_KEYS)
+      expect(['earth', 'space', 'human-body'], key).toContain(RECIPES[key as keyof typeof RECIPES].systemId);
+  });
+
+  it('plans every recipe of the library as a document v3 Scroll, so no recipe is planned as v1 or v2 (#790)', () => {
+    expect(recipes).toHaveLength(55);
+    for (const recipe of recipes) {
+      expect(recipe.scrollV3, recipe.key).toBeDefined();
+      expect(recipe.scrollV2, recipe.key).toBeUndefined();
+      expect(recipe.stageKit, recipe.key).toBeUndefined();
+    }
   });
 
   it('leaves the recipes no kit draws plain: coasts, the blanket audit, kinds of planet and other worlds', () => {
@@ -275,12 +279,11 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       expect(RECIPES[key].stageKit, key).toBeUndefined();
   });
 
-  it('keeps the recipes no kit drew as v2 plain Scrolls, not v3: coasts, the blanket audit and other worlds (#787)', () => {
-    for (const key of ['tides-coasts', 'greenhouse-limits', 'seasons-elsewhere'] as const) {
-      expect(RECIPES[key].scrollV2?.variant, key).toBe('plain');
-      expect(RECIPES[key].scrollV3, key).toBeUndefined();
+  it('plans the recipes no kit drew as document v3 Scrolls too, not v2: coasts, the blanket audit, other worlds and kinds of planet (#790)', () => {
+    for (const key of ['tides-coasts', 'greenhouse-limits', 'seasons-elsewhere', 'exoplanet-kinds'] as const) {
+      expect(RECIPES[key], key).not.toHaveProperty('scrollV2');
+      expect(RECIPES[key].scrollV3, key).toBeDefined();
     }
-    expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV3');
   });
 
   it('draws "Seasons elsewhere" from pages about Mars and Uranus, and keeps its brief to what they state', () => {
@@ -294,117 +297,52 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
   });
 });
 
-const SEASONS = ['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons-limits'] as const;
-/** The recipes of the first waves (D-199): the systems whose recipes were marked together. Six of them had a kit and are v3 since #787. */
+/** Every recipe is planned as a document v3 Scroll since #790; the first waves and the kit waves were marked v2 before (D-137, D-199, D-217). */
 const WAVE_SYSTEMS = ['human-body', 'computing', 'machine-learning', 'history'];
 const WAVE_RECIPES = recipes.filter((recipe) => WAVE_SYSTEMS.includes(recipe.systemId)).map((recipe) => recipe.key);
-/** A recipe that had a kit is planned as a document v3 Scroll since #787, so it is not one of the v2 recipes below. */
-const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
-const SEASONS_V2 = SEASONS.filter((key) => !isV3(key));
-const WAVE_V2 = WAVE_RECIPES.filter((key) => !isV3(key));
-/**
- * The Earth and Space recipes marked after their kits landed (D-217): every recipe a kit draws, and the plain
- * parts of the same series. `exoplanet-kinds` has no kit and is in no series, so it is not marked.
- */
-const KIT_WAVE_RECIPES = [
-  'tides',
-  'tides-spring-neap',
-  'tides-coasts',
-  'greenhouse',
-  'greenhouse-radiation',
-  'greenhouse-balance',
-  'greenhouse-limits',
-  'stars-fusion',
-  'stars-lifecycle',
-  'stars-colour-brightness',
-  'exoplanet-transit',
-  'exoplanet-habitable-zone',
-  'black-hole-formation',
-  'black-hole-horizon',
-  'black-hole-evidence',
-] as const;
-const KIT_WAVE_V2 = KIT_WAVE_RECIPES.filter((key) => !isV3(key));
 
-describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => {
-  const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
-
-  it('marks the Seasons recipe no kit drew, the first waves and the plain kit-wave recipes, and nothing else: the 22 recipes that had a kit are document v3 since #787', () => {
-    expect(v2.map((recipe) => recipe.key).sort()).toEqual([...SEASONS_V2, ...WAVE_V2, ...KIT_WAVE_V2].sort());
-    expect(v2).toHaveLength(32);
-  });
-
-  it('makes every v2 recipe a plain Scroll, because no recipe has a kit any more (#787)', () => {
-    for (const recipe of v2) {
-      expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
-      expect(recipe.stageKit, recipe.key).toBeUndefined();
-    }
+describe('the recipes the plan once produced as v2 Scrolls (scrollV2, D-137)', () => {
+  it('marks no recipe v2 now: every recipe is planned as a document v3 Scroll (#790), and a recipe never carries both plans', () => {
+    expect(recipes.filter((recipe) => recipe.scrollV2 !== undefined)).toEqual([]);
+    for (const recipe of recipes)
+      expect(recipe.scrollV2 !== undefined && recipe.scrollV3 !== undefined, recipe.key).toBe(false);
   });
 
   it('ships only misconception sources a person has reviewed, because the library refuses the rest at dispatch', () => {
-    for (const recipe of v2) {
-      const { misconception } = recipe.scrollV2!;
-      if (misconception.kind === 'myth') expect(misconception.source.reviewed, recipe.key).toBe(true);
+    for (const recipe of recipes) {
+      const misconception = recipe.scrollV3?.misconception;
+      if (misconception?.kind === 'myth') expect(misconception.source.reviewed, recipe.key).toBe(true);
     }
   });
 
-  it('keeps the one myth the V3 design documents, with its reviewed source, in the document v3 plan of "seasons" (#787), and gives the other three none', () => {
-    expect(RECIPES.seasons.scrollV2).toBeUndefined();
+  it('keeps the one myth the V3 design documents, with its reviewed source, in the document v3 plan of "seasons" (#787), and gives every other recipe none (#790)', () => {
     expect(RECIPES.seasons.scrollV3?.misconception).toEqual({
       kind: 'myth',
       claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
       source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
     });
-    for (const key of ['seasons-hemispheres', 'seasons-limits'] as const)
-      expect(RECIPES[key].scrollV3?.misconception, key).toEqual({ kind: 'none' });
-    expect(RECIPES['seasons-elsewhere'].scrollV2?.misconception).toEqual({ kind: 'none' });
+    expect(
+      recipes.filter((recipe) => recipe.scrollV3?.misconception.kind === 'myth').map((recipe) => recipe.key),
+    ).toEqual(['seasons']);
   });
 });
 
 describe('the waves marked for S-6 (D-199)', () => {
   const waves = WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
 
-  /** The six Human body recipes the heart and nerve kits draw (D-201). Every other wave recipe has no kit. */
-  const DRAWN = [
-    'cardiac-cycle',
-    'blood-pressure',
-    'oxygen-transport',
-    'action-potential',
-    'synapse-signalling',
-    'reflex-arc',
-  ];
-
-  it('covers every recipe of the four systems; the six heart and nerve recipes a kit once drew are document v3 since #787, and none has a kit', () => {
+  it('covers every recipe of the four systems, and none has a kit', () => {
     expect(waves).toHaveLength(35);
+    for (const recipe of waves) expect(recipe.stageKit, recipe.key).toBeUndefined();
+  });
+
+  it('plans each as a document v3 Scroll with no myth, since #787 for the six a kit drew and #790 for the rest: none of its pages states a common wrong belief', () => {
     for (const recipe of waves) {
-      expect(recipe.stageKit, recipe.key).toBeUndefined();
-      expect(isV3(recipe.key), recipe.key).toBe(DRAWN.includes(recipe.key));
+      expect(recipe.scrollV2, recipe.key).toBeUndefined();
+      expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
     }
   });
 
-  it('makes each a v2 Scroll with calls and no myth (a plain one) or, for the six, a document v3 Scroll with no myth: none of its pages states a common wrong belief', () => {
-    for (const recipe of waves) {
-      if (DRAWN.includes(recipe.key)) {
-        expect(recipe.scrollV2, recipe.key).toBeUndefined();
-        expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
-        continue;
-      }
-      expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
-      expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
-      expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
-    }
-  });
-
-  it('names a landmark for each v2 recipe, in plain words that never claim mastery', () => {
-    const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
-    for (const recipe of waves.filter((candidate) => !DRAWN.includes(candidate.key))) {
-      const landmark = recipe.scrollV2?.landmark;
-      expect(landmark, recipe.key).toBeDefined();
-      expect(landmark?.name, recipe.key).not.toMatch(mastery);
-      expect(landmark?.name.split(' ').length, recipe.key).toBeLessThanOrEqual(5);
-    }
-  });
-
-  it('marks every part of a series or none of it, as a v2 or a document v3 Scroll, so a series is admitted whole', () => {
+  it('marks every part of a series or none of it, as a document v3 Scroll, so a series is admitted whole', () => {
     for (const series of LIBRARY_SERIES) {
       const marked = series.parts.filter(
         (part) => RECIPES[part].scrollV2 !== undefined || RECIPES[part].scrollV3 !== undefined,
@@ -415,71 +353,30 @@ describe('the waves marked for S-6 (D-199)', () => {
 });
 
 describe('the kit waves marked for S-6b (D-217)', () => {
-  const waves = KIT_WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
   const PLAIN = ['tides-coasts', 'greenhouse-limits'];
+  const earthAndSpace = recipes.filter((recipe) => ['earth', 'space'].includes(recipe.systemId));
 
-  it('marks every Earth and Space recipe a kit drew (document v3 since #787), and the plain parts of their series (v2)', () => {
-    const drawn = V3_KIT_KEYS.filter(
-      (key) => ['earth', 'space'].includes(RECIPES[key as keyof typeof RECIPES].systemId) && !key.startsWith('seasons'),
-    );
-    expect([...drawn, ...PLAIN].sort()).toEqual([...KIT_WAVE_RECIPES].sort());
-    expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV2');
-    expect(RECIPES['exoplanet-kinds']).not.toHaveProperty('scrollV3');
-  });
-
-  it('makes a document v3 Scroll where a kit drew the recipe and a plain v2 one for the two audit and coast parts, with no myth and no Final call control', () => {
-    for (const recipe of waves) {
-      if (PLAIN.includes(recipe.key)) {
-        expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
-        expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
-        expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
-      } else {
-        expect(recipe.scrollV2, recipe.key).toBeUndefined();
-        expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
-      }
-    }
-  });
-
-  it('names a landmark for each v2 recipe, in plain words that never claim mastery', () => {
-    const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
-    for (const recipe of waves.filter((candidate) => PLAIN.includes(candidate.key))) {
-      const landmark = recipe.scrollV2?.landmark;
-      expect(landmark, recipe.key).toBeDefined();
-      expect(landmark?.name, recipe.key).not.toMatch(mastery);
-      expect(landmark?.name.split(' ').length, recipe.key).toBeLessThanOrEqual(5);
+  it('plans every Earth and Space recipe a document v3 Scroll with no myth, the plain parts of the series (since #790) and the recipes a kit drew (since #787), and no Final call control', () => {
+    for (const key of PLAIN) expect(RECIPES[key as keyof typeof RECIPES].scrollV3, key).toBeDefined();
+    for (const recipe of earthAndSpace) {
+      expect(recipe.scrollV2, recipe.key).toBeUndefined();
+      expect(recipe.scrollV3, recipe.key).toBeDefined();
+      if (recipe.key !== 'seasons') expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
     }
   });
 });
 
 describe('landmarks and the Final call control (D-187, D-188)', () => {
-  const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
-
-  it('names a landmark for every v2 recipe, and leaves every other recipe without one', () => {
-    expect(
-      recipes
-        .filter((recipe) => recipe.scrollV2?.landmark !== undefined)
-        .map((recipe) => recipe.key)
-        .sort(),
-    ).toEqual([...SEASONS_V2, ...WAVE_V2, ...KIT_WAVE_V2].sort());
-  });
-
-  it('gives every landmark a key and a name that fit the document, and no two the same key or name', () => {
-    const landmarks = v2.flatMap((recipe) =>
-      recipe.scrollV2?.landmark === undefined ? [] : [recipe.scrollV2.landmark],
-    );
-    for (const landmark of landmarks) {
-      expect(landmark.key).toMatch(/^[a-z][a-z0-9-]{1,39}$/u);
-      expect(landmark.name.length).toBeGreaterThanOrEqual(4);
-      expect(landmark.name.length).toBeLessThanOrEqual(40);
+  it('names a landmark for no recipe now: a landmark is a v2 plan field, and every recipe is a document v3 recipe (#790)', () => {
+    for (const recipe of recipes) {
+      expect(recipe.scrollV2, recipe.key).toBeUndefined();
+      expect(recipe.scrollV3, recipe.key).not.toHaveProperty('landmark');
     }
-    expect(new Set(landmarks.map((landmark) => landmark.key)).size).toBe(landmarks.length);
-    expect(new Set(landmarks.map((landmark) => landmark.name)).size).toBe(landmarks.length);
   });
 
   it('hands no reader the tilt of Earth now: the one Scroll that had it, "seasons", is a document v3 recipe with no picture to turn (#787)', () => {
-    const bound = v2.filter((recipe) => recipe.scrollV2?.finalCall !== undefined).map((recipe) => recipe.key);
-    expect(bound).toEqual([]);
     expect(RECIPES.seasons.scrollV2).toBeUndefined();
+    expect(RECIPES.seasons.scrollV3).not.toHaveProperty('finalCall');
   });
 });
 
@@ -594,6 +491,49 @@ describe('the document v3 plan (scrollV3, #771)', () => {
         expect(recipe.brief, recipe.key).not.toMatch(
           /illustrative|made-up|labelled as illustrative|let the reader (?:move|change)/iu,
         );
+    });
+  });
+  describe('the 33 recipes planned as document v3 Scrolls in #790', () => {
+    const plain = planned.filter((recipe) => !isV3(recipe.key));
+
+    it('are the 32 recipes that were plain v2 Scrolls and the v1 recipe "exoplanet-kinds"', () => {
+      expect(plain).toHaveLength(33);
+      expect(plain.map((recipe) => recipe.key)).toContain('exoplanet-kinds');
+      expect(plain.map((recipe) => recipe.key)).toContain('seasons-elsewhere');
+    });
+
+    it('name no source, publisher or page in a section or a picture, never ask for a quotation, and write a percentage unit as %', () => {
+      const names = /\b(?:NASA|NOAA|Wikipedia|MDN|Space Place|the page|this page)\b/u;
+      for (const recipe of plain) {
+        for (const picture of recipe.scrollV3?.pictures ?? []) {
+          expect(PICTURE_KIND_IDS, recipe.key).toContain(picture.kind);
+          expect(picture.purpose, recipe.key).not.toMatch(/\bquot(?:e|ation)/iu);
+          // A chart unit is words of its passages, and "cent" is no passage's word: a percentage is the unit "%".
+          expect(picture.purpose, recipe.key).not.toMatch(/per cent|percent\b/iu);
+        }
+        for (const text of [
+          ...(recipe.scrollV3?.sections ?? []),
+          ...(recipe.scrollV3?.pictures ?? []).map((picture) => picture.purpose),
+        ])
+          expect(text, recipe.key).not.toMatch(names);
+      }
+    });
+
+    it('keep their briefs free of made-up numbers and of controls the reader moves, which no page of theirs states', () => {
+      for (const recipe of plain)
+        expect(recipe.brief, recipe.key).not.toMatch(
+          /illustrative|made-up numbers labelled|let the reader|step the reader|interactive|disclosure|canonical/iu,
+        );
+    });
+
+    it('give every recipe one to three pages, and a second page to the three whose brief needed a statement its first page did not offer (#790)', () => {
+      for (const recipe of plain) {
+        expect(recipe.pages.length, recipe.key).toBeGreaterThanOrEqual(1);
+        expect(recipe.pages.length, recipe.key).toBeLessThanOrEqual(3);
+      }
+      expect(RECIPES['dns-lookup'].pages).toContain('https://en.wikipedia.org/wiki/Root_name_server');
+      expect(RECIPES['attention-limits'].pages).toContain('https://en.wikipedia.org/wiki/Transformer_(deep_learning)');
+      expect(RECIPES['next-token-generation'].pages).toContain('https://en.wikipedia.org/wiki/Seq2seq');
     });
   });
 });

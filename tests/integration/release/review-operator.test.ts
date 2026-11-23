@@ -2,22 +2,30 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
+import { fixtureReplyV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/writer-v3.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createEmptyDatabase } from '../support/empty-database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
-import { orrinResearchFor, plainOrrin } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
 import { releaseDirectory, startReleaseProcess } from '../support/processes.js';
 
 /**
  * The review gate's commands from the built worker tree (D-138), as an operator runs them on a server:
  * list what is held, read it, decide, and what each command refuses. The held Scroll is the labelled
- * Orrin fixture produced through the real production job; no provider is called.
+ * Orrin fixture produced through the real production job; no provider is called. The recipe is a document v3 recipe, as every recipe of
+ * the library is since #790: the fixture's reply is written for the spike's plan, so the test sets that plan on the recipe for its own
+ * process (the release process the commands run in keeps the library's plan).
  */
 describe('the review gate commands from the built release', () => {
   let database: Awaited<ReturnType<typeof createEmptyDatabase>>;
   let handle: DatabaseHandle<Database>;
   const recipe = TOPICS['seasons-elsewhere'];
+  const planned = RECIPES['seasons-elsewhere'] as { scrollV3?: ScrollV3Plan };
+  const libraryPlan = planned.scrollV3;
   const operatorName = 'ci-reviewer';
   let firstStopText = '';
 
@@ -31,7 +39,8 @@ describe('the review gate commands from the built release', () => {
       { onIdleClientError: () => undefined },
     );
     await enableProductionScope(handle.db);
-    const produced = await fixtureProduction(handle.db, () => answerWith(plainOrrin()), orrinResearchFor).produce(
+    planned.scrollV3 = spikePlanV3('seasons');
+    const produced = await fixtureProduction(handle.db, () => answerWith(fixtureReplyV3()), orrinResearchFor).produce(
       'seasons-elsewhere',
       false,
       signal(),
@@ -42,9 +51,11 @@ describe('the review gate commands from the built release', () => {
       .select('document')
       .where('asset_id', '=', recipe.assetId)
       .executeTakeFirstOrThrow();
-    firstStopText = (stored.document as { stops: { blocks: { text: string }[] }[] }).stops[0]!.blocks[0]!.text;
+    firstStopText = (stored.document as { sections: { beats: { text: string }[] }[] }).sections[0]!.beats[0]!.text;
   });
   afterAll(async () => {
+    if (libraryPlan === undefined) delete planned.scrollV3;
+    else planned.scrollV3 = libraryPlan;
     await handle.close();
     await database.drop();
   });
@@ -177,13 +188,14 @@ describe('the review gate commands from the built release', () => {
     });
   });
 
-  it('shows what the answer check said in the list and in the text of the Scroll', async () => {
+  it('shows what the answer check said in the list (passed, with no calls to check in a document v3) and the counts of the essay in its text', async () => {
     const audit = await operator(['review-list', '--all']);
     expect(lastLine(audit.stdout)).toMatchObject({
-      revisions: [{ answerCheck: { outcome: 'passed', calls: 3 } }],
+      revisions: [{ answerCheck: { outcome: 'passed', calls: 0 } }],
     });
     const shown = await operator(['review-show', '--asset', recipe.assetId, '--revision', '1']);
-    expect(shown.stdout).toContain('Answer check: passed. The checker found all 3 calls consistent');
+    // A document v3 has no calls, so its text carries no answer-check line: it opens with the counts of the essay and its pictures.
+    expect(shown.stdout).toMatch(/\d+ beats · \d+ pictures/u);
   });
 
   it('shows the regeneration state of a served recipe in production-status, and the answer check of its take', async () => {
@@ -198,13 +210,13 @@ describe('the review gate commands from the built release', () => {
           takes: 1,
           takesLeft: 2,
           regeneration: 'available',
-          check: { outcome: 'passed', calls: 3 },
+          check: { outcome: 'passed', calls: 0 },
         },
       ],
     });
   });
 
-  it('plans a regeneration without sending anything, needs --only, and skips a recipe that is not a served v2 Scroll', async () => {
+  it('plans a regeneration without sending anything, needs --only, and skips a recipe whose planned Scroll is not served', async () => {
     const dry = await operator(['regenerate', '--only', 'seasons-elsewhere,exoplanet-kinds', '--dry-run']);
     expect(dry.code).toBe(0);
     expect(lastLine(dry.stdout)).toMatchObject({
@@ -212,7 +224,7 @@ describe('the review gate commands from the built release', () => {
       dryRun: true,
       requestBoundPerTake: 6,
       wouldQueue: [{ recipe: 'seasons-elsewhere', take: 2 }],
-      skipped: [{ recipe: 'exoplanet-kinds', reason: 'not_v2' }],
+      skipped: [{ recipe: 'exoplanet-kinds', reason: 'not_published' }],
     });
     for (const args of [['regenerate'], ['regenerate', '--dry-run'], ['regenerate', '--only', 'no-such-recipe']]) {
       const refused = await operator(args);

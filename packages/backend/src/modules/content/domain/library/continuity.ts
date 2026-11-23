@@ -90,7 +90,7 @@ export const LIBRARY_RELATED: readonly LibraryRelatedLink[] = [
   { from: 'blood-pressure', to: 'cardiac-cycle', label: 'How each beat pushes blood' },
   { from: 'oxygen-transport', to: 'cardiac-cycle', label: 'The pump that moves it' },
   { from: 'reflex-arc', to: 'action-potential', label: 'The signal along a nerve' },
-  { from: 'rendering-pipeline', to: 'event-loop', label: 'Why a busy script freezes a page' },
+  { from: 'rendering-pipeline', to: 'event-loop', label: 'How a page takes one message at a time' },
   { from: 'event-loop', to: 'rendering-pipeline', label: 'From text to pixels' },
   { from: 'hybrid-sorting', to: 'big-o-growth', label: 'How algorithms are compared' },
   { from: 'steam-power', to: 'factory-system', label: 'How factories changed the way goods were made' },

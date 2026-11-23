@@ -136,14 +136,15 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
   readonly script?: string;
   /**
    * Present when this recipe is produced as a `scroll-document.v2` (stops, calls and, for a stage Scroll,
-   * a pinned picture). Every other recipe stays a v1 Scroll. A person decides it, per recipe: the writer
+   * a pinned picture). No library recipe carries it since #790: every recipe is a document v3 recipe, and the v2 plan each had is kept
+   * in `production/spike-v2/former-v2-plans.ts` for the v2 spike and the tests of the v2 path. A person decides it, per recipe: the writer
    * and the system never do (D-129).
    */
   readonly scrollV2?: ScrollV2Plan;
   /**
    * Present when this recipe is produced as a `scroll-document.v3` (sections of beats and pictures from the closed set). A recipe
    * carries `scrollV3` or `scrollV2`, never both (a library test), and a v3 recipe has no `stageKit`. A person decides it, per
-   * recipe (#771); the 22 recipes that had a drawing kit carry it since #787.
+   * recipe (#771); the 22 recipes that had a drawing kit carry it since #787 and every other recipe since #790.
    */
   readonly scrollV3?: ScrollV3Plan;
 };
