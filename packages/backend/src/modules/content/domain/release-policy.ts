@@ -1,8 +1,3 @@
-import {
-  SCROLL_DOCUMENT_SCHEMA_VERSION,
-  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
-  SCROLL_DOCUMENT_V3_SCHEMA_VERSION,
-} from '@knowscroll/scroll-model';
 import type { CatalogueSnapshot } from './catalogue/snapshot.js';
 import {
   NON_PROSE_KEYS,
@@ -257,6 +252,11 @@ export type AutoReleaseDecision =
 
 const hold = (reason: AutoReleaseHold): AutoReleaseDecision => ({ kind: 'hold', reason });
 
+// The domain is pure (no import of scroll-model), so the document versions are named here, as `traits.ts` names them; the
+// release policy's tests pin them to scroll-model's constants.
+const DOCUMENT_V3 = 'scroll-document.v3';
+const OLDER_DOCUMENTS: readonly string[] = ['scroll-document.v1', 'scroll-document.v2'];
+
 /**
  * Whether a revision may take the place of the one a reader is served without a person (decisions 6 and 9 on #771, D-435): a document v3 over a served
  * document v1 or v2, which its release then retires. A v2 over a served revision, a v3 over a served v3 (no decision covers releasing one again) and anything
@@ -267,9 +267,9 @@ export function mayReplaceServed(
 ): boolean {
   return (
     facts.assetStatus === 'admitted' &&
-    facts.documentVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION &&
-    (facts.servedDocumentVersion === SCROLL_DOCUMENT_SCHEMA_VERSION ||
-      facts.servedDocumentVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION)
+    facts.documentVersion === DOCUMENT_V3 &&
+    facts.servedDocumentVersion !== null &&
+    OLDER_DOCUMENTS.includes(facts.servedDocumentVersion)
   );
 }
 
