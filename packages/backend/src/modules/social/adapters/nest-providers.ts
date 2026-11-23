@@ -414,3 +414,4 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
 export { readBlockedAmong, readFriendAccounts, readPublicPeople } from './postgres-people.js';
 export { socialStore, privatePairId } from './postgres-store.js';
 export type { SocialPorts } from '../application/ports.js';
+export { socialOldScrollRemoval } from './old-scroll-removal.js';

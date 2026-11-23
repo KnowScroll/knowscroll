@@ -120,3 +120,4 @@ export function feedbackPurgeProviders(tokens: { readonly database: symbol; read
     },
   ];
 }
+export { feedbackOldScrollRemoval } from './old-scroll-removal.js';

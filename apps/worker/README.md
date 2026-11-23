@@ -109,6 +109,13 @@ a disposable `ks_it_*`/`knowscroll_fixture_*` DB, and marks content visibly. Ope
 sanitised result line; external errors never log URLs/paths/response text. Failed copy/probe/admission
 can leave an unreferenced object; never delete referenced bytes during rollback.
 
+`node dist/operator.js content cleanup-old-scrolls (--dry-run | --run)` (`src/old-scroll-cleanup*.ts`, #791, D-437) removes every
+`scroll-document.v1` and `scroll-document.v2` Scroll from the database, and everything that points at them, keeping accounts, document v3
+Scrolls and Reels. Exactly one flag is required. It clears every account's exploration history with the product's own Clear, then removes
+the rest in one transaction, the modules' parts in the order of `REMOVALS` (rooms, scenarios, social, experience, feedback, content). It
+prints one JSON summary of counts and ids and refuses outside `local`, `ci` and `dev` before it reads the database settings. Stop the
+worker first; the steps are in `docs/v2/operations/scroll-cleanup.md` and the guard exemption in the content README.
+
 `node dist/operator.js journey <id>` and `journey --account <accountId>` (`src/journey-operator.ts`, #248) print one
 record's timeline across modules, read from the `ops` views: IDs, states, codes and times only. `--json` prints one
 JSON line. Exit 0 found, 2 not found or bad usage, 1 failure. Read-only; it needs only `KS_WORLD` and `DATABASE_URL`.

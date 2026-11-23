@@ -361,3 +361,11 @@ select
 Rule of thumb. If any of those tables has hundreds of thousands of rows, or one world has more than a few thousand
 objects, take the API and the workers down for the migration. Otherwise migrate with them up, after the old
 `scenes.project` consumers are stopped.
+
+0125 changes three guard functions and adds one helper, `content.old_scroll_cleanup_allows(asset, revision)` (#791, D-437). The guards on
+`content.coverage_revisions`, `content.coverage_heads` and `content.release_risk_raises` refused every update and delete (0022, 0115); they
+now let a **delete** through only when the transaction set `knowscroll.old_scroll_cleanup` to `v1` (`set_config(..., true)`, the pattern of
+`knowscroll.region_activation_v1` in 0037) and the row's revision is a `scroll-document.v1` or `scroll-document.v2` revision in
+`content.asset_revisions`. Every other delete, and every update, is refused exactly as before. The triggers are not touched; no table,
+column or index changes. Additive for older processes: they never set the setting, so the guards refuse for them as before. Only
+`content cleanup-old-scrolls` in the worker release sets it (worlds `local`, `ci` and `dev`). Tests: `tests/integration/modules/old-scroll-cleanup.test.ts`.

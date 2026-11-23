@@ -344,3 +344,4 @@ export { makeNavigateEncounter, makeActivateOffer } from '../application/navigat
 export type { NavigationPorts, StoredOffer } from '../application/navigation-ports.js';
 
 export { hasActivatedExposure, readVisitedAssets } from './visited-assets.js';
+export { experienceOldScrollRemoval } from './old-scroll-removal.js';
