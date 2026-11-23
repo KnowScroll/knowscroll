@@ -200,14 +200,14 @@ export const computingRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Why a busy script can freeze a page. An event loop keeps asking for the next event and dispatching it; a web page and its JavaScript typically run in a single thread, with a queue of messages waiting their turn. Explain the queue, that messages are handled one at a time, and what that means for everything behind a long task. Do not say JavaScript is multi-threaded by default or promise exact timings.',
+      'How a web page takes its messages one at a time. An event loop keeps asking for the next event and dispatching it; a web page and its JavaScript typically run in a single thread, with a queue of messages waiting their turn. Explain the queue, that messages are handled one at a time, and that the next message is taken only when the one before it is finished. Do not say JavaScript is multi-threaded by default; do not say a page freezes or how long anything takes, which the passages do not state.',
     pages: ['https://en.wikipedia.org/wiki/Event_loop'],
     scrollV3: {
       shape: 'mechanism',
       sections: [
         'An event loop keeps asking for the next event and dispatching it',
         'A page and its JavaScript typically run in one thread, fed from a queue',
-        'A long task makes everything queued behind it wait',
+        'The next message is taken only when the one before it is finished',
       ],
       pictures: [
         {

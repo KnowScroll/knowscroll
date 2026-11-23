@@ -47,6 +47,51 @@ describe('the v2 plans of the recipes that became document v3 recipes (#787, #79
   });
 });
 
+// The library tests held these rules while the plans lived in the library (D-187, D-188, D-199, D-217). The spike and the v2 path's
+// tests still read the plans from here, so the rules move with them (#790).
+describe('the landmarks, myths and Final call controls the former v2 plans keep (D-187, D-188)', () => {
+  const formers = Object.entries(FORMER_V2_PLANS) as [
+    ScrollTopic,
+    (typeof FORMER_V2_PLANS)[keyof typeof FORMER_V2_PLANS],
+  ][];
+  const landmarks = formers.flatMap(([, former]) => (former.plan.landmark === undefined ? [] : [former.plan.landmark]));
+
+  it('name a landmark for every former v2 plan, in plain words that never claim mastery', () => {
+    const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
+    for (const [topic, former] of formers) {
+      const landmark = former.plan.landmark;
+      expect(landmark, topic).toBeDefined();
+      expect(landmark?.name, topic).not.toMatch(mastery);
+      expect(landmark?.name.split(' ').length, topic).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('give every landmark a key and a name that fit the document, and no two the same key or name', () => {
+    expect(landmarks).toHaveLength(formers.length);
+    for (const landmark of landmarks) {
+      expect(landmark.key).toMatch(/^[a-z][a-z0-9-]{1,39}$/u);
+      expect(landmark.name.length).toBeGreaterThanOrEqual(4);
+      expect(landmark.name.length).toBeLessThanOrEqual(40);
+    }
+    expect(new Set(landmarks.map((landmark) => landmark.key)).size).toBe(landmarks.length);
+    expect(new Set(landmarks.map((landmark) => landmark.name)).size).toBe(landmarks.length);
+  });
+
+  it('keep no myth and no Final call control for a plain plan: none of their pages states a common wrong belief', () => {
+    for (const [topic, former] of formers.filter(([, candidate]) => !('kit' in candidate))) {
+      expect(former.plan.misconception, topic).toEqual({ kind: 'none' });
+      expect(former.plan.finalCall, topic).toBeUndefined();
+    }
+  });
+
+  it('keep the tilt for "seasons" alone, the one plan that handed the reader Earth’s axis', () => {
+    expect(formers.filter(([, former]) => former.plan.finalCall !== undefined).map(([topic]) => topic)).toEqual([
+      'seasons',
+    ]);
+    expect(FORMER_V2_PLANS.seasons.plan.finalCall).toEqual({ kind: 'tilt' });
+  });
+});
+
 describe('the twenty topics of the writer spike', () => {
   it('are twenty distinct library recipes, the three Seasons parts first', () => {
     expect(SPIKE_TOPICS_V2).toHaveLength(20);
