@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { isLiveStage, recapMonths, validateDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
@@ -12,6 +12,7 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
+import { markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * Seasons Part 1 asks for orbit views at two months, the figures a cited passage states and a reveal on the first call (D-382 to D-384).
@@ -44,6 +45,11 @@ const withFigures =
   (draft: Draft) => {
     draft.items[2] = { ...draft.items[2], cites: ['e4', 'e9'], figures };
   };
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Seasons Part 1 and its stage plan (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;

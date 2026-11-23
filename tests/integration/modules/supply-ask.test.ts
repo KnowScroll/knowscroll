@@ -90,7 +90,7 @@ import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { seedScroll } from '../support/thread-fixtures.js';
-import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
+import { markScrollV1, v2Capabilities, markFormerV2Recipes } from '../support/scroll-v2.js';
 import type { FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -133,6 +133,11 @@ const limitsOf = (document: unknown) => {
     text: callouts[0]?.data.spans?.map((span) => span.text).join(''),
   };
 };
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let database: TestDatabase<Database>;

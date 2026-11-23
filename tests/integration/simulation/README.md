@@ -119,9 +119,12 @@ No entry, so these are gates: no repeat while something unseen exists (its entry
 made policy v2 dev's), planet formation from Scrolls (the exact `link-reader-scrolls`), isolation, pause and resume,
 bounded cost, a Planner that survives a reader who has met more than 16 topics (`broad-skimmer`; its entry for
 slice 0.1 was deleted when #711 fixed it), and a Planner whose demand for a finished topic leaves no failed or held run
-(`link-reader-exoplanets`: the one topic whose recipe Create may still choose; its entry for slice 1.3 was deleted when
-#712 stopped an older `ready` row from hiding a waiting one from Supply's lookup). The gate also checks that this persona
-still makes the Planner ask Supply for missing content and leaves planned rows, so its pass is not a vacuous one.
+(`link-reader-exoplanets`; its entry for slice 1.3 was deleted when #712 stopped an older `ready` row from hiding a waiting
+one from Supply's lookup). That scenario needs a demand that Create accepts. Since #790 every recipe of the code plan is
+planned as document v3 and Create never chooses one, so the lab stores one labelled CI fixture recipe for `space.exoplanets`
+(`seedStoredRecipe` in `library.ts`: a `gen-` key, a document v3 plan, nothing produced from it) and leaves the growth cap
+open (`world.ts`), as dev's is. The gate also checks that this persona still makes the Planner ask Supply for missing
+content, leaves planned rows and leaves a waiting (`deferred`) one, so its pass is not a vacuous one.
 
 ### Metrics
 
@@ -171,14 +174,16 @@ What the lab does not take from the product, so a pass is read for what it cover
   (`plannerWorkerProviders`, `cartographerWorkerProviders`, `composerBufferWorkerProviders`), on the recording-aware
   harness with the real owner check of every role.
 - **Worker configuration** the lab passes instead of reading an environment: the Planner and the Cartographer are switched
-  on (`plannerEnabled`, `cartographerEnabled`), Jev is off, and Create's daily caps are dev's (10 for people, 5 for the Planner).
+  on (`plannerEnabled`, `cartographerEnabled`), Jev is off, and Create's daily caps are dev's (10 for people, 5 for the Planner, and 10 a day for stored recipes' growth).
 - **Evidence projections** come from `scrollUseCases`, the composition the other integration tests share, not from the
   worker's provider list. It also binds a legacy prepared-activity read that the worker does not.
 - **The library.** Scrolls go through the real editorial import and coverage admission, but their topic attribution is
   inserted by the lab and the semantic review of their coverage is an approval the lab signs. Reel twins are inserted by
   SQL as valid Reel documents with their facts, the provenance of an approved script and no media, because the real Reel
   admission needs Cutroom output and a media file; their coverage is decided by `admitReelCoverage`, the code the Reel
-  publication runs. Every document is the starter Scroll under a fixture identity.
+  publication runs. Every document is the starter Scroll under a fixture identity. One labelled recipe is also stored in
+  `content.recipes` (a `gen-` key, a document v3 plan, status `checked`) for `space.exoplanets`: no code recipe can be
+  chosen by Create since #790, so this is the one Create may choose in the lab, and nothing is produced from it.
 - **The queues.** The consumers are listed in `queues.ts`, not derived from the worker's registry (the worker builds it
   inside a Nest provider). `simulationWorld` refuses to start if its consumers differ from that list, and
   `gate/wiring.test.ts` fails if the release declares a queue that is neither drained nor listed with a reason, so a new

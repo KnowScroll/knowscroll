@@ -66,8 +66,8 @@ export interface LibrarySystem extends SameMeaning {
 
 /**
  * The drawing kits a Scroll's pinned picture can be made from. A kit draws one family of subjects, and a
- * recipe names a kit only where that kit draws what the recipe is about (D-125, D-194, D-201, D-204). `scroll-model`
- * owns the kits themselves; this list names them for the plan, and a test keeps the two in step.
+ * recipe named a kit only where that kit drew what the recipe is about (D-125, D-194, D-201, D-204); none does since #787.
+ * `scroll-model` owns the kits themselves; this list names them for the plan, and a test keeps the two in step.
  */
 export const STAGE_KIT_IDS = [
   'earth-sky.v1',
@@ -124,6 +124,8 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
    * The kit that draws this recipe's subject, when one does. Only such a recipe gets a pinned picture
    * (a `stage` Scroll); every other recipe is a plain Scroll with calls and no picture, until a kit
    * exists for it. Deciding this is a person's job, per recipe, never the writer's or the system's.
+   * No recipe names a kit since #787: the 22 recipes that had one are document v3 recipes, which have none. The field stays,
+   * with the kit code, until the last kit is deleted (one kit at a time, after the owner reads that kit's rewrites).
    */
   readonly stageKit?: StageKitId;
   /** Angle, what to explain and what to avoid. */
@@ -134,13 +136,15 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
   readonly script?: string;
   /**
    * Present when this recipe is produced as a `scroll-document.v2` (stops, calls and, for a stage Scroll,
-   * a pinned picture). Every other recipe stays a v1 Scroll. A person decides it, per recipe: the writer
+   * a pinned picture). No library recipe carries it since #790: every recipe is a document v3 recipe, and the v2 plan each had is kept
+   * in `production/spike-v2/former-v2-plans.ts` for the v2 spike and the tests of the v2 path. A person decides it, per recipe: the writer
    * and the system never do (D-129).
    */
   readonly scrollV2?: ScrollV2Plan;
   /**
    * Present when this recipe is produced as a `scroll-document.v3` (sections of beats and pictures from the closed set). A recipe
-   * carries `scrollV3` or `scrollV2`, never both (a library test). A person decides it, per recipe (#771).
+   * carries `scrollV3` or `scrollV2`, never both (a library test), and a v3 recipe has no `stageKit`. A person decides it, per
+   * recipe (#771); the 22 recipes that had a drawing kit carry it since #787 and every other recipe since #790.
    */
   readonly scrollV3?: ScrollV3Plan;
 };

@@ -21,6 +21,7 @@ import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { compileEditorialSourceFile } from '../../../packages/backend/src/modules/content/adapters/editorial-sources.js';
 import { documentV3Source, starterSource } from '../support/scroll.js';
+import { markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * The release guard of the review gate for a `scroll-document.v3` revision (#761, decision G1): a held revision with no
@@ -29,6 +30,11 @@ import { documentV3Source, starterSource } from '../support/scroll.js';
  * coverage with the recipe rule, as an operator's flow would; the Scrolls are the hand-written fixtures and the
  * labelled CI Orrin fixture, never provider output.
  */
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
+
 describe('The review gate releases a document v3 revision only with its coverage (real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
   const gate = () => makeReviewGate(database.db);

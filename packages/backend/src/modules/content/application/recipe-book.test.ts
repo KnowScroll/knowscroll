@@ -93,15 +93,20 @@ describe('the recipe book', () => {
   });
 
   it('shows a code recipe as the plan holds it now, so a recipe marked for one test run is seen', () => {
-    const recipe = RECIPES.seasons as { scrollV2?: unknown };
-    const before = recipe.scrollV2;
+    const recipe = RECIPES['seasons-elsewhere'] as { scrollV3?: unknown };
+    const before = recipe.scrollV3;
     try {
-      delete recipe.scrollV2;
-      expect(codeRecipeOf('seasons')?.scrollV2).toBeUndefined();
+      delete recipe.scrollV3;
+      expect(codeRecipeOf('seasons-elsewhere')?.scrollV3).toBeUndefined();
     } finally {
-      if (before !== undefined) recipe.scrollV2 = before;
+      if (before !== undefined) recipe.scrollV3 = before;
     }
-    expect(codeRecipeOf('seasons')?.scrollV2).toBeDefined();
+    expect(codeRecipeOf('seasons-elsewhere')?.scrollV3).toBeDefined();
+    expect(codeRecipeOf('seasons-elsewhere')?.scrollV2).toBeUndefined();
+    // A recipe planned as a document v3 Scroll shows its plan, and no kit and no v2 plan (#787, #790).
+    expect(codeRecipeOf('seasons')?.scrollV3).toBeDefined();
+    expect(codeRecipeOf('seasons')?.scrollV2).toBeUndefined();
+    expect(codeRecipeOf('seasons')?.stageKit).toBeUndefined();
     expect(codeRecipes()).toHaveLength(RECIPE_KEYS.length);
     expect(codeRecipeOf('gen-anything-11111111')).toBeUndefined();
   });

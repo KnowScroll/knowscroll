@@ -17,6 +17,12 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { callsOfRevision } from '../support/play.js';
+import { markFormerV2Recipes } from '../support/scroll-v2.js';
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('the library’s calls for a room (real PostgreSQL, labelled CI fixture)', () => {
   let database: TestDatabase<Database>;

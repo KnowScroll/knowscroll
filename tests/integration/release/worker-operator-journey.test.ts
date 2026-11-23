@@ -169,10 +169,9 @@ describe('the worker operator command (reasoning) from the built release', () =>
     ]) {
       const result = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
       expect(result.code).toBe(0);
-      // A v2 library recipe adds the answer check to its two writer requests (D-198): six, not two.
-      // `exoplanet-kinds` is the one recipe the plan has not marked (D-217): a v1 recipe stays at two.
-      const requestBound = topic === 'exoplanet-kinds' ? 2 : 6;
-      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound });
+      // A document v3 take sends at most two writer requests, and its bound stays at a v2 take's six (`REQUEST_BOUND_V3_PER_TOPIC`).
+      // Since #790 the plan marks every recipe document v3, `exoplanet-kinds` included, so no library recipe keeps a v1 bound of two.
+      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: 6 });
     }
     for (const topic of ['greenhouse-unknown', '__proto__', 'greenhouse ']) {
       const refused = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);

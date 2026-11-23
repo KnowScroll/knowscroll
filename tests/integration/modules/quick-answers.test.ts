@@ -57,6 +57,7 @@ import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
 import type { FixturePerson } from '../support/fixtures.js';
+import { markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * Quick answer (D-086, D-253 to D-255) against a real PostgreSQL 16 database and pg-boss. The source Scroll is the
@@ -74,6 +75,11 @@ const stageOf = (request: string): Stage =>
     : request.includes('You check one thing in a short answer')
       ? 'check'
       : 'write';
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   let database: TestDatabase<Database>;

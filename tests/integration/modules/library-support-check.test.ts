@@ -49,6 +49,7 @@ import {
   supportRequestOf,
 } from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
+import { markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * The writer's recorded answer: the labelled Orrin fixture (an invented planet) with six sentences reworded. The library check takes no "no fact"
@@ -103,6 +104,11 @@ const countsOfCheck = (check: { readonly sentences: Parameters<typeof countsOf>[
  * production job, with the labelled Orrin fixture in place of the writer, and the checker is a labelled CI fixture: this proves what the
  * check reads, asks, stores, closes and leaves alone, never what a model says about a Scroll.
  */
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
+
 describe('the support check of a library Scroll (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
   let worker: ReturnType<typeof fixtureProductionWorker>;

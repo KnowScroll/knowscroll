@@ -28,7 +28,7 @@ import { geographyWorld, type GeographyWorld } from '../support/geography-world.
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { activatedAgo, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV1 } from '../support/scroll-v2.js';
+import { markScrollV1, markFormerV2Recipes } from '../support/scroll-v2.js';
 import { documentV3Source } from '../support/scroll.js';
 
 /**
@@ -109,6 +109,11 @@ function observations(screens: readonly Screen[], activeMs = 0): ObservationReco
 
 const qualifyUnder = (policy: typeof shared, facts: ReadingFacts, screens: readonly Screen[], activeMs = 0) =>
   qualifyScrollReading(summariseReading(observations(screens, activeMs), facts, policy), policy);
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Qualifying a document v3 reading on the shared clock (pure, from the seasons fixture)', () => {
   const { facts, nominalMs } = seasons();

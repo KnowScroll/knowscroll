@@ -26,7 +26,7 @@ import { activatedAgo, coverage, dwell, event, openActive } from '../support/obs
 import { callsOfRevision, picks, playFor } from '../support/play.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { markScrollV1 } from '../support/scroll-v2.js';
+import { markFormerV2Recipes, markScrollV1 } from '../support/scroll-v2.js';
 import { seedDocumentV3 } from '../support/scroll-v3.js';
 import { beatsOfV3 } from '@knowscroll/scroll-model';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -65,6 +65,11 @@ async function publishOrrin(db: Parameters<typeof fixtureProduction>[0]): Promis
   });
   return scroll;
 }
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file publishes the v2 Orrin fixture as the
+// `seasons` recipe, so it makes them v2 recipes again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
   let database: TestDatabase<Database>;

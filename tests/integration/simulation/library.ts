@@ -15,6 +15,7 @@ import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
 } from '@knowscroll/backend/modules/content/nest-providers';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { starterSource } from '../support/scroll.js';
 import type { SimConfig } from './config.js';
 import { createRng, seedFrom, type Rng } from './rng.js';
@@ -147,6 +148,7 @@ export async function buildLibrary(
       });
     }
   }
+  if (planets.some((planet) => planet.id === STORED_RECIPE_TOPIC)) await seedStoredRecipe(db, rng);
   const byUnit = new Map(units.map((unit) => [unit.unitId, unit]));
   const byAsset = new Map<string, { unit: LibraryUnit; kind: 'scroll' | 'reel' }>();
   for (const unit of units) {
@@ -166,6 +168,44 @@ export async function buildLibrary(
     scrollCount: units.length,
     reelCount: units.filter((unit) => unit.reel).length,
   };
+}
+
+/**
+ * The one planet the lab gives a stored recipe, and so the one topic whose missing content Create can still commission.
+ * Since #790 every recipe of the code plan is planned as document v3, which an operator's run makes and a person's ask or the
+ * Planner's demand never starts, so Create can choose only a recipe stored in the database (`gen-` key, D-412). The planned-demand
+ * scenario of #712 (`link-reader-exoplanets`) needs a demand that Create accepts and a group that waits, so it has this one.
+ */
+const STORED_RECIPE_TOPIC = 'space.exoplanets';
+
+/**
+ * Stores one labelled CI fixture recipe for {@link STORED_RECIPE_TOPIC}, as dev holds a recipe the growth loop accepted: a
+ * `gen-` key, status `checked` (accepted, nothing sent), a document v3 plan and no v2 plan, the topic and a facet of the real
+ * `exoplanet-kinds` recipe, and its pages. Nothing is produced from it: the lab never runs production, a commissioned job is
+ * only counted. The asset and run ids are drawn from the library's seeded source, so a seed reproduces the row.
+ */
+async function seedStoredRecipe(db: Kysely<Database>, rng: Rng): Promise<void> {
+  const key = 'gen-ci-sim-exoplanets-00000001';
+  const real = RECIPES['exoplanet-kinds'];
+  await db
+    .insertInto('content.recipes')
+    .values({
+      key,
+      origin: 'proposal',
+      status: 'checked',
+      title: '[CI sim] stored recipe for exoplanets',
+      topic_id: STORED_RECIPE_TOPIC,
+      facet_id: real.facetId,
+      asset_id: rng.uuid(),
+      explanation_unit_id: `${key}-v1`,
+      brief:
+        'A labelled CI fixture brief, not written by a model. Explain what the supplied passages state about planets beyond the solar system and nothing more.',
+      pages: [...real.pages],
+      scroll_v2: null,
+      scroll_v3: JSON.stringify({ shape: 'mechanism', sections: ['What it is', 'Why it matters'] }),
+      proposing_run_id: rng.uuid(),
+    })
+    .execute();
 }
 
 interface AdmitScrollInput {

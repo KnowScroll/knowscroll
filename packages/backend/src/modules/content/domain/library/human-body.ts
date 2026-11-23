@@ -78,18 +78,31 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.heart-and-blood',
     facetId: 'human-body.heart-and-blood.pumping',
-    // The beat in order (the atria, then the ventricles), the four valves opening and shutting with the pressure
-    // behind them, and the right side serving the lungs and the left the body are what the kit draws (D-201).
-    stageKit: 'circulation.v1',
     interactive: true,
     interactiveKind: 'sequence',
     brief:
       'How one heartbeat moves blood. The cardiac cycle alternates a period when the heart muscle relaxes and refills with a period when it contracts and pumps. Step through the stages of filling and contraction, showing how the valves keep blood moving one way and how the right side serves the lungs while the left side serves the rest of the body. Keep to normal physiology: describe no diseases, and give no heart rate as a rule for any person.',
     pages: ['https://en.wikipedia.org/wiki/Cardiac_cycle'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'One heartbeat: the heart relaxes and refills, then contracts and pumps',
+        'Valves open and close so blood keeps moving one way',
+        'The right side serves the lungs; the left side serves the rest of the body',
+      ],
+      pictures: [
+        {
+          kind: 'cycle',
+          purpose:
+            'One heartbeat as a ring of five stages: ventricles relax and fill; atria contract; ventricles contract with all valves shut; ventricles eject blood as the outflow valves open; ventricles relax with the valves shut, then refill. Each note says which valves are open or shut.',
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 of the two sides of the heart: rows right side and left side, columns where blood arrives from and where it is pumped to.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-beating-pump', name: 'The Beating Pump' },
     },
   },
   'blood-pressure': {
@@ -98,18 +111,31 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.heart-and-blood',
     facetId: 'human-body.heart-and-blood.pressure',
-    // Pressure falling along the loop, the fall across a stretch as flow times resistance, and narrower or wider
-    // arterioles are the pressure view, with relative pressures and no figure (D-201).
-    stageKit: 'circulation.v1',
     interactive: true,
     interactiveKind: 'simulation',
     brief:
-      'What sets blood pressure. Vascular resistance is the resistance blood must overcome to flow through the circulation, and in the fluid version of Ohm’s law the pressure difference equals the flow multiplied by the resistance. Narrowing the arteries and arterioles raises resistance and widening them lowers it. Let the reader change the flow and the resistance and see the pressure respond, as a labelled illustration with made-up round numbers. This is physiology, not medical advice: give no target numbers, diagnosis or treatment.',
+      'What sets blood pressure. Vascular resistance is the resistance blood must overcome to flow through the circulation, and in the fluid version of Ohm’s law the pressure difference equals the flow multiplied by the resistance. Narrowing the arteries and arterioles raises resistance and widening them lowers it. Explain how the pressure difference responds to a change in flow and in resistance in words, with no numbers at all. This is physiology, not medical advice: give no target numbers, diagnosis or treatment.',
     pages: ['https://en.wikipedia.org/wiki/Vascular_resistance'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Blood pressure is what it takes to push blood through resistance',
+        'Pressure difference equals flow times resistance',
+        'Narrowing the small arteries raises resistance; widening them lowers it',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'A chain of cause and effect: small arteries and arterioles narrow; vascular resistance rises (it varies inversely with the fourth power of vessel radius); a larger pressure difference is needed to push the same flow. No numbers other than "fourth power".',
+        },
+        {
+          kind: 'statement',
+          purpose:
+            "A short labelled list of the three quantities in the fluid version of Ohm's law: pressure difference (like voltage), flow (like current), resistance (like electrical resistance).",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-narrowing-pipe', name: 'The Narrowing Pipe' },
     },
   },
   'oxygen-transport': {
@@ -118,18 +144,31 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.heart-and-blood',
     facetId: 'human-body.heart-and-blood.oxygen',
-    // The S-shaped curve, haemoglobin loading in the lungs and giving some oxygen up in resting and in working
-    // tissue, are the oxygen view; the effects of acidity and warmth are left out and the picture says so (D-201).
-    stageKit: 'circulation.v1',
     interactive: true,
     interactiveKind: 'chart',
     brief:
-      'How blood carries oxygen. Haemoglobin in red blood cells binds oxygen where it is plentiful, in the lungs, and releases it in tissues where it is scarcer, and the oxygen–haemoglobin dissociation curve is S-shaped rather than a straight line. Let the reader compare resting and active tissue on an illustrative curve. Give no numeric thresholds as medical guidance.',
+      'How blood carries oxygen. Haemoglobin in red blood cells binds oxygen where it is plentiful, in the lungs, and releases it in tissues where it is scarcer, and the oxygen–haemoglobin dissociation curve is S-shaped rather than a straight line. Compare the flat part of the curve, where the lungs load haemoglobin, with the steep part, where tissues unload it, and say that conditions of active tissue, such as exercise, shift the curve so haemoglobin gives up more oxygen. Give no figures from the curve and no numeric thresholds as medical guidance.',
     pages: ['https://en.wikipedia.org/wiki/Oxygen%E2%80%93hemoglobin_dissociation_curve'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Haemoglobin binds oxygen in the lungs and releases it in the tissues',
+        'The curve is S-shaped: a flat top near the lungs, a steep part in tissues',
+        'Active tissue shifts the curve so haemoglobin gives up more oxygen',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 reading the S-shaped curve: rows the flat part (lungs, pulmonary capillaries) and the steep part (tissues, systemic capillaries), columns where it is and what haemoglobin does there.',
+        },
+        {
+          kind: 'statement',
+          purpose:
+            'A list of what shifts the curve to the right, so haemoglobin lets go of oxygen more easily: a higher temperature, more hydrogen ions (acid), more 2,3-BPG, more carbon dioxide, and exercise as the time tissues need oxygen most.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-oxygen-handoff', name: 'The Oxygen Handoff' },
     },
   },
   'action-potential': {
@@ -138,18 +177,31 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.nervous-system',
     facetId: 'human-body.nervous-system.signal',
-    // Rest, threshold, rising, peak, falling and the undershoot, with the channels, the all-or-none rule and the
-    // spike running one way along the axon are what the kit draws, from a model of the membrane (D-201).
-    stageKit: 'nerve.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
       'How a nerve cell sends a signal. A resting neuron holds a voltage across its membrane; when it is pushed past a threshold, ion channels open in turn and a brief electrical spike, an action potential, travels along the cell. Let the reader step through rest, rising, falling and recovery. Do not say nerves carry electricity like a copper wire, and give no medical advice.',
     pages: ['https://en.wikipedia.org/wiki/Action_potential'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A resting neuron holds a voltage across its membrane',
+        'A push past threshold opens ion channels in turn and a spike travels on',
+        'Rising, falling and recovery: the shape of one action potential',
+      ],
+      pictures: [
+        {
+          kind: 'statement',
+          purpose:
+            'A short labelled list of three: rest (the channels are shut, the voltage is around -70 mV); threshold (the channels begin to open, around -55 mV); the spike (the voltage shoots upward and back down, often ending below the resting level for a while).',
+        },
+        {
+          kind: 'flow',
+          purpose:
+            'The phases in order: channels shut at rest; sodium channels open and sodium rushes in; the sodium channels inactivate; potassium channels open and potassium flows out; the voltage returns to rest after a brief dip below it.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-racing-signal', name: 'The Racing Signal' },
     },
   },
   'synapse-signalling': {
@@ -158,18 +210,31 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.nervous-system',
     facetId: 'human-body.nervous-system.synapse',
-    // The packets, the gap, the receptors and an exciting and an inhibiting connection are what the synapse view
-    // draws; it names no chemical (D-201).
-    stageKit: 'nerve.v1',
     interactive: false,
     interactiveKind: null,
     brief:
       'How a signal crosses from one nerve cell to the next. At a synapse the sending cell releases chemical messengers, called neurotransmitters, into a tiny gap; they bind to receptors on the next cell, which they can excite or inhibit. Compare an exciting and an inhibiting connection. Do not call any one chemical the happiness chemical, and give no advice about drugs.',
     pages: ['https://en.wikipedia.org/wiki/Synapse'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A signal crosses between nerve cells as a chemical message',
+        'Neurotransmitters cross a tiny gap and bind to receptors on the next cell',
+        'Some connections excite the next cell and others inhibit it',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'The crossing in order: electrical activity in the sending cell; it is converted into the release of a neurotransmitter; the neurotransmitter crosses the gap; it binds to receptors on the next cell; the next cell is excited or inhibited.',
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 contrast of an exciting and an inhibiting connection: rows excitatory and inhibitory, columns the effect on the next cell and the ion channels involved.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-gap-crossing', name: 'The Gap Crossing' },
     },
   },
   'reflex-arc': {
@@ -178,18 +243,26 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.nervous-system',
     facetId: 'human-body.nervous-system.reflex',
-    // Sensor, sensory neuron, spinal cord, motor neuron and muscle, with the news still on its way to the brain
-    // when the muscle responds, are the reflex view (D-201).
-    stageKit: 'nerve.v1',
     interactive: false,
     interactiveKind: null,
     brief:
-      'Why a reflex is faster than a decision. A reflex arc runs from a sensory receptor along a nerve to the spinal cord and straight back to a muscle, so the response does not wait for the brain. Explain what makes it fast and what a reflex cannot do. Do not say reflexes involve no brain at all or that they are conscious decisions.',
+      'Why a reflex is faster than a decision. A reflex arc runs from a sensory receptor along a nerve to the spinal cord and straight back to a muscle, so the response does not wait for the brain. Explain what makes it fast, and that the brain receives the input while the reflex is being carried out and analyses it afterwards. Do not say reflexes involve no brain at all or that they are conscious decisions.',
     pages: ['https://en.wikipedia.org/wiki/Reflex_arc'],
-    scrollV2: {
-      variant: 'stage',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A reflex answers a stimulus without waiting for a decision',
+        'The arc: receptor, sensory nerve, spinal cord, motor nerve, muscle',
+        'What makes it fast, and how the brain still takes part',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'The somatic reflex path in order: a receptor; an afferent (sensory) nerve fibre carrying signals to the spinal cord; an integrating centre; an efferent (motor) nerve fibre; the effector muscle that carries out the response.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-quick-loop', name: 'The Quick Loop' },
     },
   },
   'innate-immunity': {
@@ -203,10 +276,26 @@ export const humanBodyRecipes = {
     brief:
       'The body’s first, fast response to threats. The immune system has layers; the innate layer answers many kinds of threat in much the same way without earlier exposure, through barriers and cells that engulf invaders. Explain what this general defence does well and why it is not enough on its own. Give no advice about treating infections.',
     pages: ['https://en.wikipedia.org/wiki/Immune_system'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Layered defences: barriers first, then an immediate general response',
+        'The innate layer answers many threats the same way, with no earlier exposure',
+        'Why it is not enough on its own: it is non-specific and gives no lasting immunity',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of the innate and adaptive layers: rows kind of response, when it acts, what it leaves behind; columns innate and adaptive. Innate: a generic, non-specific response that is immediate and gives no long-lasting immunity. Adaptive: a tailored response, a second layer activated by the innate response, retained afterwards as immunological memory.',
+        },
+        {
+          kind: 'statement',
+          purpose:
+            'A short list of the first barriers, one line each: mechanical (skin, coughing and sneezing, flushing, mucus that traps microorganisms), chemical (antimicrobial peptides, enzymes, acid) and biological (commensal bacteria that compete with pathogens for food and space).',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-first-guard', name: 'The First Guard' },
     },
   },
   'adaptive-immunity': {
@@ -218,12 +307,23 @@ export const humanBodyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'How the immune system learns a specific threat. White blood cells called lymphocytes recognise particular molecules of an invader, and the matching cells multiply and make a tailored response, including antibodies. Explain recognition, multiplication and attack in plain terms. Do not describe immunity as all or nothing, and give no medical advice.',
+      'How the immune system learns a specific threat. White blood cells called lymphocytes recognise particular molecules of an invader, and the system makes a response tailored to that threat, including antibodies from B cells and a cell-mediated response from T cells. Explain recognition, the tailored response and the memory it leaves in plain terms. Do not describe immunity as all or nothing, and give no medical advice.',
     pages: ['https://en.wikipedia.org/wiki/Adaptive_immune_system'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Lymphocytes recognise particular molecules of an invader',
+        'The response is tailored to that threat: antibodies from B cells, a cell-mediated response from T cells',
+        'Memory is left behind, and immunity is not all or nothing',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'The adaptive response in order: recognition of a specific non-self antigen in the presence of self; a response tailored to eliminate that pathogen or the infected cells; the development of immunological memory through memory B cells and memory T cells. Three steps.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-tailored-defence', name: 'The Tailored Defence' },
     },
   },
   'immune-memory': {
@@ -235,12 +335,23 @@ export const humanBodyRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Why a second exposure to a threat is handled faster. After an infection or a vaccine, memory cells remain, so a later encounter triggers a quicker and stronger response than the first. Explain that a vaccine lets the immune system practise on a harmless form of a threat. Give no vaccine schedules and no advice about any specific vaccine.',
+      'Why a second exposure to a threat is handled faster. After an infection, some T and B cells remain as long-living memory cells, so a later encounter with the same antigen triggers a faster and more robust response than the first. Say that immunological memory is the basis of vaccination, and that immunity to some diseases lasts a lifetime while immunity to many wears off. Give no vaccine schedules and no advice about any specific vaccine.',
     pages: ['https://en.wikipedia.org/wiki/Immunological_memory'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'A second exposure to a threat is handled faster than the first',
+        'After an infection, some T and B cells remain as long-living memory cells',
+        'Memory is the basis of vaccination, but it does not last equally for every disease',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'First exposure to later exposure, in order: the first encounter with an antigen (the primary response); some T and B cells persist in the body as long-living memory cells; a second encounter with the same antigen is recognised and met with a faster, more robust response.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-remembered-foe', name: 'The Remembered Foe' },
     },
   },
 } as const satisfies SystemRecipes<typeof humanBodySystem>;

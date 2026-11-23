@@ -97,12 +97,16 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'simulation',
     brief:
-      'How attention decides what to look at. Each word is given an importance relative to the other words in the sequence, computed from queries and keys, scaled so that no single word dominates, and used to weight what the model passes on. Let the reader change one word’s score and watch the weights shift, using small made-up numbers labelled as illustrative. Do not imply that attention works like human attention.',
+      'How attention decides what to look at. Each word is given an importance, as a weight, relative to the other words in the sequence; the weights come from a scaled dot-product of queries and keys passed through a softmax, and they weight the value vectors the model passes on. Say this in words, with no made-up numbers. Do not imply that attention works like human attention.',
     pages: ['https://en.wikipedia.org/wiki/Attention_(machine_learning)'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Attention gives each word an importance relative to the other words',
+        'A scaled dot-product of queries and keys passes through a softmax to give weights',
+        'The weights decide how much of each word’s value is passed on',
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-weighted-glance', name: 'The Weighted Glance' },
     },
   },
   'attention-example': {
@@ -114,12 +118,23 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'A worked example of attention in translation. A model that squeezes a whole source sentence into one fixed summary loses detail; attention lets the decoder look back at the source words that matter for each word it writes. Follow an English-to-French example and let the reader pick an output word to see which input words it leans on, flagged as an illustrative picture and not a measurement from a real model. Do not claim the model understands the sentence the way a person does.',
+      'A worked example of attention in translation. A model that squeezes a whole source sentence into one fixed summary loses detail when the input is long; attention lets the decoder look back at the parts of the source that matter for each word it writes. Follow the English-to-French example in which “the zone of international control” becomes “la zone de contrôle international”, and give no attention weights or word alignments for it, because the supplied passages show none. Do not claim the model understands the sentence the way a person does.',
     pages: ['https://en.wikipedia.org/wiki/Seq2seq'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'One fixed summary of a whole sentence loses detail',
+        'Attention lets the decoder look back at the parts of the source that matter',
+        'English to French: "the zone of international control" written one word at a time',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            "What attention does at each step of the decoder, in order: the encoder turns the source sentence into hidden vectors; at each decoder step an alignment model scores how well each input matches the decoder's state; a softmax turns the scores into attention weights; the weighted sum of the input hidden vectors becomes the context vector; the decoder uses it, with the words it has already written, to produce the next word.",
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-aligned-words', name: 'The Aligned Words' },
     },
   },
   'attention-limits': {
@@ -131,12 +146,19 @@ export const machineLearningRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'What attention weights do and do not show. Heat maps of attention scores are a routine way to look inside a model, but they show where information flowed and are not a full account of why a model gave its answer. Also explain that comparing every word with every other makes the attention matrix grow with the square of the input length. Do not say attention maps prove reasoning, and do not say the cost problem is solved.',
-    pages: ['https://en.wikipedia.org/wiki/Attention_(machine_learning)'],
-    scrollV2: {
-      variant: 'plain',
+      'What attention does and what it costs. Attention gives each token a weight relative to the other tokens in a sequence, so a token has direct access to any part of a sentence. Say what the supplied passages state about its limits: without positional encoding it does not see order, a decoder cannot attend to future outputs, and comparing every token with every other makes the computational and memory cost grow quadratically with the sequence length. Do not say attention weights prove reasoning, do not claim they are a full account of why a model gave its answer, and do not say the cost problem is solved.',
+    pages: [
+      'https://en.wikipedia.org/wiki/Attention_(machine_learning)',
+      'https://en.wikipedia.org/wiki/Transformer_(deep_learning)',
+    ],
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Attention gives each token a weight and direct access to the whole sentence',
+        'What it leaves out: order without positional encoding, and no looking ahead when decoding',
+        'Comparing every token with every other grows with the square of the length',
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-edge-of-attention', name: 'The Edge of Attention' },
     },
   },
   'transformer-architecture': {
@@ -148,12 +170,23 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'How a transformer differs from the recurrent networks before it. Text becomes tokens, each token becomes a vector, and layers of attention let every token take account of the others at once, so that the work can run in parallel instead of one token at a time. Let the reader step from the older word-by-word design to the transformer design. Make no claims about any named product’s size or training data.',
+      'How a transformer differs from the recurrent networks before it. Text becomes tokens, each token becomes a vector, and layers of attention let every token take account of the others at once, so that the work can run in parallel instead of one token at a time. Compare the older word-by-word design with the transformer design. Make no claims about any named product’s size or training data.',
     pages: ['https://en.wikipedia.org/wiki/Transformer_(deep_learning)'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Before transformers, recurrent networks read text one token at a time',
+        'A transformer lets every token take account of the others at once',
+        'That lets the work run in parallel instead of in sequence',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A comparison of the older recurrent design and the transformer: rows how tokens are processed, how earlier text is kept for later, and whether training can run in parallel; columns recurrent and transformer. Recurrent: one token at a time, so no parallel operation, and information about earlier text poorly preserved in a fixed-size vector. Transformer: each token is contextualised with the other tokens by attention, and tokens can be processed in parallel during training.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-stacked-blocks', name: 'The Stacked Blocks' },
     },
   },
   'token-embeddings': {
@@ -167,10 +200,14 @@ export const machineLearningRecipes = {
     brief:
       'How words become numbers a model can use. Each word or token is mapped to a list of numbers, called an embedding, learned so that tokens used in similar ways end up close together. Explain what closeness captures and what it misses, such as a word with several senses, which later token-level embeddings address. Do not call the numbers definitions or distance a dictionary of meaning.',
     pages: ['https://en.wikipedia.org/wiki/Word_embedding'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'A model turns each token into a list of numbers called an embedding',
+        'Tokens used in similar ways end up close together',
+        'What closeness misses: a word with several senses',
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-word-map', name: 'The Word Map' },
     },
   },
   'next-token-generation': {
@@ -182,12 +219,16 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'sequence',
     brief:
-      'How a language model writes text. A generative pre-trained model learns to predict the next word or token from the text so far, then the chosen token is added to the text and the prediction repeats. Step the reader through a short sentence being built one token at a time, with made-up probabilities labelled as illustrative. Say that such models are often fine-tuned afterwards to follow instructions. Do not say the model plans a whole answer in advance.',
-    pages: ['https://en.wikipedia.org/wiki/Large_language_model'],
-    scrollV2: {
-      variant: 'plain',
+      'How a language model writes text. A generative pre-trained model learns to predict the next word or token from the text so far, and a decoder writes its output one element at a time, considering the elements it has already produced. Say that such models are often fine-tuned afterwards to follow instructions. Give no probabilities, because the supplied passages state none. Do not say the model plans a whole answer in advance.',
+    pages: ['https://en.wikipedia.org/wiki/Large_language_model', 'https://en.wikipedia.org/wiki/Seq2seq'],
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A language model learns to predict the next token from the text so far',
+        'A decoder writes one token at a time, considering what it has already written',
+        'Fine-tuning then teaches such models to follow instructions',
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-next-word', name: 'The Next Word' },
     },
   },
   'gradient-descent': {
@@ -199,12 +240,28 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'simulation',
     brief:
-      'How a model learns by taking small downhill steps. Gradient descent repeatedly steps opposite to the gradient of the function it is minimising, like a walker feeling the slope on a foggy mountain. Let the reader change the step size, the learning rate, on a one-parameter example and see steps that are too small and slow, about right, or so large that they overshoot, labelled as illustrative. Do not claim real training has one smooth valley or always finds the best answer.',
+      'How a model learns by taking small downhill steps. Gradient descent repeatedly steps opposite to the gradient of the function it is minimising, like a walker feeling the slope on a foggy mountain. Say what a step size that is too small and one that is too large do, and that finding a good step size is an important practical problem; give no made-up numbers. Do not claim real training has one smooth valley or always finds the best answer.',
     pages: ['https://en.wikipedia.org/wiki/Gradient_descent'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Learning as walking downhill in a fog',
+        'Each step goes against the gradient; the step size sets how far',
+        'Too small is slow, too large overshoots; real training is not one valley',
+      ],
+      pictures: [
+        {
+          kind: 'cycle',
+          purpose:
+            'The repeating step: measure the steepness of the slope where you stand; step in the direction opposite the gradient (downhill) for a chosen step size; measure again. Centre: the minimum you are looking for.',
+        },
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 of step sizes: rows too small and too large, columns what happens and the word for it. Too small: slows convergence. Too large: overshoot and divergence.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-downhill-walk', name: 'The Downhill Walk' },
     },
   },
   'training-by-example': {
@@ -216,12 +273,28 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'sequence',
     brief:
-      'How a network learns from examples. A network is made of connected units whose connections carry weights; training shows it many labelled examples, such as images known to show a starfish or a sea urchin, and the weights come to link features such as a ring-textured outline to the right label. Step the reader through one example and show how a weak or misleading association can make a mistake. Do not name the update algorithm unless a supplied passage does, and do not say the network works like a brain.',
+      'How a network learns from examples. A network is made of connected units whose connections carry weights; training shows it many labelled examples, such as images known to show a starfish or a sea urchin, and the weights come to link features such as a ring-textured outline to the right label. Go through one example and show how a weak or misleading association can make a mistake. Do not name the update algorithm unless a supplied passage does, and do not say the network works like a brain.',
     pages: ['https://en.wikipedia.org/wiki/Neural_network_(machine_learning)'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'A network is connected units whose connections carry weights',
+        'Training on labelled examples links features such as texture to labels',
+        'One example: a weak association can give a mistaken answer',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 of what training links together: rows starfish and sea urchin, columns texture and outline.',
+        },
+        {
+          kind: 'flow',
+          purpose:
+            'How a mistake arises, in order: training includes one ring-textured sea urchin; a weak link forms between ringed texture and sea urchin; a new starfish image is correctly detected; the weak link also gives a weak signal for sea urchin; an oval shell adds another weak signal, which may give a false positive.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-example-trail', name: 'The Example Trail' },
     },
   },
   overfitting: {
@@ -233,12 +306,23 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'chart',
     brief:
-      'Why doing well on training data is not enough. A model that matches its training data too closely, or is trained too long, can fit noise and then do worse on new data, while a model that is too simple underfits; techniques such as cross-validation and regularisation lessen overfitting. Let the reader compare a simple, a balanced and a very flexible model on illustrative curves. Do not imply that bigger models always overfit or that a held-out score guarantees real-world performance.',
+      'Why doing well on training data is not enough. A model that matches its training data too closely, or is trained too long, can fit noise and then do worse on new data, while a model that is too simple underfits; techniques such as cross-validation and regularisation lessen overfitting. Explain in words how a model that is too simple, one that fits too closely and a balance between them differ; use no made-up curves or numbers. Do not imply that bigger models always overfit or that a held-out score guarantees real-world performance.',
     pages: ['https://en.wikipedia.org/wiki/Overfitting'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'argument',
+      sections: [
+        'Doing well on training data is not enough',
+        'Fit the noise, or train too long, and the model does worse on new data',
+        'Too simple a model underfits; cross-validation and regularisation help',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 of the two failures: rows underfitting and overfitting, columns what goes wrong and the sign. Underfitting: the model cannot capture the underlying structure of the data, and its predictions are poor. Overfitting: the model matches the training data too closely and extracts noise as if it were structure; performance on training examples still rises while performance on unseen data becomes worse.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-too-close-fit', name: 'The Too-Close Fit' },
     },
   },
   'long-input-cost': {
@@ -250,12 +334,23 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'chart',
     brief:
-      'Why long inputs are expensive and how designs ease it. Standard self-attention compares every token with every other, so its computation and memory grow with the square of the input length. Researchers have proposed sparse attention and memory-efficient designs that reduce the cost and allow longer context windows. Let the reader compare how the cost grows for a short and a long input, in illustrative units. Do not say the cost is eliminated, and name no product or price.',
+      'Why long inputs are expensive and how designs ease it. Standard self-attention compares every token with every other, so its computation and memory grow with the square of the input length. Researchers have proposed sparse attention and memory-efficient designs that reduce the cost and allow longer context windows. Say that the cost grows with the square of the input length in words, with no made-up numbers. Do not say the cost is eliminated, and name no product or price.',
     pages: ['https://en.wikipedia.org/wiki/Generative_pre-trained_transformer'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Self-attention compares every token with every other token',
+        'So computation and memory grow with the square of the input length',
+        'Sparse and memory-efficient designs ease the cost but do not remove it',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'How the cost grows and is eased, in order: the input gets longer; standard self-attention has quadratic complexity in the input length, so computation and memory requirements increase significantly; researchers proposed sparse attention mechanisms and memory-efficient architectures; these reduce computational costs while supporting longer context windows. Name no product.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-growing-bill', name: 'The Growing Bill' },
     },
   },
   'mixture-of-experts': {
@@ -267,12 +362,23 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'How a model can be large yet cheap to run. In a mixture of experts several expert networks share a job and a gating function decides how to weight them; in deep learning the key goal is to reduce computing cost, so for each input only a small subset of experts is used. Let the reader compare using every expert with using only the top few. Do not claim every large model uses this design.',
+      'How a model can be large yet cheap to run. In a mixture of experts several expert networks share a job and a gating function decides how to weight them; in deep learning the key goal is to reduce computing cost, so for each input only a small subset of experts is used. Compare using every expert with using only a small subset of them. Do not claim every large model uses this design.',
     pages: ['https://en.wikipedia.org/wiki/Mixture_of_experts'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Several expert networks share a job; a gating function weights them',
+        "In the classic version every expert's output is weighted and summed",
+        'In deep learning only the top few experts run, to cut computing cost',
+      ],
+      pictures: [
+        {
+          kind: 'grid',
+          purpose:
+            'A 2 x 2 contrasting classic and deep-learning mixture of experts: rows classic and deep learning, columns how many experts answer and why.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-specialist-team', name: 'The Specialist Team' },
     },
   },
   'subword-tokens': {
@@ -284,12 +390,23 @@ export const machineLearningRecipes = {
     interactive: true,
     interactiveKind: 'sequence',
     brief:
-      'How text is cut into tokens. Byte-pair encoding began as a compression method that repeatedly replaces the most common pair of symbols with a new symbol, and a modified form builds the vocabularies of large language models by repeatedly merging common pairs of characters. Step the reader through a few merges on a tiny example. Say what happens to a symbol the vocabulary cannot encode. Do not claim every model tokenizes the same way.',
+      'How text is cut into tokens. Byte-pair encoding began as a compression method that repeatedly replaces the most common pair of symbols with a new symbol, and a modified form builds the vocabularies of large language models by repeatedly merging common pairs of characters. Go through a few merges on a tiny example. Say what happens to a symbol the vocabulary cannot encode. Do not claim every model tokenizes the same way.',
     pages: ['https://en.wikipedia.org/wiki/Byte_pair_encoding'],
-    scrollV2: {
-      variant: 'plain',
+    scrollV3: {
+      shape: 'mechanism',
+      sections: [
+        'Byte-pair encoding began as compression: swap the commonest pair for a symbol',
+        "A modified form repeats the merge to build a language model's vocabulary",
+        'A symbol the vocabulary cannot encode becomes UNK; byte-level BPE avoids that',
+      ],
+      pictures: [
+        {
+          kind: 'flow',
+          purpose:
+            'Merges on a tiny example, one per step: start with the data aaabdaaabac, whose most frequent pair is aa; replace aa with an unused symbol Z; repeat with the pair ab and replace it with Y; optionally continue by replacing ZY with X; stop when no pair occurs more than once. Do not write out the intermediate strings.',
+        },
+      ],
       misconception: { kind: 'none' },
-      landmark: { key: 'the-word-pieces', name: 'The Word Pieces' },
     },
   },
 } as const satisfies SystemRecipes<typeof machineLearningSystem>;

@@ -31,7 +31,7 @@ import { geographyWorld, type GeographyWorld } from '../support/geography-world.
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV1, ORRIN_PLAN } from '../support/scroll-v2.js';
+import { markScrollV1, ORRIN_PLAN, markFormerV2Recipes } from '../support/scroll-v2.js';
 
 /**
  * How a v2 Scroll is read (D-128): a stop counts after its own reading time, a call when it is
@@ -148,6 +148,11 @@ function tapTrace(
   const played = order.filter((block) => block.seen?.kind === 'interaction');
   return { visits, locked: played.filter(() => calls.lockAll || random() < 0.7).map((block) => block.id) };
 }
+
+// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
+// again, with the plan (and kit) they had, for the file's own process.
+const restoreFormerV2Recipes = markFormerV2Recipes();
+afterAll(restoreFormerV2Recipes);
 
 describe('Qualifying a v2 reading (pure, from the labelled Orrin fixture)', () => {
   const { facts, nominalMs } = orrin();
