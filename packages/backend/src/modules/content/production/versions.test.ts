@@ -25,6 +25,7 @@ import {
   requestBoundOf,
   SCROLL_PRODUCTION_V2_VERSION,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
+  SCROLL_PRODUCTION_V3_SECOND_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
   SCROLL_PRODUCTION_VERSION,
   scrollV2PlanOf,
@@ -139,37 +140,43 @@ describe('production versions: a recipe the plan marks document v3', () => {
     const productionVersionOfWriter: Readonly<Record<string, string>> = {
       'scroll-writer-v3.v1': 'scroll-production-v3.v1',
       'scroll-writer-v3.v2': 'scroll-production-v3.v2',
+      'scroll-writer-v3.v3': 'scroll-production-v3.v3',
     };
     expect(productionVersionOfWriter[WRITER_V3_PROMPT_VERSION]).toBe(SCROLL_PRODUCTION_V3_VERSION);
   });
 
-  it('moved to v2 when the compile began to leave out a link it cannot place, and no job is made at the first version', () => {
+  it('moved to v3 when a copy finding began to name the part and the words, and no job is made at the first two versions (D-438, D-441)', () => {
     expect([WRITER_V3_PROMPT_VERSION, SCROLL_PRODUCTION_V3_VERSION]).toEqual([
-      'scroll-writer-v3.v2',
-      'scroll-production-v3.v2',
+      'scroll-writer-v3.v3',
+      'scroll-production-v3.v3',
     ]);
     expect(SCROLL_PRODUCTION_V3_FIRST_VERSION).toBe('scroll-production-v3.v1');
+    expect(SCROLL_PRODUCTION_V3_SECOND_VERSION).toBe('scroll-production-v3.v2');
     markV3('exoplanet-kinds');
     expect(productionVersionOf('exoplanet-kinds')).not.toBe(SCROLL_PRODUCTION_V3_FIRST_VERSION);
+    expect(productionVersionOf('exoplanet-kinds')).not.toBe(SCROLL_PRODUCTION_V3_SECOND_VERSION);
     expect(produceScrollJob('exoplanet-kinds', 1).policyVersion).toBe(SCROLL_PRODUCTION_V3_VERSION);
     expect(PRODUCTION_VERSIONS).not.toContain(SCROLL_PRODUCTION_V3_FIRST_VERSION);
+    expect(PRODUCTION_VERSIONS).not.toContain(SCROLL_PRODUCTION_V3_SECOND_VERSION);
   });
 
-  it('keeps the lineage of a revision written at v1: its job and prompt pair is accepted next to the current one', () => {
+  it('keeps the lineage of a revision written at v1 or v2: its job and prompt pair is accepted next to the current one', () => {
     markV3('exoplanet-kinds');
     expect(lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V3_SCHEMA_VERSION)).toEqual([
-      ['scroll-production-v3.v2', 'scroll-writer-v3.v2'],
+      ['scroll-production-v3.v3', 'scroll-writer-v3.v3'],
       ['scroll-production-v3.v1', 'scroll-writer-v3.v1'],
+      ['scroll-production-v3.v2', 'scroll-writer-v3.v2'],
     ]);
-    // The pairs are never mixed: a v1 job does not vouch for the v2 prompt, nor the reverse.
+    // The pairs are never mixed: a job of one version does not vouch for the prompt of another.
     const accepts = (production: string, prompt: string): boolean =>
       lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V3_SCHEMA_VERSION).some(
         ([policy, version]) => policy === production && version === prompt,
       );
-    expect(accepts('scroll-production-v3.v1', 'scroll-writer-v3.v1')).toBe(true);
-    expect(accepts('scroll-production-v3.v2', 'scroll-writer-v3.v2')).toBe(true);
-    expect(accepts('scroll-production-v3.v1', 'scroll-writer-v3.v2')).toBe(false);
-    expect(accepts('scroll-production-v3.v2', 'scroll-writer-v3.v1')).toBe(false);
+    for (const version of ['v1', 'v2', 'v3'])
+      for (const other of ['v1', 'v2', 'v3'])
+        expect(accepts(`scroll-production-v3.${version}`, `scroll-writer-v3.${other}`), `${version} ${other}`).toBe(
+          version === other,
+        );
   });
 
   it('accepts only the current pair for a v1 or v2 document, and for a recipe the plan does not mark document v3', () => {

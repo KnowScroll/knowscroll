@@ -34,9 +34,14 @@ import {
   PRODUCTION_VERSIONS,
   productionVersionOf,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
+  SCROLL_PRODUCTION_V3_SECOND_VERSION,
   scrollV3PlanOf,
 } from './topics.js';
-import { WRITER_V3_PROMPT_VERSION, WRITER_V3_PROMPT_VERSION_V1 } from './writer-v3-version.js';
+import {
+  WRITER_V3_PROMPT_VERSION,
+  WRITER_V3_PROMPT_VERSION_V1,
+  WRITER_V3_PROMPT_VERSION_V2,
+} from './writer-v3-version.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
 const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
@@ -121,7 +126,11 @@ async function readPublishedRevision(
     ])
     .where('job.id', '=', jobId)
     .where('job.state', '=', 'published')
-    .where('job.policy_version', 'in', [...PRODUCTION_VERSIONS, SCROLL_PRODUCTION_V3_FIRST_VERSION])
+    .where('job.policy_version', 'in', [
+      ...PRODUCTION_VERSIONS,
+      SCROLL_PRODUCTION_V3_FIRST_VERSION,
+      SCROLL_PRODUCTION_V3_SECOND_VERSION,
+    ])
     .where('job.writer_run_id', '=', writerRunId)
     .where('job.scope_generation', '=', generation)
     .where('revision.provenance_kind', '=', 'generated')
@@ -179,8 +188,9 @@ function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
 /**
  * The pairs of a job's production version and the writer prompt version its Scroll names that the lineage accepts for a recipe's
  * Scroll of this document schema. A pair is the version of the job and the instructions that ran under it, so a Scroll never
- * names a prompt its job did not run. A document v3 of a recipe the plan marks `scrollV3` also accepts the first pair (D-438): the
- * revisions `scroll-production-v3.v1` wrote keep their lineage after the version moved, and no new job is made at it. Pure.
+ * names a prompt its job did not run. A document v3 of a recipe the plan marks `scrollV3` also accepts the earlier pairs (D-438,
+ * D-441): the revisions `scroll-production-v3.v1` and `.v2` wrote keep their lineage after the version moved, and no new job is
+ * made at either. Pure.
  */
 export function lineagePairsOf(
   key: string,
@@ -188,7 +198,11 @@ export function lineagePairsOf(
 ): readonly (readonly [production: string, prompt: string])[] {
   const current = [productionVersionOf(key), promptVersionOf(documentVersion)] as const;
   return documentVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION && scrollV3PlanOf(key) !== undefined
-    ? [current, [SCROLL_PRODUCTION_V3_FIRST_VERSION, WRITER_V3_PROMPT_VERSION_V1]]
+    ? [
+        current,
+        [SCROLL_PRODUCTION_V3_FIRST_VERSION, WRITER_V3_PROMPT_VERSION_V1],
+        [SCROLL_PRODUCTION_V3_SECOND_VERSION, WRITER_V3_PROMPT_VERSION_V2],
+      ]
     : [current];
 }
 

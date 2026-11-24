@@ -2,6 +2,7 @@ import type { Claim, ProductionRecord, Source } from '@knowscroll/scroll-model/i
 import {
   compileWrittenProseV3,
   compileWrittenV3,
+  looseCopyIssuesV3,
   mergeStagingV3,
   numberedProseText,
   REPAIR_HINTS_V3,
@@ -18,15 +19,19 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
 import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT_V3, citationLimitIssuesV3 } from './citation-limits.js';
-import { copyRepairNotes } from './copy-repair.js';
+import { copyRepairNotesV3 } from './copy-notes-v3.js';
 import { authoringEvidence, evidenceText, type EvidencePassage } from './evidence.js';
 import { bannedNames, readerStrings, type BannedName } from './writer.js';
 import { writerInstructionsV3, type WriterV3Plan, type WriterV3Step } from './writer-v3-instructions.js';
 
-/** The versions of the three roles of the document v3 writer: one reply (arm a), prose (arm b step 1), staging (arm b step 2). */
-export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v1';
-export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v1';
-export const STAGER_V3_VERSION = 'scroll-stager-v3.v1';
+/**
+ * The versions of the three roles of the document v3 writer: one reply (arm a), prose (arm b step 1), staging (arm b step 2). They
+ * moved from `.v1` with D-441, because the role's version names its instructions and its fixed hints, and both changed (the copy hint
+ * points to the repair notes, a chart is told it always has its marks).
+ */
+export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v2';
+export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v2';
+export const STAGER_V3_VERSION = 'scroll-stager-v3.v2';
 
 /** The kicker every library Scroll carries, the same as a v2 library Scroll's (`publicationV2`): code's, never the model's. */
 const LIBRARY_KICKER = 'A closer look';
@@ -236,19 +241,12 @@ export function compileStagedScrollV3(
   return compileGeneratedScrollV3(merged.reply, context, production);
 }
 
-/** The value at a dotted path of a refused answer (`items.4`, `pictures.0`, `title`), or undefined. */
-function valueAt(root: unknown, path: string): unknown {
-  let value = root;
-  for (const part of path.split('.')) {
-    if (typeof value !== 'object' || value === null) return undefined;
-    value = (value as Record<string, unknown>)[part];
-  }
-  return value;
-}
-
 /**
- * What the repair is told about a copy finding: the copied words themselves (`copyRepairNotes`), cut from the research
- * text and never from the model's own words. Rebuilt from the refused answer with the same checks that refused it.
+ * What the repair is told about a copy finding (D-441): for each item the part that copies and the copied words themselves
+ * (`copyRepairNotesV3`), cut from the research text and never from the model's own words. Rebuilt from the refused answer with the
+ * same checks that refused it; and for an answer the shape refused (a field too long, a chart without its marks) and that the compile
+ * therefore never read, with the same copy rule over the strings it holds (`looseCopyIssuesV3`), so that a copy the first take was
+ * never told about is named to the repair.
  */
 function copyNotes<T>(
   previousAnswer: string,
@@ -263,14 +261,12 @@ function copyNotes<T>(
     return undefined;
   }
   const answer = read(parsed);
-  if (answer === undefined) return undefined;
-  const places = issuesOf(answer)
-    .filter((issue) => issue.code === 'copied_passage')
-    .map((issue) => ({
-      where: issue.path.replace(/\.(\d+)/gu, '[$1]'),
-      texts: [...readerStrings(valueAt(answer, issue.path))],
-    }));
-  return copyRepairNotes(places, sourcesOf(context));
+  const issues = answer === undefined ? looseCopyIssuesV3(parsed, sourcesOf(context)) : issuesOf(answer);
+  return copyRepairNotesV3(
+    issues.flatMap((issue) =>
+      issue.code === 'copied_passage' && issue.detail !== undefined ? [{ path: issue.path, detail: issue.detail }] : [],
+    ),
+  );
 }
 
 /** The fixed hints of a v3 role: the writer's catalogue, the citation bound and one per name a reader must not see. */

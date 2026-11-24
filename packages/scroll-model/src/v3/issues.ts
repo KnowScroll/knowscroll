@@ -68,6 +68,12 @@ export type SharedNoticeCode = Extract<V2ReasonCode, 'misconception_source_unrev
 export interface IssueV3 {
   readonly code: ReasonCode | V3ReasonCode | SharedNoticeCode;
   readonly path: string;
+  /**
+   * Set only on a `copied_passage` of the model writer's compile (`producer/v3/copy-detail.ts`): the part of the item that
+   * copies and the research's own words that it copies, cut from the research and never from the model's text. The
+   * writer sends it to its one repair in the repair notes; every other finding is a code and a path.
+   */
+  readonly detail?: string;
 }
 
 /** Removes repeated (code, path) pairs and keeps the first-seen order. */

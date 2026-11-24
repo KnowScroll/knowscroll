@@ -101,4 +101,5 @@ export {
   type WrittenProseOutcome,
 } from './v3/written.js';
 export { REPAIR_HINTS_V3 } from './v3/reasons.js';
+export { looseCopyIssuesV3 } from './v3/copy-loose.js';
 export { writtenReferenceV3, type WrittenArm } from './v3/written-reference.js';

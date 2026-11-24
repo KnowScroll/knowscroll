@@ -71,6 +71,17 @@ describe('writtenReferenceV3', () => {
     }
   });
 
+  it('tells a chart writer that "marks" is always written, and an empty list when no point needs one (D-441)', () => {
+    for (const arm of ['one', 'staging'] as const) {
+      const chart = writtenReferenceV3(arm)
+        .split('\n')
+        .find((line) => line.includes('"kind":"chart"'));
+      expect(chart, arm).toContain('"marks":[{"point"');
+      expect(chart, arm).toContain('"marks" is ALWAYS written');
+      expect(chart, arm).toContain('"marks":[] when no point needs a label');
+    }
+  });
+
   it('shows the prose writer no picture, show, link or control', () => {
     const text = writtenReferenceV3('prose');
     for (const word of ['"kind":"flow"', '"show"', '"links"', '"control"', '"pictures"'])

@@ -18,6 +18,7 @@ import {
   productionVersionOf,
   REQUEST_BOUND_V3_PER_TOPIC,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
+  SCROLL_PRODUCTION_V3_SECOND_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
   TOPICS,
 } from '../../../packages/backend/src/modules/content/production/topics.js';
@@ -57,6 +58,36 @@ function misplacedLinks(): unknown {
     links: [
       { phrase: words, part: 'Nowhere' },
       { phrase: 'a phrase this paragraph never says', part: 'value' },
+    ],
+  };
+  return draft;
+}
+
+/** The recorded reply with a paragraph that copies a sentence of the research, the only fault it has. */
+function copyingParagraph(): { items: { text?: string }[]; pictures: Record<string, unknown>[] } {
+  const draft = JSON.parse(JSON.stringify(fixtureReplyV3())) as {
+    items: { text?: string }[];
+    pictures: Record<string, unknown>[];
+  };
+  draft.items[13] = {
+    ...draft.items[13],
+    text: 'Near the equator the noon sun stays high in every season, so the tropics change far less across the year than the poles do.',
+  };
+  return draft;
+}
+
+/** The same copy, and a chart written without its marks: the shape is refused before the copy rule can run. */
+function copyingParagraphAndChartWithoutMarks(): unknown {
+  const draft = copyingParagraph();
+  draft.pictures[0] = {
+    kind: 'chart',
+    title: 'A chart',
+    cites: ['e1'],
+    form: 'bars',
+    values: 'shown',
+    points: [
+      { label: 'A', value: '1' },
+      { label: 'B', value: '2' },
     ],
   };
   return draft;
@@ -249,39 +280,45 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
     });
   });
 
-  it('still releases, serves and reads as published a revision written at the first v3 version, after the version moved (D-438)', async () => {
-    await produce();
-    // Make the stored revision what `scroll-production-v3.v1` wrote: its job's policy version and the prompt version it named.
-    await database.db
-      .updateTable('content.scroll_production_runs')
-      .set({ policy_version: SCROLL_PRODUCTION_V3_FIRST_VERSION })
-      .where('topic', '=', key)
-      .execute();
-    const provenance = (await provenanceOf(1)) as { production: Record<string, unknown> };
-    await database.db
-      .updateTable('content.asset_provenance')
-      .set({
-        provenance: { ...provenance, production: { ...provenance.production, promptVersion: 'scroll-writer-v3.v1' } },
-      })
-      .where('asset_id', '=', recipe.assetId)
-      .where('revision', '=', 1)
-      .execute();
-    // The revision is still a valid held document v3, and a person can release it and it is served.
-    expect(await gate().release({ assetId: recipe.assetId, revision: 1, decidedBy: person })).toMatchObject({
-      kind: 'released',
-    });
-    expect(
-      await makeRenderScroll(database.db)({ assetId: recipe.assetId, revision: 1, capabilities: v3Client }),
-    ).toMatchObject({ kind: 'rendition' });
-    // The recipe's served Scroll is a document v3, so it is published and `produce-library` has nothing to queue for it; the
-    // takes of the old version are not counted at the new one.
-    expect((await readLibraryStatus(database.db, [key]))[0]).toMatchObject({
-      state: 'published',
-      assetId: recipe.assetId,
-      revision: 1,
-      takes: 0,
-    });
-  });
+  it.each([
+    ['first', SCROLL_PRODUCTION_V3_FIRST_VERSION, 'scroll-writer-v3.v1'],
+    ['second', SCROLL_PRODUCTION_V3_SECOND_VERSION, 'scroll-writer-v3.v2'],
+  ])(
+    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-441)',
+    async (_which, earlier, earlierPrompt) => {
+      await produce();
+      // Make the stored revision what an earlier production version wrote: its job's policy version and the prompt version it named.
+      await database.db
+        .updateTable('content.scroll_production_runs')
+        .set({ policy_version: earlier })
+        .where('topic', '=', key)
+        .execute();
+      const provenance = (await provenanceOf(1)) as { production: Record<string, unknown> };
+      await database.db
+        .updateTable('content.asset_provenance')
+        .set({
+          provenance: { ...provenance, production: { ...provenance.production, promptVersion: earlierPrompt } },
+        })
+        .where('asset_id', '=', recipe.assetId)
+        .where('revision', '=', 1)
+        .execute();
+      // The revision is still a valid held document v3, and a person can release it and it is served.
+      expect(await gate().release({ assetId: recipe.assetId, revision: 1, decidedBy: person })).toMatchObject({
+        kind: 'released',
+      });
+      expect(
+        await makeRenderScroll(database.db)({ assetId: recipe.assetId, revision: 1, capabilities: v3Client }),
+      ).toMatchObject({ kind: 'rendition' });
+      // The recipe's served Scroll is a document v3, so it is published and `produce-library` has nothing to queue for it; the
+      // takes of the old version are not counted at the new one.
+      expect((await readLibraryStatus(database.db, [key]))[0]).toMatchObject({
+        state: 'published',
+        assetId: recipe.assetId,
+        revision: 1,
+        takes: 0,
+      });
+    },
+  );
 
   describe('checked and released', () => {
     it('is checked by the v3 support check, then released by the release policy with no person when every check passes', async () => {
@@ -383,6 +420,35 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
       expect(production.promptVersion).toBe(WRITER_V3_PROMPT_VERSION);
       expect(result.attempts).not.toContainEqual(expect.objectContaining({ code: 'attribution_unverified' }));
       expect(await reviewOf(1)).toMatchObject({ state: 'held' });
+    });
+
+    it('tells the repair the part and the words when the copy is the only fault: the fixed hint in the findings, the quoted run in the repair notes (D-441)', async () => {
+      const worker = setup((sequence) => (sequence === 1 ? answerWith(copyingParagraph()) : good()));
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(2);
+      const repair = worker.writerCalls[1]?.request;
+      expect(repair?.system).toContain('copied_passage');
+      expect(repair?.system).toContain('The repair notes, when there are any, name the part and quote the words.');
+      expect(repair?.user).toContain('<repair-notes>');
+      expect(repair?.user).toContain(
+        'items[13]: Nine or more words in a row match the research, in the text: "near the equator the noon sun stays high in every season so the tropics change …". Rewrite them in your own words, with a different sentence structure.',
+      );
+      expect(worker.writerCalls[0]?.request.user).not.toContain('<repair-notes>');
+    });
+
+    it('names the copy to the repair when the first write was refused for its shape too: a chart without its marks hid the copy rule (D-441)', async () => {
+      const worker = setup((sequence) =>
+        sequence === 1 ? answerWith(copyingParagraphAndChartWithoutMarks()) : good(),
+      );
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(2);
+      const repair = worker.writerCalls[1]?.request;
+      expect(repair?.system).not.toContain('copied_passage');
+      expect(repair?.user).toContain(
+        'items[13]: Nine or more words in a row match the research, in the text: "near the equator',
+      );
     });
 
     it('is published on the first write when its only fault is a link that cannot be placed: no repair, the links left out and counted (D-438)', async () => {

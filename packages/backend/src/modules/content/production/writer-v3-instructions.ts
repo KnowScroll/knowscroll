@@ -94,7 +94,7 @@ const KIND_LINES = [
   '- flow: 2 to 6 steps in order, an arrow from each to the next: a process, or a chain of causes.',
   '- cycle: 3 to 8 stages around a ring, the last leading back to the first, with an optional thing at the centre: anything that repeats.',
   '- grid: a small table of short cells under row and column headings (at most 4 rows and 3 columns): a comparison, or a 2 × 2 of choices. "size": "large" lets one cell outweigh the rest.',
-  '- chart: bars or a line of 2 to 16 figures a cited passage states, in one unit, each value in digits exactly as the passage writes it; when the passage writes "8.3 million", the value is "8.3" and the unit starts with "million". Never use a chart for fewer than two stated figures.',
+  '- chart: bars or a line of 2 to 16 figures a cited passage states, in one unit, each value in digits exactly as the passage writes it; when the passage writes "8.3 million", the value is "8.3" and the unit starts with "million". Never use a chart for fewer than two stated figures. A chart always has a "marks" list: up to 3 labels on its drawing, and "marks": [] when no point needs one.',
   '- plan: a schematic diagram on a coarse grid of at most 12 × 12 cells (column and row from 0): straight ways, places, tallies that pile up at places step by step, regions nearest to a place, routes between places. A diagram, never a map to scale: its caption says what it is drawn after.',
 ];
 
