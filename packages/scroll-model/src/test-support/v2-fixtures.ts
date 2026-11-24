@@ -125,14 +125,6 @@ export function distinct(count: number, tag: number): string {
  */
 export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, readonly Record<string, string>[]>> =
   {
-    'tides.v1': [
-      { view: 'bulges', moonAt: 'new', focus: 'near-bulge' },
-      { view: 'sun-moon', moonAt: 'new', focus: 'none' },
-      { view: 'sun-moon', moonAt: 'first-quarter', focus: 'none' },
-      { view: 'range', moonAt: 'full', focus: 'none' },
-      { view: 'pull', moonAt: 'new', focus: 'moon' },
-      { view: 'sun-moon', moonAt: 'last-quarter', focus: 'sun' },
-    ],
     'greenhouse.v1': [
       { view: 'sunlight', layer: 'none', change: 'settled', focus: 'none' },
       { view: 'infrared', layer: 'thin', change: 'settled', focus: 'back-down' },
@@ -140,22 +132,6 @@ export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>
       { view: 'energy-balance', layer: 'thick', change: 'just-thickened', focus: 'none' },
       { view: 'energy-balance', layer: 'thick', change: 'settled', focus: 'surface' },
       { view: 'sunlight', layer: 'thin', change: 'settled', focus: 'reflected' },
-    ],
-    'star.v1': [
-      { view: 'balance', balance: 'steady', mass: 'sun-like', stage: 'main-sequence', focus: 'core' },
-      { view: 'life', balance: 'steady', mass: 'low', stage: 'cloud', focus: 'none' },
-      { view: 'life', balance: 'steady', mass: 'high', stage: 'giant', focus: 'none' },
-      { view: 'mass', balance: 'steady', mass: 'high', stage: 'main-sequence', focus: 'lifetime' },
-      { view: 'balance', balance: 'gravity-wins', mass: 'sun-like', stage: 'main-sequence', focus: 'none' },
-      { view: 'life', balance: 'steady', mass: 'high', stage: 'end', focus: 'remnant' },
-    ],
-    'transit.v1': [
-      { view: 'orbit', planet: 'small', at: 'before', focus: 'none' },
-      { view: 'crossing', planet: 'small', at: 'ingress', focus: 'planet' },
-      { view: 'crossing', planet: 'small', at: 'middle', focus: 'dip' },
-      { view: 'compare', planet: 'small', at: 'before', focus: 'none' },
-      { view: 'crossing', planet: 'large', at: 'middle', focus: 'none' },
-      { view: 'orbit', planet: 'large', at: 'egress', focus: 'star' },
     ],
     'circulation.v1': [
       { view: 'heart', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'atria' },

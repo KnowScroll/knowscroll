@@ -2,14 +2,16 @@ import type { ScrollTopic } from '../topics.js';
 import type { ScrollV2Plan, StageKitId } from '../../domain/library/plan.js';
 
 /**
- * What every library recipe but one was, as a `scroll-document.v2` recipe, before the library plan made it a document v3 recipe:
- * the v2 plan it had and, for the 22 recipes a drawing kit drew, the kit (#787, #790). The library plan holds neither, because a
- * v3 recipe has no kit and no v2 plan, and no job reads them from it. The v2 writer spike (`content writer-spike`), the v2 writer's
- * tests and the integration tests of the v2 path still run these recipes as v2 recipes, with their kit where they had one, until
- * the v2 code is deleted (Phase 6); the entries of a kit leave this table with it. The spike measures and publishes nothing, so a
- * recipe listed here is never produced as a v2 Scroll by the library. `exoplanet-kinds` was never a v2 recipe and is not listed.
+ * What most library recipes were, as a `scroll-document.v2` recipe, before the library plan made them document v3 recipes: the v2
+ * plan each had and, for the recipes a drawing kit drew, the kit (#787, #790). The library plan holds neither, because a v3 recipe has
+ * no kit and no v2 plan, and no job reads them from it. The v2 writer spike (`content writer-spike`), the v2 writer's tests and the
+ * integration tests of the v2 path still run these recipes as v2 recipes, with their kit where they had one, until the v2 code is
+ * deleted (Phase 6). The entries of a kit leave this table with it: those of `tides.v1`, `star.v1` and `transit.v1` (`tides`,
+ * `tides-spring-neap`, `stars-fusion`, `stars-lifecycle`, `exoplanet-transit`) left in #799. The spike measures and publishes
+ * nothing, so a recipe listed here is never produced as a v2 Scroll by the library. `exoplanet-kinds` was never a v2 recipe and
+ * is not listed.
  */
-/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (the 22 recipes of #787). */
+/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (17 of the 22 recipes of #787 since #799). */
 export interface FormerV2Plan {
   readonly kit?: StageKitId;
   readonly plan: ScrollV2Plan;
@@ -52,26 +54,6 @@ export const FORMER_V2_PLANS = {
       landmark: { key: 'the-near-january', name: 'The Near January' },
     },
   },
-  tides: {
-    // The Moon's pull, the two bulges and spring and neap alignment are the subject, and the kit draws exactly
-    // those. Coasts are left to the text and the limits aside.
-    kit: 'tides.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-two-bulges', name: 'The Two Bulges' },
-    },
-  },
-  'tides-spring-neap': {
-    // Spring and neap are the Sun and Moon lining up or standing at right angles, which the kit derives from
-    // the phase and draws as added or partly cancelled bulges and as bars for the four phases.
-    kit: 'tides.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-added-pulls', name: 'The Added Pulls' },
-    },
-  },
   greenhouse: {
     // Sunlight in, infrared out, a layer that returns some and the ground warming until in and out match are
     // the subject; the kit draws them with one layer and makes no energy.
@@ -103,26 +85,6 @@ export const FORMER_V2_PLANS = {
       landmark: { key: 'the-even-ledger', name: 'The Even Ledger' },
     },
   },
-  'stars-fusion': {
-    // Fusion in the core, gravity against pressure and how mass sets how long a star shines are the three
-    // views the kit has.
-    kit: 'star.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-steady-core', name: 'The Steady Core' },
-    },
-  },
-  'stars-lifecycle': {
-    // The stages of a low-mass star and of a high-mass star, in order and without years, are the life view;
-    // code draws the end that fits the mass.
-    kit: 'star.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-ageing-star', name: 'The Ageing Star' },
-    },
-  },
   'stars-colour-brightness': {
     // Colour from surface temperature, output from size and temperature together, dimming with distance and the
     // chart of temperature against output with its main sequence, giants and white dwarfs are the views the kit has.
@@ -131,16 +93,6 @@ export const FORMER_V2_PLANS = {
       variant: 'stage',
       misconception: { kind: 'none' },
       landmark: { key: 'the-colour-chart', name: 'The Colour Chart' },
-    },
-  },
-  'exoplanet-transit': {
-    // The transit method is the subject: a planet crossing its star and the dip it makes, small against large.
-    // The wobble method is told in words only.
-    kit: 'transit.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-small-dip', name: 'The Small Dip' },
     },
   },
   'exoplanet-habitable-zone': {

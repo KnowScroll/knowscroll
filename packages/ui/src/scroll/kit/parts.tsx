@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Circle, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
+import { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { content, fontFamily, family, printed, scrollPage, status } from '@knowscroll/design-tokens';
 import type { Point } from './earth-sky-scene';
 
@@ -53,27 +53,6 @@ export function Glow({
       <Circle cx={at.x} cy={at.y} r={radius} fill={colour} opacity={opacity} />
     </>
   );
-}
-
-/** A closed or open path through points. */
-export function pathOf(points: readonly Point[], close = true): string {
-  return (
-    points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ') + (close ? ' Z' : '')
-  );
-}
-
-/** The outline of an ellipse turned by `degrees` (anticlockwise from the right, y down the screen), as a polygon of 48 points. */
-export function ellipsePoints(centre: Point, halfLength: number, halfWidth: number, degrees: number): Point[] {
-  const turn = (degrees * Math.PI) / 180;
-  return Array.from({ length: 48 }, (_, index) => {
-    const around = (index * 2 * Math.PI) / 48;
-    const along = halfLength * Math.cos(around);
-    const across = halfWidth * Math.sin(around);
-    return {
-      x: centre.x + along * Math.cos(turn) - across * Math.sin(turn),
-      y: centre.y - (along * Math.sin(turn) + across * Math.cos(turn)),
-    };
-  });
 }
 
 export function FocusRing({ at, radius }: { readonly at: Point; readonly radius: number }): ReactElement {
@@ -236,32 +215,6 @@ export function Label({
         {text}
       </SvgText>
       {words}
-    </>
-  );
-}
-
-/**
- * The Moon seen from Earth in a phase, as a disc with its lit part: new is dark, full is lit, the quarters are half. The
- * dark part is SOLID and the lit part LIT, so a phase reads the same in both appearances.
- */
-export function PhaseGlyph({
-  at,
-  radius,
-  lit,
-}: {
-  readonly at: Point;
-  readonly radius: number;
-  readonly lit: 'none' | 'right' | 'left' | 'all';
-}): ReactElement {
-  return (
-    <>
-      <Circle cx={at.x} cy={at.y} r={radius} fill={lit === 'all' ? LIT : SOLID} stroke={INK} strokeWidth={1.8} />
-      {lit === 'right' || lit === 'left' ? (
-        <Path
-          d={`M ${at.x} ${at.y - radius} A ${radius} ${radius} 0 0 ${lit === 'right' ? 1 : 0} ${at.x} ${at.y + radius} Z`}
-          fill={LIT}
-        />
-      ) : null}
     </>
   );
 }

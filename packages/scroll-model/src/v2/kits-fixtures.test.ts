@@ -6,10 +6,7 @@ import { kitDefinition, STAGE_KIT_IDS, type StageKitId } from './kits/index.js';
 import { validateDocumentV2 } from './validate.js';
 
 const NAMES = {
-  'tides.v1': 'tides',
   'greenhouse.v1': 'greenhouse',
-  'star.v1': 'star',
-  'transit.v1': 'transit',
   'circulation.v1': 'circulation',
   'nerve.v1': 'nerve',
   'starlight.v1': 'starlight',

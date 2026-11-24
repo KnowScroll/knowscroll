@@ -8,9 +8,6 @@ import {
   type NerveState,
   type StageState,
   type StarlightState,
-  type StarState,
-  type TidesState,
-  type TransitState,
 } from '../model';
 import { CirculationPicture } from './circulation';
 import {
@@ -29,12 +26,6 @@ import { NervePicture } from './nerve';
 import { canTweenNerve, lerpNerveScene, nerveSceneOf, type NerveScene } from './nerve-scene';
 import { StarlightPicture } from './starlight';
 import { canTweenStarlight, lerpStarlightScene, starlightSceneOf, type StarlightScene } from './starlight-scene';
-import { StarPicture } from './star';
-import { canTweenStar, lerpStarScene, starSceneOf, type StarScene } from './star-scene';
-import { TidesPicture } from './tides';
-import { canTweenTides, lerpTidesScene, tidesSceneOf, type TidesScene } from './tides-scene';
-import { TransitPicture } from './transit';
-import { canTweenTransit, lerpTransitScene, transitSceneOf, type TransitScene } from './transit-scene';
 
 /**
  * What the stage engine needs of a kit's drawing (D-133, D-194): the scene of a stored state, whether a
@@ -99,29 +90,11 @@ export const KIT_PICTURES = {
     },
     recap: { sceneOf: recapSceneOf, describe: describeRecap },
   }),
-  'tides.v1': kitPicture<TidesState, TidesScene>({
-    sceneOf: tidesSceneOf,
-    canTween: canTweenTides,
-    lerpScene: lerpTidesScene,
-    Picture: TidesPicture,
-  }),
   'greenhouse.v1': kitPicture<GreenhouseState, GreenhouseScene>({
     sceneOf: greenhouseSceneOf,
     canTween: canTweenGreenhouse,
     lerpScene: lerpGreenhouseScene,
     Picture: GreenhousePicture,
-  }),
-  'star.v1': kitPicture<StarState, StarScene>({
-    sceneOf: starSceneOf,
-    canTween: canTweenStar,
-    lerpScene: lerpStarScene,
-    Picture: StarPicture,
-  }),
-  'transit.v1': kitPicture<TransitState, TransitScene>({
-    sceneOf: transitSceneOf,
-    canTween: canTweenTransit,
-    lerpScene: lerpTransitScene,
-    Picture: TransitPicture,
   }),
   'circulation.v1': kitPicture<CirculationState, CirculationScene>({
     sceneOf: circulationSceneOf,

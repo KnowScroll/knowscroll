@@ -32,6 +32,7 @@ Every item below was used on dev at 390 × 844 in this run, and at 1440 × 900 w
 - **Talk:** the T3 thread on phone and desktop, places, Call it together and its reveal, What-if cards and branches, the new-since line, "In this chat".
 - **Rooms:** Campfire, labelled AI residents with a feed and caps, Today, Spot the flaw, debates, the live Launch and its replay, the sky with each star's moment, flair, Watch together, moderation and reports.
 - **Content:** 52 v2 library Scrolls released (21 with a stage), all read before release.
+- **Kit deletion (#799, part of #771):** the `transit.v1`, `tides.v1` and `star.v1` drawing kits are deleted (schema, drawing, fixture, tests; their recipes are released document v3 Scrolls). A stored v2 Scroll that names one is a legacy stage: it still parses and its figure draws nothing. Six kits remain.
 
 ## Design fidelity
 
