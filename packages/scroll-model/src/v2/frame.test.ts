@@ -37,10 +37,13 @@ describe('a stage frame on its own', () => {
   };
 
   it('refuses a state that belongs to another kit', () => {
-    // A state of the tides kit has none of the fields the earth-sky kit reads; the kit name must not vouch for it.
-    const other = { ...frame(), state: { view: 'pull', moonAt: 'new', focus: 'moon' } };
+    // A state of the circulation kit has none of the fields the earth-sky kit reads; the kit name must not vouch for it.
+    const other = {
+      ...frame(),
+      state: { view: 'heart', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'atria' },
+    };
     expect(StageFrame.safeParse(other).success).toBe(false);
-    expect(StageFrame.safeParse({ ...frame(), kit: 'tides.v1' }).success).toBe(false);
+    expect(StageFrame.safeParse({ ...frame(), kit: 'circulation.v1' }).success).toBe(false);
   });
 
   it('refuses an extra key, and a kit id that is not the form of one', () => {
@@ -52,7 +55,7 @@ describe('a stage frame on its own', () => {
   it('takes a frame of a kit the code no longer defines, as it was stored, but never a live kit’s with a wrong state', () => {
     const stored = { kit: 'gone.v1', state: { anything: 'a word' }, alt: 'What the old kit showed.' };
     expect(StageFrame.safeParse(stored)).toEqual({ success: true, data: stored });
-    expect(StageFrame.safeParse({ ...stored, kit: 'tides.v1' }).success).toBe(false);
+    expect(StageFrame.safeParse({ ...stored, kit: 'circulation.v1' }).success).toBe(false);
   });
 });
 

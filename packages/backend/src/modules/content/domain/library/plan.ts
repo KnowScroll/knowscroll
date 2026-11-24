@@ -71,10 +71,7 @@ export interface LibrarySystem extends SameMeaning {
  */
 export const STAGE_KIT_IDS = [
   'earth-sky.v1',
-  'tides.v1',
   'greenhouse.v1',
-  'star.v1',
-  'transit.v1',
   'circulation.v1',
   'nerve.v1',
   'starlight.v1',

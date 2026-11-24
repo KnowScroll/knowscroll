@@ -221,6 +221,8 @@ const KIT_RECIPES_V3 = {
   'starlight.v1': ['exoplanet-habitable-zone', 'stars-colour-brightness'],
   'black-hole.v1': ['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon'],
 } as const;
+/** The kits whose code is already deleted (#799): `STAGE_KIT_IDS` no longer lists them, and their recipes are still planned as v3. */
+const DELETED_KIT_IDS: readonly string[] = ['tides.v1', 'star.v1', 'transit.v1'];
 const V3_KIT_KEYS: readonly string[] = Object.values(KIT_RECIPES_V3).flat();
 const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
 
@@ -246,7 +248,7 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
   it('plans the 22 recipes that had a kit as document v3 Scrolls, each kit’s recipes together (#787)', () => {
     expect(V3_KIT_KEYS).toHaveLength(22);
     for (const [kit, keys] of Object.entries(KIT_RECIPES_V3)) {
-      expect(STAGE_KIT_IDS, kit).toContain(kit);
+      expect([...STAGE_KIT_IDS, ...DELETED_KIT_IDS], kit).toContain(kit);
       for (const key of keys) expect(RECIPES[key].scrollV3, key).toBeDefined();
     }
     // Earth & sky, Space and the heart and nerves of the Human body: the systems whose subjects the kits drew.

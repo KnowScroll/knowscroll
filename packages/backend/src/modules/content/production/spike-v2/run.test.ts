@@ -109,10 +109,7 @@ const never = new AbortController().signal;
 describe('the writer spike runs a stage recipe of each drawing kit (D-194)', () => {
   // One recipe of each kit, with the recorded answer drawn with that kit. The fixture is Orrin text, not product content.
   it.each([
-    ['tides.v1', 'tides'],
     ['greenhouse.v1', 'greenhouse-radiation'],
-    ['star.v1', 'stars-fusion'],
-    ['transit.v1', 'exoplanet-transit'],
     ['circulation.v1', 'cardiac-cycle'],
     ['nerve.v1', 'action-potential'],
     ['starlight.v1', 'stars-colour-brightness'],
@@ -141,7 +138,7 @@ describe('the writer spike runs a stage recipe of each drawing kit (D-194)', () 
       outcome: proposed(false),
       attempts: [attempt('att-1', 'primary', { input: 1, output: 1, thinking: 0 })],
     });
-    const { line } = await spike.writeOne('tides', never);
+    const { line } = await spike.writeOne('greenhouse', never);
     expect(line.variant).toBe('stage');
     expect(line.outcome).not.toBe('accepted_first_take');
   });

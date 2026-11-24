@@ -4,10 +4,7 @@ import { BLACK_HOLE_KIT, BLACK_HOLE_KIT_DEFINITION } from './black-hole.js';
 import { type KitDefinition } from './definition.js';
 import { GREENHOUSE_KIT, GREENHOUSE_KIT_DEFINITION } from './greenhouse.js';
 import { NERVE_KIT, NERVE_KIT_DEFINITION } from './nerve.js';
-import { STAR_KIT, STAR_KIT_DEFINITION } from './star.js';
 import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
-import { TIDES_KIT, TIDES_KIT_DEFINITION } from './tides.js';
-import { TRANSIT_KIT, TRANSIT_KIT_DEFINITION } from './transit.js';
 
 /**
  * Every drawing kit a Scroll's stage can use (D-194). A stage names one kit and every state of that
@@ -17,10 +14,7 @@ import { TRANSIT_KIT, TRANSIT_KIT_DEFINITION } from './transit.js';
  */
 export const STAGE_KIT_IDS = [
   EARTH_SKY_KIT,
-  TIDES_KIT,
   GREENHOUSE_KIT,
-  STAR_KIT,
-  TRANSIT_KIT,
   CIRCULATION_KIT,
   NERVE_KIT,
   STARLIGHT_KIT,
@@ -35,10 +29,7 @@ export function isStageKitId(id: string): id is StageKitId {
 
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [EARTH_SKY_KIT]: EARTH_SKY_KIT_DEFINITION,
-  [TIDES_KIT]: TIDES_KIT_DEFINITION,
   [GREENHOUSE_KIT]: GREENHOUSE_KIT_DEFINITION,
-  [STAR_KIT]: STAR_KIT_DEFINITION,
-  [TRANSIT_KIT]: TRANSIT_KIT_DEFINITION,
   [CIRCULATION_KIT]: CIRCULATION_KIT_DEFINITION,
   [NERVE_KIT]: NERVE_KIT_DEFINITION,
   [STARLIGHT_KIT]: STARLIGHT_KIT_DEFINITION,
@@ -153,80 +144,6 @@ export {
   type SynapseStep,
 } from './nerve.js';
 export {
-  describeStarState,
-  INITIAL_STAR_STATE,
-  lifetimeInSunLifetimes,
-  mainSequenceRadiusInSuns,
-  MASS_IN_SUNS,
-  settleStarState,
-  STAR_ENUMS,
-  STAR_KIT,
-  starParts,
-  starPhysics,
-  StarStateSchema,
-  surfaceAt,
-  type StarEnd,
-  type StarMass,
-  type StarMotion,
-  type StarPart,
-  type StarPatch,
-  type StarPhysics,
-  type StarStage,
-  type StarState,
-  type StarView,
-  type SurfaceTemperature,
-} from './star.js';
-export {
-  combinedTide,
-  describeTidesState,
-  INITIAL_TIDES_STATE,
-  MOON_DIRECTION_DEGREES,
-  MOON_DISTANCE_EARTH_RADII,
-  moonPull,
-  SOLAR_SHARE_OF_LUNAR,
-  settleTidesState,
-  SUN_DIRECTION_DEGREES,
-  tideRangeByPhase,
-  TIDES_ENUMS,
-  TIDES_KIT,
-  tidesParts,
-  tidesPhysics,
-  TidesStateSchema,
-  type CombinedTide,
-  type MoonPhase,
-  type MoonPull,
-  type TideKind,
-  type TidesPart,
-  type TidesPatch,
-  type TidesPhysics,
-  type TidesState,
-  type TidesView,
-} from './tides.js';
-export {
-  brightnessAt,
-  coveredShare,
-  CROSSING_SEPARATION,
-  describeTransitState,
-  INITIAL_TRANSIT_STATE,
-  ORBIT_RADIUS_IN_STAR_RADII,
-  orbitDegreesAt,
-  PLANET_WIDTH_SHARE,
-  settleTransitState,
-  TRANSIT_ENUMS,
-  TRANSIT_KIT,
-  transitDepth,
-  transitParts,
-  transitPhysics,
-  TransitStateSchema,
-  type CrossingPlace,
-  type PlanetSize,
-  type TransitPart,
-  type TransitPatch,
-  type TransitPhysics,
-  type TransitState,
-  type TransitView,
-} from './transit.js';
-export {
   BLACK_HOLE_ENUMS,
   BLACK_HOLE_KIT,
   blackHoleParts,
@@ -276,12 +193,6 @@ export {
   wavelengthColour,
   WIEN_NANOMETRE_KELVINS,
 } from './spectrum.js';
-export {
-  LUMINOSITY_MASS_EXPONENT,
-  mainSequenceLuminosityForMass,
-  mainSequenceRadiusForMass,
-  RADIUS_MASS_EXPONENT,
-} from './star.js';
 export {
   describeStarlightState,
   DISTANCE_STEPS,

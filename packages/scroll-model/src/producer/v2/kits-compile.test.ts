@@ -20,10 +20,7 @@ const OTHER_KITS = STAGE_KIT_IDS.filter((id): id is Exclude<StageKitId, 'earth-s
 
 /** A state for each kit that holds a word its view does not draw: it has to be settled before it is stored. */
 const UNSETTLED: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, Record<string, string>>> = {
-  'tides.v1': { view: 'bulges', moonAt: 'full', focus: 'none' },
   'greenhouse.v1': { view: 'sunlight', layer: 'none', change: 'just-thickened', focus: 'none' },
-  'star.v1': { view: 'balance', balance: 'steady', mass: 'high', stage: 'main-sequence', focus: 'none' },
-  'transit.v1': { view: 'compare', planet: 'large', at: 'middle', focus: 'none' },
   'circulation.v1': {
     view: 'pressure',
     phase: 'ejection',

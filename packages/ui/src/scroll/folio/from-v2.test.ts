@@ -5,10 +5,7 @@ import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
-import star from '@knowscroll/scroll-model/fixtures/star-stage-ci.json';
 import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
-import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
-import transit from '@knowscroll/scroll-model/fixtures/transit-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
 import { drawableStage } from '../stage/stage-figure';
@@ -19,10 +16,7 @@ import { beatsOf, type ReadingBlock } from './reading-model';
 /** The labelled CI fixtures of `scroll-model` (not product content): every kit, and the two without a picture. */
 const FIXTURES = Object.entries({
   seasons,
-  tides,
   greenhouse,
-  star,
-  transit,
   circulation,
   nerve,
   starlight,
