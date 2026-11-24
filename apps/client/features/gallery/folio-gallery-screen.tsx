@@ -7,7 +7,6 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import broadStreetV3 from '@knowscroll/scroll-model/fixtures/broad-street-v3-ci.json';
 import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
-import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
@@ -52,7 +51,6 @@ const folioGalleryMarker = 'ks-folio-gallery';
  */
 const documents = {
   seasons,
-  nerve,
   starlight,
   blackHole,
   scaleChart,

@@ -69,7 +69,7 @@ export interface LibrarySystem extends SameMeaning {
  * recipe named a kit only where that kit drew what the recipe is about (D-125, D-194, D-201, D-204); none does since #787.
  * `scroll-model` owns the kits themselves; this list names them for the plan, and a test keeps the two in step.
  */
-export const STAGE_KIT_IDS = ['earth-sky.v1', 'nerve.v1', 'starlight.v1', 'black-hole.v1'] as const;
+export const STAGE_KIT_IDS = ['earth-sky.v1', 'starlight.v1', 'black-hole.v1'] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 /**

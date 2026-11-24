@@ -59,10 +59,19 @@ const REWORDED: readonly (readonly [string, string])[] = [
   ],
 ];
 
-/** The recorded answer for a recipe, drawn with the kit the recipe names. */
+/** The recorded answer for a recipe, drawn with the kit the recipe names; a recipe with no kit is a plain Scroll, so the picture is taken out. */
 function answerFor(key: ScrollTopic) {
   const kit = RECIPES[key].stageKit;
-  let json = JSON.stringify(fixtureAuthoredV2(kit));
+  const authored = JSON.parse(JSON.stringify(fixtureAuthoredV2(kit))) as {
+    items: { stage?: unknown; revealsNext?: unknown }[];
+  };
+  if (kit === undefined)
+    for (const item of authored.items) {
+      delete item.stage;
+      // A call that turns the picture needs a picture to turn (D-383).
+      delete item.revealsNext;
+    }
+  let json = JSON.stringify(authored);
   for (const [from, to] of REWORDED) {
     if (!json.includes(from)) throw new Error(`CI fixture: the sentence to reword is not there: ${from}`);
     json = json.replaceAll(from, to);
@@ -603,8 +612,9 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     });
 
     it('releases nothing of a topic the catalogue calls sensitive, produced by the real job and approved by a row', async () => {
-      const body = await ready('reflex-arc');
-      await approveDirectly('human-body.nervous-system');
+      // `human-body` is sensitive through its system; every recipe of it that still has a former v2 plan is a plain Scroll.
+      const body = await ready('immune-memory');
+      await approveDirectly('human-body.immune-system');
       expect(await policy().sweep(on)).toMatchObject({
         kind: 'swept',
         considered: 1,

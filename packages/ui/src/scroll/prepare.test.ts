@@ -114,18 +114,6 @@ describe('the renderer on the device', () => {
       // The recap picture's months and words (V3 F10): derived from the states a document already holds.
       'recapMonths',
       'describeStageRecap',
-      // The nerve kit's physics (D-201): derivations at one state and a model of the membrane, no admission.
-      'actionPotential',
-      'arcPhysics',
-      'AXON_PEAK_AT',
-      'axonProfile',
-      'nerveParts',
-      'postsynapticCourse',
-      'pushResponses',
-      'spikePhysics',
-      'SYNAPSE_TIME_IN_CONSTANTS',
-      'synapsePhysics',
-      'TRACE_STEP',
       // The Space kits' physics (D-204): the same derivations the text versions use, at one state, with no admission.
       'BLACK_HOLE_ENUMS',
       'blackbodyColour',

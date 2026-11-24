@@ -3,7 +3,6 @@ import {
   AXIAL_TILT_DEGREES,
   describeStageAtTilt,
   type BlackHoleState,
-  type NerveState,
   type StageState,
   type StarlightState,
 } from '../model';
@@ -11,8 +10,6 @@ import { BlackHolePicture } from './black-hole';
 import { blackHoleSceneOf, canTweenBlackHole, lerpBlackHoleScene, type BlackHoleScene } from './black-hole-scene';
 import { EarthSkyPicture } from './earth-sky';
 import { canTween, describeRecap, lerpScene, recapSceneOf, sceneOf, type EarthSkyScene } from './earth-sky-scene';
-import { NervePicture } from './nerve';
-import { canTweenNerve, lerpNerveScene, nerveSceneOf, type NerveScene } from './nerve-scene';
 import { StarlightPicture } from './starlight';
 import { canTweenStarlight, lerpStarlightScene, starlightSceneOf, type StarlightScene } from './starlight-scene';
 
@@ -78,12 +75,6 @@ export const KIT_PICTURES = {
       describe: describeStageAtTilt,
     },
     recap: { sceneOf: recapSceneOf, describe: describeRecap },
-  }),
-  'nerve.v1': kitPicture<NerveState, NerveScene>({
-    sceneOf: nerveSceneOf,
-    canTween: canTweenNerve,
-    lerpScene: lerpNerveScene,
-    Picture: NervePicture,
   }),
   'starlight.v1': kitPicture<StarlightState, StarlightScene>({
     sceneOf: starlightSceneOf,

@@ -16,7 +16,7 @@ import type { Point } from './earth-sky-scene';
  */
 
 export const INK = content.ink;
-export const PAPER = content.paper;
+const PAPER = content.paper;
 export const PAPER_DEEP = content.paper2;
 export const SUN = content.continue;
 export const BLUE = content.accent;
@@ -27,8 +27,7 @@ export const MUTED = content.muted;
 export const SOLID = scrollPage.solid;
 export const LIT = scrollPage.lit;
 export const OUTLINE = 2.5;
-/** The printed page's ground and sunken colours as plain hex, for colour maths only (see `mixColour`). */
-export const PRINTED_PAPER = printed.paper;
+/** The printed page's sunken colour as plain hex, for colour maths only (see `mixColour`). */
 export const PRINTED_PAPER_DEEP = printed.paper2;
 
 /**

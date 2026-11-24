@@ -20,15 +20,6 @@ const OTHER_KITS = STAGE_KIT_IDS.filter((id): id is Exclude<StageKitId, 'earth-s
 
 /** A state for each kit that holds a word its view does not draw: it has to be settled before it is stored. */
 const UNSETTLED: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, Record<string, string>>> = {
-  'nerve.v1': {
-    view: 'axon',
-    phase: 'rising',
-    along: 'start',
-    synapseAt: 'arrives',
-    effect: 'excite',
-    arcAt: 'sensor',
-    focus: 'none',
-  },
   'starlight.v1': { view: 'dimming', star: 'giant', distance: 'far', orbit: 'none', focus: 'none' },
   'black-hole.v1': { view: 'pull', star: 'sun-like', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
 };
