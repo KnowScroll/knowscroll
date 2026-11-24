@@ -23,15 +23,15 @@ import {
   TOPICS,
 } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { WRITER_V3_PROMPT_VERSION } from '../../../packages/backend/src/modules/content/production/writer-v3-version.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { catalogueOf } from '../support/catalogue.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { answerWith, enableProductionScope, fixtureAuthored } from '../support/generated-scroll.js';
+import { answerWith, enableProductionScope } from '../support/generated-scroll.js';
 import { quotablePassages } from '../support/held-v3.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
-import { markScrollV1, orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { v3Client } from '../support/scroll-v3.js';
 
 const key = 'seasons';
@@ -100,15 +100,14 @@ function copyingParagraphAndChartWithoutMarks(): unknown {
  * never provider output or product content).
  */
 describe('A document v3 library recipe is written, held, attributed, covered, checked and released (real PostgreSQL; fixture model)', () => {
-  // The plan marks Seasons v2: for this file it is a document v3 recipe instead.
-  const restoreV2 = markScrollV1(key);
+  // The Orrin reply is written to the spike's Seasons plan: for this file the recipe takes it, and gets its own plan back after.
   const planned = RECIPES[key] as { scrollV3?: ScrollV3Plan };
+  const ownPlan = planned.scrollV3;
   beforeAll(() => {
     planned.scrollV3 = V3_PLAN;
   });
   afterAll(() => {
-    delete planned.scrollV3;
-    restoreV2();
+    planned.scrollV3 = ownPlan;
   });
 
   let database: TestDatabase<Database>;
@@ -348,11 +347,8 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
     });
 
     it('releases the revision with no person when it replaces a served v1, and the v1 is served to no one afterwards (D-435, decisions 6 and 9; was: held replaces_served for a person)', async () => {
-      // The earlier revision: the recipe's v1 Scroll, published straight to readers as it was before the plan marked it.
-      delete planned.scrollV3;
-      const earlier = fixtureProductionWorker(database, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
-      expect(await earlier.producer()(key, false, signal())).toMatchObject({ outcome: 'published', revision: 1 });
-      planned.scrollV3 = V3_PLAN;
+      // The earlier revision: the recipe's v1 Scroll, published straight to readers as it was before the plan marked it (stored as the v1 job stored it, #818).
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId: recipe.assetId, revision: 1 });
 
       const worker = setup(good);
       const result = await worker.producer()(key, false, signal());

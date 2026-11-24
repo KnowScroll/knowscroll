@@ -9,10 +9,8 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { attemptsOf, signal } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
-import { markRecipesV1 } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { seedOlderRereads } from '../support/rereads.js';
 
 /** The catalogue of the library plan (release 1), which the migrated database seeds: the topics these journeys use. */
@@ -59,9 +57,6 @@ function cartographer(world: GeographyWorld) {
 }
 
 describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', () => {
-  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
-  const restoreRecipes = markRecipesV1('tides', 'tides-spring-neap', 'tides-coasts');
-  afterAll(restoreRecipes);
   let world: GeographyWorld, steps: ReturnType<typeof cartographer>;
   beforeAll(async () => {
     world = await geographyWorld('cartographer_formation');
@@ -98,19 +93,14 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     expect(universe.page.objects.find((place) => place.kind === 'planet')?.label).toBe('Seasons');
   });
 
-  it('forms the Tides planet from three Scrolls published by the production path', async () => {
+  it('forms the Tides planet from three stored v1 Scrolls', async () => {
     const { database, observe } = world;
     const { cartograph, placeKinds, dust } = steps;
-    await enableProductionScope(database.db);
     const scrolls = [];
-    // Three v1 recipes of one planet (the Seasons recipes are v2 and wait at the review gate, D-138).
+    // Three v1 Scrolls of one planet, stored as the v1 production job stored them (it is deleted, #818; stage and main still hold such Scrolls).
     for (const key of ['tides', 'tides-spring-neap', 'tides-coasts'] as const) {
       const recipe = TOPICS[key];
-      const production = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
-      expect(await production.produce(key, false, signal(), false)).toMatchObject({
-        outcome: 'published',
-        assetId: recipe.assetId,
-      });
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId: recipe.assetId, revision: 1 });
       const row = await database.db
         .selectFrom('content.asset_revisions')
         .select('reading_facts')

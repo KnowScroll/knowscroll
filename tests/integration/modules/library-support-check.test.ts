@@ -45,13 +45,13 @@ import type { FixtureCall, FixtureScenario } from '../support/fixture-model-port
 import {
   answerWith,
   enableProductionScope,
-  fixtureAuthored,
   fixtureResearchPage,
   librarySupportTarget,
   supportReply,
   supportRequestOf,
 } from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
+import { storeV1Order } from '../support/stored-v1.js';
 import { storeV2 } from '../support/stored-v2.js';
 
 /**
@@ -983,7 +983,6 @@ describe('what the check stores about each sentence, and what it refuses to chec
   let database: TestDatabase<Database>;
   let worker: ReturnType<typeof fixtureProductionWorker>;
   /** The worker that writes an order, a thread's what-if: the lighthouse fixture in the shape the order's writer asks for. */
-  let orders: ReturnType<typeof fixtureProductionWorker>;
   let reply: (call: FixtureCall) => FixtureScenario = (call) => checkerReply(call);
   const takes = new Map<ScrollTopic, number>();
   const withScope = () => makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
@@ -998,7 +997,6 @@ describe('what the check stores about each sentence, and what it refuses to chec
       research: (url) => Promise.resolve(orrinPageFor(url)),
       librarySupport: (_n, call) => reply(call),
     });
-    orders = fixtureProductionWorker(database, () => answerWith(fixtureAuthored('comparison')));
   });
   afterAll(async () => {
     await database.drop();
@@ -1105,10 +1103,14 @@ describe('what the check stores about each sentence, and what it refuses to chec
         values (${recipe}, ${assetId}::uuid, ${recipe}, ${'what_if'}, ${'KIND: a CI what-if'}, ${[fixtureResearchPage.url]}::text[], ${'You asked'}, ${JSON.stringify({ kind: 'factual' })}::jsonb)`.execute(
         database.db,
       );
-      const produced = await orders.producer()(recipe, false, signal(), false, 1);
-      expect(produced).toMatchObject({ outcome: 'published' });
+      // The order's revision, stored as the v1 job stored it: nothing writes a Scroll made to order any more (#818).
+      const order = await storeV1Order(database.db, {
+        assetId,
+        explanationUnitId: recipe,
+        kicker: 'You asked',
+        framing: { kind: 'factual' },
+      });
       const calls = worker.librarySupportCalls.length;
-      const order = { assetId, revision: produced.revision! };
       // The order's revision is stored, and no review row exists for it.
       expect(
         (await sql`select 1 from content.revision_reviews where asset_id = ${assetId}::uuid`.execute(database.db)).rows,

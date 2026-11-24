@@ -26,12 +26,7 @@ A `runtime-verified` mark that names a day and a run folder (`journeys-v3`, `dev
 
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
-client). It runs on dev: ask orders, Quick answers and a free-text ask answered from the library were seen there (2 Nov, dev-check-10 and dev-check-9; 1 Nov, journeys-v3). Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
-models; five real asks on dev reached Ready (2 Nov, dev-check-10, writer v9), so the ask order is **runtime-verified** on dev. The library check of a question (D-251) and the support
-check of an order's answer (D-250, in [content/production](../content/production/README.md)) are **implemented** and CI-verified with labelled
-fixture models; their real-model measurement is **planned** (the coordinator's replay, `content ask-check`). S-7c (D-263, D-265 to D-267) made the check work on real
-model output: quotes are matched after normalising marks and spacing, a verdict that breaks a rule makes only its sentence unsupported, titles and
-headings may be marked as stating no fact, and a long answer is checked in batches.
+client). It ran on dev: ask orders, Quick answers and a free-text ask answered from the library were seen there (2 Nov, dev-check-10 and dev-check-9; 1 Nov, journeys-v3). **The ask order's writer is deleted (#818, D-443):** an ask order ("You asked", D-218) is switched off in every world (D-436) and the v1 writer that made its Scroll, with the support check built on its block shape (D-250, in [content/production](../content/production/README.md)) and the replay `content ask-check`, is gone. An order that still reaches production ends as `rejected` with `made_to_order_unavailable`, before any research or request, so the order's standing reads as a rejected take (`retryable`, then `stopped` after three). What stays of this module's ask path is what does not need the writer: the request, the scope step, the library check of a question (D-251), the caps and the ledger, and the Quick answer, which uses the shared support checker (D-253, D-263, D-265 to D-267) in one request. Rebuilding the ask order on the document v3 writer is a later decision.
 
 ## What a person can do
 
@@ -187,7 +182,7 @@ client can leave it out. The switch is not a cap: `askCaps` keep their meaning (
 9. **The brief is one quoted line.** `askBrief` collapses the person's words (and the Scroll's title and stop) to one line, dropping control and format characters, so typed text cannot start a line of the brief of its own.
 10. **Never the Scroll being read.** `inventory` skips the source's explanation for every ask, so placing, polling and Try again can all not return the Scroll the question was asked from (D-230).
 
-_Implemented._ Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience) and asking as a wager (D3). Asking from selected words (D2) is the Quick answer below.
+_The reading side is implemented; the ask order's writer is deleted (#818, D-443)._ Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience) and asking as a wager (D3). Asking from selected words (D2) is the Quick answer below.
 
 ## Quick answer (D-086, D-253 to D-255; v3 S-9b)
 

@@ -101,10 +101,10 @@ never doubled). That also revives a job the queue dead-lettered. A run that paus
 the step's attempt slots (four unsent attempts per step, `attempts_exhausted`) and the take ends as
 `rejected`; the next take starts fresh.
 
-### The Scrolls made to order are switched off (D-436, #784)
+### The Scrolls made to order are switched off (D-436, #784) and have no writer (#818, D-443)
 
-"You asked" (an ask order), "What if" and "Another perspective" (a branch inside a thread) are the Scrolls made to order: each is a production for one person or
-one thread, written with the v1 writer, which is deleted later in this step. One switch turns all three off together: `KS_MADE_TO_ORDER_ENABLED`, read by the API
+"You asked" (an ask order), "What if" and "Another perspective" (a branch inside a thread) are the Scrolls made to order: each was a production for one person or
+one thread, written with the v1 writer, which is deleted (#818, D-443: the owner's "Delete it now."). One switch turns all three off together: `KS_MADE_TO_ORDER_ENABLED`, read by the API
 **and** the worker, **off in every world** unless it is `1` (the Ansible roles do not set it, so no world has it on). While it is off:
 
 - the API refuses to make one: an ask closes `budget_unavailable` with the limit `off`, a retry is `not_retryable`, a What if draft or a choice is `made_to_order_off` (answered as `SHARING_UNAVAILABLE`, 404);
@@ -112,8 +112,8 @@ one thread, written with the v1 writer, which is deleted later in this step. One
 - the app (it asks the API, `GET /v1/account/features`) shows no way in: no Ask row or key, no suggested questions, no What if or Another perspective, no branch cards or Map, and no question asked from a Scroll in "Your requests".
 
 Nothing is deleted: orders and Scrolls already made stay in the database and can still be read by ID; the cleanup of the dev database is a separate step that needs the owner's go. To check the switch in a world,
-read `GET /v1/account/features` as a signed-in person: `madeToOrder` is `false` unless the API's environment sets it. **Turning them back on needs a v3 writer for these Scrolls first** (D-436); setting the switch alone
-would run the v1 writer.
+read `GET /v1/account/features` as a signed-in person: `madeToOrder` is `false` unless the API's environment sets it. **Turning them back on needs a document v3 writer for these Scrolls first** (D-436). There is no writer now: with the
+switch set to `1`, an `order-…` job that reaches production is ended before any research or request as `rejected` with the code `made_to_order_unavailable` (`content.scroll_production_finished`, `outcome: rejected`), so setting the switch alone writes nothing and spends nothing. The product rules the v1 writer carried for the three modes are kept word for word in D-443.
 
 ### Research that is down
 
@@ -213,9 +213,7 @@ pnpm build
 node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
-The bound is **two model requests per take for a v1 recipe**: the writer, and at most one repair. A v2 library recipe adds the
-answer check (D-198): the bound is **six**, two writer requests (the draft and one repair, from the validator or from the check)
-and the checker once for each of the two drafts, each with at most one repair of an unusable reply. A refusal ends the
+The bound is **six model requests per take** for a library recipe (all of them are document v3 recipes): the writer once and at most one repair, and the answer check of a document v3 sends none (a v2 take's checks were deleted, #815). The v1 writer's two-request take is deleted with it (#818). A refusal ends the
 take; a spent budget or quota pauses it; an unknown outcome halts the recipe, except the checker's, which leaves the Scroll
 held and marked unchecked.
 Output is one JSON line with IDs, outcome codes, attempt states and token counts; never prompts,
@@ -243,9 +241,7 @@ Usual findings and what they mean:
 
 | Finding | Meaning |
 |---|---|
-| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). For an ask answer code takes out the copying sentences itself before the check (D-348), so the finding appears only for a copied run it could not place; the revision after an ask's support check has one repair of its own, for this finding and the two below (D-314, D-353); any other refusal of it ends the job. |
-| `answer_sentences_out_of_brief` | An ask answer, as it would be served, has fewer than 5 or more than 20 sentences of reading text (the dek, paragraphs, list items and callout text; not the title, a heading or a callout's title). The writer is asked for 8 to 12 (D-308, D-350). |
-| `direct_answer_lost` | Every sentence of an ask answer's opening paragraph repeated a passage and was taken out (D-348). The finding names the block; a fixed hint asks for at least one sentence in the writer's own words. |
+| `copied_passage` | Nine words in a row match a source passage. The repair is told, for each block, the passage words it copied (at most six runs of twenty words, `<repair-notes>`, D-294). |
 | `authoring_number_not_in_evidence` | A figure (or a plotted chart value) is in no passage the block cites. |
 | `too_big` / `too_small` at a field | A length limit; the finding names the field and the limit. |
 | `OUTPUT_NOT_ONE_JSON_OBJECT` | The reply is not one JSON object; the detail says where it stopped being JSON. |
@@ -663,52 +659,9 @@ node dist/operator.js content production-status --only seasons,seasons-hemispher
 
 **Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
-## Checking stored ask answers (S-7b to S-7h, D-250 to D-252, D-263, D-265, D-280 to D-282, D-305 to D-316, D-348 to D-356, D-371 to D-376)
+## Checking stored ask answers (deleted, #818, D-443)
 
-A person's question from a Scroll becomes a short answer made for them (an ask order, D-218). Nobody reads it first, so its job runs a second model, the **support
-check**, which reads each sentence against the passages the answer cites. The writer is asked for 8 to 12 sentences (`question-writer.v9`, paired with `ask-support-check.v5`). Before the check, code takes out the sentences that copy a passage, a leaning first sentence and the leaning sentences after a removed one (D-348, D-349), and replaces a copied title or dek with a line of its own: the title is "Your question about" and the title of the Scroll being read, never the person's question (D-351). Only an answer outside 5 to 20 sentences of its own is refused; the line code wrote for a dek is not counted (D-350, D-356). A sentence they do not support earns one revision, and none when only the title or the dek failed and the drop below would serve the draft (D-352);
-the sentences that still fail after it are taken out, a flagged title or dek is replaced by the same lines, and the rest is served if the direct answer keeps a supported sentence and at least five sentences of reading text are supported (D-310); otherwise
-the person gets the honest "could not prepare" state. A sentence that was never checked or is unsupported is never served, apart from the fixed lines code writes: the title and dek that replace a copied or flagged one, and the closing "Where this stops" callout (D-371). Code writes that callout itself ("This answer uses only what the library's sources say. It may not cover every case."), replaces any limits callout the writer still sends, and never sends it to the check, so it cannot fail the answer. In a job's receipts, `answer_trimmed` with `limitsReplaced: 1` means the writer still sent one; the replay line prints the same count. How it works: [content/production README](../../../packages/backend/src/modules/content/production/README.md).
-
-`content ask-check` runs the same checker again over answers that were already made, to see what it says. It publishes, stores and changes nothing, and it
-never reads a person's question (the check does not use one). It calls the production harness, so every request is an attempt in the ledger and spends the
-production budget (`KS_REASONING_PRODUCTION_ENABLED=1`, `KS_MINIMAX_MODEL=MiniMax-M3.1-Flash`; any other model is refused).
-
-```sh
-node dist/operator.js content ask-check --recent 5 --out /var/tmp/ks-v3-spike/ask-check-580.jsonl
-node dist/operator.js content ask-check --asset <asset id>[,<asset id>…] --out /var/tmp/ks-v3-spike/ask-check-580.jsonl
-node dist/operator.js content ask-check --recent 5 --out /var/tmp/ks-v3-spike/ask-check-candidate.jsonl --checker-instructions /var/tmp/ks-v3-spike/checker-candidate.txt
-```
-
-`--recent <n>` takes the newest published ask answers (1 to 20), `--asset` names them (at most 20; an asset that is not a stored ask answer is reported as
-`not_replayable` and asks the model nothing). `--out` is required.
-
-**Trying a change to the checker's instructions (D-280).** `--checker-instructions <absolute path>` asks the checker with the instructions in that file instead of the production ones, so a
-change can be measured on dev before it is built into a version. Copy the file to the server first (an absolute path, UTF-8 plain text, at most 16 KiB; the text of the version in the
-repository is itself a valid candidate). Everything else is the same: the same batches, the same rules applied to every reply, nothing stored, and the model must
-still be `MiniMax-M3.1-Flash`. A candidate has a role id of its own (`content.ask-support-check-candidate`), so its daily budget and its failure brake (five failed runs a day)
-are its own: a candidate that keeps failing stops candidates until 00:00 UTC, and never the checks of real asks. It does count against the production scope's daily request cap
-(`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`), which is shared by every role, so a replay of 20 answers can use up requests that asks and library takes also need. Every line on standard output (and every line in the file) then carries `"candidate": true` and `"candidateSha256"`, the SHA-256 of the file, and the ledger
-records the requests under the role version `ask-support-check.cand-<first 8 characters of the hash>`, so a candidate's runs are never taken for the production checker's. A file that is
-not absolute, under `/etc`, `/proc` or `/root/.ssh`, a link (or reached through one), not a plain file, too big, not UTF-8, blank, not plain text, or not instructions for this checker
-(any `NAME=value` line, or any of `"supported"`, `"unsupported"`, `"no_claim"` missing: a settings file named by mistake is refused) is refused with a one-word code and exit status 2, before anything is touched.
-The text goes to the provider and into the request store, so never put a secret in a candidate file. No other operator command
-accepts the option, and the job that serves people never reads such a file. To compare, run the same `--asset` list with the candidate and without it, and read `codes` first: a
-high `quote_not_about_sentence` or `no_claim_without_ground` count is the code's rule deciding, not the checker's judgement.
-
-- **Standard output** is one JSON line for each answer: its asset ID, `outcome` (`checked`, `unchecked` with a `code`, `paused`, `not_replayable`), the counts of
-  sentences, supported, unsupported and no-claim, the batches (a long answer is checked ten sentences at a time), the requests sent (one for each batch, and one
-  more when the harness repaired an unusable reply) and `codes`: how many sentences code set aside as unsupported, for each rule that did it
-  (`quote_not_in_cited_passages`, `quote_not_about_sentence`, `quote_too_short`, `no_claim_without_ground`, `too_many_no_claim`), and how many `no_claim` verdicts passed on each ground (`no_claim_label`, `no_claim_gap`, `no_claim_question`, `no_claim_short`, `no_claim_unshared`): a high `no_claim_label`, `no_claim_short` or `no_claim_unshared` is the place to look for a checker that waves sentences through. `dropped` is how many sentences the production job took out of the answer it served (D-310, D-311): the answer replayed is the served one, so these sentences are not in the file. It is absent for an answer served whole. No sentence, title or question is
-  printed, so the output may be pasted into an issue.
-- **The file** gets one JSON line for each checked answer: its title, and every sentence with the passages it cites and the checker's verdict (the quote for a supported
-  sentence; the kind and the note for an unsupported one, and the rule's `code` when code set it aside). It holds the answer's own words, which can echo a person's question, so read it from the server shell, never paste it into an issue, and **delete the file as soon as you have read it** (`shred -u <file>` or `rm <file>`). The command creates it readable by its owner only.
-- **Exit status:** 0 when it ran to the end, 2 when it was refused or stopped early (a spent budget or quota, an attempt of unknown outcome, the wrong model), 1 on a failure.
-
-What the checker is, and is not: code checks the shape of the reply (a sentence skipped or reordered refuses the reply), and judges each verdict on its own sentence: a `supported` verdict that does not quote real words of a passage the sentence cites, or whose words are not about the sentence, makes that sentence unsupported with a `code` (D-250, D-263, D-265). A high count in `codes` means the checker's quotes are the problem, not the answer's sentences. Whether the words support the sentence is the checker model's judgement, and this replay is how it is measured. What to look for: the sentences you know are wrong should be `unsupported`; a good answer's sentences should be `supported` with a quote you can find in the answer's
-passages, and the quote should say what the sentence says, not only share its words. Many `unsupported` verdicts on sentences that are fine mean the checker is too strict (people will see "could not prepare" more often); `supported` on a
-sentence that says more than its passage means it is too lenient. Both are reasons to change the checker's instructions (a new `ask-support-check` version and the
-pair in `versions.test.ts`), not to read answers by hand.
+`content ask-check` (it ran the support check again over stored "You asked" answers, with `--recent`, `--asset` and `--checker-instructions`) is deleted with the v1 writer and the ask order's support check (D-250 to D-376). Made to order is switched off in every world (D-436) and has no writer, so there are no new ask answers to check; the answers already stored stay readable. The checker role itself stays, because a Quick answer, a resident's answer in a room and the library support check use it: [content/production README](../../../packages/backend/src/modules/content/production/README.md), "The shared support checker". What the library check measures, and how, is the next section.
 
 ## Measure the library support check (#674 slice 3.2, D-415)
 

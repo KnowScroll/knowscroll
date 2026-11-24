@@ -11,8 +11,8 @@ import {
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { makeRunScrollProduction } from './job.js';
 import { ASK_SUPPORT_BATCH_SENTENCES, ASK_SUPPORT_MAX_BATCHES } from '../domain/ask-support.js';
-import { ASK_SUPPORT_CHECK_VERSION } from './ask-support.js';
 import {
+  codeRecipeWriterRefusalOf,
   MAX_TAKES_PER_RECIPE,
   parseScrollTopic,
   planRefusalOf,
@@ -35,7 +35,6 @@ import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } 
 import { lineagePairsOf } from './publication-topic.js';
 import { WRITER_V2_PROMPT_VERSION } from './writer-v2-version.js';
 import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
-import { QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
 
 /**
  * Gives a recipe the plan a test asks for and nothing else, then puts its own back. The library plans every recipe as a document
@@ -175,6 +174,14 @@ describe('production versions: a recipe the plan marks document v3', () => {
     };
     expect(planRefusalOf('exoplanet-kinds')).toBe('misconception_source_unreviewed');
   });
+
+  it('refuses a code recipe with no document v3 plan, because the document v3 writer is the only writer (#818)', () => {
+    expect(codeRecipeWriterRefusalOf('exoplanet-kinds', {})).toBe('recipe_plan_not_v3');
+    expect(codeRecipeWriterRefusalOf('exoplanet-kinds', { scrollV3: {} })).toBeUndefined();
+    // A stored recipe has its own refusal, and an order is refused by the job, not by the plan.
+    expect(codeRecipeWriterRefusalOf(`gen-${'a'.repeat(8)}`, {})).toBeUndefined();
+    expect(codeRecipeWriterRefusalOf(`order-${'a'.repeat(32)}`, {})).toBeUndefined();
+  });
 });
 
 describe('what a call reports', () => {
@@ -233,29 +240,7 @@ describe('takes are counted per production version, so a writer bump gives new o
   });
 });
 
-describe('the answer to a question is written and checked as a pair (D-250)', () => {
-  /**
-   * Each question-writer version and the support check version it was released with. A new writer or a new checker
-   * without a row fails, so neither changes alone: the checker judges what the writer is told to write, and the writer is
-   * told it will be checked.
-   */
-  const SUPPORT_CHECK_OF_QUESTION_WRITER: Readonly<Record<string, string>> = {
-    'question-writer.v1': 'none',
-    'question-writer.v2': 'ask-support-check.v1',
-    'question-writer.v3': 'ask-support-check.v2',
-    'question-writer.v4': 'ask-support-check.v3',
-    'question-writer.v5': 'ask-support-check.v4',
-    'question-writer.v6': 'ask-support-check.v4',
-    'question-writer.v7': 'ask-support-check.v5',
-    'question-writer.v8': 'ask-support-check.v5',
-    // D-371: the writer is told not to write the limits callout, which code writes and the checker never reads; the checker is unchanged.
-    'question-writer.v9': 'ask-support-check.v5',
-  };
-
-  it('pairs the question writer’s instructions with the support check’s version', () => {
-    expect(SUPPORT_CHECK_OF_QUESTION_WRITER[QUESTION_WRITER_PROMPT_VERSION]).toBe(ASK_SUPPORT_CHECK_VERSION);
-  });
-
+describe('the production version of an order (D-250)', () => {
   it('keeps the library’s production version, because an order has one job a take and its key is its own', () => {
     expect(productionVersionOf(`order-${'a'.repeat(32)}`)).toBe(SCROLL_PRODUCTION_VERSION);
   });

@@ -10,7 +10,6 @@ import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-pr
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { compileEditorialSourceV3 } from '../../../packages/backend/src/modules/content/adapters/scroll-compiler-v3.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import {
   SCROLL_QUALIFICATION_POLICY_V0,
   SCROLL_SHARED_QUALIFICATION_POLICY as shared,
@@ -23,10 +22,10 @@ import {
 } from '../../../packages/backend/src/modules/evidence/domain/reading-summary.js';
 import { signal } from '../support/fixture-model.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
 import { activatedAgo, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { storeV2 } from '../support/stored-v2.js';
 import { documentV3Source } from '../support/scroll.js';
 
@@ -222,17 +221,9 @@ describe('The Seasons planet forms from a document v3 Part 1 and two v1 parts (r
     ).toMatchObject({ kind: 'released' });
     v2Part = { assetId: TOPICS.seasons.assetId, revision: 1 };
     v2HeadBefore = await coverageRowsOf(v2Part.assetId);
-    // Parts 2 and 3 stay v1 Scrolls, as in the v2 test.
+    // Parts 2 and 3 stay v1 Scrolls, as in the v2 test (stored as the v1 job stored them).
     for (const key of ['seasons-hemispheres', 'seasons-limits'] as const) {
-      const undo = markScrollV1(key);
-      try {
-        const production = fixtureProduction(database.db, () =>
-          answerWith(fixtureAuthored(writerFormatOf(TOPICS[key]))),
-        );
-        expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
-      } finally {
-        undo();
-      }
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId: TOPICS[key].assetId, revision: 1 });
       parts.push({ assetId: TOPICS[key].assetId, revision: 1 });
     }
     // The document v3 Part 1: admitted with its topic and beat coverage in one go.

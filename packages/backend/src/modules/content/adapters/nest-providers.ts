@@ -367,25 +367,6 @@ export {
 } from '../production/spike-v3/plans.js';
 export { describePicture, ScrollDocumentV3 } from '@knowscroll/scroll-model';
 /**
- * The operator's replay of the support check over stored ask answers (D-250): the checker run again on answers already
- * served, writing nothing. The line it prints holds counts only; the detail goes to a file the operator reads.
- */
-export {
-  ASK_SUPPORT_REPLAY_MAX,
-  isAssetId,
-  makeAskSupportReplay,
-  type ReplayLine,
-  type ReplayResult,
-  type ReplayTarget,
-} from '../production/ask-support-replay.js';
-/** Candidate checker instructions for that replay alone (D-280): read from a file, labelled by their hash, never used by production. */
-export {
-  CANDIDATE_INSTRUCTIONS_MAX_BYTES,
-  readCandidateInstructions,
-  type CandidateCheckerInstructions,
-  type CandidateReading,
-} from '../production/ask-support-candidate.js';
-/**
  * The support check of a library Scroll (D-415): the use case, the job that runs it for a queue delivery, the sweep that finds held
  * revisions with no result, the send that hands one over, and the operator's replay that measures the check against the
  * operator's own release and reject decisions.

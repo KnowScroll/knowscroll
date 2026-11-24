@@ -46,7 +46,7 @@ Background reading:
 | Entry | Who may import it | Contents |
 |---|---|---|
 | `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | `ScrollDocumentV3`, `validateDocumentV3`, `parseDocumentV3`, `negotiateV3`, `describePicture`, `coverFrameOfV3`, `momentOfBeat` (`scroll-document.v3`, see its section), `ScrollDocumentV2`, `LIMITS_V2`, `computeMeasuresV2`, the kit enums and `validateDocumentV2` (`scroll-document.v2`, D-120; `validateDocumentV2` is admission, not for clients). Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
-| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScrollV3` and `compileEditorialV3` (the hand-written `scroll-authoring.v3`), `AuthoredScroll` (what the writer model returns), `compileAuthored`, `authoringReference()` for the prompt, `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints, `unstatedFigures` (`producer/figures.ts`; the figures of a text that no passage writes the way the text does, with their sign, and spelled magnitudes and measurements: D-208 and D-302; a minus sign is the hyphen, U+2212, U+2012 or U+2013 before a digit, all the same sign, and a dash between two figures is a range) |
+| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScrollV3` and `compileEditorialV3` (the hand-written `scroll-authoring.v3`), `AuthoringEvidence` (the evidence a document v3 compile binds to), `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints, `unstatedFigures` (`producer/figures.ts`; the figures of a text that no passage writes the way the text does, with their sign, and spelled magnitudes and measurements: D-208 and D-302; a minus sign is the hyphen, U+2212, U+2012 or U+2013 before a digit, all the same sign, and a dash between two figures is a range) |
 | `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks; `ScrollProvenanceV3` (claims, sources, citations per beat, aside, picture and takeaway) |
 | `@knowscroll/scroll-model/admission` | backend only | `admitDocument`, `admitBlock` and `validateDocument`: every check including the full-grid proof. The public entry still re-exports the same functions for code written before this entry existed (they are the same function objects); new server code imports them from here, and client code may import neither (see the rules below). |
 | `@knowscroll/scroll-model/fixtures/<name>.json` | tests only | The labelled consumer-document fixtures (`fixtures/documents/`). Drafts, compile inputs and internal provenance fixtures are not exported. |
@@ -73,8 +73,7 @@ Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundar
 ## How it takes part in the reading journey
 
 1. **Production (worker).**
-   - The writer role returns one JSON object in the authored shape (below).
-   - `compileAuthored(authored, provenance, evidence)` converts it into a canonical draft, derives its claim bindings from the passages each block cites, and runs the stages below. Hand-authored editorial drafts take `validateDraft` / `compileDraft` directly.
+   - The document v3 writer returns its reply in the shape of `scroll-writing-v3.v1` and `compileWrittenV3` compiles it (see "The model writer's shapes and compile"). The v1 writer's authored shape (`scroll-authoring.v1`: `AuthoredScroll`, `compileAuthored`, `authoringReference`) is deleted (#818, D-443); a stored v1 Scroll is still read, validated and served. Hand-authored editorial drafts (the v1 starter, the editorial import) take `validateDraft` / `compileDraft` directly.
    - `compileDraft(draft, provenance)` turns a draft into the immutable consumer document and its internal provenance. This is **admission**: every check runs, including the full-grid proof of each simulation.
    - Code, not the model, sets: missing ids, versions, gestures, text blocks' accessibility label, the "Illustrative" notice, framing, template, theme, series, reading time, coverage weights and the integrity hash.
 2. **Storage.** The document is stored per revision and served to clients. The provenance is stored beside it and never served. A revision is admitted with `admitDocument` (the same checks again, on exactly the stored bytes).
@@ -428,39 +427,9 @@ Weights are in word-equivalents:
 - Reading minutes = round(total / 200), at least 1.
 - `coverageOf(document, seenBlockIds)` gives the weighted fraction, overall and per section.
 
-## The authored shape (`scroll-authoring.v1`)
+## The authored shape of the v1 writer (deleted, #818, D-443)
 
-What a writer model returns is deliberately smaller and more forgiving than the canonical draft.
-Long nested JSON is where models slip (a dropped quote, an unbalanced bracket), so:
-
-- **Flat blocks.** `{title, dek, blocks}`; a `heading` block starts a section. Types: `heading`,
-  `paragraph`, `list`, `callout`, `comparison` (columns and rows), `timeline`, `sequence`, `diagram`,
-  `bar-chart`, `line-chart`, `simulation`.
-- **Plain strings** stand for rich text. Diagram nodes get ids the writer chooses; frames name nodes
-  and edges by id, by label or as `from>to`. A simulation lists parameters, constants and outputs
-  with the canonical closed formula kinds; code aligns its grid and always marks it illustrative.
-  Cosmetic text up to twice its limit is shortened at a word boundary; prose keeps its strict limit.
-  A diagram's `layout` and a node's `kind` only change how it looks: any other word is mapped to the
-  default (`flow-lr`, `entity`) instead of refusing the Scroll, and the revision's provenance records
-  it as a check named `authoring-normalisation` with reason codes such as
-  `diagram_layout_defaulted_block_6`. Choices that change meaning stay strict. A formula operand is
-  a number or the key of a parameter, constant or earlier output; a nested formula or an
-  expression is refused at the operand (`blocks[7].outputs[0].formula.denominator`), and the
-  prompt's reference says to name a computed value as an output first.
-- **Citations instead of anchors.** Every non-heading block has `cites`, the handles of the offered
-  evidence passages (`e1`, …) it rests on. `deriveBindings` turns them into claim bindings: a `block`
-  binding per citation, and for every sentence of any reader-facing text that states a number, an
-  anchor on a cited claim whose source text contains that same figure. A figure in no cited passage,
-  a chart value in no cited passage (zero excepted), an unknown handle and fewer than four distinct
-  cited passages are findings.
-- **Derived envelope.** Accessibility labels and fallback texts are built from each block's own words.
-- **Findings are located at the authored block** (`blocks.7`, `title`), via the converter's
-  positions, so a repair can name the block the writer wrote. Four reason codes belong to this shape
-  (`authoring_*`), each with a fixed hint.
-
-`authoringReference(types)` is the prompt's description of the shape, built from the limits tables.
-Its examples are invented syntax guidance. Everything else in this package is unchanged by it: the
-converter produces a canonical `ScrollDraft` and every canonical check still runs.
+`scroll-authoring.v1` was what the v1 writer model returned: a flat `{title, dek, blocks}` with `cites` on every block, converted into a canonical `ScrollDraft` (`convertAuthored`), whose claim bindings were derived from the citations (`deriveBindings`) before every canonical check ran. The shape, its converter, its binder and its prompt reference (`AuthoredScroll`, `compileAuthored`, `authoringReference`, `producer/authoring*.ts`) are deleted with the v1 writer. What stays is everything under them: the canonical draft and `compileDraft`, which the hand-authored editorial path (the starter, `compileEditorialSource`) uses; `AuthoringEvidence` (`producer/authoring-evidence.ts`, moved unchanged), which the document v3 compile uses; and the validation, measures and reading of a stored v1 document. The `authoring_*` reason codes stay in `reasons.ts`: the hand-authored compiles and the document v3 compile still raise some (`authoring_reference_unknown`).
 
 ## The producer contract (`./producer`)
 

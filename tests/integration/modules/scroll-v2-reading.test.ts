@@ -7,7 +7,6 @@ import { makeReviewGate } from '@knowscroll/backend/modules/content/nest-provide
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { storedOrrinV2 } from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { coverageLocatorTypes } from '../../../packages/backend/src/modules/content/domain/coverage.js';
 import { ELIGIBLE_BY_FACTS_VERSION } from '../../../packages/backend/src/modules/evidence/domain/coverage.js';
 import { SCROLL_QUALIFICATION_POLICY_V0 as policy } from '../../../packages/backend/src/modules/evidence/domain/policy.js';
@@ -19,10 +18,10 @@ import {
 } from '../../../packages/backend/src/modules/evidence/domain/reading-summary.js';
 import { signal } from '../support/fixture-model.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { storeV2 } from '../support/stored-v2.js';
 
 /**
@@ -304,16 +303,10 @@ describe('The Seasons planet forms from a v2 Part 1 and two v1 parts (real Postg
       }),
     ).toMatchObject({ kind: 'released' });
     scrolls.push({ assetId: TOPICS.seasons.assetId, revision: 1 });
-    // Parts 2 and 3 stay v1 Scrolls here, to show a planet forms the same from a v2 part and v1 parts.
+    // Parts 2 and 3 stay v1 Scrolls here (stored as the v1 job stored them), to show a planet forms the same from a v2 part and v1 parts.
     for (const key of ['seasons-hemispheres', 'seasons-limits'] as const) {
       const recipe = TOPICS[key];
-      const undo = markScrollV1(key);
-      try {
-        const production = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
-        expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
-      } finally {
-        undo();
-      }
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId: recipe.assetId, revision: 1 });
       const row = await database.db
         .selectFrom('content.asset_revisions')
         .select('reading_facts')

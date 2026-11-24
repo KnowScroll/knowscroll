@@ -138,7 +138,7 @@ maintenance still records and resolves production liabilities while production i
 
 The Scrolls made to order (an ask order, a What if, an Another perspective) are switched off in every world by `KS_MADE_TO_ORDER_ENABLED` (D-436, #784): while it is not `1`, the consumers below end every `content.produce-answer`
 job, and every `order-…` job of `content.produce-scroll`, as skipped (`made_to_order_off`: a complete delivery, never retried, no run or paid request), and the scenario steps ask no model (a waiting draft closes `could_not_suggest`, a short answer ends
-unavailable, the branch resolver sends no further take). Library recipes are not affected.
+unavailable, the branch resolver sends no further take). Library recipes are not affected. They also have no writer (the v1 writer is deleted, #818, D-443): with the switch on, an `order-…` job ends as `rejected` with `made_to_order_unavailable` before any research or request.
 
 The `content.produce-scroll` and `content.produce-answer` consumers (`src/production-jobs.ts`, #239, D-267) run the production use case for
 one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
@@ -250,7 +250,7 @@ when the recorded total plus its estimate would pass $1 in all. `--dry-run` call
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content catalogue sync [--dry-run]` and `content catalogue status` (`src/catalogue-operator.ts`, D-419) import the library plan as the next release of the topic catalogue (and make servable the topics whose supply has been released) and print the release and its counts; shared tables only, no provider. `content propose-recipes --topic <planet id> [--facet <facet id>] [--dry-run]` and `content recipes [--status]` (`src/recipes-operator.ts`, D-412) propose recipes for a planet that exists (one model request and at most one repair, no job sent) and list the stored ones with no body text. `content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
 left and what the answer check said. `content regenerate --only <keys> [--dry-run]` (`src/library-operator.ts`, D-197) sends the next take of a
-v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content ask-check (--asset <id,…> | --recent <n>) --out <file> [--checker-instructions <absolute path>]` (`src/ask-check-operator.ts`, D-250 to D-252, D-280) runs the support checker again over stored ask answers through the production harness, a batch of sentences at a time: counts (and how many sentences each rule code set aside) on stdout, the sentences and verdicts in the file; it stores nothing (runbook: scroll-production.md). With `--checker-instructions` it asks with candidate instructions from a file, every line labelled `candidate: true` with the file's hash; no other command accepts the option and production never reads such a file. `content admit-continuity [--dry-run]` admits the library
+v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. (`content ask-check`, which ran the "You asked" support check again over stored ask answers, is deleted with the v1 writer, #818, D-443.) `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
 

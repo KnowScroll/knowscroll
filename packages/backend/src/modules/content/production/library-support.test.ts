@@ -3,8 +3,10 @@ import { validateDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-mo
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import { MAX_CONTEXT_ITEM_CHARS } from '../../../reasoning/public.js';
 import { RECIPES } from '../domain/library/index.js';
+import { ASK_ORDER_CHECK_RULES } from '../domain/ask-support.js';
 import { LIBRARY_CHECK_RULES, LIBRARY_SUPPORT_POLICY, resultsOf } from '../domain/library-support.js';
-import { ASK_SUPPORT_INSTRUCTIONS, askOrderCheckerRole, askSupportRole } from './ask-support.js';
+import { askSupportInstructions, askSupportRole } from './ask-support.js';
+import { LIBRARY_SUPPORT_V3_CHECK_VERSION } from './library-support-v3.js';
 import { CHECK_LIBRARY_SUPPORT_CLAIM_SECONDS } from './library-support-events.js';
 import {
   LIBRARY_SUPPORT_BATCH_SENTENCES,
@@ -29,6 +31,9 @@ import {
   readCheckSources,
 } from './library-support-version.js';
 import { storedOrrinV2 } from './orrin.fixture.js';
+
+/** The instructions of the checker with the soft rules an ask order's answer was once checked with: the library's own are compared with them. */
+const ASK_SUPPORT_INSTRUCTIONS = askSupportInstructions(ASK_ORDER_CHECK_RULES);
 
 /** The labelled Orrin fixture (invented, never product content), as the v2 writer stored it: the document and its private provenance. */
 function orrin(): { readonly document: ScrollDocumentV2; readonly provenance: ScrollProvenanceV2 } {
@@ -239,7 +244,7 @@ describe('the checker role of a library Scroll (D-415)', () => {
     const library = librarySupportRole(sentences, passages).outputSchema.parse(reply);
     expect(library.sentences[0]).toMatchObject({ verdict: 'unsupported', code: 'no_claim_without_ground' });
     expect(library.sentences[1]).toMatchObject({ verdict: 'supported' });
-    const ask = askOrderCheckerRole(sentences, passages, sentences).outputSchema.parse(reply);
+    const ask = askSupportRole(sentences, passages, sentences, ASK_ORDER_CHECK_RULES).outputSchema.parse(reply);
     expect(ask.sentences[0]).toEqual({ number: 1, verdict: 'no_claim' });
     // A paraphrase that keeps one key word of its sentence: strict rules would set it aside, the library's accept it.
     const paraphrase = [{ number: 1, text: 'The tilt of Orrin never changes during the year.', cites: ['e1'] }];
@@ -319,7 +324,9 @@ describe('the checker role of a library Scroll (D-415)', () => {
     expect(library.sentences[0]).toMatchObject({ verdict: 'unsupported', code: 'quote_not_in_cited_passages' });
     // The second sentence cites e1, so the same words support it.
     expect(library.sentences[1]).toMatchObject({ verdict: 'supported' });
-    expect(askOrderCheckerRole(stop, passages, stop).outputSchema.parse(reply).sentences[0]).toMatchObject({
+    expect(
+      askSupportRole(stop, passages, stop, ASK_ORDER_CHECK_RULES).outputSchema.parse(reply).sentences[0],
+    ).toMatchObject({
       verdict: 'supported',
     });
   });
@@ -404,8 +411,11 @@ describe('the version of the check is a hash of what decides its verdicts (D-415
     expect(LIBRARY_SUPPORT_CHECK_VERSION.length).toBeLessThanOrEqual(32);
   });
 
-  it('is the version of the instructions, rules, policy and code this build holds, the same in every process', () => {
-    expect(checkerVersionOf(identity)).toBe(LIBRARY_SUPPORT_CHECK_VERSION);
+  it('is pinned to the exact versions the check had before the "You asked" code left (#818, D-443), so no stored result goes stale', () => {
+    // Both strings are the hashes a built release computed for the check at dev f4293032 (from the compiled .js; a run from .ts source hashes differently). The source moved when the ask code shared with it was deleted; the check did not change.
+    // A different string re-checks every held revision with paid model requests. Change them only with a change to what the check says.
+    expect(LIBRARY_SUPPORT_CHECK_VERSION).toBe('library-support-check.36a100f4');
+    expect(LIBRARY_SUPPORT_V3_CHECK_VERSION).toBe('support-check-v3.8ec40d06');
     expect(checkerVersionOf({ ...identity })).toBe(checkerVersionOf(identity));
   });
 

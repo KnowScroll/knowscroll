@@ -7,12 +7,7 @@ import {
   splitSentences,
   type SentenceUnderCheck,
 } from '../domain/ask-support.js';
-import {
-  LIBRARY_CHECK_RULES,
-  LIBRARY_SUPPORT_POLICY,
-  type LibraryField,
-  type LibrarySentence,
-} from '../domain/library-support.js';
+import { LIBRARY_CHECK_RULES, type LibraryField, type LibrarySentence } from '../domain/library-support.js';
 import {
   SUPPORT_ROLE_SHAPE,
   askSupportContext,
@@ -21,7 +16,6 @@ import {
   type LibrarySupportAnswer,
   type SupportPassage,
 } from './ask-support.js';
-import { checkerVersionOf, readCheckSources } from './library-support-version.js';
 
 /**
  * The support check of a library Scroll (D-415): the check of an ask order's answer (`ask-support.ts`) ported to a stored Scroll
@@ -54,16 +48,16 @@ const LIBRARY_SUPPORT_INTRO =
 export const LIBRARY_SUPPORT_INSTRUCTIONS = askSupportInstructions(LIBRARY_CHECK_RULES, LIBRARY_SUPPORT_INTRO);
 
 /**
- * The checker's version: a hash of the instructions, the rules, the policy and the code that extracts the sentences, judges each verdict and
- * decides the revision's verdict, the ask check's shared code included (`library-support-version.ts`). A stored result is keyed by it, so any change
- * to what the check says is a new measurement and never mixes with an old one.
+ * The checker's version, pinned to the value it had at dev `f4293032`: `library-support-check.` and the first eight hex digits of the hash of the
+ * instructions, the rules, the policy and the normalised source of the modules of `CHECK_SOURCE_MODULES` (`library-support-version.ts`, D-415). A
+ * stored result is keyed by it, so a change to what the check says is a new measurement and never mixes with an old one.
+ *
+ * It is a literal, not computed, on purpose (#818, D-443), and it is the value a built release computed at `f4293032` (the compiled `.js` of the modules, not the `.ts` vitest hashes). The "You asked" code that shared `ask-support.ts` was deleted: the source moved but the
+ * check did not change, and the hash of the new source would have been a new version, which makes every stored result stale and the sweep re-check
+ * every held revision with paid model requests. A change to what this check says must change this string by hand, with `library-support-version.ts`
+ * (`checkerVersionOf`) to compute the new value, and `library-support.test.ts` pins the exact string.
  */
-export const LIBRARY_SUPPORT_CHECK_VERSION = checkerVersionOf({
-  instructions: LIBRARY_SUPPORT_INSTRUCTIONS,
-  rules: LIBRARY_CHECK_RULES,
-  policy: LIBRARY_SUPPORT_POLICY,
-  sources: readCheckSources(),
-});
+export const LIBRARY_SUPPORT_CHECK_VERSION = 'library-support-check.36a100f4';
 
 /** The passages a Scroll cites as the checker is shown them, and which of them each part of the Scroll rests on. */
 export interface LibraryEvidence {

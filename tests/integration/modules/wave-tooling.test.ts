@@ -10,9 +10,10 @@ import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { markRecipesV1, orrinResearchFor } from '../support/scroll-v2.js';
 import { orrinV3 } from '../support/scroll-v3.js';
+import { storeV1 } from '../support/stored-v1.js';
 
 /**
  * The tooling for the library waves (S-6a, D-197 to D-199): regenerating a Scroll that is already served. The Scrolls are the labelled
@@ -201,12 +202,18 @@ describe('regenerating a served library Scroll (labelled CI fixtures, real Postg
     });
 
     it('never regenerates a v1 recipe or an order: only a v2 or document v3 library Scroll goes through the read', async () => {
-      const v1 = fixtureProduction(database.db, () => answerWith(fixtureAuthored('diagram')));
-      expect(await v1.produce('tides', false, signal())).toMatchObject({ outcome: 'published', requestBound: 2 });
-      expect(v1.checks).toHaveLength(0);
+      // The v1 Scroll the library holds for the recipe: stored as the v1 job stored it (`storeV1`, #818); nothing writes a v1 Scroll any more.
+      expect(await storeV1(database.db, 'tides')).toMatchObject({ assetId: TOPICS.tides.assetId, revision: 1 });
       expect(await statusOf('tides')).toMatchObject({ state: 'published', regeneration: 'not_v2' });
       expect((await statusOf('tides')).check).toBeUndefined();
-      expect(await v1.produce('tides', false, signal(), true, 2)).toMatchObject({ outcome: 'take_refused' });
+      // No take of a recipe with no document v3 plan can start, a regeneration included: refused before any job and any request.
+      const v1 = fixtureProduction(database.db, () => answerWith(orrinV3()), orrinResearchFor);
+      expect(await v1.produce('tides', false, signal(), true, 2)).toMatchObject({
+        outcome: 'plan_refused',
+        codes: ['recipe_plan_not_v3'],
+      });
+      expect(v1.calls).toHaveLength(0);
+      expect(await jobsOf('tides')).toHaveLength(1);
     });
   });
 });

@@ -11,12 +11,7 @@ import {
 import { TAKEAWAY_PART_ID } from '@knowscroll/scroll-model/internal';
 import { type ReasoningRole } from '../../../reasoning/public.js';
 import { isQuestion, splitSentences, type SentenceUnderCheck } from '../domain/ask-support.js';
-import {
-  LIBRARY_CHECK_RULES,
-  LIBRARY_SUPPORT_POLICY,
-  type LibraryField,
-  type LibrarySentence,
-} from '../domain/library-support.js';
+import { LIBRARY_CHECK_RULES, type LibraryField, type LibrarySentence } from '../domain/library-support.js';
 import {
   SUPPORT_ROLE_SHAPE,
   askSupportInstructions,
@@ -25,13 +20,14 @@ import {
   type SupportPassage,
 } from './ask-support.js';
 import { LIBRARY_SUPPORT_ROLE_ID, type LibraryEvidence, type LibrarySentences } from './library-support.js';
-import { checkerVersionOf, readCheckSources } from './library-support-version.js';
 
 /**
  * The support check of a document v3 Scroll (D-435), beside the check of a document v2 Scroll (D-415) and never in its place. The model's task, the
  * batches, the rules applied to each verdict and the revision's verdict are the library check's (`library-support.ts`, `ask-support.ts` and
  * `domain/library-support.ts`). What is v3's own is here: which sentences a reader of a document v3 reads (`sentencesOfScrollV3`), the instructions that
  * name its parts, and the version, which is a hash of v3's own modules.
+ *
+ * Since #818 (D-443) the version is a pinned literal (below), not computed from these modules; the paragraph below is why the check has a module and a version of its own.
  *
  * Why a module of its own. The v2 version is a hash of the normalised source of the v2 check's modules (`library-support-version.ts`). An edit to any of
  * them makes every stored v2 result stale, and a stale result holds its Scroll until the replay runs again. So this check adds a module and a version
@@ -72,19 +68,15 @@ const LIBRARY_SUPPORT_V3_INTRO =
 export const LIBRARY_SUPPORT_V3_INSTRUCTIONS = askSupportInstructions(LIBRARY_CHECK_RULES, LIBRARY_SUPPORT_V3_INTRO);
 
 /**
- * The v3 checker's version: `support-check-v3.` and eight hex digits of a hash of the instructions, the rules, the policy and the normalised source of
- * `CHECK_SOURCE_MODULES_V3`. A stored result is keyed by it, so a v3 result never mixes with a v2 one (their versions differ) and any change to what
- * the v3 check says is a new measurement.
+ * The v3 checker's version, pinned to the value it had at dev `f4293032`: `support-check-v3.` and eight hex digits of a hash of the instructions, the
+ * rules, the policy and the normalised source of `CHECK_SOURCE_MODULES_V3`. A stored result is keyed by it, so a v3 result never mixes with a v2 one
+ * (their versions differ) and any change to what the v3 check says is a new measurement.
+ *
+ * It is a literal, not computed, on purpose (#818, D-443), and it is the value a built release computed at `f4293032` (the compiled `.js` of the modules, not the `.ts` vitest hashes): the "You asked" code that shared `ask-support.ts` was deleted. The source moved but the
+ * check did not change, and a changed version would make every stored result stale and re-check every held revision with paid model requests. A
+ * change to what this check says must change this string by hand (`checkerVersionOf` in `library-support-version.ts` computes the new value).
  */
-export const LIBRARY_SUPPORT_V3_CHECK_VERSION = checkerVersionOf(
-  {
-    instructions: LIBRARY_SUPPORT_V3_INSTRUCTIONS,
-    rules: LIBRARY_CHECK_RULES,
-    policy: LIBRARY_SUPPORT_POLICY,
-    sources: readCheckSources(CHECK_SOURCE_MODULES_V3),
-  },
-  LIBRARY_SUPPORT_V3_VERSION_PREFIX,
-);
+export const LIBRARY_SUPPORT_V3_CHECK_VERSION = 'support-check-v3.8ec40d06';
 
 /**
  * What the v3 check does not read, so that nobody takes its verdict for more than it is (printed with the verdict). A question put to the reader is no

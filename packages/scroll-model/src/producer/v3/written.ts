@@ -6,7 +6,7 @@ import type { Control, Link, ScrollDocumentV3, Show } from '../../v3/document.js
 import { uniqueIssuesV3, type IssueV3 } from '../../v3/issues.js';
 import { LIMITS_V3 as L } from '../../v3/limits.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
-import type { AuthoringEvidence } from '../authoring-bind.js';
+import type { AuthoringEvidence } from '../authoring-evidence.js';
 import {
   assemble,
   citationsOf,

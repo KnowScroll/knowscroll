@@ -7,7 +7,7 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
-import { orrinResearchFor } from '../support/scroll-v2.js';
+import { markScrollV1, orrinResearchFor } from '../support/scroll-v2.js';
 
 /**
  * A recipe whose misconception source no person has reviewed is refused before any job or request (D-129). The library admits only
@@ -57,5 +57,40 @@ describe('A document v3 recipe whose misconception source is unreviewed (labelle
     ).toEqual([]);
     // The operator's status and the Quartermaster see a recipe no take can start.
     expect((await readLibraryStatus(database.db, ['greenhouse']))[0]).toMatchObject({ state: 'stopped' });
+  });
+});
+
+/**
+ * The document v3 writer is the only writer (#818), so a code recipe whose plan holds no document v3 plan has no writer: it is refused before
+ * any job is reserved or any request is sent, and not left to fail inside the job.
+ */
+describe('A code recipe with no document v3 plan has no writer (labelled CI fixtures, real PostgreSQL)', () => {
+  let database: TestDatabase<Database>;
+  let undo: () => void = () => undefined;
+  beforeAll(async () => {
+    undo = markScrollV1('greenhouse');
+    database = await createTestDatabase<Database>('plan_refusal_no_v3');
+    await enableProductionScope(database.db);
+  });
+  afterAll(async () => {
+    undo();
+    await database.drop();
+  });
+
+  it('is refused as recipe_plan_not_v3 before any job or request, and nothing is stored', async () => {
+    expect(TOPICS.greenhouse).not.toHaveProperty('scrollV3');
+    const run = fixtureProduction(database.db, () => answerWith(fixtureReplyV3()), orrinResearchFor);
+    expect(await run.produce('greenhouse', false, signal())).toMatchObject({
+      outcome: 'plan_refused',
+      codes: ['recipe_plan_not_v3'],
+    });
+    expect(run.calls).toHaveLength(0);
+    expect(
+      await database.db
+        .selectFrom('content.scroll_production_runs')
+        .select('id')
+        .where('topic', '=', 'greenhouse')
+        .execute(),
+    ).toEqual([]);
   });
 });

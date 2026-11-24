@@ -5,7 +5,6 @@ import {
   admitLibraryContinuityUseCase,
   makeReviewGate,
   readDiscoveryCandidates,
-  readLibraryStatus,
   readAdmittedCoverageMapping,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { ExposureDocumentResponseSchema } from '@knowscroll/contracts';
@@ -15,13 +14,12 @@ import { makeRenderScroll } from '../../../packages/backend/src/modules/content/
 import { fixtureResearchPageV2 } from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
 import { WRITER_V2_PROMPT_VERSION } from '../../../packages/backend/src/modules/content/production/writer-v2-version.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
-import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
+import { v2Capabilities } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { storeV2 } from '../support/stored-v2.js';
 
 /**
@@ -47,17 +45,10 @@ describe('A stored v2 Scroll (labelled CI fixtures, real PostgreSQL)', () => {
       .orderBy('revision')
       .execute();
 
-  it('holds a v2 revision beside a v1 Seasons Scroll, with coverage v2, provenance for its citations and a real status', async () => {
+  it('holds a v2 revision beside a v1 Seasons Scroll, with coverage v2 and provenance for its citations', async () => {
     const recipe = TOPICS.seasons;
-    // The Scroll the library held before the plan marked the recipe v2 (D-137): a v1 revision.
-    const undoV1 = markScrollV1('seasons');
-    try {
-      const v1 = fixtureProduction(database.db, () => answerWith(fixtureAuthored('diagram')));
-      expect(await v1.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', revision: 1 });
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'published', revision: 1 });
-    } finally {
-      undoV1();
-    }
+    // The Scroll the library held before the plan marked the recipe v2 (D-137): a v1 revision, stored as the v1 job stored it.
+    expect(await storeV1(database.db, 'seasons')).toMatchObject({ assetId: recipe.assetId, revision: 1 });
 
     // The v2 revision is the next revision of the same asset, held for review (D-138), as the v2 job stored it.
     const held = await storeV2(database.db, 'seasons');
@@ -207,15 +198,9 @@ describe('A stored v2 Scroll (labelled CI fixtures, real PostgreSQL)', () => {
   });
 
   it('counts a series total from its admitted units, over the v2 part the gate released and v1 parts', async () => {
-    // The other two parts stay v1 here (a recipe the plan does not mark v2 is produced as it always was).
+    // The other two parts stay v1 here (stored as the v1 job stored them).
     for (const key of ['seasons-hemispheres', 'seasons-elsewhere'] as const) {
-      const undo = markScrollV1(key);
-      try {
-        const run = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[key]))));
-        expect(await run.produce(key, false, signal())).toMatchObject({ outcome: 'published', revision: 1 });
-      } finally {
-        undo();
-      }
+      expect(await storeV1(database.db, key)).toMatchObject({ revision: 1 });
       expect((await revisionsOf(TOPICS[key].assetId))[0]).toMatchObject({ document_version: 'scroll-document.v1' });
     }
     const admitted = await admitLibraryContinuityUseCase(database.db)({ dryRun: false });

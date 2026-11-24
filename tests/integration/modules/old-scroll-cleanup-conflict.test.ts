@@ -13,7 +13,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope } from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
-import { markScrollV1, orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
 import { seedDocumentV2, seedDocumentV3 } from '../support/scroll-v3.js';
 
 /**
@@ -29,15 +29,14 @@ const assetId = recipe.assetId;
 const operator = 'cli:ci-reviewer';
 
 describe('the cleanup holds an asset left with a rejected v3, repairs the ones it withdrew, and refused takes do not count (real PostgreSQL)', () => {
-  // The plan marks Seasons as a document v3 recipe once it is not a v1 one: the production job writes it as such.
-  const restoreV1 = markScrollV1(key);
+  // The recorded Orrin reply is written to the spike's Seasons plan: for this file the recipe takes it, and gets its own plan back after.
   const planned = RECIPES[key] as { scrollV3?: ScrollV3Plan };
+  const ownPlan = planned.scrollV3;
   beforeAll(() => {
     planned.scrollV3 = spikePlanV3(key);
   });
   afterAll(() => {
-    delete planned.scrollV3;
-    restoreV1();
+    planned.scrollV3 = ownPlan;
   });
 
   let database: TestDatabase<Database>;

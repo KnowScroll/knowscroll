@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import {
   makeWithProductionScope,
@@ -17,27 +17,48 @@ import {
 } from '@knowscroll/backend/modules/content';
 import {
   makeEnqueueScrollProduction,
+  makeReviewGate,
   makeRunScrollProduction,
   readLibraryStatus,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
-import { fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
+import { answerWith } from '../support/generated-scroll.js';
 import { ResearchRefusal } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { productionStore } from '../../../packages/backend/src/modules/content/production/store.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { markRecipesV1 } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3 } from '../support/scroll-v3.js';
 
-const answer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
+const answer = (): FixtureScenario => answerWith(orrinV3());
 const delivery = () => ({ signal: signal() });
 
 describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL and pg-boss; no provider network)', () => {
-  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
-  const restoreRecipes = markRecipesV1('stars-fusion', 'tides', 'greenhouse');
-  afterAll(restoreRecipes);
+  // The recorded Orrin reply is written to the Seasons plan, so the recipes this file produces take that plan for the file's own process.
+  const planned = ['stars-fusion', 'tides', 'greenhouse'].map((key) => ({
+    recipe: (TOPICS as Record<string, { scrollV3?: ScrollV3Plan }>)[key]!,
+    own: TOPICS[key as 'tides'].scrollV3,
+  }));
+  beforeAll(() => {
+    for (const { recipe } of planned) recipe.scrollV3 = spikePlanV3('seasons');
+  });
+  afterAll(() => {
+    for (const { recipe, own } of planned) recipe.scrollV3 = own;
+  });
+  /** The operator's release of the revision a take published: a document v3 library Scroll is held until then, and only then is the recipe published. */
+  const release = async (recipe: 'stars-fusion' | 'tides', revision = 1) =>
+    expect(
+      await makeReviewGate(database.db).release({
+        assetId: TOPICS[recipe].assetId,
+        revision,
+        decidedBy: 'cli:ci-reviewer',
+      }),
+    ).toMatchObject({ kind: 'released' });
   let database: TestDatabase<Database>;
   beforeEach(async () => {
     database = await createTestDatabase<Database>('production_job');
@@ -48,7 +69,10 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
   });
 
   const setup = (script: () => FixtureScenario, quota?: QuotaScript) =>
-    fixtureProductionWorker(database, script, quota ? { quota } : {});
+    fixtureProductionWorker(database, script, {
+      research: (url) => Promise.resolve(orrinResearchFor(url)),
+      ...(quota ? { quota } : {}),
+    });
 
   const runRow = (recipe = 'stars-fusion') =>
     database.db
@@ -60,8 +84,11 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
   it('publishes the recipe on a delivery, and a second delivery of the same job does nothing more', async () => {
     const p = setup(answer);
     const first = await p.run(produceScrollJob('stars-fusion'), delivery());
-    expect(first).toMatchObject({ kind: 'finished', result: { outcome: 'published', revision: 1 } });
-    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toEqual(first);
+    expect(first).toMatchObject({ kind: 'finished', result: { outcome: 'published', revision: 1, held: true } });
+    // The redelivery reports the finished job as it stands (the revision is held, as the first delivery said), and sends nothing.
+    const again = await p.run(produceScrollJob('stars-fusion'), delivery());
+    expect(again).toMatchObject({ kind: 'finished', result: { outcome: 'published', revision: 1 } });
+    expect(again).toEqual({ ...first, result: { ...(first as { result: object }).result, held: undefined } });
     expect(p.fixture.calls).toHaveLength(1);
     expect(await runRow()).toMatchObject({ state: 'published' });
   });
@@ -181,7 +208,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
   describe('research failures', () => {
     const research = (failure: () => Error | undefined) => (url: string) => {
       const error = failure();
-      return error === undefined ? Promise.resolve(fixtureResearchFor(url)) : Promise.reject(error);
+      return error === undefined ? Promise.resolve(orrinResearchFor(url)) : Promise.reject(error);
     };
 
     it('does not spend a take on a transient failure: the job waits at research and the same take publishes', async () => {
@@ -274,12 +301,19 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
           .execute()
       ).map((row) => row.writer_run_id);
       expect(new Set(writerRuns).size).toBe(2);
+      // The published revision waits at the review gate (a document v3 library Scroll is held); once the operator releases it, the recipe is published.
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'held', takes: 2 });
+      await release('stars-fusion');
       expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({
         state: 'published',
         takes: 2,
       });
-      // A published recipe never takes again.
+      // A served document v3 recipe may be regenerated (D-197), so the third take is allowed (held beside the served revision); the revision
+      // it leaves held takes no further take, and no fourth take is ever allowed. (A v1 recipe took no further take once published; no v1 recipe is produced.)
       expect(await p.run(produceScrollJob('stars-fusion', 3), delivery())).toMatchObject({
+        result: { outcome: 'published', take: 3, revision: 2, held: true },
+      });
+      expect(await p.run(produceScrollJob('stars-fusion', 4), delivery())).toMatchObject({
         result: { outcome: 'take_refused' },
       });
     });

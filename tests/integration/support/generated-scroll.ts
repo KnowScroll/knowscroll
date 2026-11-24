@@ -9,7 +9,6 @@ import {
   extractResearch,
   type ResearchPage,
 } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
-import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import {
   ASK_ORDER_CHECK_RULES,
@@ -20,7 +19,6 @@ import {
   type CheckerRules,
 } from '../../../packages/backend/src/modules/content/domain/ask-support.js';
 import { LIBRARY_CHECK_RULES } from '../../../packages/backend/src/modules/content/domain/library-support.js';
-import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
 import type { FixtureCall, FixtureScenario } from './fixture-model-port.js';
 
@@ -53,182 +51,6 @@ export function fixtureResearchFor(url: string): ResearchPage {
   if (url === fixtureResearchPage.url) return fixtureResearchPage;
   const closing = `This invented fixture page for ${url} adds nothing further about the lighthouse.`;
   return extractResearch(researchHtml([...FIXTURE_SOURCE, closing]), url, '2026-10-20T00:00:00.000Z');
-}
-
-/** Reader prose in other words than the source (no nine-word run in common), ~280 words in all. */
-export const FIXTURE_PROSE = [
-  'Ships need a way to know where the land begins long before they can see it. A tall tower with a bright lamp answers that need, and the clever part is how the lamp is shaped rather than how strong it is. Glass rings bend the glow into one narrow ribbon.',
-  'Because the ribbon turns, a distant observer sees it only for a moment each rotation. Those regular flashes are not decoration. Each tower repeats its own rhythm, so a navigator who times the gaps can tell neighbouring towers apart on a dark coast.',
-  'Someone had to keep that rotation going. In earlier times a keeper climbed the stairs on a fixed schedule to wind a weight-driven mechanism, and a missed visit meant a dark coast. Modern towers use a motor, yet the glass that shapes the beam is often the very same.',
-  'Weather changes what a lamp can do. Thick fog scatters light in every direction, so the beam dissolves after a short distance, however clever its glass. That is why towers also carry sound signals, which travel through fog far better than any flash.',
-  'Height matters as well as brightness. Raising the lamp pushes the horizon outward, so the beam can be seen from farther away before the curve of the sea hides the tower. A modest hill or a tall column both do the same job.',
-  'Put together, these ideas describe a small system: a shaped beam, a signature rhythm, a dependable rotation and a backup for bad weather. Each part solves a different problem, and the whole is only as reliable as its weakest piece.',
-];
-const DIAGRAM = {
-  type: 'diagram',
-  cites: ['e2', 'e3', 'e4'],
-  title: 'A lighthouse in two conditions',
-  layout: 'flow-lr',
-  nodes: [
-    { id: 'lamp', label: 'Lamp' },
-    { id: 'prisms', label: 'Prism ring', kind: 'process' },
-    { id: 'ship', label: 'Ship' },
-  ],
-  edges: [
-    { id: 'glow', from: 'lamp', to: 'prisms', label: 'Glow' },
-    { id: 'beam', from: 'prisms', to: 'ship', label: 'Beam' },
-  ],
-  frames: [
-    {
-      label: 'Clear night',
-      description: 'The beam crosses open water and reaches the ship.',
-      highlight: ['beam'],
-    },
-    {
-      label: 'Thick fog',
-      description: 'The beam fades early, so a sound signal must take over.',
-      hide: ['beam'],
-    },
-  ],
-} as const;
-const SEQUENCE = {
-  type: 'sequence',
-  cites: ['e2', 'e3', 'e4'],
-  title: 'A night at the lighthouse',
-  steps: [
-    { title: 'Light the lamp', text: 'The keeper lights the lamp at dusk.' },
-    { title: 'Turn the lens', text: 'The prism ring turns, so the beam sweeps the water.' },
-    { title: 'Watch the weather', text: 'In thick fog a sound signal takes over from the beam.' },
-  ],
-} as const;
-const COMPARISON = {
-  type: 'comparison',
-  cites: ['e2', 'e3', 'e4'],
-  title: 'A lighthouse in two conditions',
-  columns: ['Clear night', 'Thick fog'],
-  rows: [
-    ['The beam crosses open water and reaches the ship.', 'The beam fades early, so the ship sees nothing of it.'],
-    ['Sailors time the flashes to name the tower.', 'A sound signal must take over from the lamp.'],
-  ],
-} as const;
-
-/** The block a recipe's format asks for, authored about the same invented lighthouse. */
-function formatBlock(format: WriterFormat) {
-  switch (format) {
-    case 'diagram':
-      return DIAGRAM;
-    case 'comparison':
-      return COMPARISON;
-    case 'sequence':
-      return SEQUENCE;
-    case 'plain':
-    case 'chart':
-    case 'simulation':
-    case 'timeline':
-      throw new Error(`CI_FIXTURE_FORMAT_UNSUPPORTED:${format}`);
-  }
-}
-
-/** The writer's answer in the authoring shape, with the block the recipe's format asks for. */
-export function fixtureAuthored(
-  format: WriterFormat,
-  overrides: { readonly drop?: string; readonly paragraph?: string } = {},
-) {
-  const prose = FIXTURE_PROSE.map((text, index) => (index === 1 && overrides.paragraph ? overrides.paragraph : text));
-  return AuthoredScroll.parse({
-    title: 'How a lighthouse guides ships',
-    dek: 'A shaped beam, a rhythm and a dependable rotation turn one lamp into a coastal signal.',
-    blocks: [
-      { type: 'heading', text: 'The beam' },
-      { type: 'paragraph', cites: ['e1', 'e2'], text: prose[0] },
-      { type: 'paragraph', cites: ['e2', 'e3'], text: prose[1] },
-      { type: 'heading', text: 'The upkeep' },
-      { type: 'paragraph', cites: ['e1', 'e6'], text: prose[2] },
-      { type: 'paragraph', cites: ['e4'], text: prose[3] },
-      ...(format === 'plain' ? [] : [formatBlock(format)]),
-      { type: 'heading', text: 'Putting it together' },
-      { type: 'paragraph', cites: ['e5'], text: prose[4] },
-      { type: 'paragraph', cites: ['e3', 'e5'], text: prose[5] },
-      {
-        type: 'callout',
-        cites: ['e4'],
-        kind: 'limit',
-        title: 'Where this stops',
-        text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
-      },
-    ].filter((block) => block.type !== overrides.drop),
-  });
-}
-
-/**
- * The answer to a question, authored about the same invented lighthouse as the sources above: every sentence is written
- * from the passages its block cites, so a support check that reads it finds words of those passages that are about the
- * sentence. It has the shape the question writer is asked for (D-308, D-309, D-371): a direct answer and two short sections, and no
- * limits callout, which code writes. Nine sentences of reading text (the dek included) and thirteen sentences in all, which a check
- * reads in two requests (10 + 3). No sentence after the first of its block begins with a pointer to the one before. It is a labelled
- * CI fixture, never product content. `sentence` replaces one sentence of the answer, the title included (the support check's repair).
- * `writersLimits` adds the limits callout an older writer sent, which code replaces with its own line.
- */
-export function fixtureAnswer(
-  overrides: { readonly sentence?: readonly [string, string]; readonly writersLimits?: boolean } = {},
-) {
-  const say = (text: string) => (overrides.sentence?.[0] === text ? overrides.sentence[1] : text);
-  return AuthoredScroll.parse({
-    title: say('How a lamp and a prism ring guide sailors'),
-    dek: 'A ring of glass shapes one beam, and the lamp clockwork turns it so sailors can read the coast.',
-    blocks: [
-      {
-        type: 'paragraph',
-        cites: ['e2', 'e3'],
-        text: [
-          'A ring of prisms around the flame bends the light into one narrow beam.',
-          say('Because the beam turns, sailors see it only as a flash, once each turn.'),
-        ].join(' '),
-      },
-      { type: 'heading', text: 'The beam' },
-      {
-        type: 'paragraph',
-        cites: ['e2', 'e3'],
-        text: 'By counting the seconds between flashes, sailors learn which lighthouse they are near.',
-      },
-      { type: 'heading', text: 'The upkeep' },
-      {
-        type: 'paragraph',
-        cites: ['e1', 'e6'],
-        text: [
-          'Someone had to keep that turning going, and the keeper once wound the lamp clockwork by hand every few hours.',
-          'Today a small motor does that work, though the glass prisms are the original ones.',
-        ].join(' '),
-      },
-      {
-        type: 'paragraph',
-        cites: ['e4'],
-        text: [
-          'Thick fog scatters light in every direction, so the beam fades after a short distance.',
-          'A lighthouse therefore also needs a sound signal, which fog does not stop.',
-        ].join(' '),
-      },
-      {
-        type: 'paragraph',
-        cites: ['e5', 'e6'],
-        text: [
-          'Height helps too, because a lamp set high above the sea can clear distant waves.',
-          'The tower in this story is twenty-one metres tall.',
-        ].join(' '),
-      },
-      ...(overrides.writersLimits === true
-        ? [
-            {
-              type: 'callout',
-              cites: ['e4'],
-              kind: 'limit',
-              title: 'What this does not explain',
-              text: 'This picture ignores radio and satellite navigation, which now do most of the work.',
-            },
-          ]
-        : []),
-    ],
-  });
 }
 
 export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });

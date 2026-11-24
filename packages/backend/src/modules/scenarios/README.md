@@ -114,8 +114,10 @@ another node at a revision). The rules are pure, in `domain/`:
    commissions the order through Quartermaster, and answers the receipt. Retrying, or two identical
    commands at once, make one node, one order and one job. A refusal writes nothing.
 4. Quartermaster (`supply`, `COMMISSION_SCENARIO_ORDER`) applies two caps from its own ledger, records the
-   order in Content and sends the production job for take 1. Content produces a made-to-order Scroll with
-   the hypothetical or perspective writer rules (see `../content/production/README.md`).
+   order in Content and sends the production job for take 1. Content no longer writes a made-to-order Scroll: the
+   v1 writer with the hypothetical and perspective rules is deleted (#818, D-443; the rules are kept in D-443 for a document v3
+   writer), and an order that reaches production ends as `made_to_order_unavailable` before any request (see
+   `../content/production/README.md`). The feature is switched off in every world (D-436), so no order is made.
 5. `scenarios.resolve-branches` (every minute, idempotent) binds a preparing branch to its admitted Scroll,
    sends the next take of a rejected recipe (at most three), closes a branch that cannot be produced or is
    older than 30 minutes, and hints the thread's members.

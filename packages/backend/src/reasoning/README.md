@@ -360,7 +360,7 @@ values explicitly; no step keeps state in a closure flag.
    section. `outcomeOf` reads the finished attempt back as a typed outcome.
 4. **Repair** (`runRepair`), only after a conclusively invalid answer and unless the caller set
    `allowRepair: false`, or narrowed it with `repairOnlyFor` to refusals whose every finding has one of
-   the listed codes (the ask order's revision, for a copied passage, D-297). It reads the kept refused answer when the role asks for it, builds the
+   the listed codes (its one user was the ask order's revision, for a copied passage, D-297, which is deleted with the v1 writer, #818). It reads the kept refused answer when the role asks for it, builds the
    richest request that fits (answer and notes, then the answer alone, then the findings alone) and
    runs a second attempt caused by the first.
 

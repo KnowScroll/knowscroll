@@ -8,7 +8,6 @@ import { spikePlanV3 } from './spike-v3/plans.js';
 import { fixtureReplyV3 } from './spike-v3/writer-v3.fixture.js';
 import { librarySubject, type ProductionSubject } from './subject.js';
 import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
-import { WRITER_PROMPT_VERSION } from './writer.js';
 import { writerPlanFor, type WriterPlanInput } from './writer-plan.js';
 
 // CI fixtures only: an invented planet on the seasons recipe's identity, never product content.
@@ -17,7 +16,7 @@ const production = { runId: 'run-ci-1', attemptIds: ['attempt-ci-1'], model: 'Mi
 const v3Plan = spikePlanV3('seasons');
 
 /** The seasons recipe as the library plan states it, with the plan marker chosen by the test and no other. */
-function subjectWith(marker: 'v1' | 'v3'): ProductionSubject {
+function subjectWith(marker: 'none' | 'v3'): ProductionSubject {
   const { scrollV3: _v3, ...base } = librarySubject(codeRecipeOf('seasons') as BookRecipe);
   if (marker === 'v3') return { ...base, scrollV3: v3Plan };
   return base;
@@ -33,13 +32,10 @@ const inputFor = (subject: ProductionSubject, revision = 2): WriterPlanInput => 
 });
 
 describe('the writer plan of a recipe planned as document v3', () => {
-  it('is the arm (a) writer: one reply, the v3 prompt version, the answer unchanged by prepare', () => {
+  it('is the arm (a) writer: one reply and the v3 prompt version', () => {
     const plan = writerPlanFor(inputFor(subjectWith('v3')));
     expect([plan.role.id, plan.role.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v2']);
     expect(plan.promptVersion).toBe(WRITER_V3_PROMPT_VERSION);
-    expect(plan.askLines).toBeUndefined();
-    const reply = fixtureReplyV3();
-    expect(plan.prepare(reply)).toEqual({ authored: reply, issues: [] });
   });
 
   it('compiles an accepted reply at the job’s revision, with the prompt version the publication lineage requires', () => {
@@ -64,10 +60,8 @@ describe('the writer plan of a recipe planned as document v3', () => {
   });
 });
 
-describe('the writer plan of every other recipe (a v2 plan is gone: no recipe is written as a v2 Scroll, #815)', () => {
-  it('stays the v1 writer for a recipe with no marker', () => {
-    const plan = writerPlanFor(inputFor(subjectWith('v1')));
-    expect(plan.promptVersion).toBe(WRITER_PROMPT_VERSION);
-    expect(plan.role.version).toBe(WRITER_PROMPT_VERSION);
+describe('the writer plan of a subject that is not a document v3 one (the v1 and v2 writers are gone, #815, #818)', () => {
+  it('is refused before any request: nothing else writes a Scroll', () => {
+    expect(() => writerPlanFor(inputFor(subjectWith('none')))).toThrow('SCROLL_V3_PLAN_REQUIRED');
   });
 });
