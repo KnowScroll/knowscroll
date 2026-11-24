@@ -23,6 +23,7 @@ import { computeMeasuresV3 } from '../../v3/measures.js';
 import { Picture } from '../../v3/pictures.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
 import { copiedRunsOfFields, copyDetailV3, copyMaterialOf, type NamedText } from './copy-detail.js';
+import { numberDetailOfTexts, numberDetailOfUnit, numberDetailOfValue, type PassageText } from './number-detail.js';
 import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
 import { digitFiguresIn, plainFigure, pointAgrees, readingsOf, unitInPassages, unstatedFigures } from '../figures.js';
 
@@ -263,10 +264,15 @@ export interface EvidenceOptions {
   readonly figures: 'editorial' | 'strict';
   /** What the copy rule compares against: every research text. Without it, the passages a part cites. */
   readonly copySources?: readonly string[] | undefined;
+  /**
+   * The handle the writer cites each claim by (`e11`), by claim id. With it, a strict finding of `authoring_number_not_in_evidence`
+   * carries a `detail` that says where the figure is (D-444); without it, it is a code and a path, as it always was.
+   */
+  readonly handles?: ReadonlyMap<string, string> | undefined;
 }
 
 /** The magnitude word a chart's unit opens with ("million people"), which every value of the chart is written with. */
-function unitMagnitude(unit: string | undefined): Magnitude | undefined {
+export function unitMagnitude(unit: string | undefined): Magnitude | undefined {
   const word = unit
     ?.trim()
     .split(/[\s-]+/u)[0]
@@ -300,6 +306,27 @@ export function evidenceIssues(
     return texts.every((text) => !unstated(text, passages));
   };
   const everyCite = [...new Set(parts.flatMap((part) => part.cites))];
+  // What a figure's detail names: the offered passages by the handle the writer cites them with. Strict mode with handles only.
+  const handleOf = strict ? options.handles : undefined;
+  const offered: PassageText[] =
+    handleOf === undefined
+      ? []
+      : [...claims].flatMap(([claimId, text]) => {
+          const handle = handleOf.get(claimId);
+          return handle === undefined ? [] : [{ handle, text }];
+        });
+  const passagesOfCites = (cites: readonly string[]): PassageText[] =>
+    handleOf === undefined
+      ? []
+      : cites.flatMap((claimId) => {
+          const handle = handleOf.get(claimId);
+          return handle === undefined || !claims.has(claimId) ? [] : [{ handle, text: quoteOf(claimId) }];
+        });
+  const withDetail = (path: string, detail: string | undefined): IssueV3 => ({
+    code: 'authoring_number_not_in_evidence',
+    path,
+    ...(detail === undefined ? {} : { detail }),
+  });
   // Strict mode (the model writer) compares with every research text: its material is built once. A finding there says what
   // was copied (`copyDetailV3`); a hand-written Scroll's finding is the code and the path, as it always was.
   const sharedMaterial = options.copySources === undefined ? undefined : copyMaterialOf(options.copySources);
@@ -328,7 +355,12 @@ export function evidenceIssues(
         part.cites,
       )
     )
-      issues.push({ code: 'authoring_number_not_in_evidence', path: part.path });
+      issues.push(
+        withDetail(
+          part.path,
+          handleOf === undefined ? undefined : numberDetailOfTexts(part.fields, passagesOfCites(part.cites), offered),
+        ),
+      );
     const passages = part.cites.map(quoteOf);
     if (
       part.quotation !== undefined &&
@@ -352,7 +384,15 @@ export function evidenceIssues(
     ];
     const passages = everyCite.map(quoteOf);
     for (const { path, text } of own) {
-      if (unstated(text, passages)) issues.push({ code: 'authoring_number_not_in_evidence', path });
+      if (unstated(text, passages))
+        issues.push(
+          withDetail(
+            path,
+            handleOf === undefined
+              ? undefined
+              : numberDetailOfTexts(named('text', text), passagesOfCites(everyCite), offered, 'scroll'),
+          ),
+        );
       copyIssue(path, named('text', text), undefined, everyCite);
     }
     if (!supported(others, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
@@ -372,7 +412,12 @@ export function evidenceIssues(
     if (picture.kind !== 'chart') return;
     const passages = cites.map(quoteOf);
     if (picture.unit !== undefined && !unitInPassages(picture.unit, passages))
-      issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.picture.unit` });
+      issues.push(
+        withDetail(
+          `pictures.${index}.picture.unit`,
+          handleOf === undefined ? undefined : numberDetailOfUnit(picture.unit, passagesOfCites(cites), offered),
+        ),
+      );
     if (!strict) return;
     const values = new Set(picture.points.map((point) => plainFigure(point.value)));
     const magnitude = unitMagnitude(picture.unit);
@@ -382,7 +427,19 @@ export function evidenceIssues(
       // value no cited passage writes at all is refused first.
       const stated = readingsOf(plainFigure(point.value), passages).length > 0;
       if (!stated || !pointAgrees({ value: point.value, magnitude }, passages, values))
-        issues.push({ code: 'authoring_number_not_in_evidence', path: `pictures.${index}.points.${pointIndex}.value` });
+        issues.push(
+          withDetail(
+            `pictures.${index}.points.${pointIndex}.value`,
+            handleOf === undefined
+              ? undefined
+              : numberDetailOfValue(
+                  `point ${pointIndex + 1}`,
+                  { value: point.value, magnitude, values },
+                  passagesOfCites(cites),
+                  offered,
+                ),
+          ),
+        );
     });
   });
   return issues;

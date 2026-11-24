@@ -55,6 +55,15 @@ describe('REPAIR_HINTS_V3', () => {
     for (const code of codes) expect(REPAIR_HINTS_V3[code], code).toBeDefined();
   });
 
+  it('points the figure hint and the copy hint to the repair notes, which carry the detail the static catalogue cannot (D-441, D-444)', () => {
+    expect(REPAIR_HINTS_V3['authoring_number_not_in_evidence']).toContain(
+      'The repair notes, if any, say where the figure is.',
+    );
+    expect(REPAIR_HINTS_V3['copied_passage']).toContain(
+      'The repair notes, when there are any, name the part and quote the words.',
+    );
+  });
+
   it('names no code that does not exist', () => {
     const known = new Set<string>([...REASON_CODES, ...V3_REASON_CODES, 'figure_format']);
     for (const code of Object.keys(REPAIR_HINTS_V3)) expect(known.has(code), code).toBe(true);
@@ -80,6 +89,13 @@ describe('writtenReferenceV3', () => {
       expect(chart, arm).toContain('"marks" is ALWAYS written');
       expect(chart, arm).toContain('"marks":[] when no point needs a label');
     }
+  });
+
+  it('tells the writer of pictures that a picture’s own words are not lifted from a passage (D-444)', () => {
+    for (const arm of ['one', 'staging'] as const)
+      expect(writtenReferenceV3(arm), arm).toContain(
+        "A picture's words are your own, as a paragraph's are: a title, caption, label, note or cell that repeats nine words in a row of a passage fails the Scroll.",
+      );
   });
 
   it('shows the prose writer no picture, show, link or control', () => {

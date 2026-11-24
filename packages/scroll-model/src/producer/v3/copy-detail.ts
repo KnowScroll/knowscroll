@@ -3,8 +3,12 @@ import { COPY_RUN_WORDS } from '../compile.js';
 
 /** The most words of one copied run a finding quotes; a longer run ends in an ellipsis. */
 export const COPY_DETAIL_RUN_WORDS = 15;
-/** The most runs of one item a finding quotes; the others are counted. */
-export const COPY_DETAIL_RUNS = 2;
+/**
+ * The most runs of one item a finding quotes; the others are counted. Four, from two (D-444): the most runs one item had in the
+ * measured attempts was three, one of them beyond the two the notes named (no measured repair kept a run that was not named); the
+ * repair notes still fit their bound.
+ */
+export const COPY_DETAIL_RUNS = 4;
 
 /** One run of words that an item copies from the research, and the part of the item it stands in ("text", "caption"). */
 export interface CopiedRun {

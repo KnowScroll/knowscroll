@@ -3,6 +3,7 @@ import {
   compileWrittenProseV3,
   compileWrittenV3,
   looseCopyIssuesV3,
+  looseNumberIssuesV3,
   mergeStagingV3,
   numberedProseText,
   REPAIR_HINTS_V3,
@@ -19,19 +20,21 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
 import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT_V3, citationLimitIssuesV3 } from './citation-limits.js';
-import { copyRepairNotesV3 } from './copy-notes-v3.js';
+import { repairNotesV3, type NoteFinding } from './repair-notes-v3.js';
 import { authoringEvidence, evidenceText, type EvidencePassage } from './evidence.js';
 import { bannedNames, readerStrings, type BannedName } from './banned-names.js';
 import { writerInstructionsV3, type WriterV3Plan, type WriterV3Step } from './writer-v3-instructions.js';
 
 /**
  * The versions of the three roles of the document v3 writer: one reply (arm a), prose (arm b step 1), staging (arm b step 2). They
- * moved from `.v1` with D-441, because the role's version names its instructions and its fixed hints, and both changed (the copy hint
- * points to the repair notes, a chart is told it always has its marks).
+ * moved from `.v1` with D-441, and from `.v2` with D-444, because the role's version names its instructions and its fixed hints, and both
+ * changed (D-441: the copy hint points to the repair notes, a chart is told it always has its marks; D-444: the figure hint points to
+ * the repair notes too, and the instructions say a picture's short texts are the writer's own words and how a figure that ends a range
+ * is read).
  */
-export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v2';
-export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v2';
-export const STAGER_V3_VERSION = 'scroll-stager-v3.v2';
+export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v3';
+export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v3';
+export const STAGER_V3_VERSION = 'scroll-stager-v3.v3';
 
 /** The kicker every library Scroll carries, the same as a v2 library Scroll's (`publicationV2`): code's, never the model's. */
 const LIBRARY_KICKER = 'A closer look';
@@ -242,13 +245,14 @@ export function compileStagedScrollV3(
 }
 
 /**
- * What the repair is told about a copy finding (D-441): for each item the part that copies and the copied words themselves
- * (`copyRepairNotesV3`), cut from the research text and never from the model's own words. Rebuilt from the refused answer with the
- * same checks that refused it; and for an answer the shape refused (a field too long, a chart without its marks) and that the compile
- * therefore never read, with the same copy rule over the strings it holds (`looseCopyIssuesV3`), so that a copy the first take was
- * never told about is named to the repair.
+ * What the repair is told about a copy or a figure finding (D-441, D-444): for each item the part that copies and the copied words
+ * themselves, and for each part with a figure that no cited passage states as written, the figure and where the research has it
+ * (`repairNotesV3`), cut from the research text and never from the model's own words. Rebuilt from the refused answer with the same
+ * checks that refused it; and for an answer the shape refused (a field too long, a chart without its marks) and that the compile
+ * therefore never read, with the same copy and figure rules over the strings it holds (`looseCopyIssuesV3`, `looseNumberIssuesV3`), so
+ * that a copy or a figure the first take was never told about is named to the repair.
  */
-function copyNotes<T>(
+function repairNotes<T>(
   previousAnswer: string,
   context: WriterV3Context,
   read: (json: unknown) => T | undefined,
@@ -261,12 +265,21 @@ function copyNotes<T>(
     return undefined;
   }
   const answer = read(parsed);
-  const issues = answer === undefined ? looseCopyIssuesV3(parsed, sourcesOf(context)) : issuesOf(answer);
-  return copyRepairNotesV3(
+  const issues: readonly { readonly code: string; readonly path: string; readonly detail?: string | undefined }[] =
+    answer === undefined
+      ? [
+          ...looseCopyIssuesV3(parsed, sourcesOf(context)),
+          ...looseNumberIssuesV3(
+            parsed,
+            context.passages.map((passage) => ({ handle: passage.handle, text: passage.text })),
+          ),
+        ]
+      : issuesOf(answer);
+  const findingsOf = (code: string): NoteFinding[] =>
     issues.flatMap((issue) =>
-      issue.code === 'copied_passage' && issue.detail !== undefined ? [{ path: issue.path, detail: issue.detail }] : [],
-    ),
-  );
+      issue.code === code && issue.detail !== undefined ? [{ path: issue.path, detail: issue.detail }] : [],
+    );
+  return repairNotesV3(findingsOf('copied_passage'), findingsOf('authoring_number_not_in_evidence'));
 }
 
 /** The fixed hints of a v3 role: the writer's catalogue, the citation bound and one per name a reader must not see. */
@@ -318,7 +331,7 @@ export function writerRoleV3One(context: WriterV3Context): ReasoningRole<Written
     id: 'content.scroll-writer',
     version: WRITER_V3A_VERSION,
     repairNotes: (previousAnswer) =>
-      copyNotes(
+      repairNotes(
         previousAnswer,
         context,
         (json) => {
@@ -345,7 +358,7 @@ export function writerRoleV3Prose(context: WriterV3Context): ReasoningRole<Writt
     id: 'content.scroll-writer',
     version: WRITER_V3B_VERSION,
     repairNotes: (previousAnswer) =>
-      copyNotes(
+      repairNotes(
         previousAnswer,
         context,
         (json) => {

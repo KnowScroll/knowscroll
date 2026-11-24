@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ScrollProvenanceV3, TAKEAWAY_PART_ID } from '../../internal/provenance-v3.js';
-import { BOIL, compileInputFor, HEAT, validReply, type Mutable } from '../../test-support/written-v3-fixtures.js';
+import {
+  BOIL,
+  compileInputFor,
+  HEAT,
+  STEAM,
+  validReply,
+  type Mutable,
+} from '../../test-support/written-v3-fixtures.js';
 import type { IssueV3 } from '../../v3/issues.js';
 import { computeMeasuresV3 } from '../../v3/measures.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
@@ -48,6 +55,10 @@ function para(reply: WrittenScrollV3, index: number): Para {
 }
 
 const at = (code: IssueV3['code'], path: string): IssueV3 => ({ code, path });
+
+/** An `authoring_number_not_in_evidence` finding of the model writer's strict compile at `path`: it carries the detail for the repair notes (D-444). */
+const numberAt = (path: string): unknown =>
+  expect.objectContaining({ code: 'authoring_number_not_in_evidence', path, detail: expect.any(String) as unknown });
 
 /** A `copied_passage` finding at `path` that names `field` of the item and quotes the research's words. */
 const copiedAt = (path: string, field = 'text'): unknown =>
@@ -406,7 +417,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       para(reply, 2).text =
         `${para(reply, 2).text.split(' ').slice(0, 40).join(' ')} Typical elements draw 3 kilowatts.`;
     });
-    expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'items.2'));
+    expect(issues).toContainEqual(numberAt('items.2'));
   });
 
   it('refuses "a million" when no cited passage has those words', () => {
@@ -414,7 +425,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       para(reply, 2).text =
         `${para(reply, 2).text.split(' ').slice(0, 40).join(' ')} A million kettles are sold in a week.`;
     });
-    expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'items.2'));
+    expect(issues).toContainEqual(numberAt('items.2'));
   });
 
   it('reads the dek, a section title and an ask suggestion as prose too, each at its own path', () => {
@@ -424,9 +435,9 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       if (section?.type === 'section') section.title = 'Boiling at 99 degrees';
       reply.askSuggestions = ['Is it true that 212 degrees is the boiling point?'];
     });
-    expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'dek'));
-    expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'items.8.title'));
-    expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'askSuggestions.0'));
+    expect(issues).toContainEqual(numberAt('dek'));
+    expect(issues).toContainEqual(numberAt('items.8.title'));
+    expect(issues).toContainEqual(numberAt('askSuggestions.0'));
   });
 
   describe('a chart value', () => {
@@ -456,14 +467,14 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
 
     it('fails when the passage writes the figure with no magnitude word', () => {
       const issues = refused(withChart('million people', `${BOIL} Some 8.3 people and 9.1 people live nearby.`));
-      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.0.value'));
+      expect(issues).toContainEqual(numberAt('pictures.1.points.0.value'));
     });
 
     it('fails when the unit has no magnitude word but the passage writes one', () => {
       const issues = refused(
         withChart('people', `${BOIL} Some 8.3 million people and 9.1 million people live nearby.`),
       );
-      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.1.value'));
+      expect(issues).toContainEqual(numberAt('pictures.1.points.1.value'));
     });
 
     it('passes a figure the passage writes bare, with a unit that has no magnitude word', () => {
@@ -504,7 +515,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
 
     it('refuses a value no cited passage states at all, at the value', () => {
       const issues = refused(withChart('people', `${BOIL} Some 8.3 people live nearby.`));
-      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.1.value'));
+      expect(issues).toContainEqual(numberAt('pictures.1.points.1.value'));
     });
 
     it('passes a negative value the passage writes with the Unicode minus, and refuses one it writes without a sign', () => {
@@ -522,7 +533,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       compiled(negative(`${BOIL} At rest the cell sits at \u221270 millivolts, and fires at \u221255 millivolts.`));
       compiled(negative(`${BOIL} At rest the cell sits at -70 millivolts, and fires at -55 millivolts.`));
       const issues = refused(negative(`${BOIL} At rest the cell sits at 70 millivolts, and fires at 55 millivolts.`));
-      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.0.value'));
+      expect(issues).toContainEqual(numberAt('pictures.1.points.0.value'));
     });
 
     it('reads a value the model writes with the Unicode minus as the stored hyphen-minus', () => {
@@ -546,7 +557,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
 
     it('refuses a unit the passage never names, at the unit', () => {
       const issues = refused(withChart('light years', `${BOIL} Some 8.3 people and 9.1 people live nearby.`));
-      expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.unit'));
+      expect(issues).toContainEqual(numberAt('pictures.1.unit'));
     });
   });
 });
@@ -613,13 +624,13 @@ describe('compileWrittenV3: a copied_passage finding says what was copied (D-441
     expect(found[0]?.detail).toContain(`in the step 2 note: "${quoted(HEAT_RUN)}"`);
   });
 
-  it('quotes the first two of three runs and counts the other', () => {
+  it('quotes every run of an item up to four, so a model told of a copy is told of all of its places in it (D-444)', () => {
     const found = copies((reply) => {
       para(reply, 11).text = `Start. ${HEAT_RUN} here. Then ${STEAM_RUN} there. Last, ${PAGE_RUN} again.`;
     });
     expect(found).toHaveLength(1);
     expect(found[0]?.detail).toBe(
-      `Nine or more words in a row match the research, in the text: "${quoted(HEAT_RUN)}"; in the text: "${quoted(STEAM_RUN)}" (1 more run not shown). Rewrite them in your own words, with a different sentence structure.`,
+      `Nine or more words in a row match the research, in the text: "${quoted(HEAT_RUN)}"; in the text: "${quoted(STEAM_RUN)}"; in the text: "${quoted(PAGE_RUN)}". Rewrite them in your own words, with a different sentence structure.`,
     );
   });
 
@@ -785,9 +796,7 @@ describe('arm (b): the merge and the prose compile', () => {
     const { reply: _reply, plannedKinds: _planned, ...rest } = input;
     const outcome = compileWrittenProseV3(prose, rest);
     expect(outcome.kind).toBe('refused');
-    expect(outcome.kind === 'refused' ? outcome.issues : []).toContainEqual(
-      at('authoring_number_not_in_evidence', 'dek'),
-    );
+    expect(outcome.kind === 'refused' ? outcome.issues : []).toContainEqual(numberAt('dek'));
   });
 
   it('refuses prose for its own problems and names none about pictures', () => {
@@ -941,5 +950,225 @@ describe('repair hints', () => {
   it('has a hint for every code the findings above carried', () => {
     expect(seenCodes.size).toBeGreaterThan(15);
     for (const code of seenCodes) expect(REPAIR_HINTS_V3[code], code).toBeDefined();
+  });
+});
+
+describe('compileWrittenV3: a figure finding says where the figure is (D-444)', () => {
+  const issuesOfNumber = (change: Change): readonly IssueV3[] =>
+    refused(change).filter((issue) => issue.code === 'authoring_number_not_in_evidence');
+
+  it('miscited: the figure is in a passage the part does not cite, and the detail names it', () => {
+    const found = issuesOfNumber((reply, input) => {
+      input.passages['c-steam'] = `${input.passages['c-steam'] ?? ''} Typical elements draw 3 kilowatts.`;
+      para(reply, 2).text =
+        `${para(reply, 2).text.split(' ').slice(0, 40).join(' ')} Typical elements draw 3 kilowatts.`;
+    });
+    expect(found).toEqual([
+      {
+        code: 'authoring_number_not_in_evidence',
+        path: 'items.2',
+        detail: 'In the text, "3" is not in the passages this part cites, but e3 states it that way: cite e3.',
+      },
+    ]);
+  });
+
+  it('absent: no offered passage has the figure, and the detail says it is not in the research', () => {
+    const found = issuesOfNumber((reply) => {
+      para(reply, 2).text = `${para(reply, 2).text.split(' ').slice(0, 40).join(' ')} Kettles sold last year: 4821.`;
+    });
+    expect(found).toEqual([
+      {
+        code: 'authoring_number_not_in_evidence',
+        path: 'items.2',
+        detail:
+          'In the text, "4821" is in none of the offered passages, so it is not in the research: take it out, or use a figure a passage states.',
+      },
+    ]);
+  });
+
+  it('written another way: the cited passage has the digits as one end of a range, and the detail quotes the research’s words', () => {
+    const found = issuesOfNumber((reply, input) => {
+      input.passages['c-heat'] = `${HEAT} Typical elements draw 2 to 3 kilowatts.`;
+      para(reply, 2).text =
+        `${para(reply, 2).text.split(' ').slice(0, 40).join(' ')} Typical elements draw 3 kilowatts.`;
+    });
+    expect(found).toEqual([
+      {
+        code: 'authoring_number_not_in_evidence',
+        path: 'items.2',
+        detail:
+          'In the text, "3" is in e1, but only as one end of a range ("… draw 2 to 3 kilowatts."): a range counts only whole, so write both ends together, in the order the passage does, or say the figure in words.',
+      },
+    ]);
+  });
+
+  it('written another way: a magnitude word, and a simpler text that holds the same figure is named with the text', () => {
+    const found = issuesOfNumber((reply, input) => {
+      input.passages['c-heat'] = `${HEAT} About 8.3 million kettles were sold.`;
+      const item = para(reply, 2);
+      item.text = `${item.text.split(' ').slice(0, 40).join(' ')} About 8.3 kettles were sold.`;
+      item.simple = `${item.simple} About 8.3 kettles were sold.`;
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]?.detail).toBe(
+      'In the text and the simpler text, "8.3" is in e1, but with the word "million" after it ("… into heat. About 8.3 million kettles …"): write it with that word, or say it in words.',
+    );
+  });
+
+  it('names the second end of a range as the other end of the first, once', () => {
+    const found = issuesOfNumber((reply, input) => {
+      input.passages['c-heat'] = `${HEAT} The share went from 17% in 1801 to 54% in 1891.`;
+      const item = para(reply, 2);
+      item.text = `${item.text.split(' ').slice(0, 40).join(' ')} By 1891 it was 54%, up from 17% in 1801.`;
+    });
+    expect(found).toHaveLength(1);
+    const detail = found[0]?.detail ?? '';
+    expect(detail).toContain('"54" is in e1, but only as one end of a range ("… in 1801 to 54% in 1891.")');
+    expect(detail).toContain('"1801" is the other end of the same range: write the two together.');
+  });
+
+  it('keeps the rule: a chart of the two ends of "from 17% in 1801 to 54% in 1891" is refused for its label and its value, and the detail says why (the planned industrial-towns chart, D-444)', () => {
+    const found = issuesOfNumber((reply, input) => {
+      input.passages['c-steam'] = `${STEAM} The share living in larger cities rose from 17% in 1801 to 54% in 1891.`;
+      reply.pictures[1] = {
+        kind: 'chart',
+        title: 'The share in larger cities',
+        cites: ['e3'],
+        form: 'line',
+        unit: '%',
+        values: 'shown',
+        points: [
+          { label: '1801', value: '17' },
+          { label: '1891', value: '54' },
+        ],
+        marks: [],
+      };
+      para(reply, 9).show = { picture: 2, upTo: 1 };
+      delete para(reply, 10).links;
+    });
+    expect(found.map((issue) => issue.path)).toEqual(['pictures.1', 'pictures.1.points.1.value']);
+    expect(found[0]?.detail).toContain('In the point 1 label, "1801" is in e3, but only as one end of a range');
+    expect(found[1]?.detail).toContain(
+      'a chart value that ends a range passes only when the other end ("1801") is also one of the chart\'s values; if the other end is not something the chart plots (a year, a count), leave this point out and say the figure in words',
+    );
+  });
+
+  it('keeps the rule, and so a chart of those figures passes only by plotting the year as a value, which the detail does not offer (D-444)', () => {
+    const outcome = compile((reply, input) => {
+      input.passages['c-steam'] = `${STEAM} The share living in larger cities rose from 17% in 1801 to 54% in 1891.`;
+      reply.pictures[1] = {
+        kind: 'chart',
+        title: 'The share in larger cities',
+        cites: ['e3'],
+        form: 'bars',
+        unit: '%',
+        values: 'shown',
+        points: [
+          { label: 'Early', value: '17' },
+          { label: 'Year', value: '1801' },
+          { label: 'Late', value: '54' },
+        ],
+        marks: [],
+      };
+      para(reply, 9).show = { picture: 2, upTo: 1 };
+      delete para(reply, 10).links;
+    });
+    expect(outcome.kind).toBe('compiled');
+  });
+
+  describe('a chart', () => {
+    const chart =
+      (unit: string, passage: string, cites = ['e2']) =>
+      (reply: WrittenScrollV3, input: Mutable) => {
+        input.passages['c-boil'] = BOIL;
+        input.passages['c-steam'] = passage;
+        reply.pictures[1] = {
+          kind: 'chart',
+          title: 'People near kettles',
+          cites,
+          form: 'bars',
+          unit,
+          values: 'shown',
+          points: [
+            { label: 'Town', value: '8.3' },
+            { label: 'City', value: '9.1' },
+          ],
+          marks: [],
+        };
+        para(reply, 9).show = { picture: 2, upTo: 1 };
+        delete para(reply, 10).links;
+      };
+    const detailAt = (outcome: readonly IssueV3[], path: string): string | undefined =>
+      outcome.find((issue) => issue.path === path)?.detail;
+
+    it('a point value that a cited passage writes with a magnitude word the unit lacks is told what the unit must open with', () => {
+      const found = issuesOfNumber(
+        chart('people', `${HEAT} Some 8.3 million people and 9.1 million people live nearby.`, ['e3']),
+      );
+      expect(detailAt(found, 'pictures.1.points.0.value')).toBe(
+        'The value of point 1, "8.3", is in e3, but with the word "million" after it ("… into heat. Some 8.3 million people …"): the unit must open with "million", and the value stays as the passage writes it.',
+      );
+    });
+
+    it('a point value in a passage the chart does not cite is told which passage to cite', () => {
+      const found = issuesOfNumber(chart('people', `${STEAM} Some 8.3 people and 9.1 people live nearby.`));
+      expect(detailAt(found, 'pictures.1.points.0.value')).toBe(
+        'The value of point 1, "8.3", is not in the passages this chart cites, but e3 states it that way: cite e3.',
+      );
+    });
+
+    it('a point value that no passage has at all is told it is not in the research', () => {
+      const found = issuesOfNumber(chart('people', `${STEAM} Some 7 people live nearby.`));
+      expect(detailAt(found, 'pictures.1.points.1.value')).toBe(
+        'The value of point 2, "9.1", is in none of the offered passages, so it is not in the research: leave the point out, or use a figure a passage states.',
+      );
+    });
+
+    it('a value that ends a range the chart does not hold whole is told the other end must be a value of the chart', () => {
+      const found = issuesOfNumber(
+        chart('people', `${STEAM} Some 7 to 8.3 people and 9.1 people live nearby.`, ['e3']),
+      );
+      expect(detailAt(found, 'pictures.1.points.0.value')).toBe(
+        'The value of point 1, "8.3", is in e3, but only as one end of a range ("… Some 7 to 8.3 people and …"): a chart value that ends a range passes only when the other end ("7") is also one of the chart\'s values; if the other end is not something the chart plots (a year, a count), leave this point out and say the figure in words.',
+      );
+    });
+
+    it('a unit is told apart from a value: the detail of the unit names the word no cited passage writes, and the value’s detail is not there', () => {
+      const found = issuesOfNumber(
+        chart('light years', `${STEAM} Some 8.3 people and 9.1 people live nearby.`, ['e3']),
+      );
+      expect(detailAt(found, 'pictures.1.unit')).toBe(
+        'The unit "light years" has words that no passage this chart cites writes: "light", "year". Use a unit made of the words of a cited passage; the unit is not a figure and the values do not change.',
+      );
+      expect(detailAt(found, 'pictures.1.points.0.value')).toBeUndefined();
+    });
+
+    it('a unit with a sign the passages write ("%") is pointed at the sign', () => {
+      const found = issuesOfNumber(chart('percent', `${STEAM} Some 8.3% and 9.1% live nearby.`, ['e3']));
+      expect(detailAt(found, 'pictures.1.unit')).toContain('(the passages write the sign "%")');
+    });
+  });
+
+  it('a Scroll whose figures are stated has no figure finding, and a refusal for something else carries none', () => {
+    compiled();
+    const found = refused((reply) => {
+      reply.items = reply.items.slice(0, 8);
+    });
+    expect(found.some((issue) => issue.code === 'authoring_number_not_in_evidence')).toBe(false);
+    expect(found.some((issue) => issue.detail !== undefined && issue.code !== 'copied_passage')).toBe(false);
+  });
+
+  it('a figure of the dek is judged against every passage the Scroll cites, and the detail says which one states it', () => {
+    const found = issuesOfNumber((reply, input) => {
+      input.passages['c-heat'] = `${HEAT} A typical element draws 3 kilowatts.`;
+      reply.dek = 'Why a kettle element draws 3 kilowatts, and where the heat goes.';
+      for (const item of reply.items)
+        if (item.type !== 'section') item.cites = item.cites.map((cite) => (cite === 'e1' ? 'e2' : cite));
+      reply.takeaway.cites = ['e2'];
+      for (const picture of reply.pictures) picture.cites = ['e2'];
+    });
+    expect(found.find((issue) => issue.path === 'dek')?.detail).toBe(
+      'In the text, "3" is in e1, which no part of the Scroll cites: cite e1 in a part of the Scroll, or take the figure out of this text.',
+    );
   });
 });

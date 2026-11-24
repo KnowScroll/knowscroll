@@ -75,7 +75,7 @@ export const REPAIR_HINTS_V3: Readonly<Record<string, string>> = Object.freeze({
   authoring_too_few_cites:
     'Ground the Scroll in more of the offered passages: cite at least the number of different ones the instructions name.',
   authoring_number_not_in_evidence:
-    'Use a figure only as a cited passage writes it, with the same word after it, and a range only whole; otherwise say it in words. A chart value and its unit must match the passage.',
+    'Use a figure only as a cited passage writes it, with the same word after it, and a range only whole; otherwise say it in words. A chart value and its unit must match the passage. The repair notes, if any, say where the figure is.',
   quote_not_in_evidence:
     'A quotation must match a cited passage word for word. Copy it exactly, or say it in your own words.',
   copied_passage:

@@ -41,7 +41,7 @@ const readRank = (key: string): number => {
 };
 
 /** The strings of a picture, named, from whatever shape the reply gave it; nothing is rejected, whatever else is wrong. */
-function pictureFieldsOf(picture: Plain): NamedText[] {
+export function pictureFieldsOf(picture: Plain): NamedText[] {
   const found: NamedText[] = [];
   const walk = (node: Plain, prefix: string, inChart: boolean, inQuote: boolean): void => {
     for (const [key, value] of Object.entries(node).sort(([first], [second]) => readRank(first) - readRank(second))) {

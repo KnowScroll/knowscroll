@@ -35,12 +35,14 @@ import {
   productionVersionOf,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
   SCROLL_PRODUCTION_V3_SECOND_VERSION,
+  SCROLL_PRODUCTION_V3_THIRD_VERSION,
   scrollV3PlanOf,
 } from './topics.js';
 import {
   WRITER_V3_PROMPT_VERSION,
   WRITER_V3_PROMPT_VERSION_V1,
   WRITER_V3_PROMPT_VERSION_V2,
+  WRITER_V3_PROMPT_VERSION_V3,
 } from './writer-v3-version.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
@@ -130,6 +132,7 @@ async function readPublishedRevision(
       ...PRODUCTION_VERSIONS,
       SCROLL_PRODUCTION_V3_FIRST_VERSION,
       SCROLL_PRODUCTION_V3_SECOND_VERSION,
+      SCROLL_PRODUCTION_V3_THIRD_VERSION,
     ])
     .where('job.writer_run_id', '=', writerRunId)
     .where('job.scope_generation', '=', generation)
@@ -189,8 +192,8 @@ function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
  * The pairs of a job's production version and the writer prompt version its Scroll names that the lineage accepts for a recipe's
  * Scroll of this document schema. A pair is the version of the job and the instructions that ran under it, so a Scroll never
  * names a prompt its job did not run. A document v3 of a recipe the plan marks `scrollV3` also accepts the earlier pairs (D-438,
- * D-441): the revisions `scroll-production-v3.v1` and `.v2` wrote keep their lineage after the version moved, and no new job is
- * made at either. Pure.
+ * D-441, D-444): the revisions `scroll-production-v3.v1`, `.v2` and `.v3` wrote keep their lineage after the version moved, and no
+ * new job is made at any of them. Pure.
  */
 export function lineagePairsOf(
   key: string,
@@ -202,6 +205,7 @@ export function lineagePairsOf(
         current,
         [SCROLL_PRODUCTION_V3_FIRST_VERSION, WRITER_V3_PROMPT_VERSION_V1],
         [SCROLL_PRODUCTION_V3_SECOND_VERSION, WRITER_V3_PROMPT_VERSION_V2],
+        [SCROLL_PRODUCTION_V3_THIRD_VERSION, WRITER_V3_PROMPT_VERSION_V3],
       ]
     : [current];
 }

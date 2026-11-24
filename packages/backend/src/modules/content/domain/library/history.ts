@@ -146,11 +146,6 @@ export const historyRecipes = {
           purpose:
             'Bars of the share of the population urbanised in 1891, on the broader definition of urbanisation: England and Wales 72, Prussia 41, France 37, United States 28. Unit: %.',
         },
-        {
-          kind: 'chart',
-          purpose:
-            'A line of two points for England and Wales on the narrower definition, the share living in cities of more than 20,000 people: 17 in 1801 and 54 in 1891. Unit: %. Kept apart from the other chart, because the two use different definitions.',
-        },
       ],
       misconception: { kind: 'none' },
     },

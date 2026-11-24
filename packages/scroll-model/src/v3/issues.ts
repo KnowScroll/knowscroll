@@ -69,9 +69,12 @@ export interface IssueV3 {
   readonly code: ReasonCode | V3ReasonCode | SharedNoticeCode;
   readonly path: string;
   /**
-   * Set only on a `copied_passage` of the model writer's compile (`producer/v3/copy-detail.ts`): the part of the item that
-   * copies and the research's own words that it copies, cut from the research and never from the model's text. The
-   * writer sends it to its one repair in the repair notes; every other finding is a code and a path.
+   * Set only on a `copied_passage` or an `authoring_number_not_in_evidence` of the model writer's compile. For a copy
+   * (`producer/v3/copy-detail.ts`): the part of the item that copies and the research's own words that it copies. For a
+   * figure (`producer/v3/number-detail.ts`, D-444): the part, the figure as written, and where the research has it (the
+   * passages to cite, how a cited passage writes it, or that it is in none). Built from the research's words and the
+   * figure itself, never from other text the model wrote. The writer sends it to its one repair in the repair notes; every
+   * other finding is a code and a path.
    */
   readonly detail?: string;
 }

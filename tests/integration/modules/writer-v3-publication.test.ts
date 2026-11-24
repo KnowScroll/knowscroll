@@ -19,6 +19,7 @@ import {
   REQUEST_BOUND_V3_PER_TOPIC,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
   SCROLL_PRODUCTION_V3_SECOND_VERSION,
+  SCROLL_PRODUCTION_V3_THIRD_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
   TOPICS,
 } from '../../../packages/backend/src/modules/content/production/topics.js';
@@ -79,6 +80,35 @@ function copyingParagraph(): { items: { text?: string }[]; pictures: Record<stri
 /** The same copy, and a chart written without its marks: the shape is refused before the copy rule can run. */
 function copyingParagraphAndChartWithoutMarks(): unknown {
   const draft = copyingParagraph();
+  draft.pictures[0] = {
+    kind: 'chart',
+    title: 'A chart',
+    cites: ['e1'],
+    form: 'bars',
+    values: 'shown',
+    points: [
+      { label: 'A', value: '1' },
+      { label: 'B', value: '2' },
+    ],
+  };
+  return draft;
+}
+
+/** The recorded reply with the paragraph that states "31 degrees" citing a passage that does not hold the figure: the only fault it has (D-444). */
+function miscitedFigure(): { items: { text?: string; cites?: string[] }[]; pictures: Record<string, unknown>[] } {
+  const draft = JSON.parse(JSON.stringify(fixtureReplyV3())) as {
+    items: { text?: string; cites?: string[] }[];
+    pictures: Record<string, unknown>[];
+  };
+  const at = draft.items.findIndex((item) => item.text?.includes('tips by 31 degrees') === true);
+  if (at < 0) throw new Error('CI: the fixture paragraph about the lean is gone');
+  draft.items[at] = { ...draft.items[at], cites: ['e2'] };
+  return draft;
+}
+
+/** The same miscited figure, and a chart written without its marks: the shape is refused before the figure rule can run. */
+function miscitedFigureAndChartWithoutMarks(): unknown {
+  const draft = miscitedFigure();
   draft.pictures[0] = {
     kind: 'chart',
     title: 'A chart',
@@ -282,8 +312,9 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
   it.each([
     ['first', SCROLL_PRODUCTION_V3_FIRST_VERSION, 'scroll-writer-v3.v1'],
     ['second', SCROLL_PRODUCTION_V3_SECOND_VERSION, 'scroll-writer-v3.v2'],
+    ['third', SCROLL_PRODUCTION_V3_THIRD_VERSION, 'scroll-writer-v3.v3'],
   ])(
-    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-441)',
+    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-441, D-444)',
     async (_which, earlier, earlierPrompt) => {
       await produce();
       // Make the stored revision what an earlier production version wrote: its job's policy version and the prompt version it named.
@@ -444,6 +475,33 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
       expect(repair?.system).not.toContain('copied_passage');
       expect(repair?.user).toContain(
         'items[13]: Nine or more words in a row match the research, in the text: "near the equator',
+      );
+    });
+
+    it('tells the repair which passage holds a figure the paragraph cited the wrong passage for: the fixed hint in the findings, the passage in the repair notes (D-444)', async () => {
+      const worker = setup((sequence) => (sequence === 1 ? answerWith(miscitedFigure()) : good()));
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(2);
+      const repair = worker.writerCalls[1]?.request;
+      expect(repair?.system).toContain('authoring_number_not_in_evidence');
+      expect(repair?.system).toContain('The repair notes, if any, say where the figure is.');
+      expect(repair?.user).toContain('<repair-notes>');
+      expect(repair?.user).toMatch(
+        /items\[\d+\]: In the text and the simpler text, "31" is not in the passages this part cites, but e1 states it that way: cite e1\./u,
+      );
+      expect(worker.writerCalls[0]?.request.user).not.toContain('<repair-notes>');
+    });
+
+    it('names the figure to the repair when the first write was refused for its shape too: a chart without its marks hid the figure rule (D-444)', async () => {
+      const worker = setup((sequence) => (sequence === 1 ? answerWith(miscitedFigureAndChartWithoutMarks()) : good()));
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(2);
+      const repair = worker.writerCalls[1]?.request;
+      expect(repair?.system).not.toContain('authoring_number_not_in_evidence');
+      expect(repair?.user).toMatch(
+        /items\[\d+\]: In the text and the simpler text, "31" is not in the passages this part cites, but e1 states it/u,
       );
     });
 
