@@ -5,8 +5,9 @@ starts two private fixture servers: `production` serves `dist/` and `gallery` se
 The exports use edge-like headers, including CSP. Authored HTTP fixtures stand in for the API;
 a browser assertion is not evidence of a real provider, personal activity or dev backend behavior.
 
-The hosted `client` check installs Chromium and builds both exports before
-`pnpm --filter @knowscroll/client test:web`. To focus that configured suite, use
+In CI, `client build` builds both exports once, and the `client e2e` shards each install Chromium
+and run `playwright test --shard=i/N` over them; the required `client` check passes only when every
+shard did (D-440). Locally, `pnpm --filter @knowscroll/client test:web` runs the whole suite. To focus that configured suite, use
 `pnpm --filter @knowscroll/client exec playwright test -c e2e/playwright.config.ts --project production account-smoke.spec.ts`.
 The build prerequisites still apply. The config refuses focused-only tests, uses one worker and
 has zero retries; keep those assertions and failure visibility intact.
