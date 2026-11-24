@@ -92,12 +92,16 @@ export function VoyageStage({
 
   const systemId = inputs.target.systemId;
   const stop = inputs.target.stop;
+  // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
+  // you are, of what you turned or of the planet's world must be one.
+  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
   const camera = useMemo(
     () => ({
       focus: (systemId === null ? undefined : space.systemFocus(systemId)) ?? space.universeFocus,
       frame: INITIAL_FRAME,
+      redraw,
     }),
-    [systemId, space],
+    [systemId, space, redraw],
   );
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {

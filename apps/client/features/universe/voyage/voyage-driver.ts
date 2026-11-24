@@ -201,6 +201,14 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     }
   };
   let lastPose: CameraPose | null = null;
+  /** The last planet the screen gave: kept while a flight leaves it, so its globe does not drop to the painted body. */
+  let lastPlanet: VoyagePlanet | null = null;
+  /** The planet drawn as a world now: the screen's, or the one a flight is still leaving. */
+  const worldPlanet = (): VoyagePlanet | null => {
+    if (control.planet !== null) lastPlanet = control.planet;
+    else if (flight?.from.planetId !== lastPlanet?.planetId) lastPlanet = null;
+    return control.planet ?? lastPlanet;
+  };
 
   const scratch = new THREE.Vector3();
   const planetAt = (space: BuiltSpace, planetId: string) => {
@@ -275,7 +283,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   };
 
   const paintStep = () => {
-    const planet = control.planet;
+    const planet = worldPlanet();
     if (planet === null) return;
     if (painting !== null && painting.key !== planet.key) painting = null;
     if (painted?.key !== planet.key && painting === null) {
@@ -287,7 +295,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const size = painted.size + 1;
       painting = { key: planet.key, size, painter: createWorldPainter({ ...planet, ...TEXTURES[size]! }) };
     }
-    if (painting !== null && painting.painter.step(PAINT_BUDGET_MS)) {
+    if (painting !== null && painting.painter.step(control.reducedMotion ? Infinity : PAINT_BUDGET_MS)) {
       globe.setTexture(painting.painter.result());
       painted = { key: painting.key, size: painting.size };
       painting = null;
@@ -307,7 +315,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
 
   /** Where the globe should face: a slow spin from orbit, the chosen region (or the first) on the ground. */
   const wantedOrientation = (t: number, radiusPx: number) => {
-    const planet = control.planet;
+    const planet = worldPlanet();
     const turnLon = control.turn.x / Math.max(radiusPx, 1);
     const turnLat = control.turn.y / Math.max(radiusPx, 1);
     if (control.target.stop === 'ground' && planet !== null) {
@@ -384,7 +392,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
 
       // The globe: drawn over the painted planet once it is big enough to read, nearer the ground lit less and less.
       globeScreen = null;
-      if (planet !== undefined && control.planet?.planetId === planetId) {
+      if (planet !== undefined && worldPlanet()?.planetId === planetId) {
         paintStep();
         const radiusPx = (focal * planet.radius) / Math.max(planet.position.distanceTo(position), 1e-6);
         const opacity = smooth(20, 60, radiusPx);
@@ -433,7 +441,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       renderer.autoClear = true;
     },
     anchors(space, size) {
-      const planet = control.planet;
+      const planet = worldPlanet();
       if (planet === null || !globe.mesh.visible || globeScreen === null || globeScreen.radiusPx < 90) return [];
       space.camera.updateMatrixWorld();
       globe.mesh.updateMatrixWorld();

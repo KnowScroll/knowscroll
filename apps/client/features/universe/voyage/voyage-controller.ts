@@ -14,6 +14,7 @@ import {
   stepShip,
   type DrawnShip,
   type ShipHome,
+  recentreShip,
   type ShipState,
 } from './ship-motion';
 import type { VoyageControl, VoyageFrame, VoyagePlanet, VoyageTarget } from './voyage-driver';
@@ -75,6 +76,9 @@ export function descend(
     if (planet) void session.focus(planet.id);
   } else if (!view.landed) void session.land();
 }
+
+const keyOf = (target: VoyageTarget) =>
+  `${target.stop}|${target.systemId ?? ''}|${target.planetId ?? ''}|${target.regionId ?? ''}`;
 
 /** Places the ship could be let go over: everything named on screen. */
 const shipTargets = (anchors: readonly SpaceAnchor[]) =>
@@ -174,6 +178,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   };
 
   let mode: 'ship' | 'turn' | 'pinch' = 'turn';
+  /** The held ship moved: letting go is a drop, not a tap. */
+  let shipMoved = false;
   let startTurn = { x: 0, y: 0 };
   let startSpread = 0;
   let lastSpread = 0;
@@ -205,6 +211,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       else if (pickShip(ship, at.x, at.y)) {
         mode = 'ship';
         held = at;
+        shipMoved = false;
       } else mode = 'turn';
       startTurn = { x: inputs.turn.x, y: inputs.turn.y };
     },
@@ -218,14 +225,19 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         lastSpread = now;
         return;
       }
-      if (mode === 'ship') held = local(event);
-      else if (mode === 'turn')
+      if (mode === 'ship') {
+        held = local(event);
+        shipMoved = true;
+      } else if (mode === 'turn')
         inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });
     },
     onPanResponderRelease: () => {
       if (mode === 'ship') {
         held = null;
-        const released = releaseShip(ship, shipTargets(anchors));
+        // A tap on the ship calls it home; a drop over a place goes there.
+        const released = shipMoved
+          ? releaseShip(ship, shipTargets(anchors))
+          : { state: recentreShip(ship), goTo: null };
         ship = released.state;
         if (released.goTo !== null) void inputs.session.focus(released.goTo);
       } else if (mode === 'pinch' && startSpread > 0) {
@@ -247,6 +259,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     load: loadVoyageRenderer(control),
     responder,
     sync(next) {
+      // Going somewhere calls the ship home: it parks at the new stop.
+      if (keyOf(next.target) !== keyOf(inputs.target)) ship = recentreShip(ship);
       inputs = next;
       control.target = next.target;
       control.turn = next.turn;

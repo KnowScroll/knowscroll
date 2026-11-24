@@ -27,6 +27,7 @@ const READS = new Set([
 interface Options {
   readonly size?: { width: number; height: number };
   readonly trial?: boolean;
+  readonly calm?: boolean;
 }
 
 /** Screenshots are written only when `KS_UNIVERSE_SHOTS` names a folder (outside the repository). */
@@ -42,6 +43,7 @@ async function openUniverse(page: Page, paths: string[], options: Options = {}):
   // Three systems, and a planet with four formed regions.
   const world = sceneFixture(5, 0, 3, 2);
   await page.setViewportSize(options.size ?? { width: 390, height: 844 });
+  if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
   if (options.trial !== false)
     await page.addInitScript(() =>
       window.localStorage.setItem(
@@ -129,9 +131,14 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   // On the ground the camera has come down over the first formed region.
   await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeVisible();
 
-  // Land not reached yet is drawn grey but never named or read out.
+  // Land not reached yet is drawn grey but never named, read out or given a button: the only regions are the formed ones.
   const tree = await page.locator('body').ariaSnapshot();
   expect(tree).not.toMatch(/uncharted|not reached|unreached|locked|grey|gray/i);
+  const regions = await page
+    .getByRole('button', { name: /, a region$/ })
+    .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
+  expect(regions.length).toBeGreaterThan(0);
+  for (const name of regions) expect(name).toMatch(/^CI region [4-7], a region$/);
 
   // The Back pill climbs one stop: the ground to the planet, the planet to the star, the star to the universe.
   await page.getByRole('button', { name: 'Back to CI planet 2', exact: true }).click();
@@ -146,6 +153,22 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   // eslint-disable-next-line no-console -- the numbers go in the pull request
   console.log(line);
   await testInfo.attach('voyage-frame-numbers', { body: line, contentType: 'text/plain' });
+});
+
+test('with reduced motion every stop is drawn at once, and the globe’s regions are still there', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openUniverse(page, [], { calm: true });
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click({ timeout: 60_000 });
+  const planet = page.getByRole('button', { name: 'CI planet 2, a planet', exact: true });
+  await expect(planet).toBeVisible({ timeout: 30_000 });
+  await planet.click();
+  await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('voyage-stage').focus();
+  await page.keyboard.press('+');
+  await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await shot(page, 'voyage-5-ground-reduced-motion');
 });
 
 test('with the trial switch off the Universe is the one that ships', async ({ page }) => {
