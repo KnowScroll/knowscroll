@@ -37,7 +37,7 @@ function Figure({ meter }: { readonly meter: FrameMeter }) {
   }, [meter]);
   return (
     <View pointerEvents="none" style={styles.figure} testID="universe-frame-rate">
-      <Text variant="meta" color={space.label}>
+      <Text variant="meta" color={space.label} align="right">
         {line}
       </Text>
     </View>
@@ -47,8 +47,8 @@ function Figure({ meter }: { readonly meter: FrameMeter }) {
 const styles = StyleSheet.create({
   figure: {
     position: 'absolute',
-    left: spacing[4],
-    // Below the header's title and Back pill.
+    right: spacing[4],
+    // Beside the search and Lately chips, below the header's avatar.
     top: 76,
     paddingHorizontal: spacing[2],
     paddingVertical: spacing[1],

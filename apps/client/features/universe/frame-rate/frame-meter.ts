@@ -75,13 +75,11 @@ export function createFrameMeter(): FrameMeter {
   };
 }
 
-/** The readout's one line: "29 fps · 97% on time · longest 66 ms · draw 4 ms". */
+/** The readout's two short lines: "29 fps · 97% on time" and "longest 66 ms · draw 4.3 ms". */
 export function describeFrames(summary: FrameSummary | null): string {
-  if (summary === null) return 'No 3D frames in the last 2 s';
+  if (summary === null) return 'No 3D frames\nin the last 2 s';
   return [
-    `${Math.round(summary.fps)} fps`,
-    `${Math.round(summary.onTime * 100)}% on time`,
-    `longest ${Math.round(summary.longestMs)} ms`,
-    `draw ${summary.drawMs.toFixed(1)} ms`,
-  ].join(' · ');
+    `${Math.round(summary.fps)} fps · ${Math.round(summary.onTime * 100)}% on time`,
+    `longest ${Math.round(summary.longestMs)} ms · draw ${summary.drawMs.toFixed(1)} ms`,
+  ].join('\n');
 }

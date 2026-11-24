@@ -305,8 +305,8 @@ test('shows the frame-rate readout only when the device asked for it, with what 
 }, testInfo) => {
   await openUniverse(page, [], { frameRate: true });
   const readout = page.getByTestId('universe-frame-rate');
-  await expect(readout).toHaveText(/^\d+ fps · \d+% on time · longest \d+ ms · draw [\d.]+ ms$/, { timeout: 60_000 });
-  const line = `frame-rate readout (web, 390x844, software WebGL): ${await readout.innerText()}`;
+  await expect(readout).toHaveText(/^\d+ fps · \d+% on time\s+longest \d+ ms · draw [\d.]+ ms$/, { timeout: 60_000 });
+  const line = `frame-rate readout (web, 390x844, software WebGL): ${(await readout.innerText()).replace(/\s+/g, ' ')}`;
   // eslint-disable-next-line no-console -- the numbers go in the PR description
   console.log(line);
   await testInfo.attach('universe-frame-rate-readout', { body: line, contentType: 'text/plain' });

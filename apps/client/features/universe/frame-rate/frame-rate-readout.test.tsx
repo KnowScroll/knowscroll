@@ -37,6 +37,6 @@ describe('the frame-rate readout', () => {
     );
     expect(heard).toHaveBeenLastCalledWith(true);
     await act(() => jest.advanceTimersByTimeAsync(500));
-    expect(screen.getByTestId('universe-frame-rate')).toHaveTextContent(/fps · 100% on time · longest 33 ms/);
+    expect(screen.getByTestId('universe-frame-rate')).toHaveTextContent(/fps · 100% on time\s*longest 33 ms/);
   });
 });

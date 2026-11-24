@@ -42,12 +42,12 @@ describe('the frame meter', () => {
     meter.record({ atMs: 10, drawMs: 1 });
     meter.record({ atMs: 40, drawMs: 1 });
     expect(meter.summary(40 + WINDOW_MS + 1)).toBeNull();
-    expect(describeFrames(null)).toBe('No 3D frames in the last 2 s');
+    expect(describeFrames(null)).toBe('No 3D frames\nin the last 2 s');
   });
 
-  it('says it in one line', () => {
+  it('says it in two short lines', () => {
     expect(describeFrames({ fps: 29.4, onTime: 0.966, longestMs: 66.4, drawMs: 4.25 })).toBe(
-      '29 fps · 97% on time · longest 66 ms · draw 4.3 ms',
+      '29 fps · 97% on time\nlongest 66 ms · draw 4.3 ms',
     );
   });
 });
