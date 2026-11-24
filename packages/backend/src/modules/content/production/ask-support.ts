@@ -1,27 +1,20 @@
 import { z } from 'zod';
-import { COPY_RUN_WORDS, type AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ContextItem, ReasoningRole } from '../../../reasoning/public.js';
 import {
-  ASK_ORDER_CHECK_RULES,
   STRICT_CHECK_RULES,
-  UNSUPPORTED_HINTS,
   UNSUPPORTED_KINDS,
   judgeVerdicts,
-  splitSentences,
   type CheckerRules,
   type SentenceUnderCheck,
   type SentenceVerdict,
-  type UnsupportedVerdict,
 } from '../domain/ask-support.js';
-import { isCodeMadeLimits } from './ask-answer-limits.js';
 
 /**
- * The support check of an ask order's answer (D-250, D-263, D-265 to D-267, D-281, D-305 to D-307, D-310, D-313, D-316): a second model role that reads each
- * sentence of the answer against the passages the answer cites and says which sentences those passages do not support. The writer's
- * validator cannot see that: it proves that digits come from a cited passage and that nine words are not copied, not
- * that a sentence about a cause or a direction says what the passage says. The checker only proposes. Code validates
- * the shape of its reply, judges each verdict on its own sentence, reads the verdicts and decides: the answer is served,
- * repaired once, served without the sentences that still fail (D-310), or refused.
+ * The support checker (D-250, D-263, D-265 to D-267, D-281, D-305 to D-307, D-313, D-316): a model role that reads each sentence of an
+ * answer against the passages the answer cites and says which sentences those passages do not support. It is shared: a Quick answer and
+ * a resident's answer in a room are checked with it (`askSupportRole`, strict rules), and the library's support check builds on its
+ * instructions and its reply schema (D-415). The checker only proposes. Code validates the shape of its reply and judges each
+ * verdict on its own sentence. The answer to a person's question, which it was first written for, is no longer written (#818, D-443).
  */
 export const ASK_SUPPORT_CHECK_VERSION = 'ask-support-check.v5';
 
@@ -33,101 +26,6 @@ const MAX_PROBLEM_CHARS = 300;
 const MAX_QUOTE_CHARS = 240;
 /** Thinking counts against the ceiling; a batch's reply is a few hundred tokens, so a batch fits well inside it. */
 const CHECK_MAX_OUTPUT_TOKENS = 12_000;
-
-/** Whether the Scroll an order makes is the answer to a person's question, which no person reads before it is served. */
-export const hasSupportCheck = (subject: { readonly mode: string }): boolean => subject.mode === 'question';
-
-type AnswerBlock = AuthoredScroll['blocks'][number];
-
-/** Where a statement stands in the authored answer, so a sentence can be taken out of its text (D-310). */
-export type StatementPlace =
-  | { readonly field: 'title' | 'dek' }
-  | { readonly field: 'heading' | 'paragraph' | 'callout-title' | 'callout-text'; readonly block: number }
-  | { readonly field: 'item'; readonly block: number; readonly item: number };
-
-interface Statement {
-  readonly text: string;
-  readonly cites: readonly string[];
-  /** A title, a heading or a callout's title. */
-  readonly label?: true;
-  readonly place: StatementPlace;
-}
-
-/**
- * The texts of a block that state things. A paragraph, a list item and a callout's text rest on the passages the block
- * cites. A heading and a callout's title cite nothing of their own, so they rest on whatever the answer cites; they are
- * labels (D-266). The limits callout that code wrote states nothing about the subject and has no passage to rest on, so it has no
- * statements: it is never shown to the checker, never given a verdict and never counted (D-371).
- */
-function statementsOf(block: AnswerBlock, index: number, answerCites: readonly string[]): readonly Statement[] {
-  if (block.type === 'heading')
-    return [{ text: block.text, cites: answerCites, label: true, place: { field: 'heading', block: index } }];
-  if (block.type === 'paragraph')
-    return [{ text: block.text, cites: block.cites, place: { field: 'paragraph', block: index } }];
-  if (block.type === 'list')
-    return block.items.map((text, item) => ({
-      text,
-      cites: block.cites,
-      place: { field: 'item' as const, block: index, item },
-    }));
-  if (block.type === 'callout') {
-    if (isCodeMadeLimits(block)) return [];
-    return [
-      ...(block.title
-        ? [
-            {
-              text: block.title,
-              cites: answerCites,
-              label: true as const,
-              place: { field: 'callout-title' as const, block: index },
-            },
-          ]
-        : []),
-      { text: block.text, cites: block.cites, place: { field: 'callout-text', block: index } },
-    ];
-  }
-  return [];
-}
-
-/** One sentence of an answer as the checker is shown it, with the place of the text it came from. */
-export interface PlacedSentence extends SentenceUnderCheck {
-  readonly place: StatementPlace;
-}
-
-/**
- * The sentences of an answer in reading order, each with the passages it rests on and where it stands: the title, the dek, each
- * heading, each sentence of a paragraph or list item, and a callout's title and text, except the limits callout code wrote (D-371). A title or a heading can state a fact as well as
- * a sentence can ("Why the equator barely notices the tilt"), so none is left unchecked (B1.4). The title, the headings and
- * the callouts' titles are marked as labels: one that only names what follows may be marked as stating no fact (D-266).
- */
-export function placedSentencesOfAnswer(answer: AuthoredScroll): readonly PlacedSentence[] {
-  const allCites = [...new Set(answer.blocks.flatMap((block) => ('cites' in block ? block.cites : [])))];
-  const statements: readonly Statement[] = [
-    { text: answer.title, cites: allCites, label: true, place: { field: 'title' } },
-    { text: answer.dek, cites: allCites, place: { field: 'dek' } },
-    ...answer.blocks.flatMap((block, index) => statementsOf(block, index, allCites)),
-  ];
-  return statements
-    .flatMap((statement) =>
-      splitSentences(statement.text).map((text) => ({
-        text,
-        cites: statement.cites,
-        ...(statement.label === true ? { label: true as const } : {}),
-        place: statement.place,
-      })),
-    )
-    .map((sentence, index) => ({ number: index + 1, ...sentence }));
-}
-
-/** The sentences of an answer as the checker is shown them: `placedSentencesOfAnswer` without the places. */
-export function sentencesOfAnswer(answer: AuthoredScroll): readonly SentenceUnderCheck[] {
-  return placedSentencesOfAnswer(answer).map(({ number, text, cites, label }) => ({
-    number,
-    text,
-    cites,
-    ...(label === true ? { label } : {}),
-  }));
-}
 
 /**
  * What the checker needs of a passage: the handle a sentence cites it by and its words. An ask order's evidence passage and a
@@ -248,9 +146,6 @@ export function askSupportInstructions(rules: CheckerRules, intro: string = ASK_
   ].join('\n');
 }
 
-/** The instructions of an ask order's checker, which tell it the soft rules code applies to an ask order's answer. */
-export const ASK_SUPPORT_INSTRUCTIONS = askSupportInstructions(ASK_ORDER_CHECK_RULES);
-
 /**
  * The only fixed hint of the harness's one repair of an unusable reply: the shape. Every other rule is applied to a
  * sentence by code (D-265), so the checker is never asked to redo a reply for it.
@@ -361,7 +256,7 @@ export const SUPPORT_ROLE_SHAPE = {
 /**
  * The checker role for these sentences (one batch of an answer). Interactive budget class: a production job waits on it. The
  * strict rules of v4 are the default, so a caller that does not say otherwise (a Quick answer, a resident's answer) never gets a soft
- * rule; an ask order's check asks for its rules with {@link askOrderCheckerRole} (D-306, D-307, D-316).
+ * rule (D-306, D-307, D-316).
  */
 export function askSupportRole(
   sentences: readonly SentenceUnderCheck[],
@@ -381,54 +276,5 @@ export function askSupportRole(
   };
 }
 
-/**
- * The checker role of an ask order's answer: {@link askSupportRole} with the soft rules, whose backstop is the drop of the sentences
- * that still fail (D-310). The production step and the operator's replay use it; nothing else does.
- */
-export const askOrderCheckerRole = (
-  sentences: readonly SentenceUnderCheck[],
-  passages: readonly SupportPassage[],
-  answer: readonly SentenceUnderCheck[] = sentences,
-): ReasoningRole<AskSupportAnswer> => askSupportRole(sentences, passages, answer, ASK_ORDER_CHECK_RULES);
-
 /** The verdicts of an accepted reply, in the domain's shape. The reply was already judged by {@link askSupportSchema}. */
 export const verdictsOf = (answer: AskSupportAnswer): readonly SentenceVerdict[] => answer.sentences;
-
-/** Instructions added to the writer's own when it repairs a draft whose sentences the check found unsupported. */
-const SUPPORT_REPAIR_INSTRUCTIONS = [
-  'REVISION AFTER A SUPPORT CHECK. A reader of your previous draft would find sentences that the passages you cited do not support. The context has two more items, both data: "check-problems" lists each unsupported sentence, what to do about it and a note on what is wrong, and "previous-draft" is the complete draft you wrote.',
-  'Return the complete corrected answer in the same shape. For each listed sentence, remove it, or rewrite it to say only what a passage you cite states. If that leaves the answer without the reason the reader asked for, say so plainly in one sentence: that the pages do not give it. Keep every other sentence exactly as it was. All the other rules above still hold. Do not write a callout of kind "limit": the draft you are shown has one that code wrote, and code puts it last again.',
-  `A sentence you rewrite is built in your own words around the key terms of the passage, as in the example above; it is never the passage’s sentence with a word changed. A sentence that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is taken out of the revision, and the revision is refused if too little is left.`,
-].join('\n');
-
-/** The version a support-repair writer is recorded under: the writer's own, marked as a revision. */
-const supportRepairVersion = (version: string): string => `${version}.fix`.slice(0, 32);
-
-/** The writer's role for the one repair a failed support check earns. The harness gives it no repair of its own. */
-export function supportRepairRole<T>(writer: ReasoningRole<T>): ReasoningRole<T> {
-  return {
-    ...writer,
-    version: supportRepairVersion(writer.version),
-    instructions: `${writer.instructions}\n\n${SUPPORT_REPAIR_INSTRUCTIONS}`,
-  };
-}
-
-/**
- * The two items the repair adds to the writer's context: the unsupported sentences, each located by its own words
- * (the writer's draft has no ids) with the fixed hint of its kind and the checker's note, and the draft they refer to.
- */
-export function supportRepairItems(
-  sentences: readonly SentenceUnderCheck[],
-  unsupported: readonly UnsupportedVerdict[],
-  previousDraft: unknown,
-): readonly ContextItem[] {
-  const textOf = new Map(sentences.map((sentence) => [sentence.number, sentence.text]));
-  const lines = unsupported.map(
-    (verdict) =>
-      `Sentence "${textOf.get(verdict.number) ?? ''}": ${UNSUPPORTED_HINTS[verdict.kind]} Note: ${verdict.problem}`,
-  );
-  return [
-    { ref: 'check:problems', kind: 'check_problems', text: lines.join('\n') },
-    { ref: 'check:previous-draft', kind: 'previous_draft', text: JSON.stringify(previousDraft) },
-  ];
-}

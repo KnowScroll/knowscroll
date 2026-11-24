@@ -4,11 +4,9 @@ import { makeReviewGate, readLibraryStatus } from '@knowscroll/backend/modules/c
 import { chooseScrollRecipeIn } from '../../../packages/backend/src/modules/content/adapters/production-state.js';
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { signal } from '../support/fixture-model.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
-import { markScrollV1 } from '../support/scroll-v2.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { storeV2 } from '../support/stored-v2.js';
 
 /**
@@ -40,19 +38,8 @@ describe('Recipes planned as document v3 keep what they serve and are never comm
 
   it('keeps serving the v1 Scroll of "exoplanet-kinds", reads not_started for a v3 take, and never commissions it', async () => {
     const key = 'exoplanet-kinds';
-    // The Scroll the library held before the plan marked the recipe: a v1 revision, published the way a v1 recipe is.
-    const undoV1 = markScrollV1(key);
-    try {
-      const produced = await fixtureProduction(database.db, () =>
-        answerWith(fixtureAuthored(writerFormatOf(TOPICS[key]))),
-      ).produce(key, false, signal());
-      expect(produced).toMatchObject({ outcome: 'published', revision: 1 });
-      expect(await standingOf(key)).toMatchObject({ state: 'published', revision: 1 });
-      // A v1 recipe is Create's to make; once published it has nothing left to make.
-      expect(await chosenFor(key)).toEqual({ kind: 'none' });
-    } finally {
-      undoV1();
-    }
+    // The Scroll the library held before the plan marked the recipe: a v1 revision, stored as the v1 production job stored it.
+    expect(await storeV1(database.db, key)).toMatchObject({ revision: 1 });
     expect(RECIPES[key].scrollV3).toBeDefined();
     expect(await revisionOf(key)).toMatchObject({ status: 'admitted', revision: 1 });
     expect(await standingOf(key)).toMatchObject({ state: 'not_started', takes: 0 });

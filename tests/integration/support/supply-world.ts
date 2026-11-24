@@ -14,7 +14,7 @@ import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { contentProviders, makeReadLibraryPassages } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
-import { READ_LIBRARY_PASSAGES, produceScrollJob } from '@knowscroll/backend/modules/content';
+import { READ_LIBRARY_PASSAGES } from '@knowscroll/backend/modules/content';
 import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CREATE_CONTENT_REQUEST,
@@ -24,7 +24,6 @@ import {
 } from '@knowscroll/backend/modules/supply';
 import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { createTestDatabase, type TestDatabase } from './database.js';
-import { fixtureAuthored } from './generated-scroll.js';
 import { fixtureModel } from './fixture-model.js';
 import { recordingEntries } from './recording-harness.js';
 import type { FixtureScenario } from './fixture-model-port.js';
@@ -32,13 +31,20 @@ import { fixtureProductionWorker } from './production-worker.js';
 import { buildFromProviders } from './providers.js';
 import { seedPerson, type FixturePerson } from './fixtures.js';
 import { scrollUseCases } from './scroll.js';
+import { orrinResearchFor } from './scroll-v2.js';
+import { orrinV3 } from './scroll-v3.js';
+import { runCommissionedJob } from './v1-recipe-world.js';
+import type { ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 
-const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
+const capabilities = {
+  ...FULL_V1_CAPABILITIES,
+  documentSchemas: ['scroll-document.v1', 'scroll-document.v3', 'reel-document.v1'],
+};
 
-/** What the fixture writer answers: a valid authored Scroll, until a test sets another scenario. */
+/** What the fixture writer answers: the labelled Orrin Scroll in the document v3 reply shape, until a test sets another scenario. */
 export const validWriterAnswer = (): FixtureScenario => ({
   kind: 'success',
-  text: JSON.stringify(fixtureAuthored('diagram')),
+  text: JSON.stringify(orrinV3()),
 });
 
 /**
@@ -51,7 +57,9 @@ export async function supplyWorld(purpose: string) {
   await sql`update reasoning.production_scopes set enabled=true where id='scroll-supply'`.execute(database.db);
   const content = await scrollUseCases(database);
   let writer: () => FixtureScenario = validWriterAnswer;
-  const production = fixtureProductionWorker(database, () => writer());
+  const production = fixtureProductionWorker(database, () => writer(), {
+    research: (url) => Promise.resolve(orrinResearchFor(url)),
+  });
   const matchModel = fixtureModel(() => ({ kind: 'success', text: JSON.stringify({ topicId: null, facetId: null }) }), {
     label: 'supply-match-CI-fixture',
   });
@@ -138,8 +146,8 @@ export async function supplyWorld(purpose: string) {
     textRequest,
     resolveRequest: (person: FixturePerson, requestId: string) =>
       resolve({ v: 1 as const, universeId: person.universeId, privacyEpoch: 1, requestId }),
-    runProduction: (recipe: string, take = 1) =>
-      production.run(produceScrollJob(recipe, take), { signal: new AbortController().signal }),
+    /** Runs the job Create commissioned for a recipe and, when it published, has the operator release the held Scroll (`runCommissionedJob`). */
+    runProduction: (recipe: ScrollTopic, take = 1) => runCommissionedJob(database.db, production, recipe, take),
     /** The person opens and activates a Scroll: an exposure, which is how they meet it. */
     async meet(person: FixturePerson, assetId: string): Promise<string> {
       const opened = await content.openExposure(person.authority, {

@@ -3,7 +3,10 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readJourneyFor } from '@knowscroll/backend/modules/operator/nest-providers';
 import type { Journey } from '@knowscroll/backend/modules/operator';
-import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
+import {
+  SCROLL_PRODUCTION_V3_VERSION,
+  TOPICS,
+} from '../../../packages/backend/src/modules/content/production/topics.js';
 import type { FixturePerson } from '../support/fixtures.js';
 import { supplyWorld, validWriterAnswer, type SupplyWorld } from '../support/supply-world.js';
 import { markLibraryV1 } from '../support/scroll-v2.js';
@@ -15,7 +18,8 @@ import { markLibraryV1 } from '../support/scroll-v2.js';
  * the Scroll writer and the matcher are labelled CI fixture models, not provider output.
  */
 describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
-  // Create commissions only v1 recipes (D-138): this file follows a request through Create on the v1 library.
+  // Create commissions only v1 recipes (D-138): this file follows a request through Create on a library of v1 recipes; the job it starts is the
+  // real document v3 job, run by `runCommissionedJob` (support/v1-recipe-world.ts, #818).
   const restoreLibrary = markLibraryV1();
   afterAll(restoreLibrary);
   let world: SupplyWorld;
@@ -39,6 +43,8 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
         .selectFrom('ops.production_runs')
         .select('production_run_id')
         .where('recipe_key', '=', recipe)
+        // The run the fixture model wrote for, not the row that records its end under the v1 production version (`runCommissionedJob`).
+        .where('policy_version', '=', SCROLL_PRODUCTION_V3_VERSION)
         .executeTakeFirstOrThrow()
     ).production_run_id ?? '';
 

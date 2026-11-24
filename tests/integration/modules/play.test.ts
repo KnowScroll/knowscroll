@@ -10,19 +10,18 @@ import type { PlayUseCases } from '@knowscroll/backend/modules/play';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
 import { makeReviewGate, readScrollPlayFacts } from '@knowscroll/backend/modules/content/nest-providers';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { traitsOfDocument } from '../../../packages/backend/src/modules/content/domain/traits.js';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { geographyWorld, type GeographyWorld } from '../support/geography-world.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { callsOfRevision, picks, playFor } from '../support/play.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { storeV2 } from '../support/stored-v2.js';
 import { seedDocumentV3 } from '../support/scroll-v3.js';
 import { beatsOfV3 } from '@knowscroll/scroll-model';
@@ -756,16 +755,8 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
     scrolls = [await publishOrrin(world.database.db)];
     for (const key of ['seasons-hemispheres', 'seasons-limits'] as const) {
       const recipe = TOPICS[key];
-      // Parts 2 and 3 stay v1 Scrolls here, as in the reading test: the planet forms the same from a v2 part and v1 parts.
-      const undo = markScrollV1(key);
-      try {
-        const production = fixtureProduction(world.database.db, () =>
-          answerWith(fixtureAuthored(writerFormatOf(recipe))),
-        );
-        expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
-      } finally {
-        undo();
-      }
+      // Parts 2 and 3 stay v1 Scrolls here (stored as the v1 job stored them), as in the reading test: the planet forms the same from a v2 part and v1 parts.
+      expect(await storeV1(world.database.db, key)).toMatchObject({ assetId: recipe.assetId, revision: 1 });
       scrolls.push({ assetId: recipe.assetId, revision: 1 });
     }
   });

@@ -12,7 +12,9 @@ import {
   productionHarnessSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
+import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import {
   echoRole,
   fixtureContext,
@@ -24,7 +26,8 @@ import {
   systemAuthority,
 } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
-import { markRecipesV1 } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3 } from '../support/scroll-v3.js';
 
 const cap = (requestsPerDay: number) => ({ requestsPerDay, tokensPerDay: 1_000_000_000 });
 /** One request a day for a person, two for the production scope, and the global and role caps out of the way. */
@@ -44,9 +47,17 @@ const reasoning: ReasoningSettings = {
 
 /** CI fixture model and real PostgreSQL: which cap bounds which scope. */
 describe('the production scope has its own daily cap (D-037)', () => {
-  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
-  const restoreRecipes = markRecipesV1('greenhouse-radiation', 'stars-fusion', 'tides');
-  afterAll(restoreRecipes);
+  // The recorded Orrin reply is written to the Seasons plan, so the recipes this file produces take that plan for the file's own process.
+  const planned = (['greenhouse-radiation', 'stars-fusion', 'tides'] as const).map((key) => ({
+    recipe: (TOPICS as Record<string, { scrollV3?: ScrollV3Plan }>)[key]!,
+    own: TOPICS[key].scrollV3,
+  }));
+  beforeAll(() => {
+    for (const { recipe } of planned) recipe.scrollV3 = spikePlanV3('seasons');
+  });
+  afterAll(() => {
+    for (const { recipe, own } of planned) recipe.scrollV3 = own;
+  });
   let database: TestDatabase<Database>;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('production_caps');
@@ -57,7 +68,7 @@ describe('the production scope has its own daily cap (D-037)', () => {
   });
 
   it('bounds a production run by the production cap, not the per-person cap, and pauses it instead of rejecting it', async () => {
-    const fixture = fixtureModel(() => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) }), {
+    const fixture = fixtureModel(() => ({ kind: 'success', text: JSON.stringify(orrinV3()) }), {
       label: 'production-caps-CI-fixture',
     });
     const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
@@ -77,7 +88,7 @@ describe('the production scope has its own daily cap (D-037)', () => {
         }),
       ),
       model: model.model,
-      research: (url) => Promise.resolve(fixtureResearchFor(url)),
+      research: (url) => Promise.resolve(orrinResearchFor(url)),
     });
     // The person cap is one request; the production scope gets through two writers.
     expect(await produce('stars-fusion', false, signal())).toMatchObject({ outcome: 'published' });

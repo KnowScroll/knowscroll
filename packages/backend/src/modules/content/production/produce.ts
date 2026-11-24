@@ -20,7 +20,7 @@ import { subjectOf, type ProductionKey, type ProductionSubject } from './subject
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ClosingRun, ProduceScrollResult, RoleReceipt } from './types.js';
 import { HELD_FOR_REVIEW_CODE, isHeldForReview } from './review-hold.js';
-import { planRefusalOf, requestBoundOf, storedPlanRefusalOf } from './topics.js';
+import { codeRecipeWriterRefusalOf, planRefusalOf, requestBoundOf, storedPlanRefusalOf } from './topics.js';
 import { makeWriterStage } from './writer-stage.js';
 
 export interface ProduceScrollDependencies {
@@ -33,6 +33,13 @@ export interface ProduceScrollDependencies {
 }
 
 const TERMINAL_STATES: readonly ProductionRow['state'][] = ['published', 'rejected', 'unknown'];
+
+/**
+ * The code a job for a Scroll made to order ends with. The writers of "You asked", "What if" and "Another perspective" were v1 writers
+ * and are deleted (#818, D-443); made to order is switched off everywhere (D-436) and must be rebuilt on the document v3 writer before
+ * it can come back. An order that reaches production is refused before any research or model request.
+ */
+export const MADE_TO_ORDER_UNAVAILABLE = 'made_to_order_unavailable';
 
 /**
  * Research failures that say nothing about the recipe: the network, a slow or erroring host. They leave
@@ -280,6 +287,9 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     let { row } = reserved.value;
     if (!created && (!resume || TERMINAL_STATES.includes(row.state))) return summary(row);
     if (row.scope_generation !== deps.authority.generation) return scopeRefused(key, row.id);
+    // No writer is left for an order (#818): the job records why it ends, before any research or request.
+    if (subject.attribution === 'none')
+      return end(row, row.state === 'research' ? 'research' : 'writer', 'rejected', [MADE_TO_ORDER_UNAVAILABLE], []);
 
     let pages: readonly ResearchPage[] = row.research;
     if (row.state === 'research') {
@@ -306,7 +316,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     if (subject === undefined) return { outcome: 'unknown_recipe', requestBound: requestBoundOf(key) };
     // A recipe the plan does not allow costs nothing: no job is reserved and no request is sent.
     // That includes a stored recipe whose row holds no document v3 plan: its key says v3, so the v3 version must not write it.
-    const refusal = planRefusalOf(key) ?? storedPlanRefusalOf(key, subject);
+    const refusal = planRefusalOf(key) ?? storedPlanRefusalOf(key, subject) ?? codeRecipeWriterRefusalOf(key, subject);
     if (refusal !== undefined) return { outcome: 'plan_refused', requestBound: requestBoundOf(key), codes: [refusal] };
     // The bound of what an order answers is known only once the order is read (D-250).
     const result = await runJob(subject, key, signal, resume, take);

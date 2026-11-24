@@ -13,7 +13,7 @@ import {
   type PublicationIdentity,
   type WriterFormat,
   type WriterMode,
-} from './writer.js';
+} from './publication-identity.js';
 
 /** A key the production job may run: a library recipe (code or stored, D-412) or an order. */
 export type ProductionKey = ProductionRecipeKey | MadeToOrderKey;
@@ -33,11 +33,6 @@ export interface ProductionSubject {
   readonly attribution: 'library' | 'none';
   /** Present when the library plan marks the recipe as a `scroll-document.v3` (#771); absent for v1 recipes and orders. */
   readonly scrollV3?: ScrollV3Plan;
-  /**
-   * For the answer to a question: the title of the Scroll the person asked from, read from the brief. It is library text, so code may
-   * build a title from it (D-351); the person's own words are never read into the subject.
-   */
-  readonly readingTitle?: string;
 }
 
 /** The subject of a library recipe, from the recipe book. */
@@ -54,16 +49,6 @@ export function librarySubject(recipe: BookRecipe): ProductionSubject {
   };
 }
 
-/**
- * The title of the Scroll being read, in the brief of an ask order (`askBrief` in supply): public library text, on a line of its own
- * that comes before the person's words. The brief puts each of its fields on one line, so no field can start a line of its own; the
- * first line that begins with the label is the real one. `undefined` when the brief has no such line or it is empty.
- */
-export function readingTitleOfAskBrief(brief: string): string | undefined {
-  const title = /^SCROLL BEING READ: (.*)$/mu.exec(brief)?.[1]?.trim();
-  return title === undefined || title === '' ? undefined : title;
-}
-
 interface OrderRow {
   readonly recipe: string;
   readonly asset_id: string;
@@ -77,8 +62,8 @@ interface OrderRow {
 
 /**
  * The subject of a Scroll ordered from code, read from the stored order, or `undefined` when no such
- * order exists or its brief was wiped by an erasure (nothing is written for words that were erased). A what-if and a
- * perspective are comparison Scrolls: they set the changed world beside the original. The answer to a question is prose.
+ * order exists or its brief was wiped by an erasure (nothing is written for words that were erased). Nothing writes it any more: the job
+ * ends at once with `made_to_order_unavailable` (#818, D-443), and the subject only says which asset and order the job belongs to.
  */
 export async function madeToOrderSubject(
   db: Kysely<Database>,
@@ -103,14 +88,8 @@ export async function madeToOrderSubject(
     pages: row.pages,
     format: row.mode === 'question' ? 'plain' : 'comparison',
     attribution: 'none',
-    ...(row.mode === 'question' ? readingTitleField(row.brief) : {}),
   };
 }
-
-const readingTitleField = (brief: string): { readonly readingTitle?: string } => {
-  const readingTitle = readingTitleOfAskBrief(brief);
-  return readingTitle === undefined ? {} : { readingTitle };
-};
 
 /**
  * The subject a job's key names, or `undefined` for a key that is neither a library recipe nor a stored order. A stored

@@ -108,6 +108,18 @@ export function storedPlanRefusalOf(
 }
 
 /**
+ * Why a code recipe cannot be produced because its plan holds no document v3 plan, or `undefined`. The document v3 writer is the only writer
+ * (the v1 writer is deleted, #818), so a recipe without a v3 plan has no writer: it is refused before any job is reserved and any request is
+ * sent, instead of failing inside the job. Every recipe the plan holds is a document v3 recipe, so this never refuses one today.
+ */
+export function codeRecipeWriterRefusalOf(
+  key: string,
+  subject: { readonly scrollV3?: unknown },
+): 'recipe_plan_not_v3' | undefined {
+  return parseScrollTopic(key) !== undefined && subject.scrollV3 === undefined ? 'recipe_plan_not_v3' : undefined;
+}
+
+/**
  * Why the plan does not let a recipe be produced at all, or `undefined`. A recipe whose
  * misconception source label no person has reviewed is a plan problem: the library admits only
  * reviewed labels, so no request is spent on it until the plan says `reviewed` (D-129).

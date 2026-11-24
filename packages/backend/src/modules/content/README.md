@@ -294,6 +294,8 @@ next to the compiled code: in a release tree it is at
 `node_modules/@knowscroll/backend/dist/modules/content/starter/why-the-sky-is-blue.editorial-scroll.json`.
 `content/` at the repository root is frozen v1 data and is never read.
 
+The v1 editorial compile (`compileEditorialSource`, `editorial-scroll.v1`) and this starter are the hand-authored editorial path, **not** the model writer, and they stay when the v1 writer is deleted (#818, D-443): 45 integration files, the release tests and the Maestro fixture world use the starter as the world's Scroll. Moving them to a v3 editorial fixture is a separate change (follow-up: "the v1 editorial compile and starter stay until the tests move to a v3 editorial fixture").
+
 Jobs: none. Lock order: an advisory lock on the asset ID, then the asset row; admission holds no personal
 root and never takes one. Erasure: none (shared content; stated above).
 
@@ -421,13 +423,13 @@ separate ephemeral access credentials, never content provenance or consumption e
 
 ## Generated Scroll production
 
-Production runs as `content.produce-scroll` worker jobs (the answer to a person's question as `content.produce-answer`, D-267), sent by Quartermaster and by the operator's
+Production runs as `content.produce-scroll` worker jobs (`content.produce-answer`, D-267, was the answer to a person's question: it has no writer any more, #818, D-443), sent by Quartermaster and by the operator's
 `content produce-library`. The operator's `content produce-scroll --topic <recipe key> [--take n] [--dry-run] [--resume]` runs one recipe
 of the library plan (the keys are the record keys in `domain/library/`; an unknown key is refused
 before any database or provider work). It runs one content-owned writer call through the explicit
 nonpersonal harness (0013), never a personal universe: research and evidence passages by code, one
 writer call that cites them, deterministic compilation, and at most one repair, so **two model
-requests per recipe** (six for a v2 library recipe, which adds the answer check, D-198); uncertain attempts are never resent. Publication closes the writer run and
+requests per recipe** (the document v3 writer is the only writer: the v1 and v2 writers are deleted, #815, #818); uncertain attempts are never resent. Publication closes the writer run and
 stores the immutable admitted revision in the same production-root transaction. Research and model
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
 job after a crash. The operator's `content writer-spike-v3` runs the document v3 writer in two arms on library recipes and reports; it admits and publishes nothing (#771; "Writer v3 and the v3 spike" in the production README). A recipe the plan marks `scrollV3` is produced by the same job with its own production version (`scroll-production-v3.v3` since D-441: a copy finding names the part and the words in the repair notes and a chart is told it has its marks; `.v2` since D-438 left out a link the compile cannot place; the `.v1` and `.v2` revisions keep their lineage) and the v3 writer (one reply, arm (a), #783), and is held for review; its publication verifies the lineage of a document v3 and writes its topic attribution and coverage (#772, #783, **implemented**; no recipe is marked yet, see [production/README.md](production/README.md)). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
@@ -547,7 +549,7 @@ machinery.
 - **Hold.** Production of a document v3 library recipe (`ProductionSubject.scrollV3`, however the job was sent) stores the
   revision, its provenance, its topic and its coverage as usual, but does not advance the current revision. A new
   asset is created with status `held`. A `content.revision_reviews` row says `held`. The production job is
-  `published` and records the code `held_for_review`. v1 recipes and made-to-order Scrolls publish as before.
+  `published` and records the code `held_for_review`. (A v1 recipe and a made-to-order Scroll once published straight away; nothing writes either now, #818.)
 - **Invisible.** Pointer reads (discovery, navigation, series and related moves, region candidates, the
   Universe, opening a Scroll, `production-status`) never see a revision newer than the pointer or an asset that
   is `held`. Reads that take an exact asset and revision from their caller (exact encounters, the stored
@@ -1059,8 +1061,11 @@ with a real Reel and two Scrolls, not on dev.*
 
 ## Made-to-order Scrolls for a thread's branches (#244, D-049)
 
-A What if or Another perspective in a thread is produced as a Scroll that belongs to that thread and to no one's map.
-Content owns the order, the production and the access rule; the `scenarios` module decides the branch and Supply the cap.
+A What if or Another perspective in a thread was produced as a Scroll that belongs to that thread and to no one's map, and "You asked" (a `question` order) made one for a single person.
+Content owns the order, the access rule and what is stored; the `scenarios` module decides the branch and Supply the cap. **Nothing writes these Scrolls any more** (#818, D-443): they
+are switched off in every world (D-436) and their writer, the v1 one, is deleted. An `order-…` job that reaches production ends as `rejected` with `made_to_order_unavailable`, before any research or request. Orders
+and Scrolls already made stay stored, readable and served as before (stage and main still hold some). Made to order must be rebuilt on the document v3 writer before it returns; the product rules of the three modes
+are kept in D-443 for that.
 
 | Store | Role |
 | --- | --- |
@@ -1080,6 +1085,6 @@ Content owns the order, the production and the access rule; the `scenarios` modu
 An ordered Scroll is published with **no topic attribution and no coverage**: it adds no planet, region or lane, is
 left out of every discovery candidate read and out of the shareable card read (it reads as unavailable there).
 `Open` and `Read document` refuse it (`asset_not_found`, `exposure_not_found`) for anyone outside its thread.
-Production is the same `content.produce-scroll` job, takes and stop rules as a library recipe; see
-`production/README.md`. *Implemented. Not runtime-verified on dev.*
+The job, takes and stop rules are a library recipe's, but an order ends at the start of the job; see
+`production/README.md` ("Made-to-order Scrolls"). *The reading side is implemented; the writing side is deleted.*
 

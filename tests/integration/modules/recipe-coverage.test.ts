@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -15,30 +15,36 @@ import {
 import { observedBindings } from '../../../packages/backend/src/modules/evidence/domain/coverage.js';
 import { SCROLL_QUALIFICATION_POLICY_V0 } from '../../../packages/backend/src/modules/evidence/domain/policy.js';
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
-import {
-  answerWith,
-  enableProductionScope,
-  FIXTURE_PROSE,
-  fixtureAuthored,
-  fixtureProduction,
-  fixtureResearchFor,
-} from '../support/generated-scroll.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
+import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { baselineCapabilities } from '../support/scroll.js';
-import { markRecipesV1 } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3 } from '../support/scroll-v3.js';
+import { storeV1 } from '../support/stored-v1.js';
 
 /**
  * Publishing a generated Scroll admits its topic and facet coverage in the same transaction, decided
- * by code from the recipe. The model is a labelled CI fixture; nothing here is provider output.
+ * by code from the recipe. The coverage of a stored v1 Scroll is tested on a revision stored as the v1 job stored it (`storeV1`, #818: nothing
+ * writes a v1 Scroll any more); the publication transaction itself (rollback with the coverage write, the receipts when nothing can be
+ * bound or the lineage cannot be verified) is tested on the document v3 production job, the only writer. The model is a labelled CI fixture;
+ * nothing here is provider output.
  */
 describe('Generated Scroll coverage at publication (CI fixture transport, real PostgreSQL)', () => {
-  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
-  const restoreRecipes = markRecipesV1('tides', 'tides-coasts', 'greenhouse');
-  afterAll(restoreRecipes);
+  // The Orrin reply the CI fixture records is written for this plan (a statement and a grid, three sections), so the v3 production runs of this file
+  // use the `seasons` recipe with it, as `writer-v3-publication.test.ts` does.
+  const planned = RECIPES.seasons as { scrollV3?: ScrollV3Plan };
+  const realPlan = planned.scrollV3;
+  beforeAll(() => {
+    planned.scrollV3 = spikePlanV3('seasons');
+  });
+  afterAll(() => {
+    planned.scrollV3 = realPlan;
+  });
   let database: TestDatabase<Database>;
   beforeEach(async () => {
     database = await createTestDatabase<Database>('recipe_coverage');
@@ -48,10 +54,10 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await database.drop();
   });
 
-  /** Recipes of one or two pages: the fixture serves each page a recipe names as a source of its own. */
+  /** The document v3 production job of a recipe over the Orrin fixture: the fixture serves each page a recipe names as a source of its own. */
   function publishing(recipeKey: ScrollTopic) {
-    for (const url of TOPICS[recipeKey].pages) expect(fixtureResearchFor(url).url).toBe(url);
-    const run = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[recipeKey]))));
+    for (const url of TOPICS[recipeKey].pages) expect(orrinResearchFor(url).url).toBe(url);
+    const run = fixtureProduction(database.db, () => answerWith(orrinV3()), orrinResearchFor);
     return { ...run, publish: (resume = false) => run.produce(recipeKey, false, signal(), resume) };
   }
 
@@ -74,10 +80,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     'writes topic attribution and a facet mapping with the %s publication, and the consumers read them back',
     async (recipeKey) => {
       const recipe = TOPICS[recipeKey];
-      const run = publishing(recipeKey);
-      const result = await run.publish();
-      expect(result).toMatchObject({ outcome: 'published', assetId: recipe.assetId, revision: 1 });
-      expect(run.calls).toHaveLength(1);
+      expect(await storeV1(database.db, recipeKey)).toMatchObject({ assetId: recipe.assetId, revision: 1 });
 
       // Topic attribution: one primary topic carrying the whole weight.
       expect(
@@ -183,43 +186,9 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     },
   );
 
-  it('maps a real-shaped answer with exactly the three body blocks the rule needs, and publishes one with two without coverage', async () => {
-    const recipe = TOPICS.tides;
-    const authored = fixtureAuthored(writerFormatOf(recipe));
-    const formatBlock = authored.blocks.find((block) => block.type === 'diagram');
-    if (formatBlock === undefined) throw new Error('CI_FORMAT_MISSING');
-    /** The fixture prose in `count` paragraphs, so the reading length stays the same. */
-    const withBodyBlocks = (count: number) => {
-      const size = FIXTURE_PROSE.length / count;
-      const paragraphs = Array.from({ length: count }, (_, index) => ({
-        type: 'paragraph' as const,
-        cites: [`e${index + 1}`, `e${index + 2}`],
-        text: FIXTURE_PROSE.slice(index * size, (index + 1) * size).join(' '),
-      }));
-      return { ...authored, blocks: [{ type: 'heading', text: 'The beam' }, ...paragraphs, formatBlock] };
-    };
-    const three = fixtureProduction(database.db, () => answerWith(withBodyBlocks(3)));
-    expect(await three.produce('tides', false, signal())).toMatchObject({
-      outcome: 'published',
-      assetId: recipe.assetId,
-    });
-    expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([
-      { revision: 1 },
-    ]);
-
-    await database.drop();
-    database = await createTestDatabase<Database>('recipe_coverage');
-    await enableProductionScope(database.db);
-    const two = fixtureProduction(database.db, () => answerWith(withBodyBlocks(2)));
-    const result = await two.produce('tides', false, signal());
-    expect(result.outcome).toBe('published');
-    expect(result.attempts).toContainEqual({ role: 'checks', kind: 'published', code: 'coverage_too_few_body_blocks' });
-    expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
-  });
-
   it('lets two recipes of one planet each add their own facets', async () => {
-    await publishing('tides').publish();
-    await publishing('tides-coasts').publish();
+    await storeV1(database.db, 'tides');
+    await storeV1(database.db, 'tides-coasts');
     const person = await seedPerson(database.db);
     const candidatesFor = async (facetId: string) => {
       const regions = await withScope()(person.authority, (scope) =>
@@ -246,7 +215,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await sql`create trigger ci_fail_coverage before insert on content.coverage_revisions for each row execute function content.ci_fail_coverage()`.execute(
       database.db,
     );
-    const run = publishing('tides');
+    const run = publishing('seasons');
     await expect(run.publish()).rejects.toThrow('CI_COVERAGE_FAILURE');
     expect(run.calls).toHaveLength(1);
     expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toEqual([]);
@@ -293,7 +262,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
 
     it('keeps stored coverage readable, drops only the facet whose meaning changed, and re-admission appends', async () => {
       const recipe = TOPICS.tides;
-      await publishing('tides').publish();
+      await storeV1(database.db, 'tides');
       const person = await seedPerson(database.db);
       const readFacets = async (read: typeof readAdmittedCoverageMapping) => {
         const result = await withScope()(person.authority, (scope) =>
@@ -331,15 +300,15 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     });
 
     it('reports what it would do in a dry run and writes nothing', async () => {
-      await publishing('tides').publish();
+      await storeV1(database.db, 'tides');
       const dry = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: true });
       expect(dry).toEqual({ dryRun: true, considered: 1, appended: 1, unchanged: 0, skipped: {}, changedUnits: [] });
       expect(await headCount()).toBe(1);
     });
 
     it('finds generated revisions itself and changes nothing when the plan is unchanged', async () => {
-      await publishing('tides').publish();
-      await publishing('tides-coasts').publish();
+      await storeV1(database.db, 'tides');
+      await storeV1(database.db, 'tides-coasts');
       const summary = await readmitCoverageUseCase(database.db)({ dryRun: false });
       expect(summary).toEqual({
         dryRun: false,
@@ -367,10 +336,10 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await sql`create trigger ci_unsupport_claims after insert on content.asset_provenance for each row execute function content.ci_unsupport_claims()`.execute(
       database.db,
     );
-    const result = await publishing('tides').publish();
+    const result = await publishing('seasons').publish();
     expect(result.outcome).toBe('published');
     expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
-      { topic_id: 'earth.tides' },
+      { topic_id: TOPICS.seasons.topicId },
     ]);
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
     expect(await database.db.selectFrom('content.region_bindings').select('facet_id').execute()).toEqual([]);
@@ -390,7 +359,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await sql`create trigger ci_fixture_production after insert on content.asset_provenance for each row execute function content.ci_fixture_production()`.execute(
       database.db,
     );
-    const result = await publishing('tides').publish();
+    const result = await publishing('seasons').publish();
     expect(result.outcome).toBe('published');
     expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([]);
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);

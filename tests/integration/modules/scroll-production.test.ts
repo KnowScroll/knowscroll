@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   guardedModelPort,
@@ -17,38 +17,53 @@ import {
   type ResearchPage,
 } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
 import {
   explanationUnitFor,
-  SCROLL_PRODUCTION_VERSION,
+  SCROLL_PRODUCTION_V3_VERSION,
   TOPICS,
 } from '../../../packages/backend/src/modules/content/production/topics.js';
-import {
-  WRITER_PROMPT_VERSION,
-  writerFormatOf,
-} from '../../../packages/backend/src/modules/content/production/writer.js';
+import { WRITER_V3A_VERSION } from '../../../packages/backend/src/modules/content/production/writer-v3.js';
+import { WRITER_V3_PROMPT_VERSION } from '../../../packages/backend/src/modules/content/production/writer-v3-version.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { FIXTURE_PROSE, FIXTURE_SOURCE, fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
+import { FIXTURE_SOURCE } from '../support/generated-scroll.js';
 import { fixtureModel, fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { markRecipesV1 } from '../support/scroll-v2.js';
+import { orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3 } from '../support/scroll-v3.js';
 
 const SOURCE = FIXTURE_SOURCE;
-const PROSE = FIXTURE_PROSE;
-const authored = (overrides: { readonly drop?: string; readonly paragraph?: string } = {}) =>
-  fixtureAuthored('diagram', overrides);
+/** The writer's answer: the recorded Orrin reply of the document v3 writer (an invented planet; never provider output or product content). */
+const authored = () => orrinV3();
 const answer = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
+/** The recorded reply with its first paragraph opening by pointing back, which the writer's own check refuses (as in `writer-v3-publication.test.ts`). */
+function pointingBack(): unknown {
+  const draft = JSON.parse(JSON.stringify(orrinV3())) as { items: { text?: string }[] };
+  draft.items[1] = { ...draft.items[1], text: `This ${draft.items[1]?.text ?? ''}` };
+  return draft;
+}
 
 describe('Scroll production (CI fixture + real PostgreSQL; no provider network)', () => {
-  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
-  const restoreRecipes = markRecipesV1(
+  // The production job writes a document v3 Scroll, the only kind there is (#818). The recorded Orrin reply is written to the Seasons plan (a
+  // statement and a grid, three sections), so the recipes this file produces take that plan for the file's own process, as the v3 publication
+  // test does, and get their own back after.
+  const PRODUCED = [
     'greenhouse',
     'greenhouse-balance',
     'greenhouse-limits',
     'greenhouse-radiation',
     'stars-fusion',
     'tides',
-  );
-  afterAll(restoreRecipes);
+  ] as const;
+  const ownPlans = new Map(PRODUCED.map((key) => [key, RECIPES[key].scrollV3]));
+  beforeAll(() => {
+    for (const key of PRODUCED) (RECIPES[key] as { scrollV3?: ScrollV3Plan }).scrollV3 = spikePlanV3('seasons');
+  });
+  afterAll(() => {
+    for (const [key, plan] of ownPlans) (RECIPES[key] as { scrollV3?: ScrollV3Plan }).scrollV3 = plan;
+  });
   let database: TestDatabase<Database>;
   beforeEach(async () => {
     database = await createTestDatabase<Database>('scroll_production');
@@ -69,7 +84,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   function wire(
     model: ReturnType<typeof guardedModelPort>,
-    research: (url: string) => Promise<ResearchPage> = (url) => Promise.resolve(fixtureResearchFor(url)),
+    research: (url: string) => Promise<ResearchPage> = (url) => Promise.resolve(orrinResearchFor(url)),
   ) {
     const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
     const harness = makeProductionReasoningHarness(
@@ -107,9 +122,12 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
   it('publishes once from one writer call, keeps provenance private and does no further work on rerun', async () => {
     const p = setup(() => answer(authored()));
     const first = await p.produce('stars-fusion', false, signal());
-    expect(first).toMatchObject({ outcome: 'published', requestBound: 2, revision: 1 });
+    expect(first).toMatchObject({ outcome: 'published', requestBound: 6, revision: 1 });
     expect(p.fixture.calls).toHaveLength(1);
-    expect(await p.produce('stars-fusion', false, signal())).toEqual(first);
+    // The first delivery holds the Scroll for review; the delivery after it reports the settled job.
+    const { held, ...settled } = first;
+    expect(held).toBe(true);
+    expect(await p.produce('stars-fusion', false, signal())).toEqual(settled);
     expect(p.fixture.calls).toHaveLength(1);
 
     const revision = await database.db
@@ -121,13 +139,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(revision.provenance_kind).toBe('generated');
     for (const hidden of ['claims', 'sources', 'bindings', 'checks', 'production'])
       expect(revision.document).not.toHaveProperty(hidden);
-    const document = revision.document as { sections: { heading: string | null; blocks: { type: string }[] }[] };
-    expect(document.sections.map((section) => section.heading)).toEqual([
-      'The beam',
-      'The upkeep',
-      'Putting it together',
-    ]);
-    expect(document.sections.flatMap((section) => section.blocks.map((block) => block.type))).toContain('diagram');
+    expect((revision.document as { schemaVersion: string }).schemaVersion).toBe('scroll-document.v3');
+    expect(revision.document).toMatchObject({ title: 'Why Orrin has summers and winters' });
 
     const provenance = await database.db
       .selectFrom('content.asset_provenance')
@@ -137,101 +150,29 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const stored = provenance.provenance as { production: { model: string; attemptIds: string[] }; claims: unknown[] };
     expect(stored.production).toMatchObject({ model: 'MiniMax-M3.1-Flash', attemptIds: [expect.any(String)] });
     // Only the passages the Scroll cites become claims, each the exact source text.
-    expect(stored.claims).toHaveLength(6);
+    const cited = new Set(
+      [...authored().items, ...authored().pictures].flatMap((part) => ('cites' in part ? (part.cites ?? []) : [])),
+    );
+    expect(stored.claims).toHaveLength(cited.size);
     const job = await database.db
       .selectFrom('content.scroll_production_runs')
       .select(['state', 'claims', 'writer_output'])
       .where('topic', '=', 'stars-fusion')
       .executeTakeFirstOrThrow();
     expect(job.state).toBe('published');
-    expect(job.claims).toHaveLength(6);
-    expect(job.writer_output).toMatchObject({ title: 'How a lighthouse guides ships' });
+    expect(job.claims).toHaveLength(cited.size);
+    expect(job.writer_output).toMatchObject({ title: 'Why Orrin has summers and winters' });
     expect(await rejectedRows()).toEqual([]);
   });
 
-  it('sends fixed findings and the refused answer as delimited data for the one repair, then publishes the repaired answer', async () => {
-    const copiedRun = 'Glass rings bend the glow into one narrow ribbon CANARYWORD';
-    const p = setup((sequence) =>
-      answer(sequence === 1 ? authored({ paragraph: `${PROSE[1]} ${SOURCE[1]} ${copiedRun}` }) : authored()),
-    );
-    const result = await p.produce('stars-fusion', false, signal());
-    expect(result).toMatchObject({ outcome: 'published' });
-    expect(p.fixture.calls).toHaveLength(2);
-
-    const primary = p.fixture.calls[0]?.request;
-    const repair = p.fixture.calls[1]?.request;
-    expect(primary?.user).not.toContain('<previous-answer>');
-    expect(repair?.system).toContain('blocks[2]: copied_passage');
-    expect(repair?.system).toContain('Rewrite only the sentences of this block that contain one');
-    // The refused answer travels as escaped, delimited data in the user text, never in the instructions.
-    expect(repair?.system).toContain('repeated as data in the <previous-answer> block');
-    expect(repair?.system).not.toContain('CANARYWORD');
-    expect(repair?.user).toContain('<previous-answer>\n{"title":"How a lighthouse guides ships"');
-    expect(repair?.user).toContain('CANARYWORD');
-    // The copied words themselves (public research text) travel as delimited data, not as an instruction.
-    expect(repair?.system).toContain('the <repair-notes> block there holds facts about it');
-    expect(repair?.system).not.toContain('a prism ring around');
-    expect(repair?.user).toContain(
-      '<repair-notes>\nEach line names a place in your text and the words there that also appear, in a row, in the source passages',
-    );
-    expect(repair?.user).toContain(
-      'blocks[2] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
-    );
-    expect(primary?.user).not.toContain('<repair-notes>');
-
-    const attempts = await database.db
-      .selectFrom('reasoning.production_attempts')
-      .select(['step', 'state', 'causation_attempt_id'])
-      .orderBy('reserved_at')
-      .execute();
-    expect(attempts.map((attempt) => [attempt.step, attempt.state])).toEqual([
-      ['primary', 'succeeded'],
-      ['repair', 'succeeded'],
-    ]);
-    // The refused primary is kept for diagnosis, with the validator's own findings.
-    const [kept] = await rejectedRows();
-    expect(kept).toMatchObject({ reason: 'OUTPUT_SCHEMA_MISMATCH', answer_kind: 'answer', truncated: false });
-    expect(kept?.issues).toEqual([expect.objectContaining({ path: 'blocks[2]', code: 'copied_passage' })]);
-    expect(kept?.answer_text).toContain('CANARYWORD');
-  });
-
+  // The repair's own data (the refused answer as delimited data, the quoted copy in the repair notes) is tested on the document v3 writer in
+  // `writer-v3-publication.test.ts`; the v1 copy notes and the v1 diagram defaults (`authoring-normalisation`) went with the v1 writer (#818).
   it('sends no repair notes for a finding that is not about copying', async () => {
-    const p = setup((sequence) => answer(sequence === 1 ? authored({ drop: 'diagram' }) : authored()));
+    const p = setup((sequence) => answer(sequence === 1 ? pointingBack() : authored()));
     expect((await p.produce('stars-fusion', false, signal())).outcome).toBe('published');
     const repair = p.fixture.calls[1]?.request;
     expect(repair?.user).toContain('<previous-answer>');
     expect(repair?.user).not.toContain('<repair-notes>');
-    expect(repair?.system).not.toContain('repair-notes');
-  });
-
-  it('publishes a diagram whose layout and node kind are not allowed values, and records the defaults in the provenance', async () => {
-    const base = authored();
-    const styled = {
-      ...base,
-      blocks: base.blocks.map((block) =>
-        block.type === 'diagram'
-          ? {
-              ...block,
-              layout: 'horizontal',
-              nodes: block.nodes.map((node, index) => (index === 1 ? { ...node, kind: 'building' } : node)),
-            }
-          : block,
-      ),
-    };
-    const p = setup(() => answer(styled));
-    const result = await p.produce('stars-fusion', false, signal());
-    expect(result.outcome).toBe('published');
-    expect(p.fixture.calls).toHaveLength(1);
-    const stored = await database.db
-      .selectFrom('content.asset_provenance')
-      .select('provenance')
-      .where('asset_id', '=', result.assetId ?? '')
-      .executeTakeFirstOrThrow();
-    const checks = (stored.provenance as { checks: { name: string; reasonCodes: string[] }[] }).checks;
-    expect(checks.find((check) => check.name === 'authoring-normalisation')?.reasonCodes).toEqual([
-      'diagram_layout_defaulted_block_6',
-      'diagram_node_kind_defaulted_block_6',
-    ]);
   });
 
   it('rejects after the repair also fails, keeps both refused answers redacted and lists them for the operator', async () => {
@@ -239,7 +180,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const p = setup((sequence) =>
       sequence === 1
         ? { kind: 'success', text: `{"title": "${key}", "note": "https://leak.example/a?X-Amz-Signature=canary" ` }
-        : answer(authored({ drop: 'diagram' })),
+        : answer(pointingBack()),
     );
     const result = await p.produce('stars-fusion', false, signal());
     expect(result).toMatchObject({ outcome: 'rejected', codes: ['invalid_output'] });
@@ -250,7 +191,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     // Redacted at the recording boundary: a key-shaped value and a credential-bearing query never reach the table.
     expect(rows[0]?.answer_text).not.toContain(key);
     expect(rows[0]?.answer_text).not.toContain('X-Amz-Signature');
-    expect(rows[1]?.issues).toContainEqual(expect.objectContaining({ path: '(root)', code: 'format_required' }));
+    expect(rows[1]?.issues).toContainEqual(expect.objectContaining({ code: 'first_beat_points_back' }));
 
     const operator = reasoningOperatorFor(database.db, silent);
     const listed = await operator.listRejectedAnswers(10);
@@ -282,7 +223,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
   });
 
   it('refuses a truncated answer as truncated and gives its repair the same fixed findings', async () => {
-    const p = setup(() => ({ kind: 'truncated', text: '{"title": "How a lighthouse' }));
+    const p = setup(() => ({ kind: 'truncated', text: '{"title": "Why Orrin has summers' }));
     const result = await p.produce('stars-fusion', false, signal());
     expect(result).toMatchObject({ outcome: 'rejected' });
     expect((await rejectedRows()).map((row) => row.reason)).toEqual(['OUTPUT_TRUNCATED', 'OUTPUT_TRUNCATED']);
@@ -317,7 +258,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('reports the bound on a dry run and does no database or provider work', async () => {
     const p = setup(() => answer(authored()));
-    expect(await p.produce('stars-fusion', true, signal())).toEqual({ outcome: 'dry_run', requestBound: 2 });
+    expect(await p.produce('stars-fusion', true, signal())).toEqual({ outcome: 'dry_run', requestBound: 6 });
     expect(p.fixture.calls).toHaveLength(0);
     expect(await database.db.selectFrom('content.scroll_production_runs').select('id').execute()).toEqual([]);
   });
@@ -380,7 +321,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           researchEntered.open();
           await researchRelease.promise;
           if (outcome === 'refusal') throw new ResearchRefusal('network_failed');
-          return fixtureResearchFor(url);
+          return orrinResearchFor(url);
         },
       })('stars-fusion', false, signal());
       await researchEntered.promise;
@@ -414,8 +355,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
   );
 
   describe('publication authority (topic attribution)', () => {
-    // v1 library recipes. The Seasons recipes are v2 (D-137) and are covered by scroll-v2-admission and review-gate.
-    const v1Recipes = [
+    // Library recipes written as document v3 Scrolls (the recipes this file gives the Seasons plan).
+    const producedRecipes = [
       'stars-fusion',
       'tides',
       'greenhouse',
@@ -423,12 +364,12 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       'greenhouse-balance',
       'greenhouse-limits',
     ] as const;
-    const publishOnce = (topic: (typeof v1Recipes)[number], minimaxIdentity = true) => {
-      const p = setup(() => answer(fixtureAuthored(writerFormatOf(TOPICS[topic]))), minimaxIdentity);
+    const publishOnce = (topic: (typeof producedRecipes)[number], minimaxIdentity = true) => {
+      const p = setup(() => answer(authored()), minimaxIdentity);
       return { p, publish: (resume = false) => p.produce(topic, false, signal(), resume) };
     };
 
-    it.each(v1Recipes)(
+    it.each(producedRecipes)(
       'attributes only a newly completed exact %s publication (CI transport identity stand-in)',
       async (topic) => {
         const recipe = TOPICS[topic];
@@ -436,7 +377,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         const result = await publish();
         expect(result.outcome).toBe('published');
         expect(p.fixture.calls).toHaveLength(1);
-        expect(p.fixture.calls[0]?.request.system).toContain(`version ${WRITER_PROMPT_VERSION},`);
+        expect(p.fixture.calls[0]?.request.system).toContain(`version ${WRITER_V3A_VERSION},`);
         expect(result.assetId).toBe(recipe.assetId);
         expect(
           await database.db
@@ -451,14 +392,14 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
             .select('policy_version')
             .where('id', '=', result.runId ?? '')
             .executeTakeFirstOrThrow(),
-        ).toEqual({ policy_version: SCROLL_PRODUCTION_VERSION });
+        ).toEqual({ policy_version: SCROLL_PRODUCTION_V3_VERSION });
         expect(
           await database.db
             .selectFrom('content.asset_provenance')
             .select('provenance')
             .where('asset_id', '=', result.assetId ?? '')
             .executeTakeFirstOrThrow(),
-        ).toMatchObject({ provenance: { production: { promptVersion: WRITER_PROMPT_VERSION } } });
+        ).toMatchObject({ provenance: { production: { promptVersion: WRITER_V3_PROMPT_VERSION } } });
         expect(
           await database.db
             .selectFrom('content.discovery_revisions')
@@ -482,7 +423,10 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
             database.db,
           );
         const before = (await bytes()).rows;
-        expect(await publish(true)).toEqual(result);
+        // The first delivery holds the Scroll for review; a resume reports the settled job.
+        const { held, ...settled } = result;
+        expect(held).toBe(true);
+        expect(await publish(true)).toEqual(settled);
         expect((await bytes()).rows).toEqual(before);
         expect(p.fixture.calls).toHaveLength(1);
         expect(await database.db.selectFrom('identity.universes').select('id').execute()).toHaveLength(0);
@@ -494,7 +438,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       for (const topic of ['greenhouse-radiation', 'greenhouse-balance', 'greenhouse-limits'] as const) {
         const result = await publishOnce(topic).publish();
         expect(result.outcome).toBe('published');
-        expect(result.requestBound).toBe(2);
+        expect(result.requestBound).toBe(6);
         assets.push(result.assetId ?? '');
       }
       const topics = await database.db
@@ -569,7 +513,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       no_baseline: 'delete from content.discovery_revisions where asset_id=new.asset_id',
       conflicting_topic:
         "insert into content.encounter_topics values(new.asset_id,new.asset_revision,'ci.foreign-topic','primary',1)",
-      withdrawn: "update content.assets set status='withdrawn' where id=new.asset_id",
+      // A document v3 revision is held for review, and a held revision rests on its review row, not on the asset's status.
+      no_review_row: 'delete from content.revision_reviews where asset_id=new.asset_id',
     } as const;
     it.each(Object.entries(faults))(
       'leaves attribution unknown for %s authority (CI fault injection after job publication)',
@@ -601,7 +546,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     );
 
     it('cannot publish or attribute when the same-scope writer closure does not succeed', async () => {
-      const p = setup(() => answer(fixtureAuthored('comparison')));
+      const p = setup(() => answer(authored()));
       const denied: ProductionReasoningHarness = {
         proposeProduction: (input, abort) => p.harness.proposeProduction(input, abort),
         readProductionRunAccounting: (scope, runId) => p.harness.readProductionRunAccounting(scope, runId),

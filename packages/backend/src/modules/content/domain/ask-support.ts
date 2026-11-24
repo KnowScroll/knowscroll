@@ -546,13 +546,6 @@ export function judgeVerdicts(
   );
 }
 
-/**
- * The fewest sentences of reading text (every sentence that is not a title, a heading or a callout's title) an answer may be served with
- * after a check, and the fewest of them that must be supported when flagged sentences are dropped (D-310). The writer's own draft has
- * more (`ASK_ANSWER_MIN_SENTENCES`).
- */
-export const MIN_SERVED_SENTENCES = 5;
-
 /** The most sentences one request to the checker carries. A long answer is checked in batches, so no reply is cut short. */
 export const ASK_SUPPORT_BATCH_SENTENCES = 10;
 

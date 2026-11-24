@@ -6,6 +6,10 @@ import { readFileSync } from 'node:fs';
  * each verdict, the policy and the code that extracts the sentences, judges the verdicts and decides the revision's verdict. A stored result is keyed
  * by it, so a change to any of them, including the ask check's shared code that the library check reuses, is a new measurement and never mixes
  * with an old one. Nobody has to remember to bump a number.
+ *
+ * Since #818 (D-443) the two shipped versions are pinned literals (`LIBRARY_SUPPORT_CHECK_VERSION`, `LIBRARY_SUPPORT_V3_CHECK_VERSION`), equal to what a build at dev
+ * `f4293032` computed: deleting the "You asked" code from `ask-support.ts` moved its source without changing the check, and a new hash would have made every stored result
+ * stale. These functions are how to compute a new value when the check really changes; the shipped version no longer follows the source by itself.
  */
 
 /** The modules whose code decides what the check says, relative to this folder, without an extension (the source in tests, the build in a release). */

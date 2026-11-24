@@ -263,7 +263,7 @@ It prints one JSON line (`outcome`, `assetId`, `revision`, `documentSha256`, `pa
 time, `unchanged` when run again, `revised` when the shipped file changed, `facts_refreshed` when only its derived reading-facts view needed refreshing. The Scroll is then at
 `https://app.dev.knowscroll.space/scroll/<assetId>`. Refused outside dev, stage, ci and local.
 
-The starter is a `scroll-document.v1` Scroll. This step is manual: no deploy and no start-up admits it. Do not run it on dev after the cleanup of the v1 and v2 Scrolls ([scroll-cleanup.md](scroll-cleanup.md)), which removes it with them.
+The starter is a `scroll-document.v1` Scroll, hand-written (`authored_editorial`), never model-written. It and the v1 editorial compile that admits it **stay** when the v1 Scroll writer is deleted (#818, D-443): they are the editorial path, and 45 integration files and the release tests use it as the world's Scroll, until those move to a v3 editorial fixture (the `content import-editorial` of a document v3 source, #759, is unchanged). This step is manual: no deploy and no start-up admits it. Do not run it on dev after the cleanup of the v1 and v2 Scrolls ([scroll-cleanup.md](scroll-cleanup.md)), which removes it with them.
 
 The v2 API must answer `GET /health` on `PORT` with
 `{"status", "world", "commit", "artifact", "migration"}`: `world` = `KS_WORLD`, `commit` =

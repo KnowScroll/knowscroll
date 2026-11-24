@@ -25,13 +25,13 @@ import { findAssetForAction } from '../../../packages/backend/src/modules/conten
 import { makeRenderScroll } from '../../../packages/backend/src/modules/content/adapters/render-scroll.js';
 import { chooseScrollRecipe } from '../../../packages/backend/src/modules/content/adapters/production-state.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
-import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
-import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
+import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
-import { markRecipesV1, markScrollV1, orrinResearchFor, v2Capabilities } from '../support/scroll-v2.js';
+import { markRecipesV1, orrinResearchFor, v2Capabilities } from '../support/scroll-v2.js';
+import { storeV1 } from '../support/stored-v1.js';
 import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
 import { storeV2 } from '../support/stored-v2.js';
 
@@ -42,8 +42,8 @@ import { storeV2 } from '../support/stored-v2.js';
  * product content. Nothing here is provider output.
  */
 describe('The review gate for library Scrolls (labelled CI fixtures, real PostgreSQL)', () => {
-  // The plan marks these recipes document v3; this file uses them as v1 examples.
-  const restoreRecipes = markRecipesV1('tides', 'greenhouse');
+  // The plan marks every recipe document v3; the one test that asks which recipe Create would commission uses `tides` as a v1 example.
+  const restoreRecipes = markRecipesV1('tides');
   afterAll(restoreRecipes);
   // The recorded Orrin reply is written to the Seasons plan (a statement and a grid, three sections), so the recipes this file produces as
   // document v3 take that plan for the file's own process, as the v3 publication test does.
@@ -71,9 +71,6 @@ describe('The review gate for library Scrolls (labelled CI fixtures, real Postgr
 
   /** A production run whose writer answers with the Orrin document v3 fixture, for a recipe the plan marks document v3. */
   const producingV3 = () => fixtureProduction(database.db, () => answerWith(orrinV3()), orrinResearchFor);
-  /** A production run for a v1 recipe: the lighthouse fixture, in the format the recipe asks for. */
-  const producingV1 = (key: ScrollTopic) =>
-    fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[key]))));
 
   const assetOf = (key: ScrollTopic) =>
     database.db
@@ -379,15 +376,8 @@ describe('The review gate for library Scrolls (labelled CI fixtures, real Postgr
     const assetId = TOPICS[key].assetId;
 
     it('keeps serving the v1 revision while the v2 one is held, and shows the held one to nobody', async () => {
-      const undo = markScrollV1(key);
-      try {
-        expect(await producingV1(key).produce(key, false, signal())).toMatchObject({
-          outcome: 'published',
-          revision: 1,
-        });
-      } finally {
-        undo();
-      }
+      // The Scroll the library held before: a v1 revision, stored as the v1 job stored it (#818).
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId, revision: 1 });
       expect(await assetOf(key)).toMatchObject({ status: 'admitted', revision: 1 });
       // The plan marks the recipe document v3 again, so the v1 Scroll does not count as published.
       expect(await statusOf(key)).toMatchObject({ state: 'not_started' });
@@ -572,15 +562,8 @@ describe('The review gate for library Scrolls (labelled CI fixtures, real Postgr
     const assetId = TOPICS[key].assetId;
 
     it('keeps a held revision of a served Scroll out, and leaves the earlier revision served', async () => {
-      const undo = markScrollV1(key);
-      try {
-        expect(await producingV1(key).produce(key, false, signal())).toMatchObject({
-          outcome: 'published',
-          revision: 1,
-        });
-      } finally {
-        undo();
-      }
+      // The Scroll the library held before: a v1 revision, stored as the v1 job stored it (#818).
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId, revision: 1 });
       expect(await storeV2(database.db, key)).toMatchObject({ revision: 2 });
       expect(await gate().reject({ assetId, revision: 2, reason: '   ', decidedBy: operator })).toEqual({
         kind: 'refused',
@@ -623,15 +606,8 @@ describe('The review gate for library Scrolls (labelled CI fixtures, real Postgr
     const assetId = TOPICS[key].assetId;
 
     it('keeps a held revision of a served Scroll out, leaves the earlier revision served, and frees the next take', async () => {
-      const undo = markScrollV1(key);
-      try {
-        expect(await producingV1(key).produce(key, false, signal())).toMatchObject({
-          outcome: 'published',
-          revision: 1,
-        });
-      } finally {
-        undo();
-      }
+      // The Scroll the library held before: a v1 revision, stored as the v1 job stored it (#818).
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId, revision: 1 });
       expect(await producingV3().produce(key, false, signal())).toMatchObject({ held: true, revision: 2 });
       expect(
         await gate().reject({ assetId, revision: 2, reason: 'A claim is not in the cited page.', decidedBy: operator }),
@@ -702,14 +678,11 @@ describe('The review gate for library Scrolls (labelled CI fixtures, real Postgr
   });
 
   describe('what the gate leaves alone', () => {
-    it('publishes a v1 recipe straight to admitted, with no review row, as it always did', async () => {
+    it('leaves a stored v1 Scroll, admitted straight with no review row as the v1 job published it, alone', async () => {
       const key = 'greenhouse';
-      const result = await producingV1(key).produce(key, false, signal());
-      expect(result).toMatchObject({ outcome: 'published', revision: 1 });
-      expect(result).not.toHaveProperty('held');
+      expect(await storeV1(database.db, key)).toMatchObject({ assetId: TOPICS[key].assetId, revision: 1 });
       expect(await assetOf(key)).toMatchObject({ status: 'admitted', revision: 1 });
       expect(await reviewOf(key, 1)).toBeUndefined();
-      expect(await statusOf(key)).toMatchObject({ state: 'published', revision: 1 });
     });
 
     it('refuses to release a revision that never went through the gate', async () => {

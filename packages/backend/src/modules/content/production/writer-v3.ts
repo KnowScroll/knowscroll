@@ -21,7 +21,7 @@ import type { AdmissionIssue } from '../application/ports.js';
 import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT_V3, citationLimitIssuesV3 } from './citation-limits.js';
 import { copyRepairNotesV3 } from './copy-notes-v3.js';
 import { authoringEvidence, evidenceText, type EvidencePassage } from './evidence.js';
-import { bannedNames, readerStrings, type BannedName } from './writer.js';
+import { bannedNames, readerStrings, type BannedName } from './banned-names.js';
 import { writerInstructionsV3, type WriterV3Plan, type WriterV3Step } from './writer-v3-instructions.js';
 
 /**

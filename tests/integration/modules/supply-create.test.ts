@@ -45,7 +45,6 @@ import { spikePlanV3 } from '../../../packages/backend/src/modules/content/produ
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureAuthored } from '../support/generated-scroll.js';
 import { fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
 import { recordingEntries } from '../support/recording-harness.js';
 import { clearRecordingPerson, pauseAndResume, recordingPerson, setRecording } from '../support/recording-person.js';
@@ -54,10 +53,15 @@ import { fixtureProductionWorker, type QuotaScript } from '../support/production
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { plannedIntent } from '../support/planned-demand.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
-import { markLibraryV1 } from '../support/scroll-v2.js';
+import { markLibraryV1, orrinResearchFor } from '../support/scroll-v2.js';
+import { orrinV3 } from '../support/scroll-v3.js';
+import { runCommissionedJob } from '../support/v1-recipe-world.js';
 
-const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
-const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
+const capabilities = {
+  ...FULL_V1_CAPABILITIES,
+  documentSchemas: ['scroll-document.v1', 'scroll-document.v3', 'reel-document.v1'],
+};
+const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(orrinV3()) });
 const matchAnswer = (topicId: string | null, facetId: string | null = null): FixtureScenario => ({
   kind: 'success',
   text: JSON.stringify({ topicId, facetId }),
@@ -84,7 +88,8 @@ function markScrollV3(key: ScrollTopic): () => void {
  * publishes; each waiter is bound under its own authority. CI fixtures only: no provider network.
  */
 describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () => {
-  // Create commissions only v1 recipes (D-138): this file tests Create on the v1 library.
+  // Create commissions only v1 recipes (D-138): this file tests Create on a library of v1 recipes. The job a commission starts is the real
+  // document v3 job, run by `runCommissionedJob` (support/v1-recipe-world.ts), and its end is recorded under the v1 production version (#818).
   const restoreLibrary = markLibraryV1();
   afterAll(restoreLibrary);
   let database: TestDatabase<Database>;
@@ -112,6 +117,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     await sql`update reasoning.production_scopes set enabled=true where id='scroll-supply'`.execute(database.db);
     content = await scrollUseCases(database);
     production = fixtureProductionWorker(database, options.writer ?? writerAnswer, {
+      research: (url) => Promise.resolve(orrinResearchFor(url)),
       ...(options.quota ? { quota: options.quota } : {}),
     });
     matchScript = () => matchAnswer(null);
@@ -289,8 +295,8 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         data: { recipe: string; take: number };
       }>`select data from pgboss.job where name=${produceScrollQueue.name} and state='created'`.execute(database.db)
     ).rows.map((row) => row.data);
-  const publish = (recipe: string, take = 1) =>
-    production.run(produceScrollJob(recipe, take), { signal: new AbortController().signal });
+  /** Runs the commissioned job and, when it published, has the operator release the held Scroll (`runCommissionedJob`). */
+  const publish = (recipe: ScrollTopic, take = 1) => runCommissionedJob(database.db, production, recipe, take);
 
   it('commits the demand and the production job together, publishes through the worker, and resolves the waiter', async () => {
     await build();

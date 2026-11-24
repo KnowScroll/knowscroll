@@ -59,11 +59,11 @@ import {
 import { scenarioProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureAuthored, answerWith } from '../support/generated-scroll.js';
+import { answerWith } from '../support/generated-scroll.js';
 import { fixtureModel, gate, protectedRequestsOf, receiptClassesOf } from '../support/fixture-model.js';
 import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureProductionWorker } from '../support/production-worker.js';
+import { storeOrderScroll } from '../support/stored-order.js';
 import { buildRecursively } from '../support/providers.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
 import {
@@ -154,7 +154,6 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     suggest: SuggestStep;
   };
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
-  let production: ReturnType<typeof fixtureProductionWorker>;
   let plannerScript: (sequence: number) => FixtureScenario | Promise<FixtureScenario>;
   let plannerCalls = () => 0;
   let orderAudience: ReadOrderAudience;
@@ -178,7 +177,6 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     };
     orderAudience = makeReadOrderAudience(branchPoolStore(database.db), standing);
     content = await scrollUseCases(database, { orderAudience });
-    production = fixtureProductionWorker(database, () => answerWith(fixtureAuthored('comparison')));
     plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
     const planner = fixtureModel((sequence) => plannerScript(sequence), { label: 'scenario-planner-CI-fixture' });
     plannerCalls = () => planner.calls.length;
@@ -374,14 +372,12 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     ),
   });
 
-  /** Runs the production job of a branch (the fixture writer) and the resolver sweep that binds it. */
+  /**
+   * Stores the Scroll of a branch's order as the v1 job stored it (`storeOrderScroll`, #818: nothing produces one now) and runs the resolver
+   * sweep that binds it.
+   */
   async function prepare(nodeId: string) {
-    const recipe = madeToOrderKey(nodeId);
-    const outcome = await production.run(
-      { v: 1, recipe, policyVersion: SCROLL_PRODUCTION_VERSION, take: 1 },
-      { signal: new AbortController().signal },
-    );
-    expect(outcome).toMatchObject({ kind: 'finished', result: { outcome: 'published' } });
+    await storeOrderScroll(database.db, madeToOrderKey(nodeId));
     const summary = await resolver().resolveBranches();
     expect(summary.bound).toBeGreaterThanOrEqual(1);
   }

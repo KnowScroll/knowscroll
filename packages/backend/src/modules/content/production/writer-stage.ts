@@ -5,21 +5,10 @@ import type {
   ProposeOutcome,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import type { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { CompileOutcome } from '../application/ports.js';
-import {
-  passes,
-  unsupportedOf,
-  type SentenceUnderCheck,
-  type SentenceVerdict,
-  type UnsupportedVerdict,
-} from '../domain/ask-support.js';
 import { emptyAnswerCheckReceipt } from './answer-check.js';
-import { dropFlagged, onlyTitleOrDekFlagged, type DropOutcome } from './ask-support-drop.js';
-import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
-import { makeAskSupportStep } from './ask-support-step.js';
-import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
+import { EvidenceRefusal, evidencePassages, evidenceText } from './evidence.js';
 import { isSentAttempt } from './publication-topic.js';
 import { withAccounting, writerReceipt } from './receipts.js';
 import { hasAnswerCheck } from './review-hold.js';
@@ -71,34 +60,15 @@ interface Stage {
   readonly subject: ProductionSubject;
   readonly row: ProductionRow;
   readonly plan: WriterPlan;
-  /** The writer's own context: the brief and the evidence. */
-  readonly items: readonly ContextItem[];
-  /** The passages the writer was offered, by handle: what an ask order's support check reads the answer against. */
-  readonly passages: readonly EvidencePassage[];
-  readonly signal: AbortSignal;
 }
 
 /** One accepted and compiled answer of the writer, with the receipt of the run that wrote it. */
 interface Draft {
-  readonly number: 1 | 2;
   readonly runId: string;
   readonly authored: unknown;
   readonly compiled: Compiled;
-  /** The identities of the paid attempts that wrote it, which a compile of the same answer without some sentences keeps. */
-  readonly attemptIds: readonly string[];
   readonly receipt: RoleReceipt;
-  /** The harness already repaired this answer for the validator, so no repair is left to give a flagged one. */
-  readonly repaired: boolean;
-  /** What code took out of the writer's draft before it was compiled, as receipts of counts; none when it served it as it was. */
-  readonly trims: readonly RoleReceipt[];
 }
-
-/** What earlier drafts of the job leave behind: their receipts, and the runs to close with the job. */
-interface History {
-  readonly receipts: readonly RoleReceipt[];
-  readonly closing: readonly ClosingRun[];
-}
-const NO_HISTORY: History = { receipts: [], closing: [] };
 
 const isResult = (value: Draft | ProduceScrollResult): value is ProduceScrollResult => 'outcome' in value;
 
@@ -112,19 +82,12 @@ function linksDroppedReceipt(compiled: Compiled): readonly RoleReceipt[] {
 }
 
 /**
- * The writer stage of a production job: ask the writer, compile its answer and publish it. For a v2
- * library recipe the answer check sits between the two (D-198), and for the answer to a person's question
- * the support check does (D-250). The stage sends at most two writer requests (the first draft with the
- * harness's repair, or with the one repair a flag earns) and at most two checks (one for each draft), and
- * holds no transaction while a request is out. The answer to a question may send four: the first draft and its
- * repair, then the revision a support check earns and its repair for a length out of range, an opening paragraph taken out whole
- * or a copied run the trim could not place (D-297, D-353). Before either draft is checked, code takes out of it the sentences it can
- * (the ones that copy a passage or lean, D-348, D-349) and has put its own limits line last (D-371), so the check reads what could be
- * served and never reads that line.
+ * The writer stage of a production job: ask the writer, compile its answer and publish it. The stage sends at most two writer requests
+ * (the first draft with the harness's repair) and holds no transaction while a request is out. A document v3 has no calls to check
+ * (decision I1 on #756), so its answer check is the empty one (D-198). The support check of the answer to a question, the code's trim and
+ * drop of its sentences and the revision they earned went with the v1 writer (#818, D-443).
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
-  const supportCheck = makeAskSupportStep(deps);
-
   const paused = (row: ProductionRow, code: string): ProduceScrollResult => ({
     outcome: 'paused',
     requestBound: requestBoundOf(row.topic),
@@ -145,248 +108,41 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
    * The harness has accepted a writer answer: read the paid attempts, compile the answer with their
    * real identities, or end the job with the findings.
    */
-  async function acceptDraft(
-    stage: Stage,
-    runId: string,
-    number: 1 | 2,
-    writer: Proposed,
-    history: History,
-  ): Promise<Draft | ProduceScrollResult> {
+  async function acceptDraft(stage: Stage, runId: string, writer: Proposed): Promise<Draft | ProduceScrollResult> {
     const { row } = stage;
     const receipt = writerReceipt(writer);
-    const closing = [...history.closing, { runId, state: 'failed' as const }];
+    const closing = [{ runId, state: 'failed' as const }];
     const refuse = (codes: readonly string[], recorded: RoleReceipt) =>
-      ops.end(row, 'rejected', codes, [...history.receipts, recorded], closing);
+      ops.end(row, 'rejected', codes, [recorded], closing);
     const attempts = await attemptsOf(runId);
     if (attempts === undefined) return refuse(['accounting_unavailable'], receipt);
     const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
-    // The first draft has the harness's repair. The second is the repair a flag earned and has none of its own, except
-    // the revision after a support check, which has one for the findings of D-353.
-    const mostPaidAttempts = number === 1 || hasSupportCheck(stage.subject) ? 2 : 1;
-    if (paidAttemptIds.length < 1 || paidAttemptIds.length > mostPaidAttempts)
-      return refuse(['attempt_bound_exceeded'], receipt);
+    // The writer's one request and the harness's one repair of it.
+    if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2) return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
-    // Code takes out what it can (the sentences that copy a passage or lean) and writes the limits callout itself before the draft is
-    // compiled and checked, so the check reads what could be served (D-348, D-371). The validator ran the same trim, so what is left
-    // is what it accepted.
-    const prepared = stage.plan.prepare(writer.output);
-    if (prepared.issues.length > 0)
-      return refuse(
-        prepared.issues.map((issue) => issue.code),
-        recorded,
-      );
-    const compiled = stage.plan.compile(prepared.authored, { runId, attemptIds: paidAttemptIds, model: deps.model });
+    const compiled = stage.plan.compile(writer.output, { runId, attemptIds: paidAttemptIds, model: deps.model });
     if (compiled.kind === 'refused')
       return refuse(
         compiled.issues.map((issue) => issue.code),
         recorded,
       );
-    return {
-      number,
-      runId,
-      authored: prepared.authored,
-      compiled,
-      attemptIds: paidAttemptIds,
-      receipt: recorded,
-      repaired: writer.repaired,
-      trims:
-        prepared.counts === undefined
-          ? []
-          : [{ role: 'checks', kind: 'answer_trimmed', draft: number, ...prepared.counts }],
-    };
+    return { runId, authored: writer.output, compiled, receipt: recorded };
   }
 
   /**
    * A document v3 has no calls to check (decision I1 on #756), so its answer check is the empty one: recorded as passed with no
-   * request, and its one draft is published here, with the count of links its compile left out. The model step that asked a checker
-   * about a v2 Scroll's answer keys, and the writer's one repair after a flag, were reachable only from the v2 job and are deleted (#815).
+   * request, and its one draft is published here, with the count of links its compile left out.
    */
   function checkDraft(stage: Stage, draft: Draft): Promise<ProduceScrollResult> {
-    const receipts = [draft.receipt, ...linksDroppedReceipt(draft.compiled), emptyAnswerCheckReceipt(draft.number)];
+    const receipts = [draft.receipt, ...linksDroppedReceipt(draft.compiled), emptyAnswerCheckReceipt(1)];
     return ops.publish(stage.subject, stage.row, receipts, draft.authored, draft.compiled, draft.runId, []);
   }
 
-  /**
-   * Asks the support checker about the answer to a question and acts on the verdicts (D-250). Nothing unsupported:
-   * the Scroll is published. An unsupported sentence in the first draft earns the writer one revision, whether or not the
-   * validator had repaired that draft; none when only the title or the dek is unsupported and the drop would serve the draft, since
-   * code writes its own line for either (D-351, D-352). A sentence still unsupported after the revision is taken out and the rest is served, if
-   * enough of it is left (D-310); otherwise the job ends. A check that gave no usable answer ends the job: nobody reads an ask
-   * order before the person who asked, so it is never served unchecked.
-   */
-  async function supportCheckDraft(stage: Stage, draft: Draft, history: History): Promise<ProduceScrollResult> {
-    const { row } = stage;
-    const sentences = sentencesOfAnswer(draft.authored as AuthoredScroll);
-    const checked = await supportCheck.check({
-      jobId: row.id,
-      policyVersion: productionVersionOf(stage.subject.key),
-      draft: draft.number,
-      sentences,
-      passages: stage.passages,
-      signal: stage.signal,
-    });
-    if (checked.kind === 'advanced') return ops.replayCurrent(row);
-    if (checked.kind === 'paused') return paused(row, checked.code);
-
-    const receipts = [draft.receipt, ...draft.trims, ...history.receipts, checked.receipt];
-    const closing = [...history.closing, { runId: draft.runId, state: 'failed' as const }, ...checked.runs];
-    if (checked.record.kind === 'unchecked') {
-      const code = `support_check_${checked.record.code ?? 'unchecked'}`;
-      return ops.end(
-        row,
-        checked.record.code === 'outcome_unknown' ? 'unknown' : 'rejected',
-        [code],
-        receipts,
-        closing,
-      );
-    }
-    if (passes(checked.record))
-      return ops.publish(stage.subject, row, receipts, draft.authored, draft.compiled, draft.runId, [
-        ...history.closing,
-        ...checked.runs,
-      ]);
-    if (draft.number === 2)
-      return publishWithoutFlagged(stage, draft, checked.verdicts, receipts, history, checked.runs);
-    // Only the title or the dek failing the check is no reason for a revision when code can serve the draft with its own line for
-    // either under the floors of D-310. When it cannot, the revision runs as it always has (D-352).
-    if (onlyTitleOrDekFlagged(draft.authored as AuthoredScroll, checked.verdicts)) {
-      const served = dropAndCompile(stage, draft, checked.verdicts);
-      if (served.kind === 'served') return publishDropped(stage, draft, served, receipts, history, checked.runs);
-    }
-    // The unsupported first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
-    // It earns the revision even when the validator already repaired it, since that repair was for another finding (D-297).
-    const earlier: History = {
-      receipts: [
-        ...history.receipts,
-        { ...draft.receipt, role: 'checks', kind: 'draft_unsupported', runId: draft.runId },
-        ...draft.trims,
-        checked.receipt,
-      ],
-      closing,
-    };
-    return repairUnsupported(stage, draft, sentences, unsupportedOf(checked.verdicts), earlier);
-  }
-
-  /**
-   * Serves the revision without the sentences its check still found unsupported, when what is left is enough (D-310), and ends the
-   * job when it is not. The sentences left each have the verdict they were checked with; nothing is checked again.
-   */
-  async function publishWithoutFlagged(
-    stage: Stage,
-    draft: Draft,
-    verdicts: readonly SentenceVerdict[],
-    receipts: readonly RoleReceipt[],
-    history: History,
-    checkRuns: readonly ClosingRun[],
-  ): Promise<ProduceScrollResult> {
-    const served = dropAndCompile(stage, draft, verdicts);
-    if (served.kind === 'served') return publishDropped(stage, draft, served, receipts, history, checkRuns);
-    return ops.end(stage.row, 'rejected', ['support_check_failed', served.why], receipts, [
-      ...history.closing,
-      { runId: draft.runId, state: 'failed' },
-      ...checkRuns,
-    ]);
-  }
-
-  /**
-   * The draft without the sentences its check found unsupported, compiled as the answer to serve, or why it cannot be served
-   * (`support_drop_<code>`). Pure of any write: the caller decides whether a draft that cannot be served ends the job (a revision) or
-   * earns a revision (a first draft whose only flags are the title and the dek, D-352).
-   */
-  function dropAndCompile(
-    stage: Stage,
-    draft: Draft,
-    verdicts: readonly SentenceVerdict[],
-  ):
-    | { readonly kind: 'served'; readonly dropped: Extract<DropOutcome, { kind: 'kept' }>; readonly compiled: Compiled }
-    | { readonly kind: 'unserved'; readonly why: string } {
-    const dropped = dropFlagged(draft.authored as AuthoredScroll, verdicts, stage.plan.askLines);
-    if (dropped.kind === 'refused') return { kind: 'unserved', why: `support_drop_${dropped.code}` };
-    const compiled = stage.plan.compile(dropped.authored, {
-      runId: draft.runId,
-      attemptIds: draft.attemptIds,
-      model: deps.model,
-    });
-    if (compiled.kind === 'refused') return { kind: 'unserved', why: 'support_drop_compile_refused' };
-    return { kind: 'served', dropped, compiled };
-  }
-
-  /**
-   * Publishes the draft served without the sentences its check found unsupported. The answer stored and compiled is the one served,
-   * and the receipts say how many sentences were taken out and whether the title or the dek was replaced by code's own line, never
-   * which sentences.
-   */
-  function publishDropped(
-    stage: Stage,
-    draft: Draft,
-    served: Extract<ReturnType<typeof dropAndCompile>, { kind: 'served' }>,
-    receipts: readonly RoleReceipt[],
-    history: History,
-    checkRuns: readonly ClosingRun[],
-  ): Promise<ProduceScrollResult> {
-    const { dropped } = served;
-    return ops.publish(
-      stage.subject,
-      stage.row,
-      [
-        ...receipts,
-        {
-          role: 'checks',
-          kind: 'sentences_dropped',
-          dropped: dropped.dropped,
-          titleReplaced: dropped.titleReplaced,
-          dekReplaced: dropped.dekReplaced,
-        },
-      ],
-      dropped.authored,
-      served.compiled,
-      draft.runId,
-      [...history.closing, ...checkRuns],
-    );
-  }
-
-  /**
-   * The one revision an unsupported first draft earns: the writer sees the findings and its draft, and the new draft is checked
-   * in turn. A revision refused for a length out of range, an opening paragraph taken out whole or a copied run the trim could not place has one repair of its own; any other refusal of it ends the job (D-297, D-353).
-   */
-  async function repairUnsupported(
-    stage: Stage,
-    draft: Draft,
-    sentences: readonly SentenceUnderCheck[],
-    unsupported: readonly UnsupportedVerdict[],
-    history: History,
-  ): Promise<ProduceScrollResult> {
-    const { row } = stage;
-    const repaired = await supportCheck.repair({
-      jobId: row.id,
-      policyVersion: productionVersionOf(stage.subject.key),
-      writer: stage.plan.role,
-      writerItems: stage.items,
-      sentences,
-      unsupported,
-      previousDraft: draft.authored,
-      signal: stage.signal,
-    });
-    if (repaired.kind === 'advanced') return ops.replayCurrent(row);
-    if (repaired.kind === 'paused') return paused(row, repaired.code);
-    if (repaired.kind === 'ended')
-      return ops.end(
-        row,
-        repaired.state,
-        [repaired.code],
-        [...history.receipts, repaired.receipt],
-        [...history.closing, { runId: repaired.runId, state: 'failed' }],
-      );
-    const second = await acceptDraft(stage, repaired.runId, 2, repaired.writer, history);
-    return isResult(second) ? second : supportCheckDraft(stage, second, history);
-  }
-
-  /** The first draft is in: a v2 library Scroll or the answer to a question is checked, any other is published as it is. */
+  /** The first draft is in: a library Scroll's answer check is recorded as passed, any other is published as it is. */
   async function settleFirstDraft(stage: Stage, writer: Proposed): Promise<ProduceScrollResult> {
-    const draft = await acceptDraft(stage, stage.row.writer_run_id, 1, writer, NO_HISTORY);
+    const draft = await acceptDraft(stage, stage.row.writer_run_id, writer);
     if (isResult(draft)) return draft;
     if (hasAnswerCheck(stage.subject)) return checkDraft(stage, draft);
-    if (hasSupportCheck(stage.subject)) return supportCheckDraft(stage, draft, NO_HISTORY);
     return ops.publish(stage.subject, stage.row, [draft.receipt], draft.authored, draft.compiled, draft.runId, []);
   }
 
@@ -448,6 +204,6 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
         [{ runId: row.writer_run_id, state: 'failed' }],
       );
     }
-    return settleFirstDraft({ subject, row, plan, items, passages, signal }, writer);
+    return settleFirstDraft({ subject, row, plan }, writer);
   };
 }

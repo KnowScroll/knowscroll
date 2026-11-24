@@ -1,32 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredScroll, COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
+import { COPY_RUN_WORDS, copiedRuns } from '@knowscroll/scroll-model/producer';
 import {
   ASK_ORDER_CHECK_RULES,
   STRICT_CHECK_RULES,
   RULE_PROBLEMS,
-  UNSUPPORTED_HINTS,
   sharedStems,
   type SentenceUnderCheck,
 } from '../domain/ask-support.js';
 import {
   ASK_SUPPORT_CHECK_VERSION,
-  ASK_SUPPORT_INSTRUCTIONS,
-  askOrderCheckerRole,
   askSupportContext,
   askSupportInstructions,
   askSupportRole,
   askSupportSchema,
   citedPassages,
-  hasSupportCheck,
-  placedSentencesOfAnswer,
-  sentencesOfAnswer,
-  supportRepairItems,
-  supportRepairRole,
   verdictsOf,
 } from './ask-support.js';
 import type { EvidencePassage } from './evidence.js';
-import { COPY_RULE_EXAMPLE, QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
-import { LIMITS_TEXT, LIMITS_TITLE } from './ask-answer-limits.js';
 
 /** Labelled CI text about an invented lighthouse: never provider output and never product content. */
 const passage = (n: number, text: string): EvidencePassage => ({
@@ -46,115 +36,24 @@ const PASSAGES = [
   passage(5, 'Near the poles the Sun is never directly overhead, because the planet’s axis is tilted a little.'),
 ];
 
-const ANSWER = AuthoredScroll.parse({
-  title: 'Why a lighthouse beam turns',
-  dek: 'A ring of glass shapes one beam that sweeps the sea.',
-  blocks: [
-    { type: 'heading', text: 'The beam' },
-    {
-      type: 'paragraph',
-      cites: ['e1', 'e2'],
-      text: 'The keeper winds a clockwork every four hours. A prism ring gathers the light into one beam.',
-    },
-    { type: 'list', cites: ['e3'], items: ['Fog stops the light quickly.', 'So a sound signal helps.'] },
-    { type: 'callout', cites: ['e4'], kind: 'limit', title: 'Where this stops', text: 'This says nothing of radio.' },
-  ],
-});
+/** The sentences of an invented answer about the lighthouse, numbered as a checker is shown them: title, dek, heading, paragraph, list, callout. */
+const SENTENCES: readonly SentenceUnderCheck[] = [
+  { number: 1, text: 'Why a lighthouse beam turns', cites: ['e1', 'e2', 'e3', 'e4'], label: true },
+  { number: 2, text: 'A ring of glass shapes one beam that sweeps the sea.', cites: ['e1', 'e2', 'e3', 'e4'] },
+  { number: 3, text: 'The beam', cites: ['e1', 'e2', 'e3', 'e4'], label: true },
+  { number: 4, text: 'The keeper winds a clockwork every four hours.', cites: ['e1', 'e2'] },
+  { number: 5, text: 'A prism ring gathers the light into one beam.', cites: ['e1', 'e2'] },
+  { number: 6, text: 'Fog stops the light quickly.', cites: ['e3'] },
+  { number: 7, text: 'So a sound signal helps.', cites: ['e3'] },
+  { number: 8, text: 'Where this stops', cites: ['e1', 'e2', 'e3', 'e4'], label: true },
+  { number: 9, text: 'This says nothing of radio.', cites: ['e4'] },
+];
+
+/** The instructions of the checker with the soft rules of an ask order, which the answer to a question was once checked with. */
+const ASK_SUPPORT_INSTRUCTIONS = askSupportInstructions(ASK_ORDER_CHECK_RULES);
 
 describe('the sentences a support check reads', () => {
-  const sentences = sentencesOfAnswer(ANSWER);
-
-  it('are the title, the dek, each heading, each paragraph and list item, the callout’s title and its text, in reading order, numbered from 1 (B1.4)', () => {
-    expect(sentences.map((sentence) => [sentence.number, sentence.text])).toEqual([
-      [1, 'Why a lighthouse beam turns'],
-      [2, 'A ring of glass shapes one beam that sweeps the sea.'],
-      [3, 'The beam'],
-      [4, 'The keeper winds a clockwork every four hours.'],
-      [5, 'A prism ring gathers the light into one beam.'],
-      [6, 'Fog stops the light quickly.'],
-      [7, 'So a sound signal helps.'],
-      [8, 'Where this stops'],
-      [9, 'This says nothing of radio.'],
-    ]);
-  });
-
-  it('carry the passages their own block cites; the title, the dek, the headings and the callout’s title rest on whatever the answer cites', () => {
-    const everything = ['e1', 'e2', 'e3', 'e4'];
-    expect(sentences.map((sentence) => sentence.cites)).toEqual([
-      everything,
-      everything,
-      everything,
-      ['e1', 'e2'],
-      ['e1', 'e2'],
-      ['e3'],
-      ['e3'],
-      everything,
-      ['e4'],
-    ]);
-  });
-
-  it('mark the title, the headings and the callouts’ titles as labels, and no other sentence (D-266)', () => {
-    expect(sentences.filter((sentence) => sentence.label === true).map((sentence) => sentence.number)).toEqual([
-      1, 3, 8,
-    ]);
-    // The checker is told which lines are labels, and only those.
-    const lines = askSupportContext(sentences, PASSAGES)[1]!
-      .text.split('\n')
-      .map((line) => JSON.parse(line) as object);
-    expect(lines.map((line) => 'label' in line)).toEqual([true, false, true, false, false, false, false, true, false]);
-  });
-
-  it('leave out the limits callout code wrote: it has no sentence to number, show or judge (D-371)', () => {
-    const closed = AuthoredScroll.parse({
-      ...ANSWER,
-      blocks: [
-        ...ANSWER.blocks.slice(0, 3),
-        { type: 'callout', cites: ['e1', 'e2', 'e3'], kind: 'limit', title: LIMITS_TITLE, text: LIMITS_TEXT },
-      ],
-    });
-    const shown = sentencesOfAnswer(closed);
-    expect(shown.map((sentence) => sentence.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(shown.map((sentence) => sentence.text)).not.toContain(LIMITS_TITLE);
-    expect(shown.map((sentence) => sentence.text).join(' ')).not.toContain(LIMITS_TEXT);
-    expect(placedSentencesOfAnswer(closed).map((sentence) => sentence.place)).not.toContainEqual({
-      field: 'callout-text',
-      block: 3,
-    });
-    // What the checker is sent never holds the line.
-    expect(
-      askSupportContext(shown, PASSAGES)
-        .map((item) => item.text)
-        .join('\n'),
-    ).not.toContain(LIMITS_TEXT);
-    // A callout of the writer's own, even of the same kind, is a statement like any other and is shown.
-    expect(sentencesOfAnswer(ANSWER).map((sentence) => sentence.text)).toContain('This says nothing of radio.');
-    // The same words under another kind of callout are not code's line either.
-    const note = AuthoredScroll.parse({
-      ...closed,
-      blocks: [...closed.blocks.slice(0, 3), { ...closed.blocks[3]!, kind: 'note' }],
-    });
-    expect(
-      sentencesOfAnswer(note)
-        .map((sentence) => sentence.text)
-        .join(' '),
-    ).toContain(LIMITS_TEXT);
-  });
-
-  it('leave out the title of a callout that has none', () => {
-    const plain = AuthoredScroll.parse({
-      ...ANSWER,
-      blocks: [
-        { type: 'paragraph', cites: ['e1'], text: 'The keeper winds a clockwork.' },
-        { type: 'callout', cites: ['e4'], kind: 'limit', text: 'This says nothing of radio.' },
-      ],
-    });
-    expect(sentencesOfAnswer(plain).map((sentence) => sentence.text)).toEqual([
-      'Why a lighthouse beam turns',
-      'A ring of glass shapes one beam that sweeps the sea.',
-      'The keeper winds a clockwork.',
-      'This says nothing of radio.',
-    ]);
-  });
+  const sentences = SENTENCES;
 
   it('are shown with only the passages the answer cites, and as data the checker reads line by line', () => {
     const cited = askSupportContext(sentences.slice(5, 7), PASSAGES);
@@ -168,25 +67,6 @@ describe('the sentences a support check reads', () => {
     ]);
   });
 
-  it('know where they stand, so one can be taken out of its text (D-310)', () => {
-    expect(placedSentencesOfAnswer(ANSWER).map((sentence) => sentence.place)).toEqual([
-      { field: 'title' },
-      { field: 'dek' },
-      { field: 'heading', block: 0 },
-      { field: 'paragraph', block: 1 },
-      { field: 'paragraph', block: 1 },
-      { field: 'item', block: 2, item: 0 },
-      { field: 'item', block: 2, item: 1 },
-      { field: 'callout-title', block: 3 },
-      { field: 'callout-text', block: 3 },
-    ]);
-    // What the checker is shown has no place: the places are the job's, not the model's.
-    expect(sentences.every((sentence) => !('place' in sentence))).toBe(true);
-    expect(sentences.map((sentence) => sentence.text)).toEqual(
-      placedSentencesOfAnswer(ANSWER).map((sentence) => sentence.text),
-    );
-  });
-
   it('are shown with the passages the whole answer cites when they are one batch of it, so a quote may come from any of them (D-305)', () => {
     const batch = sentences.slice(5, 7);
     expect(askSupportContext(batch, PASSAGES)[0]!.text).toBe(`[e3] ${PASSAGES[2]!.text}`);
@@ -194,11 +74,6 @@ describe('the sentences a support check reads', () => {
     expect(whole.map((line) => line.slice(0, 4))).toEqual(['[e1]', '[e2]', '[e3]', '[e4]']);
     // The sentences listed are still the batch's own.
     expect(askSupportContext(batch, PASSAGES, sentences)[1]!.text.split(/\n/u)).toHaveLength(2);
-  });
-
-  it('are checked only for the answer to a question', () => {
-    expect(hasSupportCheck({ mode: 'question' })).toBe(true);
-    for (const mode of ['library', 'what_if', 'perspective'] as const) expect(hasSupportCheck({ mode })).toBe(false);
   });
 });
 
@@ -706,7 +581,7 @@ describe('the checker’s reply: its shape is refused whole, each verdict is jud
 });
 
 describe('the role', () => {
-  const sentences = sentencesOfAnswer(ANSWER);
+  const sentences = SENTENCES;
 
   it('is a role of its own with fixed repair hints and the passages-only rule in its instructions', () => {
     const role = askSupportRole(sentences, PASSAGES);
@@ -734,7 +609,10 @@ describe('the role', () => {
         verdict.verdict === 'unsupported' ? verdict.code : verdict.verdict,
       );
     // A short sentence that names its passage's subject may be "no fact" in an ask order's answer, and nowhere else.
-    expect(outcomesOf(askOrderCheckerRole(batch, PASSAGES))).toEqual(['supported', 'no_claim']);
+    expect(outcomesOf(askSupportRole(batch, PASSAGES, batch, ASK_ORDER_CHECK_RULES))).toEqual([
+      'supported',
+      'no_claim',
+    ]);
     expect(outcomesOf(askSupportRole(batch, PASSAGES))).toEqual(['supported', 'no_claim_without_ground']);
     expect(outcomesOf(askSupportRole(batch, PASSAGES, batch, STRICT_CHECK_RULES))).toEqual([
       'supported',
@@ -745,8 +623,9 @@ describe('the role', () => {
   it('tells the checker only the rules code applies for it: the soft ones to an ask order’s, the strict ones to every other', () => {
     const strict = askSupportRole(sentences, PASSAGES).instructions;
     expect(strict).toBe(askSupportInstructions(STRICT_CHECK_RULES));
-    expect(askOrderCheckerRole(sentences, PASSAGES).instructions).toBe(ASK_SUPPORT_INSTRUCTIONS);
-    expect(ASK_SUPPORT_INSTRUCTIONS).toBe(askSupportInstructions(ASK_ORDER_CHECK_RULES));
+    expect(askSupportRole(sentences, PASSAGES, sentences, ASK_ORDER_CHECK_RULES).instructions).toBe(
+      ASK_SUPPORT_INSTRUCTIONS,
+    );
     for (const soft of [
       'for a sentence of eight words or fewer with no number',
       'at least one of the sentence’s own key words when the sentence has eight or fewer key words',
@@ -910,64 +789,6 @@ describe('the instructions of ask-support-check.v5 (D-281, D-305 to D-307)', () 
   });
 });
 
-describe('the one repair an unsupported sentence earns', () => {
-  const sentences = sentencesOfAnswer(ANSWER);
-
-  it('tells the writer the fixed hint of each kind and where the sentence is, with the checker’s note as data, and shows it its draft', () => {
-    const items = supportRepairItems(
-      sentences,
-      [{ number: 6, verdict: 'unsupported', kind: 'contradicted', problem: 'The passage says the opposite.' }],
-      ANSWER,
-    );
-    expect(items.map((item) => item.kind)).toEqual(['check_problems', 'previous_draft']);
-    expect(items[0]!.text).toBe(
-      `Sentence "Fog stops the light quickly.": ${UNSUPPORTED_HINTS.contradicted} Note: The passage says the opposite.`,
-    );
-    expect(JSON.parse(items[1]!.text)).toEqual(ANSWER);
-  });
-
-  it('adds the revision notice to the writer’s own role, under a version that says it is a revision, with no change to its schema', () => {
-    const writer = {
-      id: 'content.scroll-writer',
-      version: QUESTION_WRITER_PROMPT_VERSION,
-      instructions: 'WRITER RULES',
-      outputSchema: AuthoredScroll,
-      maxOutputTokens: 1000,
-    };
-    const repair = supportRepairRole(writer);
-    expect(repair.version).toBe(`${QUESTION_WRITER_PROMPT_VERSION}.fix`);
-    expect(repair.version.length).toBeLessThanOrEqual(32);
-    expect(repair.instructions.startsWith('WRITER RULES\n\nREVISION AFTER A SUPPORT CHECK')).toBe(true);
-    expect(repair.outputSchema).toBe(writer.outputSchema);
-  });
-
-  it('reminds the writer that a sentence it rewrites must not copy a passage either, with the rule’s own number (D-294)', () => {
-    const repair = supportRepairRole({
-      id: 'content.scroll-writer',
-      version: QUESTION_WRITER_PROMPT_VERSION,
-      instructions: 'WRITER RULES',
-      outputSchema: AuthoredScroll,
-      maxOutputTokens: 1000,
-    });
-    expect(repair.instructions).toContain(
-      `A sentence that repeats ${String(COPY_RUN_WORDS)} or more words in a row from a passage is taken out of the revision, and the revision is refused if too little is left.`,
-    );
-    expect(repair.instructions).toContain('never the passage’s sentence with a word changed');
-  });
-
-  it('tells the writer in a revision that the limits callout is code’s and is not to be written (D-371)', () => {
-    const repair = supportRepairRole({
-      id: 'content.scroll-writer',
-      version: QUESTION_WRITER_PROMPT_VERSION,
-      instructions: 'WRITER RULES',
-      outputSchema: AuthoredScroll,
-      maxOutputTokens: 1000,
-    });
-    expect(repair.instructions).toContain('Do not write a callout of kind "limit"');
-    expect(repair.instructions).not.toContain('including the ending with the callout of kind "limit"');
-  });
-});
-
 /**
  * The copy rule refuses an answer that copies a run of `COPY_RUN_WORDS` words from a passage (before the checker runs), and the
  * quote rule asks a supported verdict to carry two of the sentence's key words. A writer that is told to keep the passages'
@@ -1017,19 +838,5 @@ describe('a paraphrase that keeps the passages’ key terms passes the copy rule
 
   it('can fail: a sentence copied from a passage trips the copy rule, so passing it is a real property of the paraphrases', () => {
     expect(copiedRuns(PASSAGES[1]!.text, sources, COPY_RUN_WORDS).length).toBeGreaterThan(0);
-  });
-
-  it('holds for the writer’s own worked example too: the rebuilt sentence has a quote that carries its key words, and the copy has no such luck with the copy rule (D-294)', () => {
-    const { passage: exampleText, copied, rebuilt } = COPY_RULE_EXAMPLE;
-    const quote =
-      'letting water into a closed chamber until the water level inside matches the higher stretch of the canal';
-    expect(exampleText).toContain(quote);
-    expect(copiedRuns(rebuilt, [exampleText], COPY_RUN_WORDS)).toEqual([]);
-    expect(copiedRuns(copied, [exampleText], COPY_RUN_WORDS).length).toBeGreaterThan(0);
-    expect(sharedStems(quote, rebuilt)).toBeGreaterThanOrEqual(2);
-    const verdicts = askSupportSchema([{ number: 1, text: rebuilt, cites: ['e1'] }], [passage(1, exampleText)]).parse({
-      sentences: [{ n: 1, verdict: 'supported', quote }],
-    }).sentences;
-    expect(verdicts.map((verdict) => verdict.verdict)).toEqual(['supported']);
   });
 });
