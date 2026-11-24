@@ -75,6 +75,7 @@ export function UniverseSurface({
   onStation,
   notice,
   scope,
+  voyage = false,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -90,6 +91,11 @@ export function UniverseSurface({
   readonly notice?: ReactNode;
   /** The person's own scope, which reads a system's Reels and Scrolls. Never given on a friend's universe. */
   readonly scope?: AccountScope;
+  /**
+   * This device is trying the Round 7.3 look (#811): the map is one camera that flies, so the animated steps down and
+   * the cross-fade up are not played. Never given on a friend's universe.
+   */
+  readonly voyage?: boolean;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
@@ -177,7 +183,7 @@ export function UniverseSurface({
     session,
     view,
     looks,
-    enabled: !state.reducedMotion && !simple && !wide,
+    enabled: !state.reducedMotion && !simple && !wide && !voyage,
     globe: placement,
   });
   const step = animation.active;
@@ -309,6 +315,7 @@ export function UniverseSurface({
           {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
           {...(systemFacts ? { systemFacts } : {})}
           desktop={wide}
+          ladder={voyage}
         />
         {controls}
         {globeLandmarkOf(shown)}
@@ -493,6 +500,7 @@ export function UniverseSurface({
             pickPlanets={wide && visitor === undefined}
             animation={animation}
             onSize={setStageSize}
+            voyage={voyage}
           />
           {searching && !wide ? (
             <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} />

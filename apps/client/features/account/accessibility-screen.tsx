@@ -77,6 +77,12 @@ export function AccessibilityScreen() {
       />
       <SettingsLabel>Universe</SettingsLabel>
       <SwitchRow
+        label="Try the new Universe"
+        description="A test of the Universe's new look. It may be slow or unfinished."
+        on={preferences.universeTrial}
+        onChange={(universeTrial) => update({ universeTrial })}
+      />
+      <SwitchRow
         label="Show the Universe frame rate"
         description="A small figure over the Universe, for checking speed."
         on={preferences.universeFrameRate}

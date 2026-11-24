@@ -24,6 +24,7 @@ import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+import { VoyageStage } from './voyage/voyage-stage';
 
 const KEY_PAN = 60;
 const KEY_ZOOM = 1.25;
@@ -99,6 +100,7 @@ export function UniverseStage({
   onSize,
   landmarksByPlanet,
   coveredBottom,
+  voyage = false,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -123,6 +125,8 @@ export function UniverseStage({
   readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
   /** How far up from the stage's bottom the open card reaches, once measured: a picked region's name stays above it. */
   readonly coveredBottom?: number;
+  /** This device is trying the Round 7.3 look (#811): one camera from the ground to the whole universe, and the ship. */
+  readonly voyage?: boolean;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -171,6 +175,24 @@ export function UniverseStage({
         : view.landed
           ? `${view.planet.label} planet map. Arrow keys pan, plus and minus zoom.`
           : `${view.planet.label} globe. Arrow keys turn it.`;
+  if (voyage)
+    return (
+      <View
+        testID="universe-map"
+        role="group"
+        accessibilityLabel="Universe map. Arrow keys turn, plus and minus go one stop in or out. Drag the ship to a place to go there."
+        onLayout={(event: LayoutChangeEvent) => {
+          const { width, height } = event.nativeEvent.layout;
+          if (width > 0 && height > 0) {
+            setSize({ width, height });
+            onSize({ width, height });
+          }
+        }}
+        style={styles.stage}
+      >
+        <VoyageStage {...sceneProps} view={view} onUnavailable={onUnavailable} />
+      </View>
+    );
   return (
     <View
       ref={surface}

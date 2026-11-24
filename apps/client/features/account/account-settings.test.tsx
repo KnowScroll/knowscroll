@@ -236,10 +236,13 @@ describe('P01 Accessibility & playback', () => {
     await f.app.unmount();
   });
 
-  it('offers no switch for the new Universe until there is one to try', async () => {
+  it('turns the new Universe on and off for this device, starting off', async () => {
     const f = await mount('/account/accessibility');
-    expect(await screen.findByRole('switch', { name: 'Show the Universe frame rate' })).toBeOnTheScreen();
-    expect(screen.queryByRole('switch', { name: 'Try the new Universe' })).toBeNull();
+    const written = () => JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}') as Partial<DevicePreferences>;
+    await fireEvent.press(await screen.findByRole('switch', { name: 'Try the new Universe', checked: false }));
+    expect(written().universeTrial).toBe(true);
+    await fireEvent.press(screen.getByRole('switch', { name: 'Try the new Universe', checked: true }));
+    expect(written().universeTrial).toBe(false);
     await f.app.unmount();
   });
 

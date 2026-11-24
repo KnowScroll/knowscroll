@@ -34,7 +34,8 @@ export interface SpaceProbe {
 /** A named point of the scene in layout pixels, for the labels and tap targets drawn over it. */
 export interface SpaceAnchor {
   readonly id: string;
-  readonly kind: 'system' | 'planet' | 'station' | 'dust';
+  /** A region only comes from the Round 7.3 camera on trial, which draws the planet as one world. */
+  readonly kind: 'system' | 'planet' | 'station' | 'dust' | 'region';
   /** Empty for dust, which has no name. */
   readonly name: string;
   /** A station's sky in words ("6 of 7 · The Lantern"), shown with its name; absent for anything else. */

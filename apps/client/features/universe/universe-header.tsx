@@ -6,6 +6,7 @@ import { useAccountInitial } from '../../providers/account-scope';
 import { SpaceChip } from './space-chip';
 import type { UniverseView } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+import { climbOneStop } from './voyage/ladder';
 
 /**
  * What the header says for each view (U01, U02, U03): the screen title with search and the Lately
@@ -21,6 +22,7 @@ export function UniverseHeader({
   visitor,
   systemFacts,
   desktop = false,
+  ladder = false,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -33,6 +35,8 @@ export function UniverseHeader({
   readonly systemFacts?: string;
   /** Desktop Browse carries search, and Settings carries the Lately preference. */
   readonly desktop?: boolean;
+  /** The Round 7.3 ladder on trial (#811): from the ground the pill climbs to the planet's globe, one stop at a time. */
+  readonly ladder?: boolean;
 }) {
   const router = useRouter();
   const initial = useAccountInitial();
@@ -105,8 +109,13 @@ export function UniverseHeader({
       ? undefined
       : session.places().find((place) => place.id === (view.kind === 'planet' ? view.planet.parentId : ''));
   const universeName = visitor ? `${visitor.ownerName}’s universe` : 'Universe';
+  const toGlobe = ladder && view.kind === 'planet' && view.landed && view.selectedRegion === undefined;
   const backLabel =
-    view.kind === 'system' ? universeName : view.selectedRegion ? view.planet.label : (parent?.label ?? universeName);
+    view.kind === 'system'
+      ? universeName
+      : view.selectedRegion || toGlobe
+        ? view.planet.label
+        : (parent?.label ?? universeName);
   const title = view.kind === 'system' ? view.system.label : view.planet.label;
   return (
     <View style={styles.root}>
@@ -118,7 +127,7 @@ export function UniverseHeader({
             icon="back"
             label={backLabel}
             accessibilityLabel={`Back to ${backLabel}`}
-            onPress={() => session.up()}
+            onPress={() => (ladder ? climbOneStop(session, view) : session.up())}
           />
           {view.kind === 'planet' && view.landed ? (
             <View style={styles.level} testID="universe-level">

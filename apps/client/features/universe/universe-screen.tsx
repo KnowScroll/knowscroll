@@ -41,7 +41,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
     { focus: focusParam } = useLocalSearchParams<{ focus?: string }>();
   const [foreground, setForeground] = useState(false);
   const stations = useRoomStationsOnMap(scope);
-  const { frameRate } = useUniverseTrial();
+  const trial = useUniverseTrial();
   useDocumentTitle('Universe · KnowScroll');
   useFocusEffect(
     useCallback(() => {
@@ -111,7 +111,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   if (!snapshot && read.status !== 'empty')
     return gated(<Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />);
   return gated(
-    <FrameRateReadout on={frameRate}>
+    <FrameRateReadout on={trial.frameRate}>
       <UniverseSurface
         session={session}
         state={state}
@@ -121,6 +121,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
         onStation={(roomId) => router.push(roomHref(roomId))}
         notice={<FormationNotice session={session} />}
         scope={scope}
+        voyage={trial.on}
       />
       <FormationPresentation session={session} />
     </FrameRateReadout>,
