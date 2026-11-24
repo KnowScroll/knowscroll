@@ -49,6 +49,14 @@ function para(reply: WrittenScrollV3, index: number): Para {
 
 const at = (code: IssueV3['code'], path: string): IssueV3 => ({ code, path });
 
+/** A `copied_passage` finding at `path` that names `field` of the item and quotes the research's words. */
+const copiedAt = (path: string, field = 'text'): unknown =>
+  expect.objectContaining({
+    code: 'copied_passage',
+    path,
+    detail: expect.stringContaining(`in the ${field}: "a long page about the history of the teapot`) as unknown,
+  });
+
 describe('compileWrittenV3: a reply that compiles', () => {
   it('parses with the reply schema, and compiles to a document the validator accepts', () => {
     expect(WrittenScrollV3.safeParse(validReply()).success).toBe(true);
@@ -462,6 +470,38 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       compiled(withChart('people', `${BOIL} Some 8.3 people and 9.1 people live nearby.`));
     });
 
+    it('compiles a chart with its marks, and a chart with an empty list of marks', () => {
+      const marked = (marks: { point: string; label: string }[]) => (reply: WrittenScrollV3, input: Mutable) => {
+        withChart('people', `${BOIL} Some 8.3 people and 9.1 people live nearby.`)(reply, input);
+        const chart = reply.pictures[1];
+        if (chart?.kind !== 'chart') throw new Error('CI expected the chart');
+        chart.marks = marks;
+      };
+      const outcome = compiled(marked([{ point: 'City', label: 'The larger one' }]));
+      const chart = outcome.document.pictures[1];
+      expect(chart?.kind === 'chart' && chart.marks.map((mark) => mark.label)).toEqual(['The larger one']);
+      compiled(marked([]));
+    });
+
+    it('refuses a chart written without its "marks" at the reply shape, before any compile (D-440)', () => {
+      const reply = JSON.parse(JSON.stringify(validReply())) as { pictures: Record<string, unknown>[] };
+      reply.pictures[1] = {
+        kind: 'chart',
+        title: 'People near kettles',
+        cites: ['e2'],
+        form: 'bars',
+        unit: 'people',
+        values: 'shown',
+        points: [
+          { label: 'Town', value: '8.3' },
+          { label: 'City', value: '9.1' },
+        ],
+      };
+      const parsed = WrittenScrollV3.safeParse(reply);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['pictures.1.marks']);
+    });
+
     it('refuses a value no cited passage states at all, at the value', () => {
       const issues = refused(withChart('people', `${BOIL} Some 8.3 people live nearby.`));
       expect(issues).toContainEqual(at('authoring_number_not_in_evidence', 'pictures.1.points.1.value'));
@@ -511,6 +551,95 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
   });
 });
 
+describe('compileWrittenV3: a copied_passage finding says what was copied (D-440)', () => {
+  /** Ten words, as the research writes them, of the heating passage, the steam passage and the page. */
+  const HEAT_RUN = 'The element of a kettle turns the electric current that';
+  const STEAM_RUN = 'Many kettles switch themselves off when a bimetallic strip senses';
+  const PAGE_RUN = 'A long page about the history of the teapot and';
+  const quoted = (run: string): string => run.toLowerCase();
+
+  const copies = (change: Change): readonly IssueV3[] =>
+    refused(change).filter((issue) => issue.code === 'copied_passage');
+
+  it('names the paragraph text and quotes the run, as the research writes it in lower case', () => {
+    const found = copies((reply) => {
+      para(reply, 11).text = `${para(reply, 11).text} Note that ${HEAT_RUN} into the cold.`;
+    });
+    expect(found).toEqual([
+      {
+        code: 'copied_passage',
+        path: 'items.11',
+        detail: `Nine or more words in a row match the research, in the text: "${quoted(HEAT_RUN)}". Rewrite them in your own words, with a different sentence structure.`,
+      },
+    ]);
+  });
+
+  it('names the simpler text when the copy is there and the text is clean', () => {
+    const found = copies((reply) => {
+      para(reply, 11).simple = `${para(reply, 11).simple} Also ${STEAM_RUN} the steam.`;
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ path: 'items.11' });
+    expect(found[0]?.detail).toBe(
+      `Nine or more words in a row match the research, in the simpler text: "${quoted(STEAM_RUN)}". Rewrite them in your own words, with a different sentence structure.`,
+    );
+  });
+
+  it('names a picture caption, at the picture', () => {
+    const found = copies((reply) => {
+      const picture = reply.pictures[0];
+      if (picture === undefined) throw new Error('no picture');
+      picture.caption = `${PAGE_RUN} the samovar`;
+    });
+    expect(found).toEqual([
+      {
+        code: 'copied_passage',
+        path: 'pictures.0',
+        detail: `Nine or more words in a row match the research, in the caption: "${quoted(PAGE_RUN)} the samovar". Rewrite them in your own words, with a different sentence structure.`,
+      },
+    ]);
+  });
+
+  it('names a step of a picture by its place in the list', () => {
+    const found = copies((reply) => {
+      const picture = reply.pictures[0];
+      if (picture?.kind !== 'flow') throw new Error('the first picture is a flow');
+      const step = picture.steps[1];
+      if (step === undefined) throw new Error('no second step');
+      step.note = HEAT_RUN;
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ path: 'pictures.0' });
+    expect(found[0]?.detail).toContain(`in the step 2 note: "${quoted(HEAT_RUN)}"`);
+  });
+
+  it('quotes the first two of three runs and counts the other', () => {
+    const found = copies((reply) => {
+      para(reply, 11).text = `Start. ${HEAT_RUN} here. Then ${STEAM_RUN} there. Last, ${PAGE_RUN} again.`;
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]?.detail).toBe(
+      `Nine or more words in a row match the research, in the text: "${quoted(HEAT_RUN)}"; in the text: "${quoted(STEAM_RUN)}" (1 more run not shown). Rewrite them in your own words, with a different sentence structure.`,
+    );
+  });
+
+  it('quotes at most fifteen words of a run, ending in an ellipsis', () => {
+    const found = copies((reply) => {
+      para(reply, 11).text =
+        `${para(reply, 11).text} ${PAGE_RUN} the samovar, with nothing in it that the essay repeats.`;
+    });
+    expect(found[0]?.detail).toContain(
+      '"a long page about the history of the teapot and the samovar with nothing in …"',
+    );
+  });
+
+  it('has no copied_passage finding on a reply without a copy', () => {
+    const outcome = compile();
+    expect(outcome.kind).toBe('compiled');
+    expect(outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : []).not.toContain('copied_passage');
+  });
+});
+
 describe('compileWrittenV3: the copy rule against every research text', () => {
   const NINE = 'a long page about the history of the teapot and the';
 
@@ -518,7 +647,7 @@ describe('compileWrittenV3: the copy rule against every research text', () => {
     const issues = refused((reply) => {
       para(reply, 11).text = `${para(reply, 11).text} Remember ${NINE} samovar.`;
     });
-    expect(issues).toContainEqual(at('copied_passage', 'items.11'));
+    expect(issues).toContainEqual(copiedAt('items.11'));
   });
 
   it('refuses the same words in the title, the dek, a section title and an ask suggestion', () => {
@@ -530,7 +659,7 @@ describe('compileWrittenV3: the copy rule against every research text', () => {
       reply.askSuggestions = [`Is it true that ${NINE} samovar?`];
     });
     for (const path of ['title', 'dek', 'items.8.title', 'askSuggestions.0'])
-      expect(issues).toContainEqual(at('copied_passage', path));
+      expect(issues).toContainEqual(copiedAt(path));
   });
 
   it('lets a quotation copy, because a quotation is the passage', () => {

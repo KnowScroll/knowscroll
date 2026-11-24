@@ -79,7 +79,7 @@ export const REPAIR_HINTS_V3: Readonly<Record<string, string>> = Object.freeze({
   quote_not_in_evidence:
     'A quotation must match a cited passage word for word. Copy it exactly, or say it in your own words.',
   copied_passage:
-    'Nine or more words in a row match the research. Rewrite this item in your own words, with a different sentence structure.',
+    'Nine or more words in a row match the research. Rewrite this item in your own words, with a different sentence structure. The repair notes, when there are any, name the part and quote the words.',
   // Writing.
   first_beat_points_back:
     'Open the first paragraph with something new. The reader has met nothing yet, so it cannot start with this, that, it, so or but.',

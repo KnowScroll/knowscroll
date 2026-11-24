@@ -37,7 +37,7 @@ const inputFor = (subject: ProductionSubject, revision = 2): WriterPlanInput => 
 describe('the writer plan of a recipe planned as document v3', () => {
   it('is the arm (a) writer: one reply, the v3 prompt version, the answer unchanged by prepare', () => {
     const plan = writerPlanFor(inputFor(subjectWith('v3')));
-    expect([plan.role.id, plan.role.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v1']);
+    expect([plan.role.id, plan.role.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v2']);
     expect(plan.promptVersion).toBe(WRITER_V3_PROMPT_VERSION);
     expect(plan.askLines).toBeUndefined();
     const reply = fixtureReplyV3();

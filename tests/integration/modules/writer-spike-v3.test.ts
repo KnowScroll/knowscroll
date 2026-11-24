@@ -138,7 +138,7 @@ describe('the v3 writer spike (CI fixture model + real PostgreSQL; no provider n
     expect(line.steps).toHaveLength(1);
     expect(line.steps[0]).toMatchObject({
       step: 'one',
-      roleVersion: 'scroll-writer-v3a.v1',
+      roleVersion: 'scroll-writer-v3a.v2',
       findings: [],
       models: [SPIKE_MODEL],
     });

@@ -1,7 +1,6 @@
 import { z } from '../../zod.js';
 import { Framing, INTEGRITY_METHOD, THEME_FAMILIES, type SeriesRef } from '../../document.js';
 import { OpaqueId, plainText } from '../../primitives.js';
-import { copiedRuns } from '../../text.js';
 import { issueFromSchema } from '../../issues.js';
 import type { Claim, ProductionRecord, Source } from '../../internal/provenance.js';
 import {
@@ -23,7 +22,7 @@ import { FIELD_LIMITS_V3 as F, LIMITS_V3 as L, SCROLL_LIMITS_V3_VERSION } from '
 import { computeMeasuresV3 } from '../../v3/measures.js';
 import { Picture } from '../../v3/pictures.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
-import { COPY_RUN_WORDS } from '../compile.js';
+import { copiedRunsOfFields, copyDetailV3, copyMaterialOf, type NamedText } from './copy-detail.js';
 import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
 import {
   digitFiguresIn,
@@ -114,78 +113,96 @@ export type EditorialV3Outcome =
   | { readonly kind: 'compiled'; readonly document: ScrollDocumentV3; readonly provenance: ScrollProvenanceV3 }
   | { readonly kind: 'refused'; readonly stage: EditorialV3Stage; readonly issues: readonly IssueV3[] };
 
-/** One cited part of the authored Scroll, by where it is, what a reader reads of it, and the claims it names. */
+/** One cited part of the authored Scroll, by where it is, what a reader reads of it (each string with its name), and the claims it names. */
 interface CitedPart {
   readonly path: string;
-  readonly texts: readonly string[];
+  readonly fields: readonly NamedText[];
   readonly cites: readonly string[];
   /** A quotation, which must match a passage it cites word for word and is the one text exempt from the copy rule. */
   readonly quotation?: string | undefined;
 }
 
+const named = (field: string, text: string | undefined): NamedText[] => (text === undefined ? [] : [{ field, text }]);
+
+/** An item's label, then its note, both named after the item (`step 2`, counted from 1 in the order written). */
+const itemFields = (
+  noun: string,
+  index: number,
+  entry: { readonly label: string; readonly note?: string | undefined },
+): NamedText[] => [
+  ...named(`${noun} ${index + 1} label`, entry.label),
+  ...named(`${noun} ${index + 1} note`, entry.note),
+];
+
 /**
- * Every reader-facing string of a picture: its title, caption, labels, notes, values and cells. A chart's values are
- * left out when `chartValues` is false, because the strict rule reads them as points (`pointAgrees`), not as prose.
+ * Every reader-facing string of a picture with the name a finding gives it (its title, caption, the label of a step, the
+ * text of a cell...). A chart's values are left out when `chartValues` is false, because the strict rule reads them as
+ * points (`pointAgrees`), not as prose.
  */
-export function pictureTexts(picture: Picture, chartValues = true): string[] {
-  const head = [picture.title, ...(picture.caption === undefined ? [] : [picture.caption])];
-  const item = (entry: { readonly label: string; readonly note?: string | undefined }) => [
-    entry.label,
-    ...(entry.note === undefined ? [] : [entry.note]),
-  ];
+export function pictureFields(picture: Picture, chartValues = true): NamedText[] {
+  const head = [...named('title', picture.title), ...named('caption', picture.caption)];
   switch (picture.kind) {
     case 'statement': {
       const body = picture.statement;
-      if (body.form === 'number') return [...head, body.value, body.label];
-      if (body.form === 'list') return [...head, ...body.items.flatMap(item)];
-      return [
-        ...head,
-        body.who,
-        ...(body.work === undefined ? [] : [body.work]),
-        ...(body.year === undefined ? [] : [body.year]),
-      ];
+      if (body.form === 'number') return [...head, ...named('value', body.value), ...named('label', body.label)];
+      if (body.form === 'list')
+        return [...head, ...body.items.flatMap((entry, index) => itemFields('item', index, entry))];
+      return [...head, ...named('speaker', body.who), ...named('work', body.work), ...named('year', body.year)];
     }
     case 'flow':
-      return [...head, ...picture.steps.flatMap(item)];
+      return [...head, ...picture.steps.flatMap((entry, index) => itemFields('step', index, entry))];
     case 'cycle':
-      return [...head, ...(picture.centre === undefined ? [] : item(picture.centre)), ...picture.items.flatMap(item)];
+      return [
+        ...head,
+        ...(picture.centre === undefined
+          ? []
+          : [...named('centre label', picture.centre.label), ...named('centre note', picture.centre.note)]),
+        ...picture.items.flatMap((entry, index) => itemFields('item', index, entry)),
+      ];
     case 'grid':
       return [
         ...head,
-        ...picture.rows.map((row) => row.label),
-        ...picture.columns.map((column) => column.label),
-        ...picture.cells.flatMap((cell) => [cell.text, ...(cell.note === undefined ? [] : [cell.note])]),
+        ...picture.rows.flatMap((row, index) => named(`row ${index + 1} label`, row.label)),
+        ...picture.columns.flatMap((column, index) => named(`column ${index + 1} label`, column.label)),
+        ...picture.cells.flatMap((cell, index) => [
+          ...named(`cell ${index + 1} text`, cell.text),
+          ...named(`cell ${index + 1} note`, cell.note),
+        ]),
       ];
     case 'chart':
       return [
         ...head,
-        ...(picture.unit === undefined ? [] : [picture.unit]),
-        ...picture.points.flatMap((point) => [...(chartValues ? [point.value] : []), ...item(point)]),
-        ...picture.marks.map((mark) => mark.label),
+        ...named('unit', picture.unit),
+        ...picture.points.flatMap((point, index) => [
+          ...(chartValues ? named(`point ${index + 1} value`, point.value) : []),
+          ...itemFields('point', index, point),
+        ]),
+        ...picture.marks.flatMap((mark, index) => named(`mark ${index + 1} label`, mark.label)),
       ];
     case 'plan':
       return [
         ...head,
-        ...picture.ways.flatMap((way) => (way.label === undefined ? [] : [way.label])),
-        ...picture.places.flatMap(item),
-        ...(picture.steps ?? []),
-        ...picture.regions.map((region) => region.label),
-        ...picture.routes.flatMap((route) => (route.label === undefined ? [] : [route.label])),
+        ...picture.ways.flatMap((way, index) => named(`way ${index + 1} label`, way.label)),
+        ...picture.places.flatMap((place, index) => itemFields('place', index, place)),
+        ...(picture.steps ?? []).flatMap((step, index) => named(`step ${index + 1} name`, step)),
+        ...picture.regions.flatMap((region, index) => named(`region ${index + 1} label`, region.label)),
+        ...picture.routes.flatMap((route, index) => named(`route ${index + 1} label`, route.label)),
       ];
   }
 }
 
-function beatTexts(beat: AuthoredBeatV3): string[] {
-  const control = beat.kind === 'plain' && beat.control !== undefined ? [beat.control.label] : [];
+/** Every reader-facing string of a picture: its title, caption, labels, notes, values and cells (see `pictureFields`). */
+export function pictureTexts(picture: Picture, chartValues = true): string[] {
+  return pictureFields(picture, chartValues).map((entry) => entry.text);
+}
+
+function beatFields(beat: AuthoredBeatV3): NamedText[] {
+  const control = beat.kind === 'plain' && beat.control !== undefined ? named('control label', beat.control.label) : [];
   const cite =
     beat.kind === 'quote'
-      ? [
-          beat.cite.who,
-          ...(beat.cite.work === undefined ? [] : [beat.cite.work]),
-          ...(beat.cite.year === undefined ? [] : [beat.cite.year]),
-        ]
+      ? [...named('speaker', beat.cite.who), ...named('work', beat.cite.work), ...named('year', beat.cite.year)]
       : [];
-  return [beat.text, beat.simple, ...control, ...cite];
+  return [...named('text', beat.text), ...named('simpler text', beat.simple), ...control, ...cite];
 }
 
 /** The quotation a picture sets large, which is cited like a quote beat. */
@@ -197,22 +214,22 @@ function citedParts(authored: AuthoredScrollV3, chartValues: boolean): CitedPart
   return [
     ...authored.pictures.map(({ picture, cites }, index): CitedPart => ({
       path: `pictures.${index}`,
-      texts: pictureTexts(picture, chartValues),
+      fields: pictureFields(picture, chartValues),
       cites,
       quotation: quotationOf(picture),
     })),
     ...beats.map((beat, index): CitedPart => ({
       path: `beats.${index}`,
-      texts: beatTexts(beat),
+      fields: beatFields(beat),
       cites: beat.cites,
       quotation: beat.kind === 'quote' ? beat.text : undefined,
     })),
     ...authored.asides.map((aside, index): CitedPart => ({
       path: `asides.${index}`,
-      texts: [aside.title, aside.text],
+      fields: [...named('title', aside.title), ...named('text', aside.text)],
       cites: aside.cites,
     })),
-    { path: 'takeaway', texts: [authored.takeaway.text], cites: authored.takeaway.cites },
+    { path: 'takeaway', fields: named('text', authored.takeaway.text), cites: authored.takeaway.cites },
   ];
 }
 
@@ -290,19 +307,42 @@ export function evidenceIssues(
     return texts.every((text) => !unstated(text, passages));
   };
   const everyCite = [...new Set(parts.flatMap((part) => part.cites))];
+  // Strict mode (the model writer) compares with every research text: its material is built once. A finding there says what
+  // was copied (`copyDetailV3`); a hand-written Scroll's finding is the code and the path, as it always was.
+  const sharedMaterial = options.copySources === undefined ? undefined : copyMaterialOf(options.copySources);
+  const copyIssue = (
+    path: string,
+    fields: readonly NamedText[],
+    quotation: string | undefined,
+    cites: readonly string[],
+  ) => {
+    const material = sharedMaterial ?? copyMaterialOf(cites.map(quoteOf));
+    const runs = copiedRunsOfFields(
+      fields.filter((entry) => entry.text !== quotation),
+      material,
+    );
+    if (runs.length > 0)
+      issues.push(
+        strict ? { code: 'copied_passage', path, detail: copyDetailV3(runs) } : { code: 'copied_passage', path },
+      );
+  };
   for (const part of parts) {
     if (part.cites.some((claimId) => !claims.has(claimId)))
       issues.push({ code: 'authoring_cite_unknown', path: part.path });
-    if (!supported(part.texts, part.cites)) issues.push({ code: 'authoring_number_not_in_evidence', path: part.path });
+    if (
+      !supported(
+        part.fields.map((entry) => entry.text),
+        part.cites,
+      )
+    )
+      issues.push({ code: 'authoring_number_not_in_evidence', path: part.path });
     const passages = part.cites.map(quoteOf);
     if (
       part.quotation !== undefined &&
       !passages.some((passage) => comparable(passage).includes(comparable(part.quotation ?? '')))
     )
       issues.push({ code: 'quote_not_in_evidence', path: part.path });
-    const ownWords = part.texts.filter((text) => text !== part.quotation);
-    if (ownWords.some((text) => copiedRuns(text, options.copySources ?? passages, COPY_RUN_WORDS).length > 0))
-      issues.push({ code: 'copied_passage', path: part.path });
+    copyIssue(part.path, part.fields, part.quotation, part.cites);
   }
   const others = [
     authored.kicker,
@@ -320,8 +360,7 @@ export function evidenceIssues(
     const passages = everyCite.map(quoteOf);
     for (const { path, text } of own) {
       if (unstated(text, passages)) issues.push({ code: 'authoring_number_not_in_evidence', path });
-      if (copiedRuns(text, options.copySources ?? passages, COPY_RUN_WORDS).length > 0)
-        issues.push({ code: 'copied_passage', path });
+      copyIssue(path, named('text', text), undefined, everyCite);
     }
     if (!supported(others, everyCite)) issues.push({ code: 'authoring_number_not_in_evidence', path: 'header' });
   } else {

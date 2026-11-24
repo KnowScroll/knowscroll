@@ -6,7 +6,7 @@ import {
   WrittenStagingV3,
   writtenReferenceV3,
 } from '@knowscroll/scroll-model/producer';
-import { MAX_INSTRUCTION_CHARS } from '../../../reasoning/public.js';
+import { MAX_INSTRUCTION_CHARS, MAX_REPAIR_NOTES_CHARS } from '../../../reasoning/public.js';
 import { RECIPES } from '../domain/library/index.js';
 import { CITATIONS_TOO_MANY } from './citation-limits.js';
 import { evidencePassages } from './evidence.js';
@@ -109,9 +109,9 @@ describe('the three roles', () => {
     const one = writerRoleV3One(context());
     const prose = writerRoleV3Prose(context());
     const stager = stagerRoleV3(context(), fixtureProseV3());
-    expect([one.id, one.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v1']);
-    expect([prose.id, prose.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3b.v1']);
-    expect([stager.id, stager.version]).toEqual(['content.scroll-stager', 'scroll-stager-v3.v1']);
+    expect([one.id, one.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v2']);
+    expect([prose.id, prose.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3b.v2']);
+    expect([stager.id, stager.version]).toEqual(['content.scroll-stager', 'scroll-stager-v3.v2']);
     expect([WRITER_V3A_VERSION, WRITER_V3B_VERSION, STAGER_V3_VERSION]).toEqual([
       one.version,
       prose.version,
@@ -156,6 +156,15 @@ describe('the three roles', () => {
         expect(role.instructions.length).toBeGreaterThan(1000);
       }
     }
+  });
+
+  it('tell the writer of a picture that a chart always has its "marks", in the instructions and in the shape (D-440)', () => {
+    for (const role of [writerRoleV3One(context()), stagerRoleV3(context(), fixtureProseV3())]) {
+      expect(role.instructions, role.version).toContain('A chart always has a "marks" list');
+      expect(role.instructions, role.version).toContain('"marks": [] when no point needs one');
+      expect(role.instructions, role.version).toContain('"marks" is ALWAYS written');
+    }
+    expect(writerRoleV3Prose(context()).instructions).not.toContain('"marks"');
   });
 
   it('give each step its own instructions: the prose has no picture rules, the staging has no essay rules', () => {
@@ -251,11 +260,62 @@ describe('arm a: the whole Scroll in one reply', () => {
       path: `items.${String(EQUATOR_ITEM)}`,
     });
     const notes = role.repairNotes?.(JSON.stringify(copied));
-    expect(notes).toContain(`items[${String(EQUATOR_ITEM)}] copies:`);
-    expect(notes).toContain('near the equator the noon sun stays high');
+    expect(notes).toContain(
+      `items[${String(EQUATOR_ITEM)}]: Nine or more words in a row match the research, in the text: "near the equator the noon sun stays high`,
+    );
     expect(role.repairNotes?.('not json')).toBeUndefined();
     expect(role.repairNotes?.(JSON.stringify(fixtureReplyV3()))).toBeUndefined();
     expect(role.repairNotes?.(JSON.stringify({ title: 'not a reply' }))).toBeUndefined();
+  });
+
+  it('refuses a reply whose only fault is a copied run, sends the harness the fixed hint, and the repair notes carry the part and the quoted words (D-440)', () => {
+    const copied = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, EQUATOR_ITEM, { simple: `${COPIED_SENTENCE} Say it twice.` });
+    });
+    const found = findingsOf(role.outputSchema.safeParse(copied));
+    expect(found).toEqual([{ code: 'copied_passage', path: `items.${String(EQUATOR_ITEM)}` }]);
+    // What the harness hands the repair for the finding is the role's one fixed hint: it cannot carry the words.
+    expect(role.safeCustomIssues?.['copied_passage']).toContain('The repair notes');
+    const notes = role.repairNotes?.(JSON.stringify(copied)) ?? '';
+    expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+    expect(notes).toContain(
+      `items[${String(EQUATOR_ITEM)}]: Nine or more words in a row match the research, in the simpler text: "near the equator the noon sun stays high in every season so the tropics change …". Rewrite them in your own words, with a different sentence structure.`,
+    );
+    // Only the research's words and the place are named; nothing of what the model wrote besides.
+    expect(notes).not.toContain('Say it twice');
+  });
+
+  it('names a copy in a picture caption, with the part and the words', () => {
+    const copied = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.pictures, 1, { caption: COPIED_SENTENCE });
+    });
+    const notes = role.repairNotes?.(JSON.stringify(copied)) ?? '';
+    expect(notes).toContain(
+      'pictures[1]: Nine or more words in a row match the research, in the caption: "near the equator',
+    );
+  });
+
+  it('still names a copy in a reply the shape refused first (a chart without its marks), which the compile never read', () => {
+    const copied = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, EQUATOR_ITEM, { text: COPIED_SENTENCE });
+      draft.pictures[0] = {
+        kind: 'chart',
+        title: 'A chart',
+        cites: ['e1'],
+        form: 'bars',
+        values: 'shown',
+        points: [
+          { label: 'A', value: '1' },
+          { label: 'B', value: '2' },
+        ],
+      };
+    });
+    // The shape finding is all the model is told by the first answer's findings: the copy rule did not run behind it.
+    const codes = findingsOf(role.outputSchema.safeParse(copied)).map((finding) => finding.code);
+    expect(codes).not.toContain('copied_passage');
+    expect(role.repairNotes?.(JSON.stringify(copied))).toContain(
+      `items[${String(EQUATOR_ITEM)}]: Nine or more words in a row match the research, in the text: "near the equator`,
+    );
   });
 
   it('names a repeated cell text as fine and a link to it as refused, at the link', () => {
@@ -302,7 +362,9 @@ describe('arm b, first step: the prose', () => {
     const prose = edited(fixtureProseV3(), (draft) => {
       patch(draft.items, EQUATOR_ITEM, { text: COPIED_SENTENCE });
     });
-    expect(role.repairNotes?.(JSON.stringify(prose))).toContain(`items[${String(EQUATOR_ITEM)}] copies:`);
+    expect(role.repairNotes?.(JSON.stringify(prose))).toContain(
+      `items[${String(EQUATOR_ITEM)}]: Nine or more words in a row match the research, in the text: "near the equator`,
+    );
     expect(role.repairNotes?.(JSON.stringify(fixtureProseV3()))).toBeUndefined();
   });
 });

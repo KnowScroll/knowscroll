@@ -221,8 +221,16 @@ export function copiedWordMask(words: readonly string[], material: ReadonlySet<s
  * The runs are cut from the sources' own words, so they are as public as the sources are.
  */
 export function copiedRuns(text: string, sources: readonly string[], size: number): readonly string[] {
+  return copiedRunsIn(text, copyMaterial(sources, size), size);
+}
+
+/**
+ * `copiedRuns` over material built once (`copyMaterial`), for a caller that checks many texts against the same sources.
+ * `size` is the one the material was built with.
+ */
+export function copiedRunsIn(text: string, material: ReadonlySet<string>, size: number): readonly string[] {
   const words = copyWords(text);
-  const copied = copiedWordMask(words, copyMaterial(sources, size), size);
+  const copied = copiedWordMask(words, material, size);
   const runs: string[] = [];
   let from = -1;
   for (let at = 0; at <= words.length; at += 1) {

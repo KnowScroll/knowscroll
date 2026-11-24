@@ -10,6 +10,7 @@ import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
 /** The most findings a refusal carries, as in the editorial compile. */
 const MOST_ISSUES = 32;
 
+/** A stored refusal keeps the code and the path only: the copy detail (D-440) is for the repair notes and is never stored. */
 const asIssues = (issues: readonly AdmissionIssue[]): AdmissionIssue[] =>
   issues.slice(0, MOST_ISSUES).map(({ code, path }) => ({ code, path }));
 
@@ -18,7 +19,7 @@ const asIssues = (issues: readonly AdmissionIssue[]): AdmissionIssue[] =>
  * `scroll-provenance.v3` with the claims every beat, aside, picture and the takeaway cite, and the reading facts (v4).
  *
  * The production record names the real writer run and its paid attempts, and `WRITER_V3_PROMPT_VERSION`: the value the
- * publication lineage (`storedLineage`) requires of a stored v3 revision, not the role's own version (`scroll-writer-v3a.v1`,
+ * publication lineage (`storedLineage`) requires of a stored v3 revision, not the role's own version (`scroll-writer-v3a.v2`,
  * which only names the arm in the attempt ledger).
  *
  * Refuses, with codes and paths and never text, what the producer refuses (at the model's own items, so a repair can fix it),
