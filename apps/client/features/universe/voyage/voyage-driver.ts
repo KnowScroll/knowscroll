@@ -65,8 +65,15 @@ export interface VoyageFrame {
   readonly size: { readonly width: number; readonly height: number };
 }
 
-/** The texture of a planet's world: wide enough for the planet from orbit, painted a few milliseconds per frame. */
-const TEXTURE = { width: 1024, height: 512 } as const;
+/**
+ * The textures of a planet's world, painted a few milliseconds per frame: a quick one so the globe has its continents
+ * within a second or so, then a sharper one for the ground, swapped in when it is done. On the ground the sphere is
+ * about 4,700 device pixels round, so even the second is soft there.
+ */
+const TEXTURES = [
+  { width: 1024, height: 512 },
+  { width: 2048, height: 1024 },
+] as const;
 const PAINT_BUDGET_MS = 4;
 /** One turn of the globe in 70 s when nothing else turns it (the prototype's idle spin). */
 const SPIN_PER_SECOND = (2 * Math.PI) / 70;
@@ -158,8 +165,9 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   let arrived: VoyageTarget | null = null;
   let flight: { plan: FlightPlan; startedAt: number | null; from: VoyageTarget } | null = null;
   let lastDt = 0;
-  let painting: { key: string; painter: WorldPainter } | null = null;
-  let paintedKey: string | null = null;
+  let painting: { key: string; size: number; painter: WorldPainter } | null = null;
+  /** The planet whose texture is on the globe, and which of {@link TEXTURES} it is. */
+  let painted: { key: string; size: number } | null = null;
   const orientation = { lon: 0, lat: 0 };
   let globeScreen: VoyageFrame['globe'] = null;
   /** The planet whose painted body, glow and neighbours the globe has set aside, to give them back when it goes. */
@@ -269,17 +277,19 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   const paintStep = () => {
     const planet = control.planet;
     if (planet === null) return;
-    if (painting?.key !== planet.key && paintedKey !== planet.key) {
-      painting = {
-        key: planet.key,
-        painter: createWorldPainter({ ...planet, ...TEXTURE }),
-      };
+    if (painting !== null && painting.key !== planet.key) painting = null;
+    if (painted?.key !== planet.key && painting === null) {
+      painting = { key: planet.key, size: 0, painter: createWorldPainter({ ...planet, ...TEXTURES[0] }) };
+      painted = null;
       globe.setTexture(null);
       globe.setColours({ sea: planet.palette.sea[0], cap: planet.palette.cloud[0], air: planet.palette.atmosphere });
+    } else if (painting === null && painted !== null && painted.size + 1 < TEXTURES.length) {
+      const size = painted.size + 1;
+      painting = { key: planet.key, size, painter: createWorldPainter({ ...planet, ...TEXTURES[size]! }) };
     }
     if (painting !== null && painting.painter.step(PAINT_BUDGET_MS)) {
       globe.setTexture(painting.painter.result());
-      paintedKey = painting.key;
+      painted = { key: painting.key, size: painting.size };
       painting = null;
     }
   };

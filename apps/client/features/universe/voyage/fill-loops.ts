@@ -26,6 +26,11 @@ export interface DrawOptions {
   readonly wrapWidth?: number;
   /** Paint only where this mask (one byte a pixel, row by row) is not zero. */
   readonly clip?: Uint8Array;
+  /**
+   * Draw only the pixel rows from `from` up to `to`. A picture drawn in row bands, one call each,
+   * has the same bytes as one drawn whole, so the work can be spread over frames.
+   */
+  readonly rows?: { readonly from: number; readonly to: number };
 }
 
 export interface FillOptions extends DrawOptions {
@@ -34,6 +39,11 @@ export interface FillOptions extends DrawOptions {
    * `true`: every loop is a solid shape of its own and the shapes add up, like the lobes of a cloud.
    */
   readonly union?: boolean;
+}
+
+export interface MaskOptions extends DrawOptions {
+  /** The mask to write into (one byte a pixel for the whole target), so bands of rows can fill one mask. */
+  readonly into?: Uint8Array;
 }
 
 export interface StrokeOptions extends DrawOptions {
@@ -45,6 +55,14 @@ export interface StrokeOptions extends DrawOptions {
 type Rows = number[][];
 
 const UNIT_SCALE = { x: 1, y: 1 } as const;
+
+/** The pixel rows a call draws: all of the target unless `options.rows` narrows them. */
+function bandOf(target: PixelTarget, options: DrawOptions): { readonly from: number; readonly to: number } {
+  return {
+    from: Math.max(0, options.rows?.from ?? 0),
+    to: Math.min(target.height, options.rows?.to ?? target.height),
+  };
+}
 
 /** The whole turns to draw a group of loops at: none unless it comes near the edges of the target. */
 function shiftsOf(loops: readonly Loop[], target: PixelTarget, options: DrawOptions): readonly number[] {
@@ -63,9 +81,14 @@ function shiftsOf(loops: readonly Loop[], target: PixelTarget, options: DrawOpti
   );
 }
 
-/** Where the edges of some loops cross each pixel row's middle: a flat list of x for every row they touch. */
-function crossingsOf(loops: readonly Loop[], shift: number, target: PixelTarget, scale: { x: number; y: number }) {
-  const crossings: (number[] | undefined)[] = new Array<number[] | undefined>(target.height);
+/** Where the edges of some loops cross the middle of each pixel row of the band: a flat list of x for every row they touch. */
+function crossingsOf(
+  loops: readonly Loop[],
+  shift: number,
+  band: { readonly from: number; readonly to: number },
+  scale: { x: number; y: number },
+) {
+  const crossings: (number[] | undefined)[] = new Array<number[] | undefined>(Math.max(0, band.to - band.from));
   for (const loop of loops) {
     const count = loop.length / 2;
     for (let point = 0; point < count; point++) {
@@ -77,9 +100,9 @@ function crossingsOf(loops: readonly Loop[], shift: number, target: PixelTarget,
       if (fromY === toY) continue;
       if (fromY > toY) [fromX, fromY, toX, toY] = [toX, toY, fromX, fromY];
       const slope = (toX - fromX) / (toY - fromY);
-      const last = Math.min(target.height, Math.ceil(toY - 0.5));
-      for (let row = Math.max(0, Math.ceil(fromY - 0.5)); row < last; row++)
-        (crossings[row] ??= []).push(fromX + (row + 0.5 - fromY) * slope);
+      const last = Math.min(band.to, Math.ceil(toY - 0.5));
+      for (let row = Math.max(band.from, Math.ceil(fromY - 0.5)); row < last; row++)
+        (crossings[row - band.from] ??= []).push(fromX + (row + 0.5 - fromY) * slope);
     }
   }
   return crossings;
@@ -102,10 +125,11 @@ function mergeStretches(pairs: readonly number[]): number[] {
 /** The pixels that an even-odd shape of these loops covers, added to `rows`. */
 function addShape(rows: Rows, loops: readonly Loop[], target: PixelTarget, options: DrawOptions): void {
   const scale = options.scale ?? UNIT_SCALE;
+  const band = bandOf(target, options);
   for (const shift of shiftsOf(loops, target, options)) {
-    const crossings = crossingsOf(loops, shift, target, scale);
-    for (let row = 0; row < target.height; row++) {
-      const xs = crossings[row];
+    const crossings = crossingsOf(loops, shift, band, scale);
+    for (let row = band.from; row < band.to; row++) {
+      const xs = crossings[row - band.from];
       if (xs === undefined) continue;
       xs.sort((one, other) => one - other);
       for (let at = 0; at + 1 < xs.length; at += 2) {
@@ -150,7 +174,8 @@ export function fillShapes(
 ): void {
   const rows = coverShapes(shapes, target, options);
   const { clip } = options;
-  for (let row = 0; row < target.height; row++) {
+  const band = bandOf(target, options);
+  for (let row = band.from; row < band.to; row++) {
     const pairs = rows[row];
     if (pairs === undefined) continue;
     for (let at = 0; at < pairs.length; at += 2)
@@ -172,9 +197,9 @@ export function fillLoops(target: PixelTarget, loops: readonly Loop[], colour: R
 export function maskShapes(
   target: PixelTarget,
   shapes: readonly (readonly Loop[])[],
-  options: DrawOptions = {},
+  options: MaskOptions = {},
 ): Uint8Array {
-  const mask = new Uint8Array(target.width * target.height);
+  const mask = options.into ?? new Uint8Array(target.width * target.height);
   coverShapes(shapes, target, options).forEach((pairs, row) => {
     for (let at = 0; at < pairs.length; at += 2)
       mask.fill(1, row * target.width + pairs[at]!, row * target.width + pairs[at + 1]!);
@@ -183,40 +208,66 @@ export function maskShapes(
 }
 
 /** A mask, one byte a pixel, that is 1 inside `loops` (as `fillLoops` fills them) and 0 elsewhere. */
-export function maskLoops(target: PixelTarget, loops: readonly Loop[], options: FillOptions = {}): Uint8Array {
+export function maskLoops(
+  target: PixelTarget,
+  loops: readonly Loop[],
+  options: FillOptions & MaskOptions = {},
+): Uint8Array {
   return maskShapes(target, shapesOf(loops, options), options);
 }
 
-/** Stamps a soft-edged disc into a coverage layer, keeping the strongest cover where discs meet. */
-function stampDisc(cover: Uint8Array, target: PixelTarget, centreX: number, centreY: number, radius: number): void {
+/** Stamps a soft-edged disc into a coverage layer of the band's rows, keeping the strongest cover where discs meet. */
+function stampDisc(
+  cover: Uint8Array,
+  target: PixelTarget,
+  band: { readonly from: number; readonly to: number },
+  centre: { readonly x: number; readonly y: number },
+  radius: number,
+): void {
   const reach = radius + 1;
-  const lastRow = Math.min(target.height - 1, Math.floor(centreY + reach));
-  const lastColumn = Math.min(target.width - 1, Math.floor(centreX + reach));
-  for (let row = Math.max(0, Math.ceil(centreY - reach)); row <= lastRow; row++)
-    for (let column = Math.max(0, Math.ceil(centreX - reach)); column <= lastColumn; column++) {
-      const distance = Math.hypot(column + 0.5 - centreX, row + 0.5 - centreY);
+  const lastRow = Math.min(band.to - 1, Math.floor(centre.y + reach));
+  const lastColumn = Math.min(target.width - 1, Math.floor(centre.x + reach));
+  for (let row = Math.max(band.from, Math.ceil(centre.y - reach)); row <= lastRow; row++)
+    for (let column = Math.max(0, Math.ceil(centre.x - reach)); column <= lastColumn; column++) {
+      const distance = Math.hypot(column + 0.5 - centre.x, row + 0.5 - centre.y);
       const level = Math.round(Math.max(0, Math.min(1, radius + 0.5 - distance)) * 255);
-      const at = row * target.width + column;
+      const at = (row - band.from) * target.width + column;
       if (level > cover[at]!) cover[at] = level;
     }
 }
 
 /** Walks one edge in half-pixel steps, stamping a disc at each. */
-function stampEdge(cover: Uint8Array, target: PixelTarget, edge: readonly number[], radius: number): void {
+function stampEdge(
+  cover: Uint8Array,
+  target: PixelTarget,
+  band: { readonly from: number; readonly to: number },
+  edge: readonly number[],
+  radius: number,
+): void {
   const [fromX, fromY, toX, toY] = edge as [number, number, number, number];
   if (Math.max(fromX, toX) < -radius || Math.min(fromX, toX) > target.width + radius) return;
+  if (Math.max(fromY, toY) < band.from - radius - 1 || Math.min(fromY, toY) > band.to + radius + 1) return;
   const steps = Math.max(1, Math.ceil(Math.hypot(toX - fromX, toY - fromY) * 2));
   for (let step = 0; step <= steps; step++)
-    stampDisc(cover, target, fromX + ((toX - fromX) * step) / steps, fromY + ((toY - fromY) * step) / steps, radius);
+    stampDisc(
+      cover,
+      target,
+      band,
+      { x: fromX + ((toX - fromX) * step) / steps, y: fromY + ((toY - fromY) * step) / steps },
+      radius,
+    );
 }
 
 /**
  * How much of each pixel a line `options.width` pixels wide along the edges of every loop covers, 0 to
- * 255, with soft edges and round joins. Where the line crosses itself it is counted once.
+ * 255, with soft edges and round joins. Where the line crosses itself it is counted once. Only the rows
+ * of `options.rows` (all, by default) are covered, and the result holds just those rows: the pixel at
+ * row `r`, column `c` is at `(r - from) * width + c`, `from` being the first row of the band.
  */
 export function strokeCover(target: PixelTarget, loops: readonly Loop[], options: StrokeOptions): Uint8Array {
   const scale = options.scale ?? UNIT_SCALE;
-  const cover = new Uint8Array(target.width * target.height);
+  const band = bandOf(target, options);
+  const cover = new Uint8Array(Math.max(0, band.to - band.from) * target.width);
   for (const shift of shiftsOf(loops, target, options))
     for (const loop of loops) {
       const count = loop.length / 2;
@@ -228,7 +279,7 @@ export function strokeCover(target: PixelTarget, loops: readonly Loop[], options
           (loop[next * 2]! + shift) * scale.x,
           loop[next * 2 + 1]! * scale.y,
         ];
-        stampEdge(cover, target, edge, options.width / 2);
+        stampEdge(cover, target, band, edge, options.width / 2);
       }
     }
   return cover;
@@ -240,7 +291,8 @@ export function strokeCover(target: PixelTarget, loops: readonly Loop[], options
  */
 export function strokeLoops(target: PixelTarget, loops: readonly Loop[], colour: Rgba, options: StrokeOptions): void {
   const cover = strokeCover(target, loops, options);
+  const first = bandOf(target, options).from * target.width;
   for (let at = 0; at < cover.length; at++)
-    if (cover[at] !== 0 && (options.clip === undefined || options.clip[at] !== 0))
-      blendPixel(target.data, at * 4, colour, cover[at]! / 255);
+    if (cover[at] !== 0 && (options.clip === undefined || options.clip[first + at] !== 0))
+      blendPixel(target.data, (first + at) * 4, colour, cover[at]! / 255);
 }

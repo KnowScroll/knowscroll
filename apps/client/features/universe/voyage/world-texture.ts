@@ -25,8 +25,10 @@ const UNREACHED_GREY_MIX = 0.86;
  */
 const LINE_WEIGHT = 0.6;
 const BAND_ROWS = 9;
-/** Rows of sea and columns of gas band painted in one step. */
+/** Columns of gas band painted in one task. */
 const STRIP = 64;
+/** Pixel rows a layer is painted in at a time, so that no task is long. */
+const TASK_ROWS = 32;
 /** Band units for one radian of longitude: the band is 480 units for a whole turn. */
 const UNITS_PER_RADIAN = BAND_WIDTH / (2 * Math.PI);
 
@@ -109,8 +111,13 @@ function paintSea(target: PixelTarget, palette: PlanetPalette, from: number, to:
   for (let row = from; row < Math.min(to, target.height); row++) {
     const fromEquator = Math.abs(((row + 0.5) / target.height) * 2 - 1);
     const [red, green, blue] = mixRgb(equator, pole, 0.7 * fromEquator * fromEquator);
-    for (let column = 0; column < target.width; column++)
-      target.data.set([Math.round(red), Math.round(green), Math.round(blue), 255], (row * target.width + column) * 4);
+    for (let column = 0; column < target.width; column++) {
+      const at = (row * target.width + column) * 4;
+      target.data[at] = Math.round(red);
+      target.data[at + 1] = Math.round(green);
+      target.data[at + 2] = Math.round(blue);
+      target.data[at + 3] = 255;
+    }
   }
 }
 
@@ -133,8 +140,13 @@ function paintGasBands(sheet: Sheet, bands: readonly string[], from: number, to:
     tops[BAND_ROWS] = target.height;
     for (let band = 0; band < BAND_ROWS; band++) {
       const [red, green, blue] = colours[band % colours.length]!;
-      for (let row = Math.max(0, tops[band]!); row < Math.min(target.height, tops[band + 1]!); row++)
-        target.data.set([red, green, blue, 255], (row * target.width + column) * 4);
+      for (let row = Math.max(0, tops[band]!); row < Math.min(target.height, tops[band + 1]!); row++) {
+        const at = (row * target.width + column) * 4;
+        target.data[at] = red;
+        target.data[at + 1] = green;
+        target.data[at + 2] = blue;
+        target.data[at + 3] = 255;
+      }
     }
   }
 }
@@ -144,62 +156,113 @@ const unreachedLoops = (chart: Chart): Loop[] => chart.unreached.flatMap((land) 
 const chartedShapes = (chart: Chart): (readonly Loop[])[] => chart.charted.map((cell) => cell.loops);
 const unreachedShapes = (chart: Chart): (readonly Loop[])[] => chart.unreached.map((land) => land.loops);
 
-/** A piece of work that paints one layer, or one strip of a layer. */
+/** A piece of work that paints one strip of a layer. */
 type Task = () => void;
 
-/** What the later layers need to know about earlier ones; each is set by its own task. */
+/** A band of pixel rows, from the first row up to (not including) `to`. */
+type Rows = { readonly from: number; readonly to: number };
+
+/** What the later layers need to know about earlier ones; each is set by the mask tasks. */
 interface Masks {
   /** Pixels inside a formed region. */
   charted: Uint8Array;
   /** Pixels inside land not reached, and within a line's width of its edge. */
   nearUnreached: Uint8Array;
+  /** The pixels `nearUnreached` leaves out: where the coast is inked. */
+  awayFromUnreached: Uint8Array;
   /** Pixels where cloud may lie: land not reached, and no formed region. */
   cloudRoom: Uint8Array;
+  /** Pixels inside land not reached, kept only to make the other masks. */
+  unreachedLand: Uint8Array;
 }
 
-const strips = (count: number): number[] => Array.from({ length: Math.ceil(count / STRIP) }, (_, at) => at * STRIP);
+/** The strips a texture of `count` rows (or columns) is painted in, `size` at a time. */
+const stripsOf = (count: number, size: number): Rows[] =>
+  Array.from({ length: Math.ceil(count / size) }, (_, at) => ({
+    from: at * size,
+    to: Math.min(count, (at + 1) * size),
+  }));
+
+/** One task for each band of rows of the target: the work of a layer, spread so no task is long. */
+const bandTasks = (target: PixelTarget, paint: (rows: Rows) => void): Task[] =>
+  stripsOf(target.height, TASK_ROWS).map((rows) => () => paint(rows));
 
 /** The sea, the bands of a gas giant, the water off the coast, the coast's glow where a planet has one, and the foam line. */
 function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
   const { target, draw, line } = sheet;
   const { world, palette } = input;
+  const glow = hexAlpha('#ffb03a', 0.8);
   return [
-    ...strips(target.height).map((from) => () => paintSea(target, palette, from, from + STRIP)),
+    ...stripsOf(target.height, TASK_ROWS).map(
+      ({ from, to }) =>
+        () =>
+          paintSea(target, palette, from, to),
+    ),
     ...(palette.bands
-      ? strips(target.width).map((from) => () => paintGasBands(sheet, palette.bands!, from, from + STRIP))
+      ? stripsOf(target.width, STRIP).map(
+          ({ from, to }) =>
+            () =>
+              paintGasBands(sheet, palette.bands!, from, to),
+        )
       : []),
-    () => fillLoops(target, world.shallowWide, hexAlpha(palette.shallow, 0.35), draw),
-    () => fillLoops(target, world.shallow, hexAlpha(palette.foam, 0.35), draw),
+    ...bandTasks(target, (rows) =>
+      fillLoops(target, world.shallowWide, hexAlpha(palette.shallow, 0.35), { ...draw, rows }),
+    ),
+    ...bandTasks(target, (rows) => fillLoops(target, world.shallow, hexAlpha(palette.foam, 0.35), { ...draw, rows })),
     ...(palette.glowCoast
-      ? [() => strokeLoops(target, world.land, hexAlpha('#ffb03a', 0.8), { ...draw, width: 6 * line })]
+      ? bandTasks(target, (rows) => strokeLoops(target, world.land, glow, { ...draw, rows, width: 6 * line }))
       : []),
-    () => strokeLoops(target, world.land, hexAlpha(palette.foam, 0.85), { ...draw, width: 3.6 * line }),
+    ...bandTasks(target, (rows) =>
+      strokeLoops(target, world.land, hexAlpha(palette.foam, 0.85), { ...draw, rows, width: 3.6 * line }),
+    ),
   ];
 }
 
 /**
  * Every continent in its colour. A formed region wears the colour of its site. Land that is not
  * reached is one flat grey, the same for every piece, unformed or decorative: nothing here tells
- * them apart. Then the masks the detail and the cloud are kept to.
+ * them apart.
  */
-function landTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
-  const { target, draw, line } = sheet;
+function landTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
+  const { target, draw } = sheet;
   const { chart, palette } = input;
-  const grey = mixRgb(rgbOf(palette.land[0]), rgbOf(palette.grey[0]), UNREACHED_GREY_MIX);
+  const grey = withAlpha(mixRgb(rgbOf(palette.land[0]), rgbOf(palette.grey[0]), UNREACHED_GREY_MIX), 1);
+  const unreached = unreachedShapes(chart);
   return [
-    ...palette.land.map((hex, colour) => () => {
+    ...palette.land.flatMap((hex, colour) => {
       const shapes = chart.charted.filter((cell) => cell.site % 4 === colour).map((cell) => cell.loops);
-      if (shapes.length > 0) fillShapes(target, shapes, hexAlpha(hex, 1), draw);
+      return shapes.length === 0
+        ? []
+        : bandTasks(target, (rows) => fillShapes(target, shapes, hexAlpha(hex, 1), { ...draw, rows }));
     }),
-    () => fillShapes(target, unreachedShapes(chart), withAlpha(grey, 1), draw),
-    () => {
-      masks.charted = maskShapes(target, chartedShapes(chart), draw);
-      const land = maskShapes(target, unreachedShapes(chart), draw);
-      const edge = strokeCover(target, unreachedLoops(chart), { ...draw, width: 1.4 * line });
-      masks.nearUnreached = land.map((inside, at) => (inside !== 0 || edge[at] !== 0 ? 1 : 0));
-      masks.cloudRoom = land.map((inside, at) => (inside !== 0 && masks.charted[at] === 0 ? 1 : 0));
-    },
+    ...bandTasks(target, (rows) => fillShapes(target, unreached, grey, { ...draw, rows })),
   ];
+}
+
+/**
+ * The masks the detail and the cloud are kept to, made a band of rows at a time. Land not reached
+ * is grown by a line's width, so its coast is inside the mask and the coast of reached land is not.
+ */
+function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
+  const { target, draw, line } = sheet;
+  const { chart } = input;
+  const charted = chartedShapes(chart);
+  const unreached = unreachedShapes(chart);
+  const unreachedEdges = unreachedLoops(chart);
+  return bandTasks(target, (rows) => {
+    maskShapes(target, charted, { ...draw, rows, into: masks.charted });
+    maskShapes(target, unreached, { ...draw, rows, into: masks.unreachedLand });
+    const edge = strokeCover(target, unreachedEdges, { ...draw, rows, width: 1.4 * line });
+    const first = rows.from * target.width;
+    for (let at = 0; at < edge.length; at++) {
+      const pixel = first + at;
+      const land = masks.unreachedLand[pixel] !== 0;
+      const near = land || edge[at] !== 0;
+      masks.nearUnreached[pixel] = near ? 1 : 0;
+      masks.awayFromUnreached[pixel] = near ? 0 : 1;
+      masks.cloudRoom[pixel] = land && masks.charted[pixel] === 0 ? 1 : 0;
+    }
+  });
 }
 
 /**
@@ -211,17 +274,25 @@ function landTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
 function detailTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
   const { target, draw, line } = sheet;
   const { world, chart, palette } = input;
-  const unreachedCoast = () => ({ ...draw, clip: masks.nearUnreached, width: 1.4 * line });
+  const ink = hexAlpha(palette.ink, 0.7);
+  const grey = hexAlpha(palette.grey[2], 0.6);
   return [
-    () => fillLoops(target, world.lowland, hexAlpha(palette.lowland, 0.6), { ...draw, clip: masks.charted }),
-    () => fillLoops(target, world.highland, hexAlpha(palette.highland, 0.62), { ...draw, clip: masks.charted }),
-    () => {
-      const away = masks.nearUnreached.map((near) => 1 - near);
-      strokeLoops(target, world.land, hexAlpha(palette.ink, 0.7), { ...draw, clip: away, width: 1.4 * line });
-    },
-    () => strokeLoops(target, world.land, hexAlpha(palette.grey[2], 0.6), unreachedCoast()),
-    ...chart.charted.map(
-      (cell) => () => strokeLoops(target, cell.loops, hexAlpha(palette.ink, 0.45), { ...draw, width: line }),
+    ...bandTasks(target, (rows) =>
+      fillLoops(target, world.lowland, hexAlpha(palette.lowland, 0.6), { ...draw, rows, clip: masks.charted }),
+    ),
+    ...bandTasks(target, (rows) =>
+      fillLoops(target, world.highland, hexAlpha(palette.highland, 0.62), { ...draw, rows, clip: masks.charted }),
+    ),
+    ...bandTasks(target, (rows) =>
+      strokeLoops(target, world.land, ink, { ...draw, rows, clip: masks.awayFromUnreached, width: 1.4 * line }),
+    ),
+    ...bandTasks(target, (rows) =>
+      strokeLoops(target, world.land, grey, { ...draw, rows, clip: masks.nearUnreached, width: 1.4 * line }),
+    ),
+    ...chart.charted.flatMap((cell) =>
+      bandTasks(target, (rows) =>
+        strokeLoops(target, cell.loops, hexAlpha(palette.ink, 0.45), { ...draw, rows, width: line }),
+      ),
     ),
   ];
 }
@@ -231,21 +302,23 @@ function cloudTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[
   const { target, draw } = sheet;
   const { body, middle, core } = input.world.clouds;
   const { palette } = input;
-  const onLand = () => ({ ...draw, clip: masks.cloudRoom });
-  return [
-    () => fillLoops(target, shifted(body, 4, 7), hexAlpha(CLOUD_SHADOW, 0.22), onLand()),
-    () => fillLoops(target, shifted(body, 0, 2), hexAlpha(palette.cloud[1], 0.9), onLand()),
-    () => fillLoops(target, body, hexAlpha(palette.cloud[0], 1), onLand()),
-    () => fillLoops(target, shifted(middle, -0.6, -1), hexAlpha('#f6f9fd', 1), onLand()),
-    () => fillLoops(target, shifted(core, -1.2, -2), hexAlpha('#ffffff', 1), onLand()),
+  const layers: [readonly Loop[], Rgba][] = [
+    [shifted(body, 4, 7), hexAlpha(CLOUD_SHADOW, 0.22)],
+    [shifted(body, 0, 2), hexAlpha(palette.cloud[1], 0.9)],
+    [body, hexAlpha(palette.cloud[0], 1)],
+    [shifted(middle, -0.6, -1), hexAlpha('#f6f9fd', 1)],
+    [shifted(core, -1.2, -2), hexAlpha('#ffffff', 1)],
   ];
+  return layers.flatMap(([loops, colour]) =>
+    bandTasks(target, (rows) => fillLoops(target, loops, colour, { ...draw, rows, clip: masks.cloudRoom })),
+  );
 }
 
 /** A texture being painted a little at a time. */
 export interface WorldPainter {
   /**
-   * Paints whole layers (the sea and the gas bands a strip at a time) until `budgetMs` milliseconds
-   * on the painter's clock have passed, at least one piece each call. Returns true when the texture is finished.
+   * Paints strips of layers (32 rows of one layer at a time) until `budgetMs` milliseconds on the
+   * painter's clock have passed, at least one strip each call. Returns true when the texture is finished.
    */
   step(budgetMs: number): boolean;
   /** The finished texture. @throws Error before `step` has returned true. */
@@ -282,12 +355,24 @@ export function createWorldPainter(
     draw: { scale },
     line: ((scale.x + scale.y) / 2) * LINE_WEIGHT,
   };
-  const masks: Masks = { charted: new Uint8Array(0), nearUnreached: new Uint8Array(0), cloudRoom: new Uint8Array(0) };
+  const pixels = width * height;
+  const masks: Masks = {
+    charted: new Uint8Array(pixels),
+    nearUnreached: new Uint8Array(pixels),
+    awayFromUnreached: new Uint8Array(pixels),
+    cloudRoom: new Uint8Array(pixels),
+    unreachedLand: new Uint8Array(pixels),
+  };
   const tasks = [
     ...waterTasks(sheet, input),
-    ...landTasks(sheet, input, masks),
+    ...landTasks(sheet, input),
+    ...maskTasks(sheet, input, masks),
     ...detailTasks(sheet, input, masks),
     ...cloudTasks(sheet, input, masks),
+    // The masks are only for painting: let go of them (about five bytes a pixel) once it is done.
+    () => {
+      for (const name of Object.keys(masks) as (keyof Masks)[]) masks[name] = new Uint8Array(0);
+    },
   ];
   let next = 0;
   return {

@@ -1,6 +1,6 @@
 import { buildGlobe, chartWorld, type Chart, type GlobeWorld, type Loop, type WorldSpec } from '@knowscroll/scene-core';
 import { paletteOf } from '../planet/planet-palette';
-import { maskLoops, maskShapes, type PixelTarget } from './fill-loops';
+import { fillLoops, maskLoops, maskShapes, strokeLoops, type PixelTarget } from './fill-loops';
 import {
   bandToLonLat,
   bandYOfLatitude,
@@ -203,6 +203,36 @@ describe('painting a world into a texture', () => {
     expect(steps).toBeGreaterThan(10);
     expect(painter.step(0.5)).toBe(true);
     expect(Buffer.from(painter.result().data).equals(Buffer.from(standard().data))).toBe(true);
+  });
+
+  it('paints the same bytes at 2048 by 1024 a little at a time as all at once', () => {
+    const input = { world, chart, palette, width: 2048, height: 1024 };
+    let time = 0;
+    const stepped = createWorldPainter(input, () => (time += 1));
+    let steps = 1;
+    while (!stepped.step(0.5)) steps += 1;
+    expect(steps).toBeGreaterThan(300);
+    expect(Buffer.from(stepped.result().data).equals(Buffer.from(paintWorldTexture(input).data))).toBe(true);
+  });
+
+  it('draws a fill, a stroke and a mask in bands of rows to the bytes of drawing them whole', () => {
+    const size = { width: WIDTH, height: HEIGHT };
+    const blank = (): PixelTarget => ({ ...size, data: new Uint8Array(WIDTH * HEIGHT * 4).fill(40) });
+    const drawing = (target: PixelTarget, rows?: { from: number; to: number }) => {
+      const options = { ...draw, ...(rows ? { rows } : {}), clip: CHARTED };
+      fillLoops(target, world.shallow, [200, 30, 30, 0.5], options);
+      strokeLoops(target, world.land, [10, 90, 200, 0.6], { ...options, width: 2.5 });
+      strokeLoops(target, chart.charted[0]!.loops, [255, 255, 0, 1], { ...draw, ...(rows ? { rows } : {}), width: 1 });
+    };
+    const whole = blank();
+    drawing(whole);
+    const banded = blank();
+    for (let from = 0; from < HEIGHT; from += 37) drawing(banded, { from, to: from + 37 });
+    expect(Buffer.from(banded.data).equals(Buffer.from(whole.data))).toBe(true);
+    const mask = new Uint8Array(WIDTH * HEIGHT);
+    for (let from = 0; from < HEIGHT; from += 37)
+      maskShapes(grid, [world.land], { ...draw, rows: { from, to: from + 37 }, into: mask });
+    expect(Buffer.from(mask).equals(Buffer.from(maskShapes(grid, [world.land], draw)))).toBe(true);
   });
 
   it('finishes in one step when the budget allows', () => {
