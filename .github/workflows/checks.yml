@@ -388,6 +388,7 @@ jobs:
             apps/client/dist
             apps/client/dist-gallery
           include-hidden-files: true
+          overwrite: true
           if-no-files-found: error
           retention-days: 1
 

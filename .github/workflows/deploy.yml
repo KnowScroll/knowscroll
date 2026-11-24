@@ -9,7 +9,9 @@
 # step: the newer commit's own deploy ships it, and GitHub has already dropped any older pending
 # deploy in favour of the newest. A deploy that has reached its first SSH step is never stopped.
 # So if the newest commit's checks then fail, dev keeps serving the last deploy until the next
-# merge. Dispatch deploys and `stage` always run through.
+# merge. Dispatch deploys and `stage` always run through. A dispatch shares dev's queue, so it can
+# replace a pending push deploy of the head of dev; then dev's head waits for the next merge or a
+# re-run of its deploy.
 # Live (`main`) joins when the live world is set up; its environment already waits for a reviewer.
 #
 # Two release generations, told apart by the deployed commit itself:
