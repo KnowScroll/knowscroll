@@ -262,10 +262,10 @@ Before any V3 engine is built, the team measures whether the writer can produce 
 node dist/operator.js content writer-spike-v2 --topics <recipe key,…> [--blocks <recipe=sort|fork|scale|chart>[+ray],…] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
 ```
 
-The topics of the first run, in order (the three Seasons parts first; four Earth & sky and Space recipes, two of the human body, seven of computing, machine learning and history; the first run had twenty, and `tides`, `tides-spring-neap` and `stars-fusion` left the list with their kits in #799, and `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle` and `blood-pressure` with theirs in #802). That run used prompt v14, which gave a stage to every Earth & sky and Space recipe. Since v15 a recipe has a stage only where its library entry names a `stageKit` (D-125): three Seasons parts. The others run as plain Scrolls with calls:
+The topics of the first run, in order (the three Seasons parts first; four Earth & sky and Space recipes, one of the human body, seven of computing, machine learning and history; the first run had twenty, and `tides`, `tides-spring-neap` and `stars-fusion` left the list with their kits in #799, and `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle` and `blood-pressure` with theirs in #802, and `reflex-arc` with the nerve kit's in #809). That run used prompt v14, which gave a stage to every Earth & sky and Space recipe. Since v15 a recipe has a stage only where its library entry names a `stageKit` (D-125): three Seasons parts. The others run as plain Scrolls with calls:
 
 ```text
-seasons,seasons-hemispheres,seasons-limits,exoplanet-habitable-zone,reflex-arc,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
+seasons,seasons-hemispheres,seasons-limits,exoplanet-habitable-zone,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
 ```
 
 To measure the Seasons stage again with the v15 prompt (the three Seasons stages, and "Seasons elsewhere" as a plain Scroll to check its Mars and Uranus sources), at most eight requests. Since D-137 the plan marks these four recipes v2, and the spike runs them as the library produces them: the plan's picture choice and misconception, not the spike's own table:
@@ -275,14 +275,6 @@ node dist/operator.js content writer-spike-v2 --topics seasons,seasons-hemispher
 ```
 
 What to read in the lines for these four: `variant` is `stage` for the first three and `plain` for `seasons-elsewhere`, `stageStates` is at least 3 for the stage ones, and the `findings` have no `common_guess_*`, `stage_state_on_call`, `earth_axis_sideways` or `final_call_restates_call` that survive the repair. Then read each accepted document on the server: the picture must match each stop's words (the month decides the pins and Ray), no stage text calls Earth's axis sideways, and every statement about Mars and Uranus must be in the NASA pages the recipe cites. The recipes the drawing kits of D-194 give a picture are measured next (below).
-
-To measure the three Human body recipes the nerve kit of D-201 gives a picture (`action-potential`, `synapse-signalling` and `reflex-arc` with `nerve.v1`), at most six requests. The first measure had six recipes; the three that `circulation.v1` drew left with that kit (#802). Each runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, no misconception, with its landmark. Read the results before the first wave of these recipes:
-
-```sh
-node dist/operator.js content writer-spike-v2 --topics action-potential,synapse-signalling,reflex-arc --concurrency 2 --spike-id body-kits-v18 --out /var/tmp/ks-v3-spike/body-kits-v18.jsonl
-```
-
-What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all three, and no `stage_choice_invalid` survives the repair. Then read each accepted document on the server: the picture must match each stop's words (the point of the spike decides the channels, the step decides the synapse and the reflex), and no stop may say what the picture cannot (a voltage, a speed, a time, a named chemical, electricity down a wire, a spike bigger for a stronger push, a reflex with no brain).
 
 To measure the five Space recipes the starlight and black-hole kits of D-204 give a picture (`stars-colour-brightness` and `exoplanet-habitable-zone` with `starlight.v1`; `black-hole-formation`, `black-hole-horizon` and `black-hole-evidence` with `black-hole.v1`), at most ten requests, with prompt v19. As above, each runs as the plan marks it since D-217 (no misconception, with its landmark):
 
@@ -433,8 +425,7 @@ does it on dev, one kit at a time**, in this order, and reads each kit's rewrite
 |---|---|---|---|
 | 1 | black hole (`black-hole.v1`) | `black-hole-formation`, `black-hole-horizon`, `black-hole-evidence` | `black-hole-formation,black-hole-horizon,black-hole-evidence` |
 | 2 | starlight (`starlight.v1`) | `stars-colour-brightness`, `exoplanet-habitable-zone` | `stars-colour-brightness,exoplanet-habitable-zone` |
-| 3 | nerve (`nerve.v1`) | `action-potential`, `synapse-signalling`, `reflex-arc` | `action-potential,synapse-signalling,reflex-arc` |
-| 4 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
+| 3 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
 
 One recipe, the exact command (the first row's `black-hole-formation`; nothing is sent by the dry run):
 
@@ -469,7 +460,7 @@ until then `production-status` shows it `not_started`. Supply never commissions 
 them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
 a reader's ask or the Planner's demand for a Scroll the library has not made yet starts production only for a stored (`gen-`) recipe, within
 the growth cap; with none, the ask closes as `no_recipe_left` and is counted as a gap. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
-is inside one batch, except the three Earth & sky parts, which wait for their kit batch above: Earth & sky; the tides batch is done, #799, and the greenhouse batch, #802):
+is inside one batch, except the three Earth & sky parts, which wait for their kit batch above: Earth & sky; the tides batch is done, #799, and the greenhouse batch, #802, and the nerve batch, #809):
 
 | # | Batch | Recipes | `--only` |
 |---|---|---|---|
@@ -479,7 +470,7 @@ is inside one batch, except the three Earth & sky parts, which wait for their ki
 | 4 | Computing | `dns-lookup`, `https-handshake`, `web-caching`, `rendering-pipeline`, `event-loop`, `same-origin-policy`, `big-o-growth`, `hybrid-sorting`, `hash-tables` | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
 | 5 | Machine learning, attention and its neighbours | `attention-mechanism`, `attention-example`, `attention-limits`, `transformer-architecture`, `token-embeddings`, `next-token-generation` | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation` |
 | 6 | Machine learning, training and cost | `training-by-example`, `gradient-descent`, `overfitting`, `long-input-cost`, `mixture-of-experts`, `subword-tokens` | `training-by-example,gradient-descent,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
-| 7 | Earth & sky, after the Earth & sky kit batch (4) | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
+| 7 | Earth & sky, after the Earth & sky kit batch (3) | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
 
 One batch, the exact command (the first batch of three recipes, number 2; nothing is sent by the dry run):
 

@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
-import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { encounterFixture, readCover } from './encounter-fixture';
@@ -16,7 +15,6 @@ import { encounterFixture, readCover } from './encounter-fixture';
  */
 
 const KITS = [
-  ['nerve', nerve],
   ['starlight', starlight],
   ['black-hole', blackHole],
 ] as const;

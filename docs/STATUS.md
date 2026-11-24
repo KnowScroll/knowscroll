@@ -34,6 +34,7 @@ Every item below was used on dev at 390 × 844 in this run, and at 1440 × 900 w
 - **Content:** 52 v2 library Scrolls released (21 with a stage), all read before release.
 - **Kit deletion (#799, part of #771):** the `transit.v1`, `tides.v1` and `star.v1` drawing kits are deleted (schema, drawing, fixture, tests; their recipes are released document v3 Scrolls). A stored v2 Scroll that names one is a legacy stage: it still parses and its figure draws nothing. Six kits remain.
 - **Kit deletion, part 2 (#802, part of #771):** the `greenhouse.v1` and `circulation.v1` drawing kits are deleted (schema, drawing, fixture, tests; their recipes are released document v3 Scrolls). A stored v2 Scroll that names one is a legacy stage: it still parses and its figure draws nothing. Four kits remain (Earth & sky, nerve, starlight, black hole).
+- **Kit deletion, part 3 (#809, part of #771):** the `nerve.v1` drawing kit is deleted (schema, drawing, fixture, tests and the membrane model; its recipes `action-potential`, `synapse-signalling` and `reflex-arc` are released document v3 Scrolls). A stored v2 Scroll that names it is a legacy stage: it still parses and its figure draws nothing. Three kits remain (Earth & sky, starlight, black hole).
 
 ## Design fidelity
 

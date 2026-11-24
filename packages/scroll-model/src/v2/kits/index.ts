@@ -1,7 +1,6 @@
 import { EARTH_SKY_KIT, EARTH_SKY_KIT_DEFINITION } from '../kit.js';
 import { BLACK_HOLE_KIT, BLACK_HOLE_KIT_DEFINITION } from './black-hole.js';
 import { type KitDefinition } from './definition.js';
-import { NERVE_KIT, NERVE_KIT_DEFINITION } from './nerve.js';
 import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
 
 /**
@@ -10,7 +9,7 @@ import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
  * plan's `stageKit`), and a test keeps the plan's list and this one the same. Adding a kit is a new id,
  * its own words and physics, and a new decision.
  */
-export const STAGE_KIT_IDS = [EARTH_SKY_KIT, NERVE_KIT, STARLIGHT_KIT, BLACK_HOLE_KIT] as const;
+export const STAGE_KIT_IDS = [EARTH_SKY_KIT, STARLIGHT_KIT, BLACK_HOLE_KIT] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 /** Whether `id` names a kit the code still defines. A stored stage may name one it no longer does (a legacy stage). */
@@ -20,7 +19,6 @@ export function isStageKitId(id: string): id is StageKitId {
 
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [EARTH_SKY_KIT]: EARTH_SKY_KIT_DEFINITION,
-  [NERVE_KIT]: NERVE_KIT_DEFINITION,
   [STARLIGHT_KIT]: STARLIGHT_KIT_DEFINITION,
   [BLACK_HOLE_KIT]: BLACK_HOLE_KIT_DEFINITION,
 };
@@ -46,44 +44,6 @@ export {
   type KitState,
   type WordState,
 } from './definition.js';
-export { TRACE_STEP } from './membrane.js';
-export {
-  actionPotential,
-  arcPhysics,
-  ARC_LINKS,
-  axonProfile,
-  AXON_PEAK_AT,
-  AXON_PROFILE_SAMPLES,
-  describeNerveState,
-  INITIAL_NERVE_STATE,
-  NERVE_ENUMS,
-  NERVE_KIT,
-  nerveParts,
-  NerveStateSchema,
-  PUSH_RESPONSE_DURATION_MS,
-  postsynapticCourse,
-  pushResponses,
-  settleNerveState,
-  SPIKE_DURATION_MS,
-  spikePhysics,
-  SYNAPSE_TIME_IN_CONSTANTS,
-  synapsePhysics,
-  type ArcPhysics,
-  type ArcStep,
-  type AxonPlace,
-  type AxonProfile,
-  type ChannelsPhysics,
-  type NervePart,
-  type NervePatch,
-  type NerveState,
-  type NerveView,
-  type PushResponse,
-  type SpikePhase,
-  type SpikePhysics,
-  type SynapseEffect,
-  type SynapsePhysics,
-  type SynapseStep,
-} from './nerve.js';
 export {
   BLACK_HOLE_ENUMS,
   BLACK_HOLE_KIT,

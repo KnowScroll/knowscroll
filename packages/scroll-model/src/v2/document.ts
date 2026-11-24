@@ -6,8 +6,6 @@ import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
 import {
   BLACK_HOLE_KIT,
   BlackHoleStateSchema,
-  NERVE_KIT,
-  NerveStateSchema,
   isStageKitId,
   STARLIGHT_KIT,
   StarlightStateSchema,
@@ -202,7 +200,6 @@ export type LegacyStage = z.infer<typeof LegacyStageSchema>;
 /** The stages of the kits the code still defines, one arm each. */
 const LIVE_STAGES = [
   stageOf(EARTH_SKY_KIT, StageStateSchema),
-  stageOf(NERVE_KIT, NerveStateSchema),
   stageOf(STARLIGHT_KIT, StarlightStateSchema),
   stageOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
 ] as const;
@@ -233,7 +230,6 @@ function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: S
 
 const LIVE_FRAMES = [
   frameOf(EARTH_SKY_KIT, StageStateSchema),
-  frameOf(NERVE_KIT, NerveStateSchema),
   frameOf(STARLIGHT_KIT, StarlightStateSchema),
   frameOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
 ] as const;

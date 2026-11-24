@@ -1,5 +1,5 @@
-// Writes documents/<kit>-stage-ci.json for the drawing kits of D-194, D-201 and D-204 that are still defined (nerve,
-// starlight, black hole): labelled CI fixtures of `scroll-document.v2` Scrolls, one for each kit, for the stage
+// Writes documents/<kit>-stage-ci.json for the drawing kits of D-194, D-201 and D-204 that are still defined (starlight,
+// black hole): labelled CI fixtures of `scroll-document.v2` Scrolls, one for each kit, for the stage
 // reader's tests and screenshots. NOT product content: their titles, kickers and ids say so, and
 // they are never imported into the library. They are shorter than a Scroll may be (the reading
 // time is outside the 3 to 6 minutes), so they are validated without the stored measures and hash
@@ -33,114 +33,6 @@ const finalCall = (id, prompt, options, explain, twist, simple) => ({
 });
 
 const fixtures = {
-  nerve: {
-    kit: 'nerve.v1',
-    title: 'A nerve signal (a CI fixture)',
-    dek: 'A spike, the all-or-none rule, a synapse and a reflex, in short steps (a CI fixture).',
-    aside: {
-      after: 'axon',
-      title: 'Where this stops',
-      text: 'The shapes come from a standard model of the membrane. A human neuron has other channels and numbers, and no figure is shown here.',
-    },
-    captions: [
-      'Past the threshold a spike runs by itself.',
-      'A spike is all or nothing and runs one way.',
-      'A reflex loops through the spinal cord.',
-    ],
-    items: [
-      read(
-        'rest',
-        'At rest the inside of a nerve cell is negative compared with the outside. Most sodium channels are shut but ready.',
-        'At rest the inside of the cell is negative.',
-        { view: 'spike', phase: 'rest', focus: 'trace' },
-        { emphasis: 'hook' },
-      ),
-      read(
-        'threshold',
-        'A push lifts the voltage. At the threshold the cell fires by itself, and the sodium channels begin to open.',
-        'At the threshold the cell fires by itself.',
-        { phase: 'threshold', focus: 'threshold' },
-      ),
-      call(
-        'call-threshold',
-        'What happens once the voltage passes the threshold?',
-        ['The cell fires a full spike by itself', 'The voltage rises in proportion to the push'],
-        'Past the threshold, opening sodium channels let in more sodium, which opens more channels, so the spike runs on by itself.',
-        'In proportion is the natural guess, but a spike is all or nothing.',
-        'It fires a full spike by itself.',
-      ),
-      read(
-        'rising',
-        'Sodium channels are open and sodium ions rush in. The inside of the cell turns positive.',
-        'Sodium rushes in and the voltage shoots up.',
-        { phase: 'rising', focus: 'channels' },
-      ),
-      read(
-        'falling',
-        'The sodium channels shut themselves and the potassium channels are open, so potassium ions flow out and the voltage falls.',
-        'Potassium flows out and the voltage falls.',
-        { phase: 'falling', focus: 'channels' },
-      ),
-      read(
-        'undershoot',
-        'The potassium channels are slow to close, so the voltage dips below rest. For a moment the cell cannot fire again.',
-        'The voltage dips below rest.',
-        { phase: 'undershoot', focus: 'trace' },
-      ),
-      read(
-        'all',
-        'A weak push dies away. Two stronger pushes each give a spike of the same height: a spike is all or nothing.',
-        'A weak push gives nothing; a strong one gives a full spike.',
-        { view: 'all-or-none', focus: 'weak-push' },
-      ),
-      call(
-        'call-same',
-        'A push twice as strong as one that already fires the cell gives…',
-        ['A spike of the same size', 'A spike twice as big'],
-        'A spike is all or nothing. Once the cell fires, a stronger push does not make the spike bigger.',
-        'Bigger input, bigger output is the usual guess, but not for a spike.',
-        'A spike of the same size.',
-      ),
-      read(
-        'axon',
-        'The spike runs along the axon, away from the cell body. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction.',
-        'The spike runs one way along the axon.',
-        { view: 'axon', along: 'middle', focus: 'recovering' },
-      ),
-      read(
-        'release',
-        'At the end of the axon the spike makes small packets release neurotransmitter into the gap.',
-        'The packets release neurotransmitter.',
-        { view: 'synapse', synapseAt: 'release', focus: 'vesicles' },
-      ),
-      read(
-        'bind',
-        'The neurotransmitter binds receptors on the next cell. If their channels let in ions that make the inside less negative, the voltage moves toward the threshold.',
-        'This receptor moves the next cell toward the threshold.',
-        { synapseAt: 'binding', effect: 'excite', focus: 'receptors' },
-      ),
-      read(
-        'inhibit',
-        'A different receptor can let in ions that make the inside more negative, so the voltage moves away from the threshold.',
-        'Another receptor moves it away from the threshold.',
-        { effect: 'inhibit', focus: 'receptors' },
-      ),
-      read(
-        'reflex',
-        'A reflex loops through the spinal cord, so the muscle responds while the news is still on its way up to the brain.',
-        'The muscle responds before the brain is told.',
-        { view: 'reflex', arcAt: 'muscle', focus: 'muscle' },
-      ),
-      finalCall(
-        'final-reflex',
-        'A reflex moves a hand away from something hot. When does the brain get the news, compared with when the muscle starts to respond?',
-        ['A moment later', 'Before the muscle responds'],
-        'The signal goes out to the muscle from the spinal cord straight away, and the news also climbs to the brain, which takes longer.',
-        'The brain feels in charge, but the loop through the spinal cord is shorter.',
-        'The muscle responds first; the brain is told a moment later.',
-      ),
-    ],
-  },
   starlight: {
     kit: 'starlight.v1',
     title: 'The light of a star (a CI fixture)',

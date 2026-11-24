@@ -221,8 +221,15 @@ const KIT_RECIPES_V3 = {
   'starlight.v1': ['exoplanet-habitable-zone', 'stars-colour-brightness'],
   'black-hole.v1': ['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon'],
 } as const;
-/** The kits whose code is already deleted (#799, #802): `STAGE_KIT_IDS` no longer lists them, and their recipes are still planned as v3. */
-const DELETED_KIT_IDS: readonly string[] = ['tides.v1', 'star.v1', 'transit.v1', 'greenhouse.v1', 'circulation.v1'];
+/** The kits whose code is already deleted (#799, #802, #809): `STAGE_KIT_IDS` no longer lists them, and their recipes are still planned as v3. */
+const DELETED_KIT_IDS: readonly string[] = [
+  'tides.v1',
+  'star.v1',
+  'transit.v1',
+  'greenhouse.v1',
+  'circulation.v1',
+  'nerve.v1',
+];
 const V3_KIT_KEYS: readonly string[] = Object.values(KIT_RECIPES_V3).flat();
 const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
 

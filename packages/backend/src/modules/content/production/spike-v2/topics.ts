@@ -26,10 +26,11 @@ export interface SpikeRecipeV2 extends RecipeDataV2 {
 
 /**
  * The recipes of the first spike, in the order they ran: the three Seasons parts first, then
- * Earth & sky and Space recipes, human body recipes, and seven of computing,
+ * Earth & sky and Space recipes, one of the human body, and seven of computing,
  * machine learning and history. The twenty of that run lost three when `tides.v1` and `star.v1` were deleted (#799): `tides`,
  * `tides-spring-neap` and `stars-fusion` have no kit to draw them with any more. It lost four more when `greenhouse.v1` and
- * `circulation.v1` were deleted (#802): `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle` and `blood-pressure`.
+ * `circulation.v1` were deleted (#802): `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle` and `blood-pressure`; and `reflex-arc`
+ * when `nerve.v1` was (#809).
  * A recipe gets a stage only where its library entry names a kit
  * (`stageKit`), so the stage recipes among them are the three Seasons parts and the ones a kit of
  * D-194 draws; the rest are plain Scrolls with calls. `seasons-elsewhere` is not one of the twenty: name
@@ -40,7 +41,6 @@ export const SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'seasons-hemispheres',
   'seasons-limits',
   'exoplanet-habitable-zone',
-  'reflex-arc',
   'immune-memory',
   'dns-lookup',
   'hash-tables',
@@ -61,14 +61,6 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'seasons-limits',
   'seasons-elsewhere',
 ];
-
-/**
- * The three Human body recipes the nerve kit of D-201 gives a picture, to measure with the v18 prompt before the
- * first wave of them. The six of that run (with the heart and the blood, `circulation.v1`) lost three when `circulation.v1` was
- * deleted (#802). Each runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, with the
- * plan's misconception (none).
- */
-export const BODY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = ['action-potential', 'synapse-signalling', 'reflex-arc'];
 
 /**
  * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v19 prompt: colour and brightness

@@ -3,9 +3,11 @@ import { mkdirSync } from 'node:fs';
 import { exportCarries } from './export-files';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
+import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
-import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
+import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
+import type { ScrollDocumentV2, ScrollDocumentV3 } from '@knowscroll/scroll-model';
 
 /**
  * The Folio reader in a real browser (the gallery export, `/gallery-folio`, labelled CI fixture documents): every stop as
@@ -15,9 +17,17 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
  * (outside the repository).
  */
 
-const documents = {
+/** The `scroll-document.v2` fixtures: the tests that read a stop's kind, its prompt and its words need these. */
+const v2Documents = {
   seasons: seasons as unknown as ScrollDocumentV2,
-  nerve: nerve as unknown as ScrollDocumentV2,
+  starlight: starlight as unknown as ScrollDocumentV2,
+};
+type V2Name = keyof typeof v2Documents;
+/** Every fixture the page opens by name (`?doc=`); a document v3 has beats in sections, not stops. */
+const documents = {
+  ...v2Documents,
+  fenceV3: fenceV3 as unknown as ScrollDocumentV3,
+  seasonsV3: seasonsV3 as unknown as ScrollDocumentV3,
 };
 type Name = keyof typeof documents;
 
@@ -103,10 +113,10 @@ const galleryEvents = (page: Page) =>
   page.evaluate(() => (window as unknown as { __ksFolioGallery: GalleryEvents }).__ksFolioGallery);
 
 for (const { label, viewport } of sizes) {
-  for (const name of ['seasons', 'nerve'] as const) {
+  for (const name of ['seasons', 'starlight'] as const satisfies readonly V2Name[]) {
     test(`every stop of ${name} is a beat, once, in order; a call is text, at ${label}`, async ({ page }) => {
       await open(page, name, viewport);
-      const document = documents[name];
+      const document = v2Documents[name];
       expect(await stopIdsOnPage(page)).toEqual(document.stops.map((stop) => stop.id));
       // Each wrapper says whether it is read or a call, from the document's own kinds.
       for (const stop of document.stops) {
@@ -226,12 +236,13 @@ test('the first hold of seasons pins its figure above its beats, changes its sta
   for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
 });
 
-test('the first hold of nerve keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
+test('the first hold of seasonsV3 keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
   page,
 }) => {
-  // Nerve, not seasons: seasons' held beats are taller than its figure at desktop, so its figure pins and the beats leave it,
-  // while this test is about a hold whose beats are shorter than the figure (the comment below).
-  await open(page, 'nerve', sizes[1].viewport);
+  // The document v3 seasons essay, not the v2 seasons: the v2 seasons' held beats are taller than its figure at desktop, so its
+  // figure pins and the beats leave it, while this test is about a hold whose beats are shorter than the figure (the comment
+  // below). The first hold of seasonsV3 is two beats of about 125 and 210 characters, each changing the picture.
+  await open(page, 'seasonsV3', sizes[1].viewport);
   await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
   const rows = await throughTheFirstHold(page, 'desktop');
   const first = rows[0];
@@ -252,13 +263,13 @@ test('the first hold of nerve keeps its figure beside its beats, in full view wh
 });
 
 for (const { label, viewport } of sizes) {
-  for (const name of ['nerve', 'seasons'] as const) {
+  for (const name of ['starlight', 'seasons'] as const satisfies readonly V2Name[]) {
     test(`reading ${name} from top to end reports a few stops at a time, each stop once read, in order, at ${label}`, async ({
       page,
     }) => {
       test.setTimeout(120_000);
       await open(page, name, viewport);
-      const document = documents[name];
+      const document = v2Documents[name];
       const most = await scroller(page).evaluate((node) => node.scrollHeight - node.clientHeight);
       for (let top = 0; top < most; top += 60) {
         await scrollTo(page, top);
@@ -446,7 +457,7 @@ test('without reduced motion the same hold glides (the control for the reduced-m
   expect(transition).toBe('tween');
 });
 
-for (const name of ['seasons', 'nerve'] as const) {
+for (const name of ['seasons', 'fenceV3'] as const) {
   const cases: { label: string; viewport: { width: number; height: number }; query: Record<string, string> }[] = [
     { label: '320 x 640', viewport: { width: 320, height: 640 }, query: {} },
     { label: '200 % text at 390 x 844', viewport: phone, query: { scale: '2' } },
@@ -596,7 +607,7 @@ const settledTop = async (page: Page, selector: string) => {
 };
 
 for (const { label, viewport } of sizes) {
-  const cases: { name: Name; stop: string | undefined }[] = [
+  const cases: { name: V2Name; stop: string | undefined }[] = [
     { name: 'seasons', stop: seasons.stops[Math.floor(seasons.stops.length / 2)]?.id },
     { name: 'seasons', stop: 'closest-in-january' },
     { name: 'seasons', stop: 'equinox' },
@@ -606,7 +617,7 @@ for (const { label, viewport } of sizes) {
   for (const { name, stop } of cases) {
     test(`?stop=${String(stop)} opens ${name} with that beat in view and read, at ${label}`, async ({ page }) => {
       if (stop === undefined) throw new Error('the document has a middle stop');
-      expect(documents[name].stops.map((entry) => entry.id)).toContain(stop);
+      expect(v2Documents[name].stops.map((entry) => entry.id)).toContain(stop);
       await open(page, name, viewport, { stop });
       const selector = `[data-testid="beat-${stop}"]`;
       const top = await settledTop(page, selector);

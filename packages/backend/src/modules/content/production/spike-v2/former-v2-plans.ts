@@ -9,11 +9,11 @@ import type { ScrollV2Plan, StageKitId } from '../../domain/library/plan.js';
  * deleted (Phase 6). The entries of a kit leave this table with it: those of `tides.v1`, `star.v1` and `transit.v1` (`tides`,
  * `tides-spring-neap`, `stars-fusion`, `stars-lifecycle`, `exoplanet-transit`) left in #799, and those of `greenhouse.v1` and
  * `circulation.v1` (`greenhouse`, `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle`, `blood-pressure`,
- * `oxygen-transport`) in #802. The spike measures and publishes
+ * `oxygen-transport`) in #802, and those of `nerve.v1` (`action-potential`, `synapse-signalling`, `reflex-arc`) in #809. The spike measures and publishes
  * nothing, so a recipe listed here is never produced as a v2 Scroll by the library. `exoplanet-kinds` was never a v2 recipe and
  * is not listed.
  */
-/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (11 of the 22 recipes of #787 since #802). */
+/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (8 of the 22 recipes of #787 since #809). */
 export interface FormerV2Plan {
   readonly kit?: StageKitId;
   readonly plan: ScrollV2Plan;
@@ -103,36 +103,6 @@ export const FORMER_V2_PLANS = {
       variant: 'stage',
       misconception: { kind: 'none' },
       landmark: { key: 'the-unseen-weight', name: 'The Unseen Weight' },
-    },
-  },
-  'action-potential': {
-    // Rest, threshold, rising, peak, falling and the undershoot, with the channels, the all-or-none rule and the
-    // spike running one way along the axon are what the kit draws, from a model of the membrane (D-201).
-    kit: 'nerve.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-racing-signal', name: 'The Racing Signal' },
-    },
-  },
-  'synapse-signalling': {
-    // The packets, the gap, the receptors and an exciting and an inhibiting connection are what the synapse view
-    // draws; it names no chemical (D-201).
-    kit: 'nerve.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-gap-crossing', name: 'The Gap Crossing' },
-    },
-  },
-  'reflex-arc': {
-    // Sensor, sensory neuron, spinal cord, motor neuron and muscle, with the news still on its way to the brain
-    // when the muscle responds, are the reflex view (D-201).
-    kit: 'nerve.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-quick-loop', name: 'The Quick Loop' },
     },
   },
   'seasons-elsewhere': {

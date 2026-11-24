@@ -38,12 +38,12 @@ describe('the served document of an exposure', () => {
   it('serves a stored Scroll v2 whose stage is of a kit the code no longer defines, whole, and still refuses a live kit’s wrong state', () => {
     const document = fixture('seasons-stage-ci') as { stage: { kit: string; states: { state: unknown }[] } };
     const states = document.stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } }));
-    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802) were deleted from the code; stage and main still store Scrolls that name them.
-    for (const kit of ['gone.v1', 'transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1']) {
+    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802) and nerve.v1 (#809) were deleted from the code; stage and main still store Scrolls that name them.
+    for (const kit of ['gone.v1', 'transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1', 'nerve.v1']) {
       const legacy = { ...document, stage: { kit, states } };
       expect(ExposureDocumentResponseSchema.parse(response(legacy)).document, kit).toEqual(legacy);
     }
-    const typo = { ...document, stage: { kit: 'nerve.v1', states } };
+    const typo = { ...document, stage: { kit: 'earth-sky.v1', states } };
     expect(ExposureDocumentResponseSchema.safeParse(response(typo)).success).toBe(false);
   });
 });

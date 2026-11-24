@@ -125,62 +125,6 @@ export function distinct(count: number, tag: number): string {
  */
 export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, readonly Record<string, string>[]>> =
   {
-    'nerve.v1': [
-      {
-        view: 'spike',
-        phase: 'rest',
-        along: 'start',
-        synapseAt: 'arrives',
-        effect: 'excite',
-        arcAt: 'sensor',
-        focus: 'trace',
-      },
-      {
-        view: 'spike',
-        phase: 'rising',
-        along: 'start',
-        synapseAt: 'arrives',
-        effect: 'excite',
-        arcAt: 'sensor',
-        focus: 'none',
-      },
-      {
-        view: 'all-or-none',
-        phase: 'rest',
-        along: 'start',
-        synapseAt: 'arrives',
-        effect: 'excite',
-        arcAt: 'sensor',
-        focus: 'weak-push',
-      },
-      {
-        view: 'axon',
-        phase: 'rest',
-        along: 'middle',
-        synapseAt: 'arrives',
-        effect: 'excite',
-        arcAt: 'sensor',
-        focus: 'recovering',
-      },
-      {
-        view: 'synapse',
-        phase: 'rest',
-        along: 'start',
-        synapseAt: 'binding',
-        effect: 'inhibit',
-        arcAt: 'sensor',
-        focus: 'receptors',
-      },
-      {
-        view: 'reflex',
-        phase: 'rest',
-        along: 'start',
-        synapseAt: 'arrives',
-        effect: 'excite',
-        arcAt: 'muscle',
-        focus: 'none',
-      },
-    ],
     'starlight.v1': [
       { view: 'colour', star: 'sun-like', distance: 'near', orbit: 'none', focus: 'spectrum' },
       { view: 'output', star: 'giant', distance: 'near', orbit: 'none', focus: 'none' },

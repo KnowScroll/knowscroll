@@ -490,8 +490,8 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(isLiveStage(outcome.document.stage ?? stageOf(fixture()))).toBe(false);
   });
 
-  it.each(['transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1'])(
-    'takes the stored stage of %s, a kit deleted from the code (#799, #802), on the client path and the server path',
+  it.each(['transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1', 'nerve.v1'])(
+    'takes the stored stage of %s, a kit deleted from the code (#799, #802, #809), on the client path and the server path',
     (kit) => {
       const stored = JSON.parse(JSON.stringify(legacyOf(kit))) as ScrollDocumentV2;
       expect(isStageKitId(kit)).toBe(false);
@@ -603,7 +603,17 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
         focus: 'none',
       }),
     ).not.toEqual([]);
-    expect(codes(signed({ ...document, stage: { kit: 'nerve.v1', states: stage.states } }))).not.toEqual([]);
+    expect(
+      codes(
+        signed({
+          ...document,
+          stage: {
+            kit: 'earth-sky.v1',
+            states: stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } })),
+          },
+        }),
+      ),
+    ).not.toEqual([]);
   });
 
   it('takes only a well-formed kit id, so no name of an object’s own property is a kit', () => {
