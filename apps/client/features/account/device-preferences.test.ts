@@ -9,6 +9,8 @@ describe('device preferences', () => {
       reelSound: true,
       readyNotices: true,
       appearance: 'dark',
+      universeTrial: false,
+      universeFrameRate: false,
     });
   });
 
@@ -21,6 +23,8 @@ describe('device preferences', () => {
           reelSound: false,
           readyNotices: false,
           appearance: 'light',
+          universeTrial: true,
+          universeFrameRate: true,
           // Choices this version no longer has (a reader switch, the covers trial) are read past.
           scrollReader: 'folio',
           coversInExplore: true,
@@ -32,6 +36,8 @@ describe('device preferences', () => {
       reelSound: false,
       readyNotices: false,
       appearance: 'light',
+      universeTrial: true,
+      universeFrameRate: true,
     });
   });
 
@@ -55,12 +61,30 @@ describe('device preferences', () => {
       });
   });
 
+  it('start the Universe trial and its frame rate off, for a value stored before they existed', () => {
+    const before = { motion: 'reduce', textSize: 'larger', reelSound: false, readyNotices: true, appearance: 'light' };
+    const read = parseDevicePreferences(JSON.stringify(before));
+    expect(read.universeTrial).toBe(false);
+    expect(read.universeFrameRate).toBe(false);
+    expect(needsRewrite(JSON.stringify(before))).toBe(false);
+  });
+
+  it('read a Universe switch that is not a true or false as off', () => {
+    for (const stored of ['yes', 1, null, {}, []]) {
+      const read = parseDevicePreferences(JSON.stringify({ universeTrial: stored, universeFrameRate: stored }));
+      expect(read.universeTrial).toBe(false);
+      expect(read.universeFrameRate).toBe(false);
+    }
+  });
+
   describe('carrying the Talk theme (D-151) over to Appearance (#666)', () => {
     const before = { motion: 'reduce', textSize: 'larger', reelSound: false, readyNotices: true };
+    const universe = { universeTrial: false, universeFrameRate: false };
 
     it('turns Paper into Light and keeps every other choice', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'paper' }))).toEqual({
         ...before,
+        ...universe,
         appearance: 'light',
       });
     });
@@ -68,6 +92,7 @@ describe('device preferences', () => {
     it('turns the dark sky into Dark', () => {
       expect(parseDevicePreferences(JSON.stringify({ ...before, talkTheme: 'sky' }))).toEqual({
         ...before,
+        ...universe,
         appearance: 'dark',
       });
     });

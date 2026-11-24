@@ -20,6 +20,10 @@ export interface DevicePreferences {
    * once to carry an earlier choice over and is never written again.
    */
   readonly appearance: Appearance;
+  /** A trial switch, off by default: draw the Universe's new look. It goes when the trial does. */
+  readonly universeTrial: boolean;
+  /** A small frame-rate readout over the Universe, for checking speed. Off by default. */
+  readonly universeFrameRate: boolean;
 }
 
 export const defaultDevicePreferences: DevicePreferences = {
@@ -28,6 +32,8 @@ export const defaultDevicePreferences: DevicePreferences = {
   reelSound: true,
   readyNotices: true,
   appearance: defaultAppearance,
+  universeTrial: false,
+  universeFrameRate: false,
 };
 
 /** How much each text size step multiplies the system's size. */
@@ -77,6 +83,9 @@ export function parseDevicePreferences(stored: string | null | undefined): Devic
     reelSound: typeof record.reelSound === 'boolean' ? record.reelSound : defaults.reelSound,
     readyNotices: typeof record.readyNotices === 'boolean' ? record.readyNotices : defaults.readyNotices,
     appearance: readAppearance(record),
+    universeTrial: typeof record.universeTrial === 'boolean' ? record.universeTrial : defaults.universeTrial,
+    universeFrameRate:
+      typeof record.universeFrameRate === 'boolean' ? record.universeFrameRate : defaults.universeFrameRate,
   };
 }
 
