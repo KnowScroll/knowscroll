@@ -214,10 +214,30 @@ async function readerPage(browser: Browser, world: PartyWorld, who: Who) {
   return { context, page };
 }
 
+/** Waits until the reader's scroll has stopped moving: the End key's scroll can still be on its way when the end plate shows. */
+async function settled(page: Page) {
+  const scroller = page.getByTestId('folio-scroller');
+  let last = -1;
+  await expect
+    .poll(
+      async () => {
+        const now = await scroller.evaluate((node) => node.scrollTop);
+        const still = now === last;
+        last = now;
+        return still;
+      },
+      { intervals: [100, 100, 200, 200, 400] },
+    )
+    .toBe(true);
+}
+
 /** Reads the open Scroll the way a person does: some time on its first stop, then on to its end, then the report is due. */
 async function readAndReport(page: Page) {
   await page.clock.fastForward(4_000);
   await toTheEnd(page);
+  // Only once the scroll has stopped does the clock move, so the stops it passed on its way are not read by chance: the two
+  // readers compared below then cover the same stops whatever the machine's speed.
+  await settled(page);
   await page.clock.fastForward(3_000);
   // The recorder reports every 15 s while it has something to say.
   await page.clock.fastForward(16_000);
