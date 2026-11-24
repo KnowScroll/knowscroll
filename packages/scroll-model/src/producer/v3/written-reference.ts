@@ -23,7 +23,7 @@ const PICTURE_REFERENCE = [
 const PICTURE_RULES = [
   `Pictures are numbered 1, 2, 3 in the order of "pictures" (one to ${L.pictures.max}). Write no ids. Every picture field is a plain word or short phrase: never a colour, a coordinate in pixels, markup or a size.`,
   `A part of a picture is named by its exact label (a cell by its "text"). Labels are unique within one picture; only cells may repeat a text, and a repeated text cannot be linked or lit. A statement "number" has one part, "value"; a statement "quote" has one part, "quote".`,
-  `A picture's "title" is at most ${F.pictureTitleChars} characters, a "caption" ${F.captionChars}, a label ${F.itemLabelChars}, a note ${F.itemNoteChars}, a cell's text ${F.cellTextChars}. A chart point's label is at most 24 characters. Every figure in a picture is one a cited passage states, written as it writes it.`,
+  `A picture's "title" is at most ${F.pictureTitleChars} characters, a "caption" ${F.captionChars}, a label ${F.itemLabelChars}, a note ${F.itemNoteChars}, a cell's text ${F.cellTextChars}. A chart point's label is at most 24 characters. Every figure in a picture is one a cited passage states, written as it writes it. A picture's words are your own, as a paragraph's are: a title, caption, label, note or cell that repeats nine words in a row of a passage fails the Scroll.`,
 ];
 
 const SHOW_REFERENCE = [

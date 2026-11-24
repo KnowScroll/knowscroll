@@ -692,9 +692,12 @@ function analyse(input: WrittenCompileInput): Analysis {
     askSuggestions: reply.askSuggestions,
   };
   const cited = citedClaims(authored);
-  const strict = evidenceIssues(authored, evidence.quoteOf, { figures: 'strict', copySources: input.sources }).map(
-    (issue): IssueV3 => ({ ...issue, path: modelPathOfEvidence(issue.path, shaped.map) }),
-  );
+  const handles = new Map([...evidence.claimIdOf].map(([handle, claimId]) => [claimId, handle]));
+  const strict = evidenceIssues(authored, evidence.quoteOf, {
+    figures: 'strict',
+    copySources: input.sources,
+    handles,
+  }).map((issue): IssueV3 => ({ ...issue, path: modelPathOfEvidence(issue.path, shaped.map) }));
   const unknownSource = input.claims.some(
     (claim) => cited.has(claim.claimId) && !input.sourceRecords.some((record) => record.sourceId === claim.sourceId),
   );

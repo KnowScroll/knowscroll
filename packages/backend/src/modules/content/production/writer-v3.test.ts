@@ -109,9 +109,9 @@ describe('the three roles', () => {
     const one = writerRoleV3One(context());
     const prose = writerRoleV3Prose(context());
     const stager = stagerRoleV3(context(), fixtureProseV3());
-    expect([one.id, one.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v2']);
-    expect([prose.id, prose.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3b.v2']);
-    expect([stager.id, stager.version]).toEqual(['content.scroll-stager', 'scroll-stager-v3.v2']);
+    expect([one.id, one.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v3']);
+    expect([prose.id, prose.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3b.v3']);
+    expect([stager.id, stager.version]).toEqual(['content.scroll-stager', 'scroll-stager-v3.v3']);
     expect([WRITER_V3A_VERSION, WRITER_V3B_VERSION, STAGER_V3_VERSION]).toEqual([
       one.version,
       prose.version,
@@ -165,6 +165,19 @@ describe('the three roles', () => {
       expect(role.instructions, role.version).toContain('"marks" is ALWAYS written');
     }
     expect(writerRoleV3Prose(context()).instructions).not.toContain('"marks"');
+  });
+
+  it('tell the writer that a picture’s short texts are its own words, that a figure with the passage’s phrase around it is a copy, and how a range end is read (D-444)', () => {
+    for (const role of [writerRoleV3One(context()), stagerRoleV3(context(), fixtureProseV3())])
+      expect(role.instructions, role.version).toContain(
+        'a label, a note, a caption or a cell that repeats nine words in a row of a passage fails the Scroll just as a paragraph would',
+      );
+    for (const role of [writerRoleV3One(context()), writerRoleV3Prose(context())]) {
+      expect(role.instructions, role.version).toContain('Keep names and exact figures, but not the words around them');
+      expect(role.instructions, role.version).toContain(
+        '"from 12 boats in 1710 to 31 boats in 1790", whose 31 ends a range that starts at 1710',
+      );
+    }
   });
 
   it('give each step its own instructions: the prose has no picture rules, the staging has no essay rules', () => {
@@ -285,6 +298,85 @@ describe('arm a: the whole Scroll in one reply', () => {
     expect(notes).not.toContain('Say it twice');
   });
 
+  /** The index of the paragraph of the fixture that states "31 degrees" (it cites the passage that holds the figure). */
+  const LEAN_ITEM = fixtureReplyV3().items.findIndex(
+    (item) => item.type === 'para' && item.text.includes('tips by 31 degrees'),
+  );
+
+  it('refuses a reply whose only fault is a figure the paragraph cites the wrong passage for, and the repair notes name the passage that holds it (D-444)', () => {
+    expect(LEAN_ITEM).toBeGreaterThan(0);
+    const miscited = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, LEAN_ITEM, { cites: ['e2'] });
+    });
+    const found = findingsOf(role.outputSchema.safeParse(miscited));
+    expect(found).toEqual([{ code: 'authoring_number_not_in_evidence', path: `items.${String(LEAN_ITEM)}` }]);
+    // The harness hands the repair the one fixed hint, which points to the notes: it cannot carry the passage.
+    expect(role.safeCustomIssues?.['authoring_number_not_in_evidence']).toContain('The repair notes');
+    const notes = role.repairNotes?.(JSON.stringify(miscited)) ?? '';
+    expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+    expect(notes).toContain(
+      `items[${String(LEAN_ITEM)}]: In the text and the simpler text, "31" is not in the passages this part cites, but e1 states it that way: cite e1.`,
+    );
+    // Only the figure as written and the passage are named; the paragraph's own words are not.
+    expect(notes).not.toContain('spinning top');
+    expect(notes).not.toContain('copies');
+  });
+
+  it('says a figure that no passage holds is not in the research, and names nothing for a reply with no fault', () => {
+    const absent = edited(fixtureReplyV3(), (draft) => {
+      const item = draft.items[LEAN_ITEM] as { text: string; simple: string };
+      patch(draft.items, LEAN_ITEM, {
+        text: item.text.replace('31 degrees', '47 degrees'),
+        simple: item.simple.replace('31 degrees', '47 degrees'),
+        links: [{ phrase: '47 degrees', part: 'value' }],
+      });
+    });
+    expect(findingsOf(role.outputSchema.safeParse(absent))).toContainEqual({
+      code: 'authoring_number_not_in_evidence',
+      path: `items.${String(LEAN_ITEM)}`,
+    });
+    expect(role.repairNotes?.(JSON.stringify(absent))).toContain(
+      `items[${String(LEAN_ITEM)}]: In the text and the simpler text, "47" is in none of the offered passages, so it is not in the research: take it out, or use a figure a passage states.`,
+    );
+    expect(role.repairNotes?.(JSON.stringify(fixtureReplyV3()))).toBeUndefined();
+  });
+
+  it('names a miscited figure in a reply the shape refused first (a chart without its marks), which the compile never read', () => {
+    const miscited = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, LEAN_ITEM, { cites: ['e2'] });
+      draft.pictures[1] = {
+        kind: 'chart',
+        title: 'A chart',
+        cites: ['e1'],
+        form: 'bars',
+        values: 'shown',
+        points: [
+          { label: 'A', value: '1' },
+          { label: 'B', value: '2' },
+        ],
+      };
+    });
+    const codes = findingsOf(role.outputSchema.safeParse(miscited)).map((finding) => finding.code);
+    expect(codes).not.toContain('authoring_number_not_in_evidence');
+    expect(role.repairNotes?.(JSON.stringify(miscited))).toContain(
+      `items[${String(LEAN_ITEM)}]: In the text and the simpler text, "31" is not in the passages this part cites, but e1 states it that way: cite e1.`,
+    );
+  });
+
+  it('carries a copy and a figure in one set of notes within the limit, the copies first (D-444)', () => {
+    const both = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, LEAN_ITEM, { cites: ['e2'] });
+      patch(draft.items, EQUATOR_ITEM, { text: COPIED_SENTENCE });
+    });
+    const notes = role.repairNotes?.(JSON.stringify(both)) ?? '';
+    expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+    expect(notes).toContain('Each line names an item of your answer, the part of it that repeats the research');
+    expect(notes).toContain('Each line names a part of your answer, the figures in it that no passage it cites states');
+    expect(notes.indexOf(`items[${String(EQUATOR_ITEM)}]:`)).toBeLessThan(
+      notes.indexOf(`items[${String(LEAN_ITEM)}]:`),
+    );
+  });
+
   it('names a copy in a picture caption, with the part and the words', () => {
     const copied = edited(fixtureReplyV3(), (draft) => {
       patch(draft.pictures, 1, { caption: COPIED_SENTENCE });
@@ -366,6 +458,18 @@ describe('arm b, first step: the prose', () => {
       `items[${String(EQUATOR_ITEM)}]: Nine or more words in a row match the research, in the text: "near the equator`,
     );
     expect(role.repairNotes?.(JSON.stringify(fixtureProseV3()))).toBeUndefined();
+  });
+
+  it('gives the figure notes of a refused prose (D-444)', () => {
+    const lean = fixtureProseV3().items.findIndex(
+      (item) => item.type === 'para' && item.text.includes('tips by 31 degrees'),
+    );
+    const prose = edited(fixtureProseV3(), (draft) => {
+      patch(draft.items, lean, { cites: ['e2'] });
+    });
+    expect(role.repairNotes?.(JSON.stringify(prose))).toContain(
+      `items[${String(lean)}]: In the text and the simpler text, "31" is not in the passages this part cites, but e1 states it that way: cite e1.`,
+    );
   });
 });
 

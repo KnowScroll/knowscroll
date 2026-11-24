@@ -212,8 +212,13 @@ function wordsOf(text: string): string[] {
     .map(stem);
 }
 
+/** The meaningful words of a unit that no cited passage writes (as a word, singular or plural), in order; none when the unit is fine. */
+export function unitWordsNotIn(unit: string, quotes: readonly string[]): string[] {
+  const known = new Set(quotes.flatMap(wordsOf));
+  return wordsOf(unit).filter((word) => !known.has(word));
+}
+
 /** Whether every meaningful word of a unit is written in a cited passage, so a unit the passages never name is refused. */
 export function unitInPassages(unit: string, quotes: readonly string[]): boolean {
-  const known = new Set(quotes.flatMap(wordsOf));
-  return wordsOf(unit).every((word) => known.has(word));
+  return unitWordsNotIn(unit, quotes).length === 0;
 }

@@ -36,8 +36,10 @@ export interface AdmissionIssue {
   readonly code: string;
   readonly path: string;
   /**
-   * Set only on a `copied_passage` finding of the document v3 writer (D-441): the part that copies and the research's own words that it
-   * copies, cut from the research text and never from the model's. It goes to the writer's repair notes, never to a stored record.
+   * Set only on a `copied_passage` or an `authoring_number_not_in_evidence` finding of the document v3 writer (D-441, D-444): for a copy the
+   * part that copies and the research's own words that it copies; for a figure the part, the figure as written and where the research
+   * has it. Cut from the research text and the figure, never from other words the model wrote. It goes to the writer's repair notes,
+   * never to a stored record.
    */
   readonly detail?: string;
 }
