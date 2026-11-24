@@ -4,8 +4,7 @@ import type { ReasonCode } from '../issues.js';
  * Reason codes of `scroll-document.v2` and `scroll-authoring.v2`. Like the v1 codes they are stable
  * (a code never changes meaning), and a finding carries only the code and a path, never the text it
  * is about. They live apart from `REASON_CODES` because the writer's repair catalogue is limited to
- * 128 codes and v1's already fills most of it: the v2 writer sends its own catalogue
- * (`producer/v2/reasons.ts`).
+ * 128 codes and v1's already fills most of it. The v2 writer that sent its own catalogue is deleted (#815).
  */
 export const V2_REASON_CODES = [
   // Stops and their text.

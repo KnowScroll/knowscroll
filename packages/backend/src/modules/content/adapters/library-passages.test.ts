@@ -1,24 +1,17 @@
 import { RECIPES } from '../domain/library/index.js';
 import { describe, expect, it } from 'vitest';
-import { evidencePassages } from '../production/evidence.js';
-import { spikeRecipeV2 } from '../production/spike-v2/topics.js';
-import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
-import { compileGeneratedScrollV2, publicationV2 } from '../production/writer-v2.js';
+import { storedOrrinV2 } from '../production/orrin.fixture.js';
 import { fixtureSnapshot } from '../public.js';
 import { readFileSync } from 'node:fs';
-import { beatsOfV3, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { beatsOfV3, type ScrollDocumentV2, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { callsOfStored, proseBlocksOf, topicIdsOf } from './library-passages.js';
 
-/** A labelled CI fixture: the recorded v2 writer answer for the seasons recipe, compiled as production would. */
-function fixtureDocument() {
-  const outcome = compileGeneratedScrollV2(fixtureAuthoredV2(), {
-    publication: publicationV2(RECIPES.seasons),
-    recipe: spikeRecipeV2('seasons'),
-    passages: evidencePassages([fixtureResearchPageV2]),
-    pages: [fixtureResearchPageV2],
-  });
-  if (outcome.kind !== 'compiled') throw new Error('the CI fixture must compile');
-  return outcome.document;
+/** A labelled CI fixture: the stored v2 Scroll of the seasons recipe, as the v2 writer stored it. */
+function fixtureDocument(): ScrollDocumentV2 {
+  return storedOrrinV2({
+    assetId: RECIPES.seasons.assetId,
+    explanationUnitId: RECIPES.seasons.explanationUnitId,
+  }).document as unknown as ScrollDocumentV2;
 }
 
 describe('the prose of a stored Scroll, for a room’s daily items', () => {

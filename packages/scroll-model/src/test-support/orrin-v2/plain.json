@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "fixture-orrin-seasons",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "fixture-orrin-seasons-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "A closer look",
+  "title": "Why Orrin has summers and winters",
+  "dek": "A planet that leans and a guess that most people get wrong, told in short steps.",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "myth",
+    "claim": "Orrin is warmest because it is closest to its star.",
+    "source": {
+      "label": "CI fixture label",
+      "reviewed": true
+    }
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "s1",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard."
+        }
+      ],
+      "simple": "Kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow."
+    },
+    {
+      "kind": "call_it",
+      "id": "s2",
+      "prompt": "Which of these zqhs zqht zqhu zqhv zqhw zqhx zqhy zqhz?",
+      "options": [
+        "zqdkm zqdkn zqdko zqdkp zqdkq zqdkr",
+        "zqdcu zqdcv zqdcw zqdcx zqdcy zqdcz",
+        "zqdgq zqdgr zqdgs zqdgt zqdgu zqdgv"
+      ],
+      "answer": 1,
+      "explain": "Fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle.",
+      "twist": "Harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle.",
+      "simple": "Bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum.",
+      "commonGuess": {
+        "option": 2,
+        "source": {
+          "label": "CI fixture label",
+          "reviewed": true
+        }
+      }
+    },
+    {
+      "kind": "read",
+      "id": "s3",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon."
+        }
+      ],
+      "simple": "Gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber."
+    },
+    {
+      "kind": "read",
+      "id": "s4",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable."
+        }
+      ],
+      "simple": "Lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor."
+    },
+    {
+      "kind": "call_it",
+      "id": "s5",
+      "prompt": "Which of these zqtg zqth zqti zqtj zqtk zqtl zqtm zqtn?",
+      "options": [
+        "zqhsa zqhsb zqhsc zqhsd zqhse zqhsf",
+        "zqhoe zqhof zqhog zqhoh zqhoi zqhoj",
+        "zqhvw zqhvx zqhvy zqhvz zqhwa zqhwb"
+      ],
+      "answer": 1,
+      "explain": "Oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern.",
+      "twist": "Orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry.",
+      "simple": "Kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon."
+    },
+    {
+      "kind": "read",
+      "id": "s6",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder."
+        }
+      ],
+      "simple": "Pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite."
+    },
+    {
+      "kind": "read",
+      "id": "s7",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter."
+        }
+      ],
+      "simple": "Saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper."
+    },
+    {
+      "kind": "read",
+      "id": "s8",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle."
+        }
+      ],
+      "simple": "Linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry."
+    },
+    {
+      "kind": "final_call",
+      "id": "s9",
+      "prompt": "Which of these zqbmm zqbmn zqbmo zqbmp zqbmq zqbmr zqbms zqbmt?",
+      "options": [
+        "zqoym zqoyn zqoyo zqoyp zqoyq zqoyr",
+        "zqpci zqpcj zqpck zqpcl zqpcm zqpcn",
+        "zqpge zqpgf zqpgg zqpgh zqpgi zqpgj"
+      ],
+      "answer": 0,
+      "explain": "Lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow.",
+      "twist": "Cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard.",
+      "simple": "Pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle."
+    }
+  ],
+  "asides": [
+    {
+      "id": "a1",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "Oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow.",
+      "anchorStop": "s8",
+      "collapsed": false
+    }
+  ],
+  "recap": {
+    "captions": [
+      "Kettle amber willow bramble ivory pewter quarry thistle.",
+      "Beacon anchor hollow oakum meadow saddle fennel mantle.",
+      "Gable nettle copper orchard ember linen harbour ferry."
+    ],
+    "smallPrintAside": "a1"
+  },
+  "askSuggestions": ["What would a planet tipped on its side be like?", "Why do the tropics have so few seasons?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 197,
+    "readingMinutes": 3.3,
+    "totalWeight": 756,
+    "recapWeight": 24,
+    "stops": [
+      {
+        "stopId": "s1",
+        "weight": 52
+      },
+      {
+        "stopId": "s2",
+        "weight": 129
+      },
+      {
+        "stopId": "s3",
+        "weight": 52
+      },
+      {
+        "stopId": "s4",
+        "weight": 52
+      },
+      {
+        "stopId": "s5",
+        "weight": 129
+      },
+      {
+        "stopId": "s6",
+        "weight": 52
+      },
+      {
+        "stopId": "s7",
+        "weight": 52
+      },
+      {
+        "stopId": "s8",
+        "weight": 85
+      },
+      {
+        "stopId": "s9",
+        "weight": 129
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "8690fd267c6915d6386e20f24958cff1aa76e5f61b4d5a89fcccbeceff7f369c"
+  }
+}

@@ -12,11 +12,8 @@ import { ExposureDocumentResponseSchema } from '@knowscroll/contracts';
 import { parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import { makeRenderScroll } from '../../../packages/backend/src/modules/content/adapters/render-scroll.js';
-import { WRITER_V2_PROMPT_VERSION } from '../../../packages/backend/src/modules/content/production/writer-v2.js';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
+import { fixtureResearchPageV2 } from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
+import { WRITER_V2_PROMPT_VERSION } from '../../../packages/backend/src/modules/content/production/writer-v2-version.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -24,19 +21,15 @@ import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
-import { markScrollV1, markScrollV2, v2Capabilities, markFormerV2Recipes } from '../support/scroll-v2.js';
+import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
- * A v2 Scroll is published through the production job, covered, served and read like a v1 one.
- * The model is a labelled CI fixture and the Scroll is the authored Orrin fixture: no provider,
- * no product content.
+ * A stored v2 Scroll is covered, served and read like a v1 one. Nothing produces a v2 Scroll any more (#815), but stage and main still
+ * store and serve them: the Scroll is the stored Orrin fixture, written the way the v2 job wrote it (`storeV2`): no provider, no product
+ * content.
  */
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
-
-describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () => {
+describe('A stored v2 Scroll (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
   beforeAll(async () => {
     database = await createTestDatabase<Database>('scroll_v2_admission');
@@ -54,7 +47,7 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
       .orderBy('revision')
       .execute();
 
-  it('regenerates a v1 Seasons Scroll as a v2 revision, with coverage v2, provenance for its citations and a real status', async () => {
+  it('holds a v2 revision beside a v1 Seasons Scroll, with coverage v2, provenance for its citations and a real status', async () => {
     const recipe = TOPICS.seasons;
     // The Scroll the library held before the plan marked the recipe v2 (D-137): a v1 revision.
     const undoV1 = markScrollV1('seasons');
@@ -66,28 +59,9 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
       undoV1();
     }
 
-    // A v1 Scroll does not satisfy a recipe the plan marks v2: the recipe is produced again.
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'not_started' });
-    const v2 = fixtureProduction(
-      database.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    const result = await v2.produce('seasons', false, signal());
-    // One writer request, no repair, and the revision is the next of the same asset. It is held for review (D-138).
-    expect(result).toMatchObject({ outcome: 'published', held: true, assetId: recipe.assetId, revision: 2 });
-    expect(v2.calls).toHaveLength(1);
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'held', heldRevision: 2 });
-    const job = await database.db
-      .selectFrom('content.scroll_production_runs')
-      .select(['policy_version', 'state'])
-      .where('topic', '=', 'seasons')
-      .orderBy('policy_version')
-      .execute();
-    expect(job).toEqual([
-      { policy_version: 'scroll-production.v14', state: 'published' },
-      { policy_version: 'scroll-production.v22', state: 'published' },
-    ]);
+    // The v2 revision is the next revision of the same asset, held for review (D-138), as the v2 job stored it.
+    const held = await storeV2(database.db, 'seasons');
+    expect(held).toMatchObject({ assetId: recipe.assetId, revision: 2 });
 
     const [first, second] = await revisionsOf(recipe.assetId);
     expect(first).toMatchObject({ revision: 1, document_version: 'scroll-document.v1' });
@@ -158,7 +132,6 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
       await makeReviewGate(database.db).release({ assetId: recipe.assetId, revision: 2, decidedBy: 'cli:ci-reviewer' }),
     ).toMatchObject({ kind: 'released', replacedRevision: 1 });
     expect(await readMapping()).toMatchObject({ kind: 'entered', value: { kind: 'mapped' } });
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'published', revision: 2 });
   });
 
   it('serves the v2 document to a client that declares the schema, and a v1 revision to one that does not', async () => {
@@ -230,40 +203,6 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
       });
     } finally {
       await useCases.close();
-    }
-  });
-
-  it('refuses a v2 recipe whose misconception source no person has reviewed before any job or request', async () => {
-    const undo = markScrollV2('greenhouse', {
-      variant: 'stage',
-      misconception: {
-        kind: 'myth',
-        claim: 'Orrin is warmest because it is closest to its star.',
-        source: { label: 'A common idea; its source is still to be named', reviewed: false },
-      },
-    });
-    try {
-      const run = fixtureProduction(
-        database.db,
-        () => answerWith(fixtureAuthoredV2()),
-        () => fixtureResearchPageV2,
-      );
-      const result = await run.produce('greenhouse', false, signal());
-      expect(result).toMatchObject({ outcome: 'plan_refused', codes: ['misconception_source_unreviewed'] });
-      // Nothing was sent, no job row was reserved, and nothing was stored.
-      expect(run.calls).toHaveLength(0);
-      expect(
-        await database.db
-          .selectFrom('content.scroll_production_runs')
-          .select('id')
-          .where('topic', '=', 'greenhouse')
-          .execute(),
-      ).toEqual([]);
-      expect(await revisionsOf(TOPICS.greenhouse.assetId)).toEqual([]);
-      // The operator's status and the Quartermaster see a recipe no take can start.
-      expect((await readLibraryStatus(database.db, ['greenhouse']))[0]).toMatchObject({ state: 'stopped' });
-    } finally {
-      undo();
     }
   });
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authoredV2, compileInputV2 } from '../test-support/v2-fixtures.js';
-import { compileAuthoredV2 } from '../producer/v2/compile.js';
+import { orrinDocumentV2 } from '../test-support/v2-fixtures.js';
 import {
   describeChart,
   describeFork,
@@ -56,9 +55,7 @@ const FORK: Interactive = {
 };
 
 function baseDocument(): ScrollDocumentV2 {
-  const outcome = compileAuthoredV2(authoredV2('plain'), compileInputV2('plain'));
-  if (outcome.kind !== 'compiled') throw new Error('the plain fixture compiles');
-  return JSON.parse(JSON.stringify(outcome.document)) as ScrollDocumentV2;
+  return orrinDocumentV2('plain');
 }
 
 /** The fixture with `edit` applied to its stops, re-measured and re-signed so only the edit can be refused. */

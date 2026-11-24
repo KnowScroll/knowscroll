@@ -102,11 +102,8 @@ describe('the recipe book', () => {
       if (before !== undefined) recipe.scrollV3 = before;
     }
     expect(codeRecipeOf('seasons-elsewhere')?.scrollV3).toBeDefined();
-    expect(codeRecipeOf('seasons-elsewhere')?.scrollV2).toBeUndefined();
-    // A recipe planned as a document v3 Scroll shows its plan, and no kit and no v2 plan (#787, #790).
+    // A recipe planned as a document v3 Scroll shows its plan (#787, #790).
     expect(codeRecipeOf('seasons')?.scrollV3).toBeDefined();
-    expect(codeRecipeOf('seasons')?.scrollV2).toBeUndefined();
-    expect(codeRecipeOf('seasons')?.stageKit).toBeUndefined();
     expect(codeRecipes()).toHaveLength(RECIPE_KEYS.length);
     expect(codeRecipeOf('gen-anything-11111111')).toBeUndefined();
   });

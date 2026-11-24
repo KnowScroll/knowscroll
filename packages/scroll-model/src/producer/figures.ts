@@ -1,5 +1,5 @@
-import { numericTokens } from '../../text.js';
-import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
+import { numericTokens } from '../text.js';
+import { MAGNITUDES, type Magnitude } from '../v2/blocks.js';
 import { unstatedSpelledFigures } from './spelled-figures.js';
 
 /**

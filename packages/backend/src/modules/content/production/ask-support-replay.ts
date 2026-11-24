@@ -18,7 +18,7 @@ import { candidateCheckerRole, type CandidateCheckerInstructions } from './ask-s
 import { makeAskSupportStep } from './ask-support-step.js';
 import { askOrderCheckerRole, sentencesOfAnswer } from './ask-support.js';
 import { evidencePassages, type EvidencePassage } from './evidence.js';
-import { SPIKE_MODEL } from './spike-v2/run.js';
+import { SPIKE_MODEL } from './spike-run.js';
 
 /** The policy version of a replay's runs in the production ledger. */
 export const ASK_SUPPORT_REPLAY_POLICY_VERSION = 'ask-support-replay.v1';

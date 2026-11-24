@@ -1,0 +1,275 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "fixture-orrin-seasons",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "fixture-orrin-seasons-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "A closer look",
+  "title": "Why Orrin has summers and winters",
+  "dek": "A planet that leans and a guess that most people get wrong, told in short steps.",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "myth",
+    "claim": "Orrin is warmest because it is closest to its star.",
+    "source": {
+      "label": "CI fixture label",
+      "reviewed": true
+    }
+  },
+  "stage": {
+    "kit": "earth-sky.v1",
+    "states": [
+      {
+        "stop": "s1",
+        "state": {
+          "view": "sun-earth",
+          "earthAt": "mar",
+          "moonAt": "off",
+          "focus": "none"
+        },
+        "alt": "The Sun is on the left and Earth is on the right. The time of year is March. Earth’s axis is tilted by 23.4 degrees and points the same way all year. Neither half leans toward the Sun or away from it. A pin in the north is marked neither warm nor cool, and a pin in the south is marked neither warm nor cool. In the north, Ray the sunbeam arrives at a middling angle. In the south, Ray arrives at a middling angle."
+      },
+      {
+        "stop": "s3",
+        "state": {
+          "view": "sun-earth",
+          "earthAt": "sep",
+          "moonAt": "off",
+          "focus": "none"
+        },
+        "alt": "The Sun is on the left and Earth is on the right. The time of year is September. Earth’s axis is tilted by 23.4 degrees and points the same way all year. Neither half leans toward the Sun or away from it. A pin in the north is marked neither warm nor cool, and a pin in the south is marked neither warm nor cool. In the north, Ray the sunbeam arrives at a middling angle. In the south, Ray arrives at a middling angle."
+      },
+      {
+        "stop": "s4",
+        "state": {
+          "view": "sun-earth",
+          "earthAt": "dec",
+          "moonAt": "off",
+          "focus": "none"
+        },
+        "alt": "The Sun is on the left and Earth is on the right. The time of year is December. Earth’s axis is tilted by 23.4 degrees and points the same way all year. The southern half leans toward the Sun and the northern half leans away from it. A pin in the north is marked cool, and a pin in the south is marked warm. In the north, Ray the sunbeam arrives at a low angle and spreads over a wide patch of ground. In the south, Ray arrives from high in the sky and lands on a small patch of ground."
+      },
+      {
+        "stop": "s6",
+        "state": {
+          "view": "sun-earth",
+          "earthAt": "may",
+          "moonAt": "off",
+          "focus": "none"
+        },
+        "alt": "The Sun is on the left and Earth is on the right. The time of year is May. Earth’s axis is tilted by 23.4 degrees and points the same way all year. The northern half leans toward the Sun and the southern half leans away from it. A pin in the north is marked warm, and a pin in the south is marked cool. In the north, Ray the sunbeam arrives from high in the sky and lands on a small patch of ground. In the south, Ray arrives at a low angle and spreads over a wide patch of ground."
+      },
+      {
+        "stop": "s7",
+        "state": {
+          "view": "sun-earth",
+          "earthAt": "jan",
+          "moonAt": "off",
+          "focus": "none"
+        },
+        "alt": "The Sun is on the left and Earth is on the right. The time of year is January. Earth’s axis is tilted by 23.4 degrees and points the same way all year. The southern half leans toward the Sun and the northern half leans away from it. A pin in the north is marked cool, and a pin in the south is marked warm. In the north, Ray the sunbeam arrives at a low angle and spreads over a wide patch of ground. In the south, Ray arrives from high in the sky and lands on a small patch of ground."
+      },
+      {
+        "stop": "s8",
+        "state": {
+          "view": "sun-earth",
+          "earthAt": "mar",
+          "moonAt": "off",
+          "focus": "none"
+        },
+        "alt": "The Sun is on the left and Earth is on the right. The time of year is March. Earth’s axis is tilted by 23.4 degrees and points the same way all year. Neither half leans toward the Sun or away from it. A pin in the north is marked neither warm nor cool, and a pin in the south is marked neither warm nor cool. In the north, Ray the sunbeam arrives at a middling angle. In the south, Ray arrives at a middling angle."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "s1",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard."
+        }
+      ],
+      "simple": "Kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow."
+    },
+    {
+      "kind": "call_it",
+      "id": "s2",
+      "prompt": "Which of these zqhs zqht zqhu zqhv zqhw zqhx zqhy zqhz?",
+      "options": [
+        "zqdkm zqdkn zqdko zqdkp zqdkq zqdkr",
+        "zqdcu zqdcv zqdcw zqdcx zqdcy zqdcz",
+        "zqdgq zqdgr zqdgs zqdgt zqdgu zqdgv"
+      ],
+      "answer": 1,
+      "explain": "Fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle.",
+      "twist": "Harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle.",
+      "simple": "Bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum.",
+      "commonGuess": {
+        "option": 2,
+        "source": {
+          "label": "CI fixture label",
+          "reviewed": true
+        }
+      }
+    },
+    {
+      "kind": "read",
+      "id": "s3",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon."
+        }
+      ],
+      "simple": "Gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber."
+    },
+    {
+      "kind": "read",
+      "id": "s4",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable."
+        }
+      ],
+      "simple": "Lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor."
+    },
+    {
+      "kind": "call_it",
+      "id": "s5",
+      "prompt": "Which of these zqtg zqth zqti zqtj zqtk zqtl zqtm zqtn?",
+      "options": [
+        "zqhsa zqhsb zqhsc zqhsd zqhse zqhsf",
+        "zqhoe zqhof zqhog zqhoh zqhoi zqhoj",
+        "zqhvw zqhvx zqhvy zqhvz zqhwa zqhwb"
+      ],
+      "answer": 1,
+      "explain": "Oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern.",
+      "twist": "Orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry.",
+      "simple": "Kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon."
+    },
+    {
+      "kind": "read",
+      "id": "s6",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder."
+        }
+      ],
+      "simple": "Pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite."
+    },
+    {
+      "kind": "read",
+      "id": "s7",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter."
+        }
+      ],
+      "simple": "Saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper."
+    },
+    {
+      "kind": "read",
+      "id": "s8",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle."
+        }
+      ],
+      "simple": "Linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry."
+    },
+    {
+      "kind": "final_call",
+      "id": "s9",
+      "prompt": "Which of these zqbmm zqbmn zqbmo zqbmp zqbmq zqbmr zqbms zqbmt?",
+      "options": [
+        "zqoym zqoyn zqoyo zqoyp zqoyq zqoyr",
+        "zqpci zqpcj zqpck zqpcl zqpcm zqpcn",
+        "zqpge zqpgf zqpgg zqpgh zqpgi zqpgj"
+      ],
+      "answer": 0,
+      "explain": "Lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow.",
+      "twist": "Cinder juniper quilt beacon anchor hollow oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard.",
+      "simple": "Pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow oakum meadow saddle."
+    }
+  ],
+  "asides": [
+    {
+      "id": "a1",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "Oakum meadow saddle fennel mantle lantern granite drizzle kettle amber willow bramble ivory pewter quarry thistle gable nettle copper orchard ember linen harbour ferry cinder juniper quilt beacon anchor hollow.",
+      "anchorStop": "s8",
+      "collapsed": false
+    }
+  ],
+  "recap": {
+    "captions": [
+      "Kettle amber willow bramble ivory pewter quarry thistle.",
+      "Beacon anchor hollow oakum meadow saddle fennel mantle.",
+      "Gable nettle copper orchard ember linen harbour ferry."
+    ],
+    "smallPrintAside": "a1"
+  },
+  "askSuggestions": ["What would a planet tipped on its side be like?", "Why do the tropics have so few seasons?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 197,
+    "readingMinutes": 3.3,
+    "totalWeight": 756,
+    "recapWeight": 24,
+    "stops": [
+      {
+        "stopId": "s1",
+        "weight": 52
+      },
+      {
+        "stopId": "s2",
+        "weight": 129
+      },
+      {
+        "stopId": "s3",
+        "weight": 52
+      },
+      {
+        "stopId": "s4",
+        "weight": 52
+      },
+      {
+        "stopId": "s5",
+        "weight": 129
+      },
+      {
+        "stopId": "s6",
+        "weight": 52
+      },
+      {
+        "stopId": "s7",
+        "weight": 52
+      },
+      {
+        "stopId": "s8",
+        "weight": 85
+      },
+      {
+        "stopId": "s9",
+        "weight": 129
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "e3e94950931682b36b9dde99c9e399aebc837ad9639869663b42d374dd7c2a1a"
+  }
+}

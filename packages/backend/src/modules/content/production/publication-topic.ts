@@ -29,7 +29,7 @@ import { admitRecipeCoverage } from '../application/admit-recipe-coverage.js';
 import { codeRecipeOf } from '../application/recipe-book.js';
 import type { BookRecipe } from '../domain/library/generated.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
-import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
+import { WRITER_V2_PROMPT_VERSION } from './writer-v2-version.js';
 import {
   PRODUCTION_VERSIONS,
   productionVersionOf,

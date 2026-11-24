@@ -9,7 +9,6 @@ import {
   type RecipeOrigin,
   type RecipeStatus,
 } from '../domain/library/generated.js';
-import type { ScrollV2Plan } from '../domain/library/plan.js';
 
 type Queryable = Kysely<Database> | Transaction<Database>;
 
@@ -26,9 +25,7 @@ export interface StoredRecipeRow {
   readonly explanation_unit_id: string;
   readonly brief: string;
   readonly pages: readonly string[];
-  /** The plain v2 plan an older row holds; null for a row that holds a document v3 plan. */
-  readonly scroll_v2: ScrollV2Plan | null;
-  /** The document v3 plan of a proposal (`{shape, sections}`), unparsed; null for a row that holds the v2 plan. */
+  /** The document v3 plan of a proposal (`{shape, sections}`), unparsed; null for an older row that holds only the v2 plan, which nothing reads now. */
   readonly scroll_v3: unknown;
   readonly proposing_run_id: string | null;
   readonly check_results: unknown;
@@ -36,14 +33,14 @@ export interface StoredRecipeRow {
 }
 
 const COLUMNS = sql.raw(
-  'key, origin, status, title, topic_id, facet_id, supporting_facet_id, asset_id, explanation_unit_id, brief, pages, scroll_v2, scroll_v3, proposing_run_id, check_results, created_at',
+  'key, origin, status, title, topic_id, facet_id, supporting_facet_id, asset_id, explanation_unit_id, brief, pages, scroll_v3, proposing_run_id, check_results, created_at',
 );
 
 /**
  * A stored recipe as the library plan's own shape: never interactive, never drawn with a kit. A proposal carries a document v3 plan
  * (`scroll_v3`: the shape and the section intents; the writer picks the pictures, #781), which is read strictly: a row whose plan does
  * not parse is a defect and is refused loudly, never read as if it had none, because a recipe without a plan would be written as
- * something it was not asked to be. The v2 plan of an older row is carried only when the row has one. `systemId` is the planet's
+ * something it was not asked to be. The v2 plan of an older row (`scroll_v2`, which migration 0111 required and 0124 made nullable) is not read since #815: such a row has no plan, and production refuses it. `systemId` is the planet's
  * system in the catalogue, empty for a planet the catalogue does not hold.
  */
 export function bookRecipeOf(row: StoredRecipeRow, systemId: string): BookRecipe {
@@ -68,7 +65,6 @@ export function bookRecipeOf(row: StoredRecipeRow, systemId: string): BookRecipe
     interactiveKind: null,
     brief: row.brief,
     pages: row.pages,
-    ...(row.scroll_v2 === null ? {} : { scrollV2: row.scroll_v2 }),
     ...(scrollV3 === undefined ? {} : { scrollV3 }),
   };
 }

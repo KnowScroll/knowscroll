@@ -28,44 +28,34 @@ import {
   SCROLL_PRODUCTION_V3_SECOND_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
   SCROLL_PRODUCTION_VERSION,
-  scrollV2PlanOf,
   scrollV3PlanOf,
   TOPICS,
 } from './topics.js';
 import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { lineagePairsOf } from './publication-topic.js';
-import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
+import { WRITER_V2_PROMPT_VERSION } from './writer-v2-version.js';
 import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
 import { QUESTION_WRITER_PROMPT_VERSION } from './writer.js';
 
 /**
  * Gives a recipe the plan a test asks for and nothing else, then puts its own back. The library plans every recipe as a document
- * v3 Scroll since #790, so a test of a v1 or a v2 recipe takes that plan away first.
+ * v3 Scroll since #790, so a test of a v1 recipe takes that plan away first.
  */
 const marked: (() => void)[] = [];
-type Plans = { scrollV2?: unknown; scrollV3?: unknown };
+type Plans = { scrollV3?: unknown };
 function setPlans(key: 'exoplanet-kinds', plans: Plans): void {
   const recipe = TOPICS[key] as Plans;
-  const { scrollV2, scrollV3 } = recipe;
-  delete recipe.scrollV2;
+  const { scrollV3 } = recipe;
   delete recipe.scrollV3;
   Object.assign(recipe, plans);
   marked.push(() => {
-    delete recipe.scrollV2;
     delete recipe.scrollV3;
-    Object.assign(recipe, {
-      ...(scrollV2 === undefined ? {} : { scrollV2 }),
-      ...(scrollV3 === undefined ? {} : { scrollV3 }),
-    });
+    Object.assign(recipe, scrollV3 === undefined ? {} : { scrollV3 });
   });
 }
 /** Makes a recipe a v1 recipe for one test. */
 function markV1(key: 'exoplanet-kinds'): void {
   setPlans(key, {});
-}
-/** Marks a recipe v2 for one test. */
-function markV2(key: 'exoplanet-kinds'): void {
-  setPlans(key, { scrollV2: { variant: 'plain', misconception: { kind: 'none' } } });
 }
 /** Marks a recipe as a document v3 one for one test. */
 function markV3(key: 'exoplanet-kinds'): void {
@@ -75,35 +65,14 @@ function markV3(key: 'exoplanet-kinds'): void {
 }
 afterEach(() => marked.splice(0).forEach((undo) => undo()));
 
-describe('production versions: a recipe is v1 unless the plan marks it v2', () => {
+describe('production versions: a recipe is v1 unless the plan marks it document v3', () => {
   it('keeps a recipe the plan does not mark, and every order, at the v1 production version', () => {
     markV1('exoplanet-kinds');
     expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v14');
     expect(parseScrollTopic('exoplanet-kinds')).toBe('exoplanet-kinds');
-    expect(scrollV2PlanOf('exoplanet-kinds')).toBeUndefined();
     expect(productionVersionOf('exoplanet-kinds')).toBe(SCROLL_PRODUCTION_VERSION);
     expect(productionVersionOf(`order-${'a'.repeat(32)}`)).toBe(SCROLL_PRODUCTION_VERSION);
     expect(produceScrollJob('exoplanet-kinds').policyVersion).toBe(SCROLL_PRODUCTION_VERSION);
-  });
-
-  it('gives a marked recipe its own version, in the job it sends and the job it accepts', async () => {
-    markV2('exoplanet-kinds');
-    expect(productionVersionOf('exoplanet-kinds')).toBe(SCROLL_PRODUCTION_V2_VERSION);
-    expect(produceScrollJob('exoplanet-kinds', 2)).toMatchObject({
-      policyVersion: SCROLL_PRODUCTION_V2_VERSION,
-      take: 2,
-    });
-    const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')), {
-      madeToOrderEnabled: true,
-    });
-    const abort = { signal: new AbortController().signal };
-    // A job queued before the plan marked the recipe carries the old version and is dropped.
-    expect(
-      await run({ v: 1, recipe: 'exoplanet-kinds', policyVersion: SCROLL_PRODUCTION_VERSION, take: 1 }, abort),
-    ).toEqual({
-      kind: 'skipped',
-      reason: 'policy_version',
-    });
   });
 });
 
@@ -112,9 +81,8 @@ describe('production versions: a recipe the plan marks document v3', () => {
     markV1('exoplanet-kinds');
     expect(scrollV3PlanOf('exoplanet-kinds')).toBeUndefined();
     expect(scrollV3PlanOf(`order-${'a'.repeat(32)}`)).toBeUndefined();
-    // A stored recipe is a document v3 recipe (#781): its key alone decides, and says v3 with no v2 plan.
+    // A stored recipe is a document v3 recipe (#781): its key alone decides, and says v3.
     expect(scrollV3PlanOf(`gen-${'a'.repeat(32)}`)).toMatchObject({ misconception: { kind: 'none' } });
-    expect(scrollV2PlanOf(`gen-${'a'.repeat(32)}`)).toBeUndefined();
     expect(productionVersionOf(`gen-${'a'.repeat(32)}`)).toBe(SCROLL_PRODUCTION_V3_VERSION);
     expect(requestBoundOf(`gen-${'a'.repeat(32)}`)).toBe(REQUEST_BOUND_V3_PER_TOPIC);
   });
@@ -179,10 +147,10 @@ describe('production versions: a recipe the plan marks document v3', () => {
         );
   });
 
-  it('accepts only the current pair for a v1 or v2 document, and for a recipe the plan does not mark document v3', () => {
-    markV2('exoplanet-kinds');
-    expect(lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V2_SCHEMA_VERSION)).toEqual([
-      [SCROLL_PRODUCTION_V2_VERSION, WRITER_V2_PROMPT_VERSION],
+  it('accepts only the current pair for a recipe the plan does not mark document v3; a stored v2 document names the v2 writer’s prompt', () => {
+    markV1('exoplanet-kinds');
+    expect(lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V2_SCHEMA_VERSION).map(([, prompt]) => prompt)).toEqual([
+      WRITER_V2_PROMPT_VERSION,
     ]);
     expect(lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V3_SCHEMA_VERSION)).toHaveLength(1);
   });
@@ -206,28 +174,6 @@ describe('production versions: a recipe the plan marks document v3', () => {
       source: { label: 'CI fixture label', reviewed: false },
     };
     expect(planRefusalOf('exoplanet-kinds')).toBe('misconception_source_unreviewed');
-  });
-});
-
-describe('a v2 recipe whose misconception source no person has reviewed', () => {
-  it('is refused by the plan, before any job or request, and only while the label is unreviewed', () => {
-    expect(planRefusalOf('exoplanet-kinds')).toBeUndefined();
-    const recipe = TOPICS['exoplanet-kinds'] as { scrollV2?: unknown };
-    markV2('exoplanet-kinds');
-    const myth = (reviewed: boolean) => ({
-      variant: 'plain',
-      misconception: {
-        kind: 'myth',
-        claim: 'A CI fixture claim, never product content.',
-        source: { label: 'CI fixture label', reviewed },
-      },
-    });
-    recipe.scrollV2 = myth(false);
-    expect(planRefusalOf('exoplanet-kinds')).toBe('misconception_source_unreviewed');
-    recipe.scrollV2 = myth(true);
-    expect(planRefusalOf('exoplanet-kinds')).toBeUndefined();
-    recipe.scrollV2 = { variant: 'plain', misconception: { kind: 'none' } };
-    expect(planRefusalOf('exoplanet-kinds')).toBeUndefined();
   });
 });
 
@@ -265,8 +211,8 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(REQUEST_BOUND_PER_TOPIC).toBe(2);
   });
 
-  it('reports the bound of the recipe asked about: six for a v2 recipe, fourteen for the answer to a question, two for every other', () => {
-    expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
+  it('reports the bound of the recipe asked about: six for a library recipe, fourteen for the answer to a question, two for every other', () => {
+    expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V3_PER_TOPIC);
     markV1('exoplanet-kinds');
     expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_PER_TOPIC);
     const order = `order-${'a'.repeat(32)}` as const;

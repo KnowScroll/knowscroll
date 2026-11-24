@@ -47,20 +47,14 @@ It lives in `domain/` because the catalogue's import and its seed are pure funct
 
 ## Recipes produced as v2 Scrolls
 
-No recipe is produced as a v2 Scroll any more. A recipe with `scrollV2` would be written as a `scroll-document.v2` Scroll and held for an
-operator's read before anyone is served it (D-129, D-138), and the v2 production path, the v2 writer and the answer check on its calls
-(D-198) still exist. But the plan holds no `scrollV2` since #790: the 22 recipes a drawing kit drew became document v3 recipes in
-#787, and the other 33 (the 32 plain v2 recipes and the v1 recipe `exoplanet-kinds`) in #790. The v2 plan each of them had (the fourteen whose kit was deleted in #799, #802 and #809 kept none), and the kit
-of the 8 whose kit still exists, is kept in `production/spike-v2/former-v2-plans.ts` (`FORMER_V2_PLANS`) for the v2 writer spike and the tests of the v2 path,
-until the v2 code is deleted (Phase 6); an integration test makes a recipe v2 again for its own process with `markFormerV2Recipe`
-(`tests/integration/support/scroll-v2.ts`). `library.test.ts` pins that no recipe carries `scrollV2` and none carries both plans.
+No recipe is produced as a v2 Scroll any more, and the code that wrote one is deleted (#815, D-442): the v2 writer, the `scrollV2`, `stageKit` and `stagePlan` plan fields, and the v2 plan each recipe had (it was kept in `production/spike-v2/former-v2-plans.ts` for the v2 spike and the tests until then). The 22 recipes a drawing kit drew became document v3 recipes in #787, and the other 33 (the 32 plain v2 recipes and the v1 recipe `exoplanet-kinds`) in #790. Stage and main still serve the v2 Scrolls the writer made. `library.test.ts` pins that every recipe carries `scrollV3`.
 `content regenerate` makes a take again for a recipe the plan marks v2 or document v3 (D-197).
 
 ## Recipes produced as document v3 Scrolls
 
 A recipe with `scrollV3` is written as a `scroll-document.v3` Scroll and held for an operator's read (#771, #783). Since #787 the
 22 recipes that had a drawing kit carry it, and since #790 every other recipe does too, so **every recipe of the library is planned as
-a document v3 Scroll** and none is planned as v1 or v2. None carries a `stageKit` or a `scrollV2` (a library test pins both). A document v3
+a document v3 Scroll** and none is planned as v1 or v2. None names a drawing kit (the field is deleted, #815). A document v3
 has no kit: its pictures come from the closed set of six kinds (`statement`, `flow`, `cycle`, `grid`, `chart`, `plan`).
 
 | Kit they had     | Recipes                                                                                   |
@@ -77,9 +71,7 @@ immune-system recipes (Human body); the nine recipes of Computing; the twelve of
 is produced, read and released; the release policy releases a v3 that replaces a served v1 or v2 when every check passes. Until
 then the recipe's standing is `not_started` (its served Scroll is not a document v3), so `produce-library` offers its first take at
 the v3 production version. Only an operator's `content produce-library` run makes the v3 revision: supply never commissions a
-recipe the plan marks v2 or v3. The kit code stays until each kit is deleted, one kit at a time, after the owner has read that kit's
-rewrites; `production/spike-v2/former-v2-plans.ts` keeps the kit and v2 plan each of these recipes had, for the v2 spike and the v2
-writer's tests only.
+recipe the plan marks v2 or v3. The kit code stays until each kit is deleted, one kit at a time, after the owner has read that kit's rewrites.
 
 ### How a v3 plan is written
 
@@ -103,12 +95,11 @@ writer's tests only.
 
 ## Landmarks and the Final call control
 
-A `scrollV2` plan could also carry `landmark: {key, name}` and `finalCall: {kind: 'tilt'}` (D-187, D-188). Both were plan data that code
+A v2 plan could also carry `landmark: {key, name}` and `finalCall: {kind: 'tilt'}` (D-187, D-188). Both were plan data that code
 set into the document; the writer never wrote them. Every former v2 recipe named a landmark (D-199, D-217: short, plain and never a claim of
 mastery), and `seasons`, the only one with the tilt, became a document v3 recipe in #787. A document v3 plan has neither field, and the
-plan holds no v2 plan since #790, so **no recipe awards a landmark or hands the reader the tilt** until a landmark is designed for document
-v3; the revisions already published keep theirs, and play awards nothing for a revision whose document has none. The landmarks live on in
-`production/spike-v2/former-v2-plans.ts` with the rest of each former v2 plan.
+plan holds no v2 plan since #790 (and the field is deleted, #815), so **no recipe awards a landmark or hands the reader the tilt** until a landmark is designed for document
+v3; the revisions already published keep theirs, and play awards nothing for a revision whose document has none. The landmarks were in the former v2 plans, which are deleted with the v2 writer; a stored v2 revision keeps its own.
 
 ## Rules for editing the plan
 
@@ -125,13 +116,6 @@ v3; the revisions already published keep theirs, and play awards nothing for a r
   It names no block type; `interactive` and `interactiveKind` carry that. Medical and similar topics
   say they are physiology or history, not advice.
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.
-- `blocks` and `guide` (on `scrollV2`, D-207; no recipe carries a `scrollV2` since #790) name the play blocks a Scroll has (`sort`, `fork`, `scale`, `chart`; each once, two at most) and the character that speaks its guide lines (`ray`). A person chooses them per recipe, only where the recipe's pages state what a block shows (an order, a series of figures), and no recipe names one until the spike `blocks-v20` has been read. `library.test.ts` keeps the lists in step with `scroll-model`.
-- `stageKit` names the drawing kit that draws the recipe's subject, and only then, for a recipe produced as a v2 `stage` Scroll. No recipe
-  names one since #787: the 22 recipes that did (`earth-sky.v1` the three Seasons recipes, `starlight.v1` two and `black-hole.v1` three, and fourteen whose kits `tides.v1`, `star.v1` and `transit.v1` (#799), `greenhouse.v1` and `circulation.v1` (#802) and `nerve.v1` (#809) are deleted)
-  are document v3 recipes, which have no kit. The three kits that remain exist in `scroll-model` and are deleted one at a time, after the owner reads that kit's rewrites (the table above says which
-  recipes each drew). Every other recipe stays plain: coasts, the audit of the blanket analogy (`greenhouse-limits`), kinds of planet
-  (`exoplanet-kinds`), other worlds (`seasons-elsewhere`) and the three immune recipes. Adding a kit to a recipe is a person's decision, and
-  `library.test.ts` pins that none has one. A brief stays free of the picture, because the v1 writer reads it too.
 - Research pages must be allowlisted (`infrastructure/research/public-pages.ts`) and fetchable. The
   writer is offered the passages of all a recipe's pages together, at most 64 (it needs at least
   4), so name one long page or two short ones. Run `node scripts/check-library-sources.mjs` after

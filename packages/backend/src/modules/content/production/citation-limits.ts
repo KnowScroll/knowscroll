@@ -1,14 +1,11 @@
-import { PROVENANCE_V2_LIMITS, PROVENANCE_V3_LIMITS } from '@knowscroll/scroll-model/internal';
+import { PROVENANCE_V3_LIMITS } from '@knowscroll/scroll-model/internal';
 import type { AdmissionIssue } from '../application/ports.js';
 import type { EvidencePassage } from './evidence.js';
 
 /** The finding for a Scroll that cites more than its provenance can record. */
 export const CITATIONS_TOO_MANY = 'citations_too_many';
 
-/** The fixed hint the one repair gets for it. */
-export const CITATIONS_TOO_MANY_HINT = `Cite fewer different passages in all: at most ${String(PROVENANCE_V2_LIMITS.claims)} across the whole Scroll. Reuse the passages that best support each part.`;
-
-/** The same hint for a document v3, whose parts are beats, asides, pictures and the takeaway. */
+/** The fixed hint the one repair gets for it: a document v3's parts are beats, asides, pictures and the takeaway. */
 export const CITATIONS_TOO_MANY_HINT_V3 = `Cite fewer different passages in all: at most ${String(PROVENANCE_V3_LIMITS.claims)} across the whole Scroll, from at most ${String(PROVENANCE_V3_LIMITS.sources)} pages, and cite from at most ${String(PROVENANCE_V3_LIMITS.citations)} parts (beats, asides, pictures and the takeaway). Reuse the passages that best support each part.`;
 
 /** The bounds of one provenance schema that a citation map must fit. */
@@ -36,21 +33,7 @@ function withinBounds(
 }
 
 /**
- * Whether the claims a v2 Scroll cites fit the provenance that records them (`scroll-provenance.v2`:
- * claims, sources and parts have a bound). Checked while the answer is still being validated, so the
- * one repair can fix it, instead of after the paid answer is accepted. Pure.
- *
- * `citations` maps each stop, aside and the recap to the claim ids it cites.
- */
-export function citationLimitIssues(
-  citations: Readonly<Record<string, readonly string[]>>,
-  passages: readonly EvidencePassage[],
-): AdmissionIssue[] {
-  return withinBounds(citations, passages, PROVENANCE_V2_LIMITS);
-}
-
-/**
- * {@link citationLimitIssues} for a document v3 (`scroll-provenance.v3`: 48 claims, 24 sources and 22 parts). The finding code
+ * Whether the claims a document v3 cites fit the provenance that records them (`scroll-provenance.v3`: 48 claims, 24 sources and 22 parts), checked while the answer is still being validated, so the one repair can fix it. The finding code
  * is the same; its hint is {@link CITATIONS_TOO_MANY_HINT_V3}. `citations` maps each beat, aside, picture and the takeaway to
  * the claim ids it cites. The finding sits at `path`, the part of the model's own reply the one repair can change: `items` for
  * a reply that holds the essay, `pictures` for a staging reply, whose prose is fixed. Pure.

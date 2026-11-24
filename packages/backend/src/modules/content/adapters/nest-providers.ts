@@ -343,18 +343,8 @@ export { readGapRecipes, readRecipeStates, readReleasedCoverage } from './gap-re
 export { chooseScrollRecipeIn, readScrollProductionIn } from './production-state.js';
 export { MAX_PROPOSAL_RETRY } from '../production/recipe-brief.js';
 export { listStoredRecipes } from './recipe-proposals.js';
-/** The operator's writer spike for `scroll-authoring.v2` (S-0, D-120): nothing is admitted or published. */
-export {
-  makeWriterSpikeV2,
-  runSpikeBatch,
-  runSpikeJobs,
-  SPIKE_MAX_CONCURRENCY,
-  SPIKE_MODEL,
-  type SpikeBatchSummary,
-  type SpikeLine,
-  type SpikeResult,
-} from '../production/spike-v2/run.js';
-export { parseSpikeBlocks, parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
+/** What the operator's writer spike shares: the one model it accepts, the most jobs that run at once and the batch that runs them (#771). */
+export { runSpikeJobs, SPIKE_MAX_CONCURRENCY, SPIKE_MODEL } from '../production/spike-run.js';
 /**
  * The operator's writer spike for the document v3 writer (#771): the ten recipes' plans, the two arms, the spike that
  * writes one recipe in one arm, and what the blind-read page needs of a stored document. Nothing is admitted or published.

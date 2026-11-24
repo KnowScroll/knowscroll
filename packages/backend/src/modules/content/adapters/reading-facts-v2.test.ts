@@ -2,27 +2,14 @@ import { RECIPES } from '../domain/library/index.js';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { stopWords, validateDocumentV2, WORDS_PER_MINUTE_V2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { evidencePassages } from '../production/evidence.js';
-import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
-import { compileGeneratedScrollV2, publicationV2 } from '../production/writer-v2.js';
+import { storedOrrinV2 } from '../production/orrin.fixture.js';
 import { MIN_STOP_VISIBLE_MS, minVisibleMsOf, readingFactsOfV2, STOP_READ_SHARE } from './reading-facts-v2.js';
 import { ReadingFactsSchema } from './reading-facts-schema.js';
 
-const compiled = compileGeneratedScrollV2(fixtureAuthoredV2(), {
-  publication: publicationV2(RECIPES.seasons),
-  recipe: {
-    variant: 'stage',
-    misconception: {
-      kind: 'myth',
-      claim: 'Orrin is warmest because it is closest to its star.',
-      source: { label: 'CI fixture label', reviewed: true },
-    },
-  },
-  passages: evidencePassages([fixtureResearchPageV2]),
-  pages: [fixtureResearchPageV2],
-});
-if (compiled.kind !== 'compiled') throw new Error('CI fixture must compile');
-const document = compiled.document;
+const document = storedOrrinV2({
+  assetId: RECIPES.seasons.assetId,
+  explanationUnitId: RECIPES.seasons.explanationUnitId,
+}).document as unknown as ScrollDocumentV2;
 
 describe('reading facts v3 of the labelled Orrin fixture', () => {
   it('keeps all reading weight when optional calls are absent', () => {

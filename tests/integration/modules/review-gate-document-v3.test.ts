@@ -9,31 +9,19 @@ import {
 import { admitRecipeCoverage } from '../../../packages/backend/src/modules/content/application/admit-recipe-coverage.js';
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { compileEditorialSourceV3 } from '../../../packages/backend/src/modules/content/adapters/scroll-compiler-v3.js';
-import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
-import {
-  FIXTURE_SOURCE_V2,
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
-import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { signal } from '../support/fixture-model.js';
-import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
 import { compileEditorialSourceFile } from '../../../packages/backend/src/modules/content/adapters/editorial-sources.js';
 import { documentV3Source, starterSource } from '../support/scroll.js';
-import { markFormerV2Recipes } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
  * The release guard of the review gate for a `scroll-document.v3` revision (#761, decision G1): a held revision with no
  * active coverage head would form nothing in the Universe, so it is not released until it has one. A v1 or v2 revision
  * is released as it always was. Revisions are put in place with the admission store's own `held` flag, and the
  * coverage with the recipe rule, as an operator's flow would; the Scrolls are the hand-written fixtures and the
- * labelled CI Orrin fixture, never provider output.
+ * labelled CI Orrin fixture (a v2 revision stored as the v2 production job stored it, `storeV2`), never provider output.
  */
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('The review gate releases a document v3 revision only with its coverage (real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
@@ -160,17 +148,7 @@ describe('The review gate releases a document v3 revision only with its coverage
 
   it('releases a held v2 revision exactly as before', async () => {
     const key = 'seasons-hemispheres';
-    const assetId = TOPICS[key].assetId;
-    const orrinPageFor = (url: string) =>
-      url === fixtureResearchPageV2.url
-        ? fixtureResearchPageV2
-        : extractResearch(
-            `<html><title>CI fixture</title><main>${[...FIXTURE_SOURCE_V2, `This invented fixture page for ${url} adds nothing further about Orrin.`].map((text) => `<p>${text}</p>`).join('')}</main></html>`,
-            url,
-            '2026-10-20T00:00:00.000Z',
-          );
-    const run = fixtureProduction(database.db, () => answerWith(fixtureAuthoredV2()), orrinPageFor);
-    expect(await run.produce(key, false, signal())).toMatchObject({ outcome: 'published', held: true, assetId });
+    const { assetId } = await storeV2(database.db, key);
     expect(await headsOf(assetId)).toBe(1);
     expect(await gate().release({ assetId, revision: 1, decidedBy: operator })).toEqual({
       kind: 'released',

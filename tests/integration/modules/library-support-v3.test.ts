@@ -27,7 +27,7 @@ import {
   LIBRARY_SUPPORT_V3_CHECK_VERSION,
   sentencesOfScrollV3,
 } from '../../../packages/backend/src/modules/content/production/library-support-v3.js';
-import { SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-v2/run.js';
+import { SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-run.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import {

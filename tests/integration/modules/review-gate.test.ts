@@ -17,16 +17,13 @@ import {
   readShareableContent,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { planLibraryProduction } from '@knowscroll/backend/modules/content';
-import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
 import { readScrollSourcePages } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { findAssetForAction } from '../../../packages/backend/src/modules/content/adapters/postgres-store.js';
 import { makeRenderScroll } from '../../../packages/backend/src/modules/content/adapters/render-scroll.js';
 import { chooseScrollRecipe } from '../../../packages/backend/src/modules/content/adapters/production-state.js';
-import {
-  FIXTURE_SOURCE_V2,
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -34,22 +31,31 @@ import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
-import { markRecipesV1, markScrollV1, v2Capabilities, markFormerV2Recipes } from '../support/scroll-v2.js';
+import { markRecipesV1, markScrollV1, orrinResearchFor, v2Capabilities } from '../support/scroll-v2.js';
+import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
- * The operator review gate for library v2 Scrolls (D-138). A v2 library recipe is produced through the
- * real production job, with a labelled CI fixture in place of the model and the invented planet Orrin in
- * place of any product content. Nothing here is provider output.
+ * The operator review gate for library Scrolls (D-138). A held v2 revision is stored the way the v2 production job stored it
+ * (`storeV2`, #815: nothing produces a v2 Scroll any more, but stage and main still hold and serve them); a document v3 recipe is
+ * produced through the real production job. A labelled CI fixture stands in for the model and the invented planet Orrin for any
+ * product content. Nothing here is provider output.
  */
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
-
-describe('The review gate for library v2 Scrolls (labelled CI fixtures, real PostgreSQL)', () => {
-  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+describe('The review gate for library Scrolls (labelled CI fixtures, real PostgreSQL)', () => {
+  // The plan marks these recipes document v3; this file uses them as v1 examples.
   const restoreRecipes = markRecipesV1('tides', 'greenhouse');
   afterAll(restoreRecipes);
+  // The recorded Orrin reply is written to the Seasons plan (a statement and a grid, three sections), so the recipes this file produces as
+  // document v3 take that plan for the file's own process, as the v3 publication test does.
+  const SEASONS_PLAN: ScrollV3Plan = spikePlanV3('seasons');
+  const PRODUCED_AS_V3 = ['stars-colour-brightness', 'black-hole-horizon', 'seasons-elsewhere'] as const;
+  const ownPlans = new Map(PRODUCED_AS_V3.map((key) => [key, RECIPES[key].scrollV3]));
+  beforeAll(() => {
+    for (const key of PRODUCED_AS_V3) (RECIPES[key] as { scrollV3?: ScrollV3Plan }).scrollV3 = SEASONS_PLAN;
+  });
+  afterAll(() => {
+    for (const [key, plan] of ownPlans) (RECIPES[key] as { scrollV3?: ScrollV3Plan }).scrollV3 = plan;
+  });
   let database: TestDatabase<Database>;
   const gate = () => makeReviewGate(database.db);
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 2000 });
@@ -63,17 +69,8 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     await database.drop();
   });
 
-  /** The page the fixture serves for a recipe URL: the Orrin page, and for a second URL a page of its own. */
-  const orrinPageFor = (url: string) =>
-    url === fixtureResearchPageV2.url
-      ? fixtureResearchPageV2
-      : extractResearch(
-          `<html><title>CI fixture</title><main>${[...FIXTURE_SOURCE_V2, `This invented fixture page for ${url} adds nothing further about Orrin.`].map((text) => `<p>${text}</p>`).join('')}</main></html>`,
-          url,
-          '2026-10-20T00:00:00.000Z',
-        );
-  /** A production run whose writer answers with the Orrin v2 fixture, for a recipe the plan marks v2. */
-  const producingV2 = () => fixtureProduction(database.db, () => answerWith(fixtureAuthoredV2()), orrinPageFor);
+  /** A production run whose writer answers with the Orrin document v3 fixture, for a recipe the plan marks document v3. */
+  const producingV3 = () => fixtureProduction(database.db, () => answerWith(orrinV3()), orrinResearchFor);
   /** A production run for a v1 recipe: the lighthouse fixture, in the format the recipe asks for. */
   const producingV1 = (key: ScrollTopic) =>
     fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[key]))));
@@ -94,7 +91,7 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
   const statusOf = async (key: ScrollTopic) => (await readLibraryStatus(database.db, [key]))[0];
 
   /** What a reader's discovery, exact reads, rendering, coverage and region reads hand out for one revision. */
-  async function reachable(key: ScrollTopic, revision: number) {
+  async function reachable(key: ScrollTopic, revision: number, capabilities = v2Capabilities) {
     const recipe = TOPICS[key];
     const ref = { assetId: recipe.assetId, assetRevision: revision };
     const person = await seedPerson(database.db);
@@ -107,7 +104,7 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
       readDiscoveryCandidates(scope, {
         languages: ['en'],
         formats: ['scroll'],
-        capabilities: v2Capabilities,
+        capabilities,
         limit: 100,
       }),
     );
@@ -116,19 +113,18 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         topicId: recipe.topicId,
         facetId: recipe.facetId,
         truthStatus: 'factual',
-        capabilities: v2Capabilities,
+        capabilities,
       }),
     );
     const mapping = await inScope((scope) => readAdmittedCoverageMapping(scope, ref));
     const rendition = await makeRenderScroll(database.db)({
       assetId: recipe.assetId,
       revision,
-      capabilities: v2Capabilities,
+      capabilities,
     });
     return {
       offered: discovered.filter((encounter) => encounter.assetId === recipe.assetId).map((e) => e.assetRevision),
-      exact: (await inScope((scope) => readExactEncounter(scope, { ...ref, capabilities: v2Capabilities })))
-        ?.assetRevision,
+      exact: (await inScope((scope) => readExactEncounter(scope, { ...ref, capabilities })))?.assetRevision,
       rendered: rendition.kind === 'rendition',
       mapping: mapping.kind,
       regionCandidates:
@@ -168,7 +164,7 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     reportable: false,
   } as const;
 
-  describe('a v2 recipe with no Scroll yet (seasons-hemispheres)', () => {
+  describe('a recipe with no Scroll yet, whose first revision is a held v2 (seasons-hemispheres)', () => {
     const key = 'seasons-hemispheres';
     const assetId = TOPICS[key].assetId;
 
@@ -181,18 +177,15 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         const chosen = await withScope()(person.authority, (scope) => chooseScrollRecipe(scope, brief));
         expect(chosen).toMatchObject({ kind: 'entered', value: { kind: 'none' } });
       }
-      // A recipe of another planet is still chosen: the rule is about v2 recipes, not about asking.
+      // A recipe of another planet is still chosen: the rule is about recipes the plan marks v2 or document v3, not about asking.
       const other = await withScope()(person.authority, (scope) =>
         chooseScrollRecipe(scope, { topicId: TOPICS.tides.topicId, facetId: TOPICS.tides.facetId }),
       );
       expect(other).toMatchObject({ kind: 'entered', value: { kind: 'recipe', recipe: 'tides', take: 1 } });
     });
 
-    it('ends production held: stored, with provenance and coverage, and reported as held rather than published', async () => {
-      const run = producingV2();
-      const result = await run.produce(key, false, signal());
-      expect(result).toMatchObject({ outcome: 'published', held: true, assetId, revision: 1 });
-      expect(run.calls).toHaveLength(1);
+    it('is stored held: with provenance and coverage, and reported as held rather than published', async () => {
+      expect(await storeV2(database.db, key)).toMatchObject({ assetId, revision: 1 });
 
       expect(await assetOf(key)).toMatchObject({ status: 'held', revision: 1 });
       expect(await reviewOf(key, 1)).toMatchObject({ state: 'held', decided_at: null, decided_by: null, reason: null });
@@ -235,33 +228,18 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
       ).toEqual([{ topic_id: TOPICS[key].topicId }]);
       const job = await database.db
         .selectFrom('content.scroll_production_runs')
-        .select(['state', 'outcomes'])
+        .select('state')
         .where('topic', '=', key)
         .executeTakeFirstOrThrow();
       expect(job.state).toBe('published');
-      expect(JSON.stringify(job.outcomes)).toContain('held_for_review');
-      expect(JSON.stringify(job.outcomes)).not.toContain('coverage_');
     });
 
-    it('is not published as far as production-status goes, and produce-library neither sends it again nor asks for a second take', async () => {
-      expect(await statusOf(key)).toMatchObject({ recipe: key, state: 'held', job: 'held', heldRevision: 1, takes: 1 });
+    it('is read as held by production-status, never as published, and Quartermaster does not pick the held recipe for an ask', async () => {
+      expect(await statusOf(key)).toMatchObject({ recipe: key, state: 'held', heldRevision: 1 });
       expect(await statusOf(key)).not.toHaveProperty('revision');
       const plan = planLibraryProduction([(await statusOf(key))!], { interactiveFirst: false });
       expect(plan.queue).toEqual([]);
       expect(plan.skipped).toEqual([{ recipe: key, reason: 'held' }]);
-      // Asking for the next take, or for the same one again, stores nothing more.
-      const again = producingV2();
-      expect(await again.produce(key, false, signal(), true)).toMatchObject({ outcome: 'published' });
-      expect(await again.produce(key, false, signal(), false, 2)).toMatchObject({ outcome: 'take_refused' });
-      expect(again.calls).toHaveLength(0);
-      expect(
-        await database.db
-          .selectFrom('content.asset_revisions')
-          .select('revision')
-          .where('asset_id', '=', assetId)
-          .execute(),
-      ).toEqual([{ revision: 1 }]);
-      // Quartermaster does not pick a held recipe for a person's ask either.
       const person = await seedPerson(database.db);
       const chosen = await withScope()(person.authority, (scope) =>
         chooseScrollRecipe(scope, { topicId: TOPICS[key].topicId, facetId: TOPICS[key].facetId }),
@@ -371,7 +349,9 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         sourcePages: true,
         reportable: true,
       });
-      expect(await statusOf(key)).toMatchObject({ state: 'published', assetId, revision: 1 });
+      // The plan marks the recipe document v3 (#787, #790): a released v2 revision is served, but it does not satisfy the recipe, which
+      // production still owes as a v3 (D-129; was `published` when the plan marked the recipe v2).
+      expect(await statusOf(key)).toMatchObject({ state: 'not_started' });
       expect(await gate().list({ all: false })).toEqual([]);
 
       // Releasing again changes nothing: not the state, not who or when, not the asset.
@@ -394,7 +374,7 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     });
   });
 
-  describe('a v2 recipe that already serves a v1 Scroll (seasons)', () => {
+  describe('a recipe that already serves a v1 Scroll and holds a v2 revision (seasons)', () => {
     const key = 'seasons';
     const assetId = TOPICS[key].assetId;
 
@@ -409,12 +389,10 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         undo();
       }
       expect(await assetOf(key)).toMatchObject({ status: 'admitted', revision: 1 });
-      // The plan marks the recipe v2 again, so the v1 Scroll does not count as published.
+      // The plan marks the recipe document v3 again, so the v1 Scroll does not count as published.
       expect(await statusOf(key)).toMatchObject({ state: 'not_started' });
 
-      const run = producingV2();
-      const result = await run.produce(key, false, signal());
-      expect(result).toMatchObject({ outcome: 'published', held: true, assetId, revision: 2 });
+      expect(await storeV2(database.db, key)).toMatchObject({ assetId, revision: 2 });
       expect(await assetOf(key)).toMatchObject({ status: 'admitted', revision: 1 });
       expect(await reviewOf(key, 2)).toMatchObject({ state: 'held' });
       expect(await reviewOf(key, 1)).toBeUndefined();
@@ -510,7 +488,8 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         mapping: 'mapped',
         regionCandidates: [2],
       });
-      expect(await statusOf(key)).toMatchObject({ state: 'published', revision: 2 });
+      // The recipe is a document v3 recipe: the released v2 revision is served but does not satisfy it (as above).
+      expect(await statusOf(key)).toMatchObject({ state: 'not_started' });
       // An earlier revision cannot be released over a newer one.
       expect(await gate().release({ assetId, revision: 1, decidedBy: operator })).toEqual({
         kind: 'refused',
@@ -519,11 +498,80 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     });
   });
 
-  describe('a rejection', () => {
+  describe('a document v3 recipe with no Scroll yet (stars-colour-brightness)', () => {
+    const key = 'stars-colour-brightness';
+    const assetId = TOPICS[key].assetId;
+
+    it('ends production held: stored as a document v3, with provenance and coverage, and reported as held rather than published', async () => {
+      const run = producingV3();
+      const result = await run.produce(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', held: true, assetId, revision: 1 });
+      // One writer request; the answer check of a document v3 has no calls and sends nothing.
+      expect(run.calls).toHaveLength(1);
+
+      expect(await assetOf(key)).toMatchObject({ status: 'held', revision: 1 });
+      expect(await reviewOf(key, 1)).toMatchObject({ state: 'held', decided_at: null, decided_by: null, reason: null });
+      expect(await storedFormatsOf(database.db, assetId, 1)).toEqual(V3_FORMATS);
+      expect(
+        (
+          await database.db
+            .selectFrom('content.coverage_heads')
+            .select('revision')
+            .where('asset_id', '=', assetId)
+            .execute()
+        ).length,
+      ).toBe(1);
+      expect(
+        await database.db
+          .selectFrom('content.encounter_topics')
+          .select('topic_id')
+          .where('asset_id', '=', assetId)
+          .execute(),
+      ).toEqual([{ topic_id: TOPICS[key].topicId }]);
+      const job = await database.db
+        .selectFrom('content.scroll_production_runs')
+        .select(['state', 'outcomes'])
+        .where('topic', '=', key)
+        .executeTakeFirstOrThrow();
+      expect(job.state).toBe('published');
+      expect(JSON.stringify(job.outcomes)).toContain('held_for_review');
+      expect(JSON.stringify(job.outcomes)).not.toContain('coverage_');
+    });
+
+    it('is not published as far as production-status goes, and produce-library neither sends it again nor asks for a second take', async () => {
+      expect(await statusOf(key)).toMatchObject({ recipe: key, state: 'held', job: 'held', heldRevision: 1, takes: 1 });
+      expect(await statusOf(key)).not.toHaveProperty('revision');
+      const plan = planLibraryProduction([(await statusOf(key))!], { interactiveFirst: false });
+      expect(plan.queue).toEqual([]);
+      expect(plan.skipped).toEqual([{ recipe: key, reason: 'held' }]);
+      // Asking for the next take, or for the same one again, stores nothing more.
+      const again = producingV3();
+      expect(await again.produce(key, false, signal(), true)).toMatchObject({ outcome: 'published' });
+      expect(await again.produce(key, false, signal(), false, 2)).toMatchObject({ outcome: 'take_refused' });
+      expect(again.calls).toHaveLength(0);
+      expect(
+        await database.db
+          .selectFrom('content.asset_revisions')
+          .select('revision')
+          .where('asset_id', '=', assetId)
+          .execute(),
+      ).toEqual([{ revision: 1 }]);
+      // Quartermaster does not pick a held recipe for a person's ask either.
+      const person = await seedPerson(database.db);
+      const chosen = await withScope()(person.authority, (scope) =>
+        chooseScrollRecipe(scope, { topicId: TOPICS[key].topicId, facetId: TOPICS[key].facetId }),
+      );
+      expect(chosen).toMatchObject({ kind: 'entered', value: { kind: 'none' } });
+      // An operator releases it, so no later test finds it among the held ones.
+      expect(await gate().release({ assetId, revision: 1, decidedBy: operator })).toMatchObject({ kind: 'released' });
+    });
+  });
+
+  describe('a rejection of a held v2 revision', () => {
     const key = 'seasons-limits';
     const assetId = TOPICS[key].assetId;
 
-    it('keeps a held revision of a served Scroll out, leaves the earlier revision served, and frees the next take', async () => {
+    it('keeps a held revision of a served Scroll out, and leaves the earlier revision served', async () => {
       const undo = markScrollV1(key);
       try {
         expect(await producingV1(key).produce(key, false, signal())).toMatchObject({
@@ -533,7 +581,7 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
       } finally {
         undo();
       }
-      expect(await producingV2().produce(key, false, signal())).toMatchObject({ held: true, revision: 2 });
+      expect(await storeV2(database.db, key)).toMatchObject({ revision: 2 });
       expect(await gate().reject({ assetId, revision: 2, reason: '   ', decidedBy: operator })).toEqual({
         kind: 'refused',
         reason: 'reason_invalid',
@@ -567,12 +615,38 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
       expect((await gate().list({ all: true })).filter((entry) => entry.recipe === key)).toMatchObject([
         { revision: 2, state: 'rejected', reason: 'A claim is not in the cited page.', decidedBy: operator },
       ]);
+    });
+  });
+
+  describe('a rejection frees the next take (a document v3 recipe)', () => {
+    const key = 'black-hole-horizon';
+    const assetId = TOPICS[key].assetId;
+
+    it('keeps a held revision of a served Scroll out, leaves the earlier revision served, and frees the next take', async () => {
+      const undo = markScrollV1(key);
+      try {
+        expect(await producingV1(key).produce(key, false, signal())).toMatchObject({
+          outcome: 'published',
+          revision: 1,
+        });
+      } finally {
+        undo();
+      }
+      expect(await producingV3().produce(key, false, signal())).toMatchObject({ held: true, revision: 2 });
+      expect(
+        await gate().reject({ assetId, revision: 2, reason: 'A claim is not in the cited page.', decidedBy: operator }),
+      ).toEqual({ kind: 'rejected', assetId, revision: 2 });
+      // The previous revision stays served, and the rejected one is still reachable by nobody.
+      expect(await assetOf(key)).toMatchObject({ status: 'admitted', revision: 1 });
+      expect(await reachable(key, 2, v3Client)).toEqual({ ...invisible, offered: [1], regionCandidates: [1] });
+      expect(await reachable(key, 1, v3Client)).toMatchObject({ offered: [1], exact: 1 });
+      expect(await gate().list({ all: false })).toEqual([]);
 
       // Production may write it again: the rejected take is spent, the next take stores the next revision.
       expect(await statusOf(key)).toMatchObject({ state: 'retryable', job: 'rejected', takes: 1 });
       const plan = planLibraryProduction([(await statusOf(key))!], { interactiveFirst: false });
       expect(plan.queue).toEqual([{ recipe: key, take: 2 }]);
-      const second = producingV2();
+      const second = producingV3();
       expect(await second.produce(key, false, signal(), false, 2)).toMatchObject({
         outcome: 'published',
         held: true,
@@ -589,22 +663,12 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     });
   });
 
-  describe('a rejection of the only revision', () => {
+  describe('a rejection of the only revision (a document v3 recipe)', () => {
     const key = 'seasons-elsewhere';
     const assetId = TOPICS[key].assetId;
 
     it('leaves the asset held and unreachable, and a later take can still be released', async () => {
-      const plain = fixtureAuthoredV2();
-      // The recipe is a plain Scroll, so the fixture's picture is taken out the way a writer would write none.
-      const withoutPicture = JSON.parse(JSON.stringify(plain)) as {
-        items: { stage?: unknown; revealsNext?: unknown }[];
-      };
-      for (const item of withoutPicture.items) {
-        delete item.stage;
-        // A call that turns the picture needs a picture to turn (D-383).
-        delete item.revealsNext;
-      }
-      const run = fixtureProduction(database.db, () => answerWith(withoutPicture), orrinPageFor);
+      const run = producingV3();
       const first = await run.produce(key, false, signal());
       expect(first).toMatchObject({ outcome: 'published', held: true, revision: 1 });
       expect(await assetOf(key)).toMatchObject({ status: 'held', revision: 1 });
@@ -614,12 +678,12 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         kind: 'rejected',
       });
       expect(await assetOf(key)).toMatchObject({ status: 'held', revision: 1 });
-      expect(await reachable(key, 1)).toEqual(invisible);
+      expect(await reachable(key, 1, v3Client)).toEqual(invisible);
       expect(await statusOf(key)).toMatchObject({ state: 'retryable' });
 
       expect(await run.produce(key, false, signal(), false, 2)).toMatchObject({ held: true, revision: 2, take: 2 });
       expect(await assetOf(key)).toMatchObject({ status: 'held', revision: 1 });
-      expect(await reachable(key, 2)).toEqual(invisible);
+      expect(await reachable(key, 2, v3Client)).toEqual(invisible);
       expect(await gate().release({ assetId, revision: 2, decidedBy: operator })).toEqual({
         kind: 'released',
         assetId,
@@ -627,9 +691,13 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         replacedRevision: null,
       });
       expect(await assetOf(key)).toMatchObject({ status: 'admitted', revision: 2 });
-      expect(await reachable(key, 2)).toMatchObject({ offered: [2], exact: 2, rendered: true });
+      expect(await reachable(key, 2, v3Client)).toMatchObject({ offered: [2], exact: 2, rendered: true });
       // The rejected revision is still not served.
-      expect(await reachable(key, 1)).toMatchObject({ exact: undefined, rendered: false, mapping: 'unavailable' });
+      expect(await reachable(key, 1, v3Client)).toMatchObject({
+        exact: undefined,
+        rendered: false,
+        mapping: 'unavailable',
+      });
     });
   });
 

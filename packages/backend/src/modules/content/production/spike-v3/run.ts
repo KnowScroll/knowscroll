@@ -38,7 +38,7 @@ import {
   type SpikeAttempt,
   type SpikeFinding,
   type SpikeOutcome,
-} from '../spike-v2/run.js';
+} from '../spike-run.js';
 import { documentFacts, type SpikeDocumentFacts } from './facts.js';
 import { spikePlanV3, type SpikeArm, type SpikeTopicV3 } from './plans.js';
 

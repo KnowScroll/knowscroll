@@ -41,27 +41,23 @@ import {
   MAX_PAID_ATTEMPTS,
   NOT_COVERED_ANSWER,
 } from '../../../packages/backend/src/modules/supply/domain/quick-answer.js';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModel, signal } from '../support/fixture-model.js';
 import { fixtureRecordingHarness } from '../support/recording-harness.js';
 import type { FixtureModelPort, FixtureScenario } from '../support/fixture-model-port.js';
-import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
+import { enableProductionScope } from '../support/generated-scroll.js';
 import { reportCases } from '../support/feedback.js';
 import { openActive } from '../support/observations.js';
 import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
 import type { FixturePerson } from '../support/fixtures.js';
-import { markFormerV2Recipes } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
  * Quick answer (D-086, D-253 to D-255) against a real PostgreSQL 16 database and pg-boss. The source Scroll is the
- * labelled Orrin fixture published as the v2 `seasons` recipe, and the answer writer is a labelled CI fixture model: this
+ * labelled Orrin fixture stored as the v2 `seasons` recipe (`storeV2`), and the answer writer is a labelled CI fixture model: this
  * proves what the code does with a model's answer (the stops it may see, the caps, the retention, the erasure), never what
  * a model says. No provider network.
  */
@@ -75,11 +71,6 @@ const stageOf = (request: string): Stage =>
     : request.includes('You check one thing in a short answer')
       ? 'check'
       : 'write';
-
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   let database: TestDatabase<Database>;
@@ -183,12 +174,7 @@ describe('Quick answers (real PostgreSQL, CI fixture model)', () => {
   beforeAll(async () => {
     database = await createTestDatabase<Database>('quick_answers');
     await enableProductionScope(database.db);
-    const published = fixtureProduction(
-      database.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    expect(await published.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', held: true });
+    expect(await storeV2(database.db, 'seasons')).toMatchObject({ revision: 1 });
     scroll = { assetId: TOPICS.seasons.assetId, revision: 1 };
     expect(await makeReviewGate(database.db).release({ ...scroll, decidedBy: 'cli:ci-reviewer' })).toMatchObject({
       kind: 'released',

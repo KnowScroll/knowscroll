@@ -3,9 +3,15 @@ import { SCROLL_PROVENANCE_V3_SCHEMA_VERSION, ScrollProvenanceV3 } from '@knowsc
 import type { WrittenScrollV3 } from '@knowscroll/scroll-model/producer';
 import { readingFactsOfV3 } from '../adapters/reading-facts-v3.js';
 import type { AdmissionIssue, CompileOutcome } from '../application/ports.js';
-import type { ModelProduction } from './stored-v2.js';
 import { compileGeneratedScrollV3, type WriterV3Context } from './writer-v3.js';
 import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
+
+/** Who made the Scroll: the writer run and the paid attempts that produced the accepted answer. */
+export interface ModelProduction {
+  readonly runId: string;
+  readonly attemptIds: readonly string[];
+  readonly model: string;
+}
 
 /** The most findings a refusal carries, as in the editorial compile. */
 const MOST_ISSUES = 32;

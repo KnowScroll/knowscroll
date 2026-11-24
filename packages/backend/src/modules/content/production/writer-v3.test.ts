@@ -10,7 +10,7 @@ import { MAX_INSTRUCTION_CHARS, MAX_REPAIR_NOTES_CHARS } from '../../../reasonin
 import { RECIPES } from '../domain/library/index.js';
 import { CITATIONS_TOO_MANY } from './citation-limits.js';
 import { evidencePassages } from './evidence.js';
-import { fixtureResearchPageV2 } from './spike-v2/writer-v2.fixture.js';
+import { fixtureResearchPageV2 } from './orrin.fixture.js';
 import { SPIKE_TOPICS_V3, spikePlanV3, type SpikeTopicV3 } from './spike-v3/plans.js';
 import { fixtureProseV3, fixtureReplyV3, fixtureStagingV3 } from './spike-v3/writer-v3.fixture.js';
 import {

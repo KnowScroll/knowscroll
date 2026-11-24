@@ -18,7 +18,7 @@ import { NOT_COVERED } from './library-support.js';
 import { LIBRARY_CHECKER_VERSIONS } from './library-support-kinds.js';
 import { libraryCheckStore, type StoredLibraryCheck } from './library-support-store.js';
 import { NOT_COVERED_V3 } from './library-support-v3.js';
-import { SPIKE_MODEL } from './spike-v2/run.js';
+import { SPIKE_MODEL } from './spike-run.js';
 
 /** The most decided revisions one replay reads. */
 export const LIBRARY_SUPPORT_REPLAY_MAX_REVISIONS = 500;

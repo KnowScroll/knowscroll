@@ -65,30 +65,11 @@ export interface LibrarySystem extends SameMeaning {
 }
 
 /**
- * The drawing kits a Scroll's pinned picture can be made from. A kit draws one family of subjects, and a
- * recipe named a kit only where that kit drew what the recipe is about (D-125, D-194, D-201, D-204); none does since #787.
- * `scroll-model` owns the kits themselves; this list names them for the plan, and a test keeps the two in step.
+ * The drawing kits a stored v2 Scroll's pinned picture can be made from. A recipe named a kit only where that kit drew what the recipe
+ * was about (D-125, D-194, D-201, D-204); none does since #787, and the plan field is deleted (#815). `scroll-model` owns the kits
+ * themselves and derives the legacy stage of a deleted kit from this list; a test keeps the two in step.
  */
 export const STAGE_KIT_IDS = ['earth-sky.v1', 'starlight.v1', 'black-hole.v1'] as const;
-export type StageKitId = (typeof STAGE_KIT_IDS)[number];
-
-/**
- * The play blocks a v2 recipe may have besides its calls (D-207): a sort, a fork, a scale or a growing
- * chart. `scroll-model` owns the blocks; this list names them for the plan, and a test keeps the two in step.
- */
-export const PLAY_BLOCK_KINDS = ['sort', 'fork', 'scale', 'chart'] as const;
-export type PlayBlockKind = (typeof PLAY_BLOCK_KINDS)[number];
-
-/** The characters that can guide a Scroll (D-207). Named here for the plan; a test keeps the list in step with `scroll-model`. */
-export const GUIDE_CHARACTER_IDS = ['ray'] as const;
-export type GuideCharacterId = (typeof GUIDE_CHARACTER_IDS)[number];
-
-/**
- * The figures a recipe may ask the writer to put on its picture (D-382). `scroll-model` owns the slots; this list names them for the
- * plan, and a test keeps the two in step.
- */
-export const STAGE_FIGURE_SLOT_IDS = ['nearest', 'farthest', 'june-daylight', 'december-daylight'] as const;
-export type StageFigureSlotId = (typeof STAGE_FIGURE_SLOT_IDS)[number];
 
 type Interactivity =
   | { readonly interactive: true; readonly interactiveKind: InteractiveKind }
@@ -110,14 +91,6 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
   readonly facetId: Facet;
   /** A second angle the brief explicitly asks the closing section to cover. */
   readonly supportingFacetId?: Facet;
-  /**
-   * The kit that draws this recipe's subject, when one does. Only such a recipe gets a pinned picture
-   * (a `stage` Scroll); every other recipe is a plain Scroll with calls and no picture, until a kit
-   * exists for it. Deciding this is a person's job, per recipe, never the writer's or the system's.
-   * No recipe names a kit since #787: the 22 recipes that had one are document v3 recipes, which have none. The field stays,
-   * with the kit code, until the last kit is deleted (one kit at a time, after the owner reads that kit's rewrites).
-   */
-  readonly stageKit?: StageKitId;
   /** Angle, what to explain and what to avoid. */
   readonly brief: string;
   /** One to three allowlisted public pages the writer may draw on. */
@@ -125,68 +98,24 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
   /** Cutroom script name of the matching approved Reel, for the original three recipes only. */
   readonly script?: string;
   /**
-   * Present when this recipe is produced as a `scroll-document.v2` (stops, calls and, for a stage Scroll,
-   * a pinned picture). No library recipe carries it since #790: every recipe is a document v3 recipe, and the v2 plan each had is kept
-   * in `production/spike-v2/former-v2-plans.ts` for the v2 spike and the tests of the v2 path. A person decides it, per recipe: the writer
-   * and the system never do (D-129).
-   */
-  readonly scrollV2?: ScrollV2Plan;
-  /**
-   * Present when this recipe is produced as a `scroll-document.v3` (sections of beats and pictures from the closed set). A recipe
-   * carries `scrollV3` or `scrollV2`, never both (a library test), and a v3 recipe has no `stageKit`. A person decides it, per
+   * Present when this recipe is produced as a `scroll-document.v3` (sections of beats and pictures from the closed set). A person decides it, per
    * recipe (#771); the 22 recipes that had a drawing kit carry it since #787 and every other recipe since #790.
    */
   readonly scrollV3?: ScrollV3Plan;
 };
 
-/** What the plan decides before the writer starts a v2 Scroll (`RecipeDataV2` in the producer). */
-export interface ScrollV2Plan {
-  /** `stage`: a pinned picture from a drawing kit; `plain`: stops and calls only. */
-  readonly variant: 'stage' | 'plain';
-  /**
-   * The common wrong idea the first call tests, with the label of the source that says it is common,
-   * or `none` for a narrative Scroll. Structurally scroll-model's `Misconception`. A label counts only
-   * once a person has `reviewed` it against its source; the library admits no other.
-   */
-  readonly misconception:
-    | {
-        readonly kind: 'myth';
-        readonly claim: string;
-        readonly source: { readonly label: string; readonly reviewed: boolean };
-      }
-    | { readonly kind: 'none' };
-  /**
-   * What a locked Final call awards: a stable key (`the-leaning-axis`) and the name the reader sees.
-   * Chosen by a person, per recipe, and set into the document by code; the writer never writes it.
-   * Absent: the Scroll awards no landmark and the payoff shows none (D-188). Keys are unique in the library.
-   */
-  readonly landmark?: { readonly key: string; readonly name: string };
-  /**
-   * The control the Final call hands the reader on the stage. `tilt` turns Earth's axis and needs a
-   * stage Scroll on the Earth & sky kit. Absent: the Final call is a plain call (D-187).
-   */
-  readonly finalCall?: { readonly kind: 'tilt' };
-  /**
-   * The play blocks the Scroll has, each used once and at most two in all (D-207). The pages must state the
-   * figures a scale or a chart shows, and the order a sort asks for. Chosen by a person, per recipe; the
-   * writer is told which blocks to write and never adds one. Absent: the Scroll has calls only.
-   */
-  readonly blocks?: readonly PlayBlockKind[];
-  /** The character that speaks the Scroll's guide lines. Absent: no guide (D-207). Chosen by a person, per recipe. */
-  readonly guide?: GuideCharacterId;
-  /**
-   * What the recipe asks of its picture beyond the kit's words (D-382, D-383), for a stage Scroll drawn with Earth & sky. The writer
-   * is told what is asked and code proves it, never the other way round. Chosen by a person, per recipe.
-   */
-  readonly stagePlan?: {
-    /** The picture stands on Earth's orbit at this many different months at least, so the recap of the journey draws (D-368). */
-    readonly orbitMonths?: number;
-    /** Figures the writer is asked for where a cited passage states them; code leaves out any no passage states. */
-    readonly figures?: readonly StageFigureSlotId[];
-    /** The first call_it shows the true picture to a reader who guessed wrong: the stop after it sets that picture. */
-    readonly reveal?: boolean;
-  };
-}
+/**
+ * The common wrong idea a Scroll teaches against, with the label of the source that says it is common, or `none` for a narrative
+ * Scroll. Structurally scroll-model's `Misconception`. A label counts only once a person has `reviewed` it against its source; the
+ * library admits no other.
+ */
+export type PlanMisconception =
+  | {
+      readonly kind: 'myth';
+      readonly claim: string;
+      readonly source: { readonly label: string; readonly reviewed: boolean };
+    }
+  | { readonly kind: 'none' };
 
 /** The kinds of picture a document v3 draws: scroll-model's `PICTURE_KINDS` (a library test keeps the two in step). */
 export const PICTURE_KIND_IDS = ['statement', 'flow', 'cycle', 'grid', 'chart', 'plan'] as const;
@@ -208,8 +137,8 @@ export interface ScrollV3Plan {
   readonly sections: readonly string[];
   /** One to three pictures, each a kind and what it is there to show. */
   readonly pictures?: readonly { readonly kind: PictureKindId; readonly purpose: string }[];
-  /** As for v2: the common wrong idea the Scroll teaches against, or `none`. */
-  readonly misconception: ScrollV2Plan['misconception'];
+  /** The common wrong idea the Scroll teaches against, or `none`. */
+  readonly misconception: PlanMisconception;
 }
 
 /**

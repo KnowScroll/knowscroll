@@ -9,8 +9,6 @@ import { makeWithPersonalScope } from '@knowscroll/backend/infrastructure/postgr
 import { recordingPolicyFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { compileEditorialSourceV3 } from '../../../packages/backend/src/modules/content/adapters/scroll-compiler-v3.js';
-import { fixtureAuthoredV2 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
-import { fixtureResearchPageV2 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import {
@@ -28,7 +26,8 @@ import { geographyWorld, type GeographyWorld } from '../support/geography-world.
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { activatedAgo, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV1, markFormerV2Recipes } from '../support/scroll-v2.js';
+import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 import { documentV3Source } from '../support/scroll.js';
 
 /**
@@ -109,11 +108,6 @@ function observations(screens: readonly Screen[], activeMs = 0): ObservationReco
 
 const qualifyUnder = (policy: typeof shared, facts: ReadingFacts, screens: readonly Screen[], activeMs = 0) =>
   qualifyScrollReading(summariseReading(observations(screens, activeMs), facts, policy), policy);
-
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('Qualifying a document v3 reading on the shared clock (pure, from the seasons fixture)', () => {
   const { facts, nominalMs } = seasons();
@@ -217,13 +211,8 @@ describe('The Seasons planet forms from a document v3 Part 1 and two v1 parts (r
     world = await geographyWorld('scroll_v3_reading');
     const { database } = world;
     await enableProductionScope(database.db);
-    // Part 1 of the v2 plan, as the v2 reading test makes it: produced, held, released by an operator (D-138).
-    const part1 = fixtureProduction(
-      database.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    expect(await part1.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', held: true });
+    // Part 1 as a stored v2 Scroll, as the v2 reading test makes it: held, released by an operator (D-138).
+    expect(await storeV2(database.db, 'seasons')).toMatchObject({ revision: 1 });
     expect(
       await makeReviewGate(database.db).release({
         assetId: TOPICS.seasons.assetId,

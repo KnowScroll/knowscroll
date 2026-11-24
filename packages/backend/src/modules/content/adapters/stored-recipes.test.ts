@@ -13,7 +13,6 @@ const row = (over: Partial<StoredRecipeRow> = {}): StoredRecipeRow => ({
   explanation_unit_id: 'gen-how-heart-valves-keep-blood-moving-1a2b3c4d-v1',
   brief: 'Explain how the valves open and close. Ask only for what the pages say.',
   pages: ['https://en.wikipedia.org/wiki/Heart'],
-  scroll_v2: null,
   scroll_v3: { shape: 'mechanism', sections: ['What the valves are', 'How one beat works'] },
   proposing_run_id: 'e0a7e0a7-0000-4000-8000-0000000000aa',
   check_results: { pool: 20, closest: 0.1 },
@@ -22,7 +21,7 @@ const row = (over: Partial<StoredRecipeRow> = {}): StoredRecipeRow => ({
 });
 
 describe('bookRecipeOf: a stored recipe as the library plan reads it', () => {
-  it('reads a v3 row into scrollV3, with no misconception, no pictures and no v2 plan', () => {
+  it('reads a v3 row into scrollV3, with no misconception and no pictures', () => {
     const recipe = bookRecipeOf(row(), 'human-body');
     expect(recipe.scrollV3).toEqual({
       shape: 'mechanism',
@@ -30,7 +29,6 @@ describe('bookRecipeOf: a stored recipe as the library plan reads it', () => {
       misconception: { kind: 'none' },
     });
     expect(recipe.scrollV3?.pictures).toBeUndefined();
-    expect('scrollV2' in recipe).toBe(false);
     expect(recipe).toMatchObject({
       key: 'gen-how-heart-valves-keep-blood-moving-1a2b3c4d',
       origin: 'proposal',
@@ -39,7 +37,6 @@ describe('bookRecipeOf: a stored recipe as the library plan reads it', () => {
       interactive: false,
       interactiveKind: null,
     });
-    expect('stageKit' in recipe).toBe(false);
   });
 
   it('keeps three sections as they are', () => {
@@ -47,10 +44,10 @@ describe('bookRecipeOf: a stored recipe as the library plan reads it', () => {
     expect(recipe.scrollV3).toMatchObject({ shape: 'story', sections: ['One', 'Two', 'Three'] });
   });
 
-  it('reads a row that still holds the v2 plan into scrollV2 only', () => {
+  it('reads a row that holds only the old v2 plan as a recipe with no plan, which production refuses (#815)', () => {
     const plain = { variant: 'plain', misconception: { kind: 'none' } } as const;
-    const recipe = bookRecipeOf(row({ scroll_v2: plain, scroll_v3: null }), '');
-    expect(recipe.scrollV2).toEqual(plain);
+    const recipe = bookRecipeOf({ ...row({ scroll_v3: null }), scroll_v2: plain } as StoredRecipeRow, '');
+    expect('scrollV2' in recipe).toBe(false);
     expect('scrollV3' in recipe).toBe(false);
   });
 

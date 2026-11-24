@@ -11,8 +11,8 @@ import type {
   ProposeOutcome,
   WithProductionScope,
 } from '../../../../reasoning/public.js';
-import { runSpikeJobs, SPIKE_MODEL } from '../spike-v2/run.js';
-import { fixtureResearchPageAt } from '../spike-v2/writer-v2.fixture.js';
+import { fixtureResearchPageAt } from '../orrin.fixture.js';
+import { runSpikeJobs, SPIKE_MODEL } from '../spike-run.js';
 import { spikeJobLabel, makeWriterSpikeV3, type SpikeJobV3, type SpikeResultV3 } from './run.js';
 import { fixtureProseV3, fixtureReplyV3, fixtureStagingV3 } from './writer-v3.fixture.js';
 
