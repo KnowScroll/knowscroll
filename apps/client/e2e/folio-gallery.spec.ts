@@ -214,7 +214,11 @@ test('the first hold of seasons pins its figure above its beats, changes its sta
   if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
 
   // The figure is the pinned figure when it sits at the top of the scroller (its panel's padding is under 24 px).
-  const pinnedTop = Math.min(...rows.map((row) => row.figureTop).filter((top) => top >= -2));
+  // Where it stays while the page scrolls: the height that the most steps share. The smallest height alone can be a step
+  // taken just as the figure starts to leave.
+  const tops = rows.map((row) => row.figureTop).filter((top) => top >= -2);
+  const sharing = (top: number) => tops.filter((other) => Math.abs(other - top) <= 3).length;
+  const pinnedTop = tops.reduce((best, top) => (sharing(top) > sharing(best) ? top : best), tops[0] ?? Infinity);
   const pinned = rows.filter((row) => Math.abs(row.figureTop - pinnedTop) <= 3);
   // It arrived from below, so it was pinned by the scroll and not drawn there.
   expect(first.figureTop).toBeGreaterThan(pinnedTop + 40);
