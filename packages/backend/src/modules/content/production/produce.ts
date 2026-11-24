@@ -125,6 +125,21 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     return closed.kind === 'entered' ? closed.value : scopeRefused(row.topic, row.id);
   }
 
+  /**
+   * Whether the recipe's asset exists and is withdrawn or is not a Scroll, so that `publish` would refuse the take as `asset_conflict`
+   * (#800, D-439). One plain read with no lock and no transaction held: it only saves the paid requests of a take that cannot publish.
+   * The asset can change while the writer runs, so `publish` still decides under the asset's lock. An asset that does not exist yet
+   * is not a conflict.
+   */
+  async function assetRefusesTake(assetId: string): Promise<boolean> {
+    const asset = await deps.db
+      .selectFrom('content.assets')
+      .select(['kind', 'status'])
+      .where('id', '=', assetId)
+      .executeTakeFirst();
+    return asset !== undefined && (asset.kind !== 'scroll' || asset.status === 'withdrawn');
+  }
+
   /** Fetches the subject's public pages (no lock held) and freezes them on the job. */
   async function freezeResearch(
     subject: ProductionSubject,
@@ -268,6 +283,9 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
 
     let pages: readonly ResearchPage[] = row.research;
     if (row.state === 'research') {
+      // A take of an asset that `publish` would refuse is ended before the research and the writer send anything (#800, D-439).
+      if (await assetRefusesTake(subject.identity.assetId))
+        return end(row, 'research', 'rejected', ['asset_conflict'], []);
       const frozen = await freezeResearch(subject, row);
       if ('outcome' in frozen) return frozen;
       ({ row, pages } = frozen);

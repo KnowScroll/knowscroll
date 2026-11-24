@@ -4,12 +4,20 @@ Use this to take every `scroll-document.v1` and `scroll-document.v2` Scroll out 
 
 It runs only in the worlds `local`, `ci` and `dev`. In `stage` and `production` it refuses with `world_not_allowed` before it reads the database settings. Those need the owner's own word, in another change.
 
+## The repair of assets an earlier run withdrew (#800, D-439)
+
+The first version of this command withdrew an asset that was left with only a document v3 revision the review gate had **rejected**, after it removed the old revision the asset was serving. A withdrawn asset makes the production job refuse every later take of the recipe as `asset_conflict`. The command now holds such an asset instead, as the review gate leaves an asset that was never released (it is not served either way: the readers serve only `admitted`), and it repairs the assets the first version had already withdrawn.
+
+The repair is part of the same command, under the same lock. It finds a Scroll that is `withdrawn`, every revision of which is a kept revision (not v1 or v2) that the review gate rejected, and that has no row in `content.release_withdrawals`. The release policy's withdrawal is the one other way an asset is withdrawn: it needs a `released` review and records the asset there, so it is never taken for this state. `--dry-run` and `--run` both print `wronglyWithdrawnAssets: { count, assetIds }` (library assets, not people's data); a dry run lists those a run would repair, a run lists those it repaired and puts each back to `held`, in its own short transaction before anything else. When no old revision is left, a run does only the repair: it clears nobody and changes nothing else. A second run reports `count: 0`. A withdrawn asset with a revision that was released, held or never reviewed is left withdrawn.
+
+To repair dev after this release: run `content cleanup-old-scrolls --dry-run`, read `wronglyWithdrawnAssets`, then `--run`, then `content production-status --only <the recipe keys>`: the recipes that were `stopped` read `retryable` (their `asset_conflict` takes no longer count, `refusedTakes` says how many), and `content produce-library --only <keys>` queues the next take.
+
 ## What it removes and what it keeps
 
 | Removed | Kept |
 |---|---|
 | Every Scroll asset whose revisions are all v1 or v2, with its revisions, provenance, reviews, support checks, release-policy rows, coverage, discovery rows, topic attribution, series units, continuity links and region bindings | Accounts, their addresses, sessions and sign-in links, their recording pause and resume commands, shared receipts and the reasoning ledger (its accounting redacted, never deleted) |
-| The old revisions of an asset that also has a later revision (its later revisions stay, and its current revision moves to the newest one a person may read) | Every document v3 Scroll and its coverage, and every Reel |
+| The old revisions of an asset that also has a later revision (its later revisions stay, and its current revision moves to the newest one a person may read; with none left it is held, never withdrawn) | Every document v3 Scroll and its coverage, and every Reel |
 | The made-to-order rows, production runs, recipe standing and queued jobs of the Scrolls that went | Friends, friend requests, conversations and their messages, rooms and their members |
 | Every account's reading history and progress (see "What Clear removes") | Saved items of Scrolls that stay |
 | Threads and room discussions about an old Scroll, whole | Threads and discussions about anything else |
@@ -48,7 +56,7 @@ Run these in order. Stop at any step that does not read as described.
    ssh knowscroll-vps "sudo sh -c 'set -a; . /etc/knowscroll/dev.v2.env; . /etc/knowscroll/secrets/v2-dev/database.env; set +a;
      cd /srv/knowscroll/dev/current/worker && exec runuser -u ks2-dev -- /usr/bin/node dist/operator.js content cleanup-old-scrolls --dry-run'"
    ```
-   It prints one JSON line and changes nothing. Read it: `assets` (what goes whole, which asset's current revision moves, which assets stay), `accounts` (by account id only: whether Clear can run for it now, the rows Clear erases and the Keeps removed; a `clearable: false` account stops a run), `threads` (each conversation that is removed or keeps with tombstones), `branches`, `rooms` and `tables` (every table the cleanup touches, with its action and row count). Exactly one of `--dry-run` and `--run` is required.
+   It prints one JSON line and changes nothing. Read it: `assets` (what goes whole, which asset's current revision moves, which assets stay), `accounts` (by account id only: whether Clear can run for it now, the rows Clear erases and the Keeps removed; a `clearable: false` account stops a run), `threads` (each conversation that is removed or keeps with tombstones), `branches`, `rooms`, `tables` (every table the cleanup touches, with its action and row count) and `wronglyWithdrawnAssets` (the assets the repair above would put back to `held`). Exactly one of `--dry-run` and `--run` is required.
 5. **Run.** The same command with `--run`. It prints the same shape; `result` is `done`.
 6. **Check, read only.**
    ```sh
@@ -63,7 +71,7 @@ A second `--run` finds nothing to remove and changes nothing; it does not clear 
 
 1. It takes a session lock (`content.cleanup-old-scrolls`). A second cleanup while one runs is refused with `cleanup_already_running`.
 2. It counts everything on one snapshot. With nothing to remove it stops (`nothing_to_do`); with `--dry-run` it stops there (`planned`).
-3. **Withdraw.** In one short transaction it withdraws every asset that goes whole, so no one opens it, no job writes about it and the production job refuses it.
+3. **Repair, then withdraw.** In its own short transaction it puts back to `held` the assets an earlier run withdrew by mistake (see above); with no old revision left, a run ends here. Then, in one short transaction, it withdraws every asset that goes whole, so no one opens it, no job writes about it and the production job refuses it.
 4. **Clear** every account, each in its own transactions.
 5. **Remove**, in one transaction, the modules' parts in this order: rooms, scenarios, social, experience, feedback, content. A row that points at a revision goes before the row it points at, and content goes last: discovery chain, coverage, review, revisions, assets, then the rows with no foreign key (made-to-order rows, production runs, recipe standing, queued jobs). It checks that no old revision is left before it commits. One transaction means the shared content is either all removed or untouched.
 
@@ -75,6 +83,7 @@ The one transaction sets the local setting `knowscroll.old_scroll_cleanup` to `v
 |---|---|---|
 | `refused`, `world_not_allowed` | The world is not `local`, `ci` or `dev`. | Nothing. This is the rule. |
 | `refused`, `cleanup_already_running` | Another cleanup holds the lock. | Wait for it. |
+| `planned` or `done` with `wronglyWithdrawnAssets.count` above 0 and nothing else to remove | Only the repair above is pending (or was done). | Nothing: read the ids, then run. |
 | `failed`, `clear_incomplete` | An account could not be cleared now (suspended or being deleted). `accountsNotCleared` names it. | Nothing was removed. The assets are withdrawn. Fix or delete the account and run again. |
 | `failed`, `phase: remove`, a SQLSTATE such as `23503` | A row the cleanup does not know points at an old revision, or a lock timed out. `constraint` and `table` name it; no value is printed. | Nothing was removed (the transaction rolled back). The accounts are cleared and the assets are withdrawn. Fix the cause, add the missing step in the same change as the new table, and run again. |
 

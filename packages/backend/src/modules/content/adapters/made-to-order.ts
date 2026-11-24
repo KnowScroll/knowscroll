@@ -3,7 +3,7 @@ import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readerOn, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { productionStanding, takeToSend, type ProductionJobState } from '../domain/library/serving.js';
+import { productionStanding, takeIsRefused, takeToSend, type ProductionJobState } from '../domain/library/serving.js';
 import { madeToOrderKey } from '../domain/order-key.js';
 import { SCROLL_PRODUCTION_VERSION } from '../production/topics.js';
 import { notUnderReview } from './review-gate-sql.js';
@@ -64,8 +64,9 @@ async function standingOf(db: Queryable, recipe: string): Promise<MadeToOrderSta
     .where('recipe', '=', recipe)
     .executeTakeFirst();
   if (order === undefined) return { state: 'stopped' };
-  const jobs = (
-    await sql<{ state: ProductionJobState }>`select state from content.scroll_production_runs
+  const runs = (
+    await sql<{ take: number; state: string; outcomes: readonly { role?: string; kind?: string; code?: string }[] }>`
+      select take, state, outcomes from content.scroll_production_runs
       where topic = ${recipe} and policy_version = ${SCROLL_PRODUCTION_VERSION} order by take`.execute(db)
   ).rows;
   const asset = await db
@@ -77,11 +78,15 @@ async function standingOf(db: Queryable, recipe: string): Promise<MadeToOrderSta
     .where('asset.id', '=', order.asset_id)
     .executeTakeFirst();
   const admitted = asset?.status === 'admitted';
-  const state = productionStanding(
-    jobs.map((job) => job.state),
-    admitted,
+  // A take refused on an asset that is not withdrawn does not count (#800, D-439); the next take follows the highest number.
+  const jobs = runs.map((run): ProductionJobState =>
+    takeIsRefused(run, asset?.status) ? 'refused' : (run.state as ProductionJobState),
   );
-  const take = takeToSend(state, jobs.length);
+  const state = productionStanding(jobs, admitted);
+  const take = takeToSend(
+    state,
+    runs.reduce((highest, run) => Math.max(highest, run.take), 0),
+  );
   return {
     state,
     ...(take === undefined ? {} : { take }),

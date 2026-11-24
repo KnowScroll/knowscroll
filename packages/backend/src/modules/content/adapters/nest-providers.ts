@@ -484,7 +484,9 @@ export type { PublishReel } from '../application/reel/ports.js';
 
 export {
   contentOldScrollRemoval,
+  findWronglyWithdrawnAssets,
   prepareOldScrolls,
+  repairWronglyWithdrawnAssets,
   withdrawOldAssets,
   withOldScrollCleanupLock,
 } from './old-scroll-removal.js';

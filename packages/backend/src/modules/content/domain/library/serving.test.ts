@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { RECIPES, type RecipeKey } from './index.js';
 import {
+  countedTakes,
+  endedInAssetConflict,
   libraryRecipes,
+  MAX_TAKE_NUMBER,
   MAX_TAKES_PER_RECIPE,
   pickRecipeToProduce,
   planLibraryProduction,
@@ -11,6 +14,7 @@ import {
   regenerationStanding,
   servingOrder,
   regenerationTake,
+  takeIsRefused,
   takeToSend,
   type LibraryRecipeStatus,
   type ProductionJobState,
@@ -30,6 +34,7 @@ const standing = (recipe: RecipeKey, state: ScrollProductionState): LibraryRecip
   recipe,
   state,
   takes: takesOf[state],
+  latestTake: takesOf[state],
   attempts: 0,
 });
 
@@ -155,6 +160,77 @@ describe('takes of a recipe', () => {
   });
 });
 
+describe('a take refused with asset_conflict does not count (#800, D-439)', () => {
+  const conflict = [{ role: 'checks', kind: 'rejected', code: 'asset_conflict' }];
+
+  it('recognises a take that ended asset_conflict, and no other rejection', () => {
+    expect(endedInAssetConflict(conflict)).toBe(true);
+    expect(endedInAssetConflict([{ role: 'writer', kind: 'rejected', code: 'asset_conflict' }])).toBe(false);
+    expect(endedInAssetConflict([{ role: 'checks', kind: 'rejected', code: 'copied_passage' }])).toBe(false);
+    expect(endedInAssetConflict([])).toBe(false);
+  });
+
+  it('counts it only while the asset is withdrawn, so a withdrawn asset cannot be given endless takes', () => {
+    const run = { state: 'rejected', outcomes: conflict };
+    expect(takeIsRefused(run, 'held')).toBe(true);
+    expect(takeIsRefused(run, 'admitted')).toBe(true);
+    expect(takeIsRefused(run, undefined)).toBe(true);
+    expect(takeIsRefused(run, 'withdrawn')).toBe(false);
+    // Only a take that ended rejected can be refused; a running or published one never is.
+    expect(takeIsRefused({ state: 'published', outcomes: conflict }, 'held')).toBe(false);
+    expect(takeIsRefused({ state: 'rejected', outcomes: [] }, 'held')).toBe(false);
+  });
+
+  it('leaves a refused take out of the count and keeps the numbering after it', () => {
+    expect(countedTakes(['refused', 'refused', 'refused'])).toBe(0);
+    expect(countedTakes(['rejected', 'refused', 'rejected'])).toBe(2);
+    expect(MAX_TAKE_NUMBER).toBe(2 * MAX_TAKES_PER_RECIPE);
+    // Three refused takes are no longer stopped: the fourth number is next.
+    expect(productionStanding(['refused', 'refused', 'refused'], false)).toBe('retryable');
+    expect(takeToSend('retryable', 3)).toBe(4);
+    expect(productionStanding(['refused'], false)).toBe('retryable');
+    expect(takeToSend('retryable', 1)).toBe(2);
+  });
+
+  it('still stops at three counted takes, and when every take number is used', () => {
+    expect(productionStanding(['refused', 'rejected', 'rejected'], false)).toBe('retryable');
+    expect(productionStanding(['refused', 'rejected', 'rejected', 'rejected'], false)).toBe('stopped');
+    expect(productionStanding(['refused', 'refused', 'refused', 'refused', 'refused'], false)).toBe('retryable');
+    expect(productionStanding(['refused', 'refused', 'refused', 'refused', 'refused', 'refused'], false)).toBe(
+      'stopped',
+    );
+  });
+
+  it('still ends at an unknown or published take, whatever was refused before it', () => {
+    expect(productionStanding(['refused', 'unknown'], false)).toBe('stopped');
+    expect(productionStanding(['refused', 'published'], false)).toBe('stopped');
+    expect(productionStanding(['refused', 'writer'], false)).toBe('running');
+    expect(takeToSend('running', 2)).toBe(2);
+  });
+
+  it('applies to regeneration the same way', () => {
+    const stand = (jobs: readonly ProductionJobState[]) =>
+      regenerationStanding({ v2: true, admitted: true, jobs, heldRevision: false });
+    expect(stand(['refused', 'refused', 'refused'])).toBe('available');
+    expect(regenerationTake('available', 3)).toBe(4);
+    expect(stand(['refused', 'published', 'published', 'published'])).toBe('spent');
+    expect(stand(['refused', 'published', 'published'])).toBe('available');
+  });
+
+  it('plans the next number after the latest take, not after the count', () => {
+    const row = (state: ScrollProductionState, takes: number, latestTake: number): LibraryRecipeStatus => ({
+      recipe: 'seasons',
+      state,
+      takes,
+      latestTake,
+      attempts: 0,
+    });
+    expect(planLibraryProduction([row('retryable', 0, 3)], { interactiveFirst: false }).queue).toEqual([
+      { recipe: 'seasons', take: 4 },
+    ]);
+  });
+});
+
 describe('regenerating a served v2 Scroll (D-197)', () => {
   const stand = (
     jobs: readonly ProductionJobState[],
@@ -204,6 +280,7 @@ describe('regenerating a served v2 Scroll (D-197)', () => {
       recipe,
       state: 'published',
       takes,
+      latestTake: takes,
       attempts: 0,
       regeneration,
     });
@@ -232,7 +309,7 @@ describe('regenerating a served v2 Scroll (D-197)', () => {
   });
 
   it('treats a status with no regeneration state as not regenerable, never as available', () => {
-    const plan = planRegeneration([{ recipe: 'seasons', state: 'published', takes: 1, attempts: 0 }]);
+    const plan = planRegeneration([{ recipe: 'seasons', state: 'published', takes: 1, latestTake: 1, attempts: 0 }]);
     expect(plan.queue).toEqual([]);
     expect(plan.skipped).toEqual([{ recipe: 'seasons', reason: 'not_v2' }]);
   });
@@ -292,8 +369,8 @@ describe('which recipe to produce, with stored recipes among them', () => {
 
   it('queues a stored recipe for a library run and never sorts it as interactive', () => {
     const rows: LibraryRecipeStatus[] = [
-      { recipe: 'gen-new-11111111', state: 'not_started', takes: 0, attempts: 0 },
-      { recipe: 'tides', state: 'not_started', takes: 0, attempts: 0 },
+      { recipe: 'gen-new-11111111', state: 'not_started', takes: 0, latestTake: 0, attempts: 0 },
+      { recipe: 'tides', state: 'not_started', takes: 0, latestTake: 0, attempts: 0 },
     ];
     expect(planLibraryProduction(rows, { interactiveFirst: true }).queue).toEqual([
       { recipe: 'tides', take: 1 },

@@ -246,6 +246,8 @@ finished or failed job never blocks a new send. The consumer (`job.ts`, wired in
 business run and an attempt of unknown outcome is never resent. It runs only on a worker that holds the
 production grant (`KS_REASONING_PRODUCTION_ENABLED=1`); otherwise jobs wait in the queue.
 
+A take that ended `asset_conflict` on an asset that is not withdrawn does not count toward the three takes and keeps its number, so take numbers go to six (D-439, migration 0126). Before the research and the writer send anything, the job reads the recipe's asset once (no lock, no transaction held): an asset that is withdrawn or not a Scroll ends the take at once as `rejected` with the `asset_conflict` receipt and no model request, and `publish` still checks under the asset's lock because the asset can change while the writer runs.
+
 Who sends a job:
 
 - **Quartermaster Create** (`modules/supply`): inside a person's request transaction, with priority 10.

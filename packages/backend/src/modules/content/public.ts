@@ -451,7 +451,7 @@ export type { ProposeRecipesResult } from './production/propose-recipes.js';
 export {
   parseProductionRecipe,
   parseScrollTopic,
-  MAX_TAKES_PER_RECIPE,
+  MAX_TAKE_NUMBER,
   REQUEST_BOUND_PER_TOPIC,
   REQUEST_BOUND_V2_PER_TOPIC,
   requestBoundOf,

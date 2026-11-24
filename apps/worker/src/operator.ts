@@ -52,7 +52,7 @@ import {
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import {
-  MAX_TAKES_PER_RECIPE,
+  MAX_TAKE_NUMBER,
   parseProductionRecipe,
   REQUEST_BOUND_PER_TOPIC,
   requestBoundOf,
@@ -220,8 +220,8 @@ async function main(): Promise<number> {
       return 2;
     }
     const take = args.values.take === undefined ? 1 : Number(args.values.take);
-    if (!Number.isInteger(take) || take < 1 || take > MAX_TAKES_PER_RECIPE) {
-      print({ result: 'take_refused', maxTakes: MAX_TAKES_PER_RECIPE });
+    if (!Number.isInteger(take) || take < 1 || take > MAX_TAKE_NUMBER) {
+      print({ result: 'take_refused', maxTakeNumber: MAX_TAKE_NUMBER });
       return 2;
     }
     try {
