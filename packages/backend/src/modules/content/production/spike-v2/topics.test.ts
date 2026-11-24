@@ -9,7 +9,6 @@ import {
   BLOCK_SPIKE_BLOCKS_V2,
   BLOCK_SPIKE_TOPICS_V2,
   BODY_SPIKE_TOPICS_V2,
-  SKY_SPIKE_TOPICS_V2,
   SPACE_SPIKE_TOPICS_V2,
   SPIKE_TOPICS_V2,
   spikeRecipeV2,
@@ -21,18 +20,24 @@ const kitOf = (topic: ScrollTopic) => TOPICS[topic].stageKit ?? formerV2PlanOf(t
 const planOf = (topic: ScrollTopic) => TOPICS[topic].scrollV2 ?? formerV2PlanOf(topic)?.plan;
 
 describe('the v2 plans of the recipes that became document v3 recipes (#787, #790)', () => {
-  it('hold every recipe but "exoplanet-kinds" and the five whose kit was deleted (#799), each now a v3 recipe with no kit and no v2 plan in the library', () => {
+  it('hold every recipe but "exoplanet-kinds" and the eleven whose kit was deleted (#799, #802), each now a v3 recipe with no kit and no v2 plan in the library', () => {
     const held = Object.keys(FORMER_V2_PLANS) as ScrollTopic[];
-    expect(held).toHaveLength(49);
+    expect(held).toHaveLength(43);
     expect(held).not.toContain('exoplanet-kinds');
-    // The recipes of tides.v1, star.v1 and transit.v1 left with those kits: the spike has nothing to draw them with.
+    // The recipes of tides.v1, star.v1 and transit.v1 (#799), and of greenhouse.v1 and circulation.v1 (#802), left with those kits: the spike has nothing to draw them with.
     expect(
       Object.keys(TOPICS)
         .filter((topic) => !held.includes(topic as ScrollTopic))
         .sort(),
     ).toEqual([
+      'blood-pressure',
+      'cardiac-cycle',
       'exoplanet-kinds',
       'exoplanet-transit',
+      'greenhouse',
+      'greenhouse-balance',
+      'greenhouse-radiation',
+      'oxygen-transport',
       'stars-fusion',
       'stars-lifecycle',
       'tides',
@@ -45,9 +50,9 @@ describe('the v2 plans of the recipes that became document v3 recipes (#787, #79
     }
   });
 
-  it('keep the drawing kit of the 17 recipes whose kit still exists, as a stage plan, and a plain plan with a landmark for the other 32', () => {
+  it('keep the drawing kit of the 11 recipes whose kit still exists, as a stage plan, and a plain plan with a landmark for the other 32', () => {
     const drawn = Object.entries(FORMER_V2_PLANS).filter(([, former]) => 'kit' in former);
-    expect(drawn).toHaveLength(17);
+    expect(drawn).toHaveLength(11);
     for (const [topic, former] of Object.entries(FORMER_V2_PLANS)) {
       expect(former.plan.variant, topic).toBe('kit' in former ? 'stage' : 'plain');
       if (!('kit' in former)) expect(former.plan.landmark, topic).toBeDefined();
@@ -103,9 +108,9 @@ describe('the landmarks, myths and Final call controls the former v2 plans keep 
 });
 
 describe('the topics of the writer spike', () => {
-  it('are seventeen distinct library recipes (the first twenty less the three whose kit was deleted, #799), the three Seasons parts first', () => {
-    expect(SPIKE_TOPICS_V2).toHaveLength(17);
-    expect(new Set(SPIKE_TOPICS_V2).size).toBe(17);
+  it('are thirteen distinct library recipes (the first twenty less the seven whose kit was deleted, #799, #802), the three Seasons parts first', () => {
+    expect(SPIKE_TOPICS_V2).toHaveLength(13);
+    expect(new Set(SPIKE_TOPICS_V2).size).toBe(13);
     expect(SPIKE_TOPICS_V2.slice(0, 3)).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
     for (const topic of SPIKE_TOPICS_V2) expect(Object.hasOwn(TOPICS, topic)).toBe(true);
   });
@@ -113,24 +118,20 @@ describe('the topics of the writer spike', () => {
   it('spread over Earth & sky and Space, the human body, and computing, ML and history', () => {
     const systemOf = (topic: ScrollTopic) => TOPICS[topic].systemId;
     const sky = SPIKE_TOPICS_V2.filter((topic) => ['earth', 'space'].includes(systemOf(topic)));
-    expect(sky).toHaveLength(6);
+    expect(sky).toHaveLength(4);
     const body = SPIKE_TOPICS_V2.filter((topic) => systemOf(topic) === 'human-body');
-    expect(body.length).toBeGreaterThanOrEqual(4);
+    expect(body.length).toBeGreaterThanOrEqual(2);
     const rest = SPIKE_TOPICS_V2.filter((topic) => !['earth', 'space', 'human-body'].includes(systemOf(topic)));
     expect(new Set(rest.map(systemOf))).toEqual(new Set(['computing', 'machine-learning', 'history']));
   });
 
-  it('give a stage only to the recipes a kit draws: the Seasons parts, the Earth & sky and Space recipes of D-194 and the heart and nerve recipes of D-201, never a recipe without a kit', () => {
+  it('give a stage only to the recipes a kit draws: the Seasons parts, the Space recipes of D-194 and the nerve recipes of D-201, never a recipe without a kit', () => {
     const stage = SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).variant === 'stage');
     expect(stage).toEqual([
       'seasons',
       'seasons-hemispheres',
       'seasons-limits',
-      'greenhouse-radiation',
-      'greenhouse-balance',
       'exoplanet-habitable-zone',
-      'cardiac-cycle',
-      'blood-pressure',
       'reflex-arc',
     ]);
     for (const topic of SPIKE_TOPICS_V2)
@@ -148,28 +149,9 @@ describe('the topics of the writer spike', () => {
     }
   });
 
-  it('measure the three recipes the greenhouse kit of D-194 gives a picture, with one command line, the one the runbook prints', () => {
-    expect(SKY_SPIKE_TOPICS_V2).toHaveLength(3);
-    expect(new Set(SKY_SPIKE_TOPICS_V2).size).toBe(3);
-    expect(parseSpikeTopics(SKY_SPIKE_TOPICS_V2.join(','))).toEqual(SKY_SPIKE_TOPICS_V2);
-    const kits = new Map<string, string[]>();
-    for (const topic of SKY_SPIKE_TOPICS_V2) {
-      const recipe = spikeRecipeV2(topic);
-      expect(recipe.variant, topic).toBe('stage');
-      expect(['earth', 'space']).toContain(TOPICS[topic].systemId);
-      kits.set(recipe.kit ?? '', [...(kits.get(recipe.kit ?? '') ?? []), topic]);
-    }
-    expect([...kits.keys()].sort()).toEqual(['greenhouse.v1']);
-    const runbook = readFileSync(
-      new URL('../../../../../../../docs/v2/operations/scroll-production.md', import.meta.url),
-      'utf8',
-    );
-    expect(runbook).toContain(`--topics ${SKY_SPIKE_TOPICS_V2.join(',')}`);
-  });
-
-  it('measure the six Human body recipes the drawing kits of D-201 give a picture, with one command line, the one the runbook prints', () => {
-    expect(BODY_SPIKE_TOPICS_V2).toHaveLength(6);
-    expect(new Set(BODY_SPIKE_TOPICS_V2).size).toBe(6);
+  it('measure the three Human body recipes the nerve kit of D-201 gives a picture, with one command line, the one the runbook prints', () => {
+    expect(BODY_SPIKE_TOPICS_V2).toHaveLength(3);
+    expect(new Set(BODY_SPIKE_TOPICS_V2).size).toBe(3);
     expect(parseSpikeTopics(BODY_SPIKE_TOPICS_V2.join(','))).toEqual(BODY_SPIKE_TOPICS_V2);
     const kits = new Map<string, string[]>();
     for (const topic of BODY_SPIKE_TOPICS_V2) {
@@ -179,7 +161,6 @@ describe('the topics of the writer spike', () => {
       kits.set(recipe.kit ?? '', [...(kits.get(recipe.kit ?? '') ?? []), topic]);
     }
     expect(Object.fromEntries(kits)).toEqual({
-      'circulation.v1': ['cardiac-cycle', 'blood-pressure', 'oxygen-transport'],
       'nerve.v1': ['action-potential', 'synapse-signalling', 'reflex-arc'],
     });
     const runbook = readFileSync(

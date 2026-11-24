@@ -6,9 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import broadStreetV3 from '@knowscroll/scroll-model/fixtures/broad-street-v3-ci.json';
-import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
 import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
-import greenhouse from '@knowscroll/scroll-model/fixtures/greenhouse-stage-ci.json';
 import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
@@ -39,7 +37,6 @@ import {
   stageFigureAt,
   Text,
   useDisplay,
-  type FigureState,
   type ReadingModel,
   type UnitReadingObserver,
 } from '@knowscroll/ui';
@@ -55,8 +52,6 @@ const folioGalleryMarker = 'ks-folio-gallery';
  */
 const documents = {
   seasons,
-  greenhouse,
-  circulation,
   nerve,
   starlight,
   blackHole,
@@ -286,16 +281,28 @@ interface CoverFixture {
   readonly title: string;
   readonly dek: string;
   readonly minutes: number;
-  readonly figure?: FigureState;
+  readonly figure?: FigureProps['figure'] | undefined;
   readonly way: 'read' | 'continue';
 }
 
-/** A v2 fixture document as a cover: its own words and reading time, and the first state of its stage as the figure. */
-function coverOf(id: string, label: string, source: ScrollDocumentV2, way: 'read' | 'continue' = 'read'): CoverFixture {
-  const stage = drawableStage(source.stage);
-  const first = stage?.states[0];
-  const figure =
-    stage === undefined || first === undefined ? undefined : stageFigureAt(stage, source.stops, first.stop);
+/**
+ * A fixture document as a cover: its own words and reading time, and its first figure, which is the first state of a v2
+ * Scroll's stage or the first picture of a document v3.
+ */
+function coverOf(
+  id: string,
+  label: string,
+  source: ScrollDocumentV2 | ScrollDocumentV3,
+  way: 'read' | 'continue' = 'read',
+): CoverFixture {
+  let figure: CoverFixture['figure'];
+  if (source.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
+    figure = figuresOf(readingModelOfV3(source))[0]?.figure;
+  } else {
+    const stage = drawableStage(source.stage);
+    const first = stage?.states[0];
+    figure = stage === undefined || first === undefined ? undefined : stageFigureAt(stage, source.stops, first.stop);
+  }
   return {
     id,
     label,
@@ -328,10 +335,14 @@ const hand: readonly CoverFixture[] = [
   coverOf(
     'continue',
     'A cover the person has read part of: Continue',
-    circulation as unknown as ScrollDocumentV2,
+    fenceV3 as unknown as ScrollDocumentV3,
     'continue',
   ),
-  coverOf('last', 'The last cover of the hand: the strip says MORE COVERS', greenhouse as unknown as ScrollDocumentV2),
+  coverOf(
+    'last',
+    'The last cover of the hand: the strip says MORE COVERS',
+    broadStreetV3 as unknown as ScrollDocumentV3,
+  ),
 ];
 
 /**

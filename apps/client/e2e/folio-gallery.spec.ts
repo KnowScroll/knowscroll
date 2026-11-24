@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { exportCarries } from './export-files';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
+import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 
@@ -17,7 +17,7 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 
 const documents = {
   seasons: seasons as unknown as ScrollDocumentV2,
-  circulation: circulation as unknown as ScrollDocumentV2,
+  nerve: nerve as unknown as ScrollDocumentV2,
 };
 type Name = keyof typeof documents;
 
@@ -103,7 +103,7 @@ const galleryEvents = (page: Page) =>
   page.evaluate(() => (window as unknown as { __ksFolioGallery: GalleryEvents }).__ksFolioGallery);
 
 for (const { label, viewport } of sizes) {
-  for (const name of ['seasons', 'circulation'] as const) {
+  for (const name of ['seasons', 'nerve'] as const) {
     test(`every stop of ${name} is a beat, once, in order; a call is text, at ${label}`, async ({ page }) => {
       await open(page, name, viewport);
       const document = documents[name];
@@ -191,10 +191,12 @@ async function throughTheFirstHold(page: Page, label: string): Promise<HoldRow[]
   return rows;
 }
 
-test('the first hold of circulation pins its figure above its beats, changes its state and releases it, at phone', async ({
+test('the first hold of seasons pins its figure above its beats, changes its state and releases it, at phone', async ({
   page,
 }) => {
-  await open(page, 'circulation', sizes[0].viewport);
+  // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
+  test.setTimeout(90_000);
+  await open(page, 'seasons', sizes[0].viewport);
   await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
   const rows = await throughTheFirstHold(page, 'phone');
   const first = rows[0];
@@ -224,10 +226,12 @@ test('the first hold of circulation pins its figure above its beats, changes its
   for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
 });
 
-test('the first hold of circulation keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
+test('the first hold of nerve keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
   page,
 }) => {
-  await open(page, 'circulation', sizes[1].viewport);
+  // Nerve, not seasons: seasons' held beats are taller than its figure at desktop, so its figure pins and the beats leave it,
+  // while this test is about a hold whose beats are shorter than the figure (the comment below).
+  await open(page, 'nerve', sizes[1].viewport);
   await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
   const rows = await throughTheFirstHold(page, 'desktop');
   const first = rows[0];
@@ -248,7 +252,7 @@ test('the first hold of circulation keeps its figure beside its beats, in full v
 });
 
 for (const { label, viewport } of sizes) {
-  for (const name of ['circulation', 'seasons'] as const) {
+  for (const name of ['nerve', 'seasons'] as const) {
     test(`reading ${name} from top to end reports a few stops at a time, each stop once read, in order, at ${label}`, async ({
       page,
     }) => {
@@ -309,7 +313,7 @@ async function inView(page: Page, selector: string): Promise<boolean> {
 
 test.describe('keys', () => {
   test('End goes to the end plate, Home to the title, T turns every picture into its words', async ({ page }) => {
-    await open(page, 'circulation', phone);
+    await open(page, 'seasons', phone);
     await reader(page).focus();
     await page.keyboard.press('End');
     await expect.poll(() => inView(page, '[data-testid="end-plate"]')).toBe(true);
@@ -364,7 +368,7 @@ test.describe('keys', () => {
   test('a held figure’s Text chip turns on the text version, lays the holds flat and keeps the beat being read', async ({
     page,
   }) => {
-    await open(page, 'circulation', phone);
+    await open(page, 'seasons', phone);
     const hold = page.locator('[data-testid^="hold-"]').first();
     // Into the hold, so a beat inside it is the one being read.
     const holdTop = await hold.evaluate((node) => (node as HTMLElement).offsetTop);
@@ -398,8 +402,10 @@ test.describe('keys', () => {
 
 for (const { label, viewport } of sizes) {
   test(`under reduced motion a held figure cross-fades and never tweens, at ${label}`, async ({ page }) => {
+    // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
+    test.setTimeout(90_000);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await open(page, 'circulation', viewport, { motion: 'reduce' });
+    await open(page, 'seasons', viewport, { motion: 'reduce' });
     await page.evaluate(() => {
       const seen: { key: string; transition: string }[] = [];
       (window as unknown as { __figures: typeof seen }).__figures = seen;
@@ -428,7 +434,9 @@ for (const { label, viewport } of sizes) {
 }
 
 test('without reduced motion the same hold glides (the control for the reduced-motion test)', async ({ page }) => {
-  await open(page, 'circulation', phone);
+  // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
+  test.setTimeout(90_000);
+  await open(page, 'seasons', phone);
   const rows = await throughTheFirstHold(page, 'full-motion');
   expect(new Set(rows.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
   const transition = await page
@@ -438,7 +446,7 @@ test('without reduced motion the same hold glides (the control for the reduced-m
   expect(transition).toBe('tween');
 });
 
-for (const name of ['seasons', 'circulation'] as const) {
+for (const name of ['seasons', 'nerve'] as const) {
   const cases: { label: string; viewport: { width: number; height: number }; query: Record<string, string> }[] = [
     { label: '320 x 640', viewport: { width: 320, height: 640 }, query: {} },
     { label: '200 % text at 390 x 844', viewport: phone, query: { scale: '2' } },
@@ -590,10 +598,10 @@ const settledTop = async (page: Page, selector: string) => {
 for (const { label, viewport } of sizes) {
   const cases: { name: Name; stop: string | undefined }[] = [
     { name: 'seasons', stop: seasons.stops[Math.floor(seasons.stops.length / 2)]?.id },
-    { name: 'circulation', stop: 'circuits' },
+    { name: 'seasons', stop: 'closest-in-january' },
     { name: 'seasons', stop: 'equinox' },
-    { name: 'circulation', stop: 'oxygen-lungs' },
-    { name: 'circulation', stop: 'tense' },
+    { name: 'seasons', stop: 'solstices' },
+    { name: 'seasons', stop: 'the-year' },
   ];
   for (const { name, stop } of cases) {
     test(`?stop=${String(stop)} opens ${name} with that beat in view and read, at ${label}`, async ({ page }) => {

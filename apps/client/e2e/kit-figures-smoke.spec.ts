@@ -1,8 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
 import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
-import greenhouse from '@knowscroll/scroll-model/fixtures/greenhouse-stage-ci.json';
 import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
@@ -18,8 +16,6 @@ import { encounterFixture, readCover } from './encounter-fixture';
  */
 
 const KITS = [
-  ['greenhouse', greenhouse],
-  ['circulation', circulation],
   ['nerve', nerve],
   ['starlight', starlight],
   ['black-hole', blackHole],

@@ -1,8 +1,6 @@
 import { EARTH_SKY_KIT, EARTH_SKY_KIT_DEFINITION } from '../kit.js';
-import { CIRCULATION_KIT, CIRCULATION_KIT_DEFINITION } from './circulation.js';
 import { BLACK_HOLE_KIT, BLACK_HOLE_KIT_DEFINITION } from './black-hole.js';
 import { type KitDefinition } from './definition.js';
-import { GREENHOUSE_KIT, GREENHOUSE_KIT_DEFINITION } from './greenhouse.js';
 import { NERVE_KIT, NERVE_KIT_DEFINITION } from './nerve.js';
 import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
 
@@ -12,14 +10,7 @@ import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
  * plan's `stageKit`), and a test keeps the plan's list and this one the same. Adding a kit is a new id,
  * its own words and physics, and a new decision.
  */
-export const STAGE_KIT_IDS = [
-  EARTH_SKY_KIT,
-  GREENHOUSE_KIT,
-  CIRCULATION_KIT,
-  NERVE_KIT,
-  STARLIGHT_KIT,
-  BLACK_HOLE_KIT,
-] as const;
+export const STAGE_KIT_IDS = [EARTH_SKY_KIT, NERVE_KIT, STARLIGHT_KIT, BLACK_HOLE_KIT] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 /** Whether `id` names a kit the code still defines. A stored stage may name one it no longer does (a legacy stage). */
@@ -29,8 +20,6 @@ export function isStageKitId(id: string): id is StageKitId {
 
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [EARTH_SKY_KIT]: EARTH_SKY_KIT_DEFINITION,
-  [GREENHOUSE_KIT]: GREENHOUSE_KIT_DEFINITION,
-  [CIRCULATION_KIT]: CIRCULATION_KIT_DEFINITION,
   [NERVE_KIT]: NERVE_KIT_DEFINITION,
   [STARLIGHT_KIT]: STARLIGHT_KIT_DEFINITION,
   [BLACK_HOLE_KIT]: BLACK_HOLE_KIT_DEFINITION,
@@ -57,55 +46,7 @@ export {
   type KitState,
   type WordState,
 } from './definition.js';
-export {
-  ARTERIOLE_RADIUS,
-  circulationParts,
-  CIRCULATION_ENUMS,
-  CIRCULATION_KIT,
-  CirculationStateSchema,
-  describeCirculationState,
-  haemoglobinSaturation,
-  heartPhysics,
-  HEART_PRESSURES,
-  INITIAL_CIRCULATION_STATE,
-  loopPhysics,
-  LOOP_STRETCHES,
-  OXYGEN_PRESSURE,
-  oxygenPhysics,
-  RELATIVE_FLOW,
-  settleCirculationState,
-  type BloodFlow,
-  type BloodPlace,
-  type CirculationPart,
-  type CirculationPatch,
-  type CirculationState,
-  type CirculationView,
-  type HeartPhase,
-  type HeartPhysics,
-  type LoopPhysics,
-  type LoopStretch,
-  type OxygenPhysics,
-  type VesselWidth,
-} from './circulation.js';
 export { TRACE_STEP } from './membrane.js';
-export {
-  describeGreenhouseState,
-  GREENHOUSE_ENUMS,
-  GREENHOUSE_KIT,
-  greenhouseParts,
-  greenhousePhysics,
-  GreenhouseStateSchema,
-  INITIAL_GREENHOUSE_STATE,
-  LAYER_ABSORPTION,
-  REFLECTED_SHARE,
-  settleGreenhouseState,
-  type GreenhouseLayer,
-  type GreenhousePart,
-  type GreenhousePatch,
-  type GreenhousePhysics,
-  type GreenhouseState,
-  type GreenhouseView,
-} from './greenhouse.js';
 export {
   actionPotential,
   arcPhysics,

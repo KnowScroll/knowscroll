@@ -114,26 +114,14 @@ describe('the renderer on the device', () => {
       // The recap picture's months and words (V3 F10): derived from the states a document already holds.
       'recapMonths',
       'describeStageRecap',
-      // The other drawing kits' physics (D-194): the same derivations the text versions use, at one state, with no admission.
-      'greenhouseParts',
-      'greenhousePhysics',
-      // The heart and nerve kits' physics (D-201): derivations at one state and a model of the membrane, no admission.
+      // The nerve kit's physics (D-201): derivations at one state and a model of the membrane, no admission.
       'actionPotential',
       'arcPhysics',
-      'ARTERIOLE_RADIUS',
       'AXON_PEAK_AT',
       'axonProfile',
-      'circulationParts',
-      'haemoglobinSaturation',
-      'heartPhysics',
-      'loopPhysics',
-      'LOOP_STRETCHES',
       'nerveParts',
-      'OXYGEN_PRESSURE',
-      'oxygenPhysics',
       'postsynapticCourse',
       'pushResponses',
-      'RELATIVE_FLOW',
       'spikePhysics',
       'SYNAPSE_TIME_IN_CONSTANTS',
       'synapsePhysics',
