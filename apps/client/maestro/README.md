@@ -1,7 +1,7 @@
 # Android emulator journeys
 
 The optional [native workflow](../../../.github/workflows/native.yml) builds on a hosted runner
-and runs [run-ci.sh](run-ci.sh) against an Android emulator. It is separate from the six required
+and runs [run-ci.sh](run-ci.sh) against an Android emulator. It is separate from the seven required
 checks. The `run-native` PR label or an explicit workflow dispatch selects it; reading this guide
 does not run a build or deploy a world.
 
