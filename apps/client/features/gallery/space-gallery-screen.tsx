@@ -11,6 +11,7 @@ import { SpaceSimpleLists } from '../universe/space/space-simple-lists';
 import type { SpaceChoice, SpaceFailure } from '../universe/space/space-surface';
 import { SpaceView } from '../universe/space/space-view';
 import { SpaceGalleryRecorder, type SpaceGalleryStats } from './space-gallery-recorder';
+import { VoyageGalleryPage } from './voyage-gallery-page';
 
 /** Marker the web smoke and the Android flow look for; it is never in a production export. */
 export const spaceGalleryMarker = 'ks-space-gallery';
@@ -39,7 +40,14 @@ export function SpaceGalleryScreen() {
   const { motion, scene } = useLocalSearchParams<{ motion?: string; scene?: string }>();
   return (
     <DisplayProvider value={motion === 'full' ? { reducedMotion: false } : {}}>
-      <SpaceGalleryPage universe={scene === 'universe'} />
+      {scene === 'voyage' ? (
+        // The Round 7.3 stage over the sample universe (#811), full screen: it needs no scroll, so the marker sits on a plain view.
+        <View testID={spaceGalleryMarker} style={styles.voyage}>
+          <VoyageGalleryPage />
+        </View>
+      ) : (
+        <SpaceGalleryPage universe={scene === 'universe'} />
+      )}
     </DisplayProvider>
   );
 }
@@ -126,4 +134,5 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[8], gap: spacing[3] },
   stage: { height: 560, width: '100%', maxWidth: 420, overflow: 'hidden', borderRadius: 16 },
   spacer: { height: 1400 },
+  voyage: { flex: 1 },
 });

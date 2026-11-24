@@ -144,6 +144,8 @@ for (const [earlier, appearance] of [
         reelSound: false,
         readyNotices: true,
         appearance,
+        universeTrial: false,
+        universeFrameRate: false,
       });
     await page.reload();
     await expect.poll(() => appearanceOf(page)).toBe(appearance);
@@ -166,7 +168,15 @@ test('the covers trial choice an earlier version stored is dropped the next time
   await page.getByRole('switch', { name: 'Start Reels with sound' }).click();
   await expect
     .poll(() => stored(page))
-    .toEqual({ motion: 'reduce', textSize: 'larger', reelSound: false, readyNotices: true, appearance: 'light' });
+    .toEqual({
+      motion: 'reduce',
+      textSize: 'larger',
+      reelSound: false,
+      readyNotices: true,
+      appearance: 'light',
+      universeTrial: false,
+      universeFrameRate: false,
+    });
 });
 
 for (const viewport of [phone, desktop])

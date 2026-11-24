@@ -23,8 +23,26 @@ import type { SpaceAnchor, SpaceProbe, SpaceSurface } from './space-surface';
 /** What the person's camera looks at and how far they have panned and zoomed. The renderer adds the size. */
 export type SpaceCameraSpec = Omit<RigSpec, 'width' | 'height'>;
 
+/**
+ * Takes the camera from the rig and adds drawing of its own (the Universe's Round 7.3 look, on trial: one camera along
+ * the ladder, the planet as one world, the ship). Without one the renderer is exactly the Universe as it ships.
+ */
+export interface SpaceCameraDriver {
+  /** Adds its own objects to a scene, the first one and each one built again. */
+  attach(space: BuiltSpace): void;
+  /** The camera at scene time `t`, once the scene is posed. It may show or hide systems (`showOnly`). */
+  pose(t: number, space: BuiltSpace, size: { readonly width: number; readonly height: number }): CameraPose;
+  /** After the scene is drawn and before the frame is presented: drawing that sits over it. */
+  render(renderer: THREE.WebGLRenderer, size: { readonly width: number; readonly height: number }): void;
+  /** Named points of its own, laid over the canvas with the scene's. */
+  anchors(space: BuiltSpace, size: { readonly width: number; readonly height: number }): SpaceAnchor[];
+  dispose(): void;
+}
+
 /** What a renderer may be told beyond its surface and its first definition. */
 export interface SpaceRendererOptions {
+  /** A camera of its own, instead of the rig's. */
+  readonly driver?: SpaceCameraDriver;
   /**
    * Called with the systems the drawing wants in full whenever that set changes (D-417), for a map with more systems
    * than {@link DETAIL_MAX}: the screen loads their planets. Never called for a map small enough to draw whole.
@@ -133,6 +151,8 @@ export function createSpaceRenderer(
   const paintCache: PaintCache = new Map();
   let space: BuiltSpace = buildSpace(initial, size.width / size.height, surface.pixelRatio, paintCache);
   space.setViewHeight(size.height);
+  const driver = options.driver;
+  driver?.attach(space);
   let spec: SpaceCameraSpec | null = null;
   let fly: Fly | null = null;
   let script: SpaceScript | null = null;
@@ -244,6 +264,15 @@ export function createSpaceRenderer(
         space.scene.updateMatrixWorld(true);
         directed = directFrame({ script, space, from: scriptFrom, wanted: wantedPose(), size, t });
       }
+      if (driver !== undefined) {
+        lastPose = driver.pose(t, space, size);
+        far = false;
+        space.setCamera(lastPose);
+        renderer.render(space.scene, space.camera);
+        driver.render(renderer, size);
+        surface.present?.();
+        return;
+      }
       lastPose = directed?.pose ?? poseAt(t);
       far = spec !== null && spec.focus.kind === 'universe' && isFarPose(lastPose);
       space.setCamera(lastPose);
@@ -272,6 +301,7 @@ export function createSpaceRenderer(
       space = buildSpace(next, size.width / size.height, surface.pixelRatio, paintCache);
       previous.dispose();
       space.setViewHeight(size.height);
+      driver?.attach(space);
       space.highlight(highlighted);
       space.setCamera(lastPose);
       // The scene was built again: a script's props are in the new one.
@@ -303,7 +333,10 @@ export function createSpaceRenderer(
       highlighted = systemId;
       space.highlight(systemId);
     },
-    anchors: () => projectAnchors(space, size, spec?.focus, anchorScratch),
+    anchors: () => {
+      const projected = projectAnchors(space, size, spec?.focus, anchorScratch);
+      return driver === undefined ? projected : [...projected, ...driver.anchors(space, size)];
+    },
     isFar: () => far,
     probe() {
       const gl = renderer.getContext();
@@ -322,6 +355,7 @@ export function createSpaceRenderer(
       return { litPixels: lit, sampledPixels: width * PROBE_ROWS.length, signature };
     },
     dispose(options) {
+      driver?.dispose();
       if (script !== null) endScript(space, script);
       space.dispose();
       paintCache.clear();

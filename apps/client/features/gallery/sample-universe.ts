@@ -83,12 +83,22 @@ const STATION = {
   placement: { systemId: id(10) },
 } as unknown as RoomStation;
 
+/** The sample places and their looks, as a map session is handed them (the Voyage gallery page). */
+export function sampleScene(): {
+  readonly descriptors: readonly SceneDescriptor[];
+  readonly looks: readonly SceneLook[];
+  readonly stations: readonly RoomStation[];
+} {
+  return { descriptors: PLACES.map(descriptorOf), looks: PLACES.flatMap(lookOf), stations: [STATION] };
+}
+
 /** The sample universe as the Universe tab lays it out, ship parked on the second planet. */
 export function sampleUniverse(): UniverseSpace {
+  const scene = sampleScene();
   return layOutUniverse({
-    index: indexUniverse(PLACES.map(descriptorOf), []),
-    looks: looksById(PLACES.flatMap(lookOf)),
-    stations: [STATION],
+    index: indexUniverse(scene.descriptors, []),
+    looks: looksById(scene.looks),
+    stations: scene.stations,
     dustCueIds: [],
     lately: false,
     lastPlaceId: id(13),

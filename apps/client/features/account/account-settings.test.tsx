@@ -218,8 +218,31 @@ describe('P01 Accessibility & playback', () => {
       reelSound: false,
       readyNotices: true,
       appearance: 'dark',
+      universeTrial: false,
+      universeFrameRate: false,
     });
     expect(screen.getByRole('radio', { name: 'Always reduce motion', checked: true })).toBeOnTheScreen();
+    await f.app.unmount();
+  });
+
+  it('turns the Universe frame rate on and off for this device, starting off', async () => {
+    const f = await mount('/account/accessibility');
+    const written = () => JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}') as Partial<DevicePreferences>;
+    await fireEvent.press(await screen.findByRole('switch', { name: 'Show the Universe frame rate', checked: false }));
+    expect(written().universeFrameRate).toBe(true);
+    expect(written().universeTrial).toBe(false);
+    await fireEvent.press(screen.getByRole('switch', { name: 'Show the Universe frame rate', checked: true }));
+    expect(written().universeFrameRate).toBe(false);
+    await f.app.unmount();
+  });
+
+  it('turns the new Universe on and off for this device, starting off', async () => {
+    const f = await mount('/account/accessibility');
+    const written = () => JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}') as Partial<DevicePreferences>;
+    await fireEvent.press(await screen.findByRole('switch', { name: 'Try the new Universe', checked: false }));
+    expect(written().universeTrial).toBe(true);
+    await fireEvent.press(screen.getByRole('switch', { name: 'Try the new Universe', checked: true }));
+    expect(written().universeTrial).toBe(false);
     await f.app.unmount();
   });
 

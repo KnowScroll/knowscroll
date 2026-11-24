@@ -1,0 +1,45 @@
+# The Universe's Round 7.3 look (#811) on the emulator, only in a build made with EXPO_PUBLIC_KS_GALLERY=1: the labelled sample
+# universe drawn by `VoyageStage` (`knowscroll://gallery-space?scene=voyage`), because the lane cannot sign in to reach the real
+# tab. One camera flies between stops, the ship is a draggable three.js drawing, and every place is a named button.
+# `motion=full` forces motion: the lane turns system animations off, which the app reads as reduced motion.
+# The assertions prove the page opened, the stage drew its named buttons and a tap on one flew to its star; whether the
+# ship followed the finger is read from the screenshots by a person. The emulator renders with swiftshader, so the
+# flight is slow and its timing is not a device figure.
+#
+# The ship parks at half the width and 67.5% of the height of the stage, which fills the screen (a place under that
+# point moves it a little to one side); the drag ends near the middle of the sky, where a planet of the star usually is.
+appId: com.knowscroll.client
+name: Voyage over the sample universe
+tags:
+  - gallery
+  - universe
+---
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-space?scene=voyage&motion=full
+- extendedWaitUntil:
+    visible:
+      id: ks-space-gallery
+    timeout: 60000
+- extendedWaitUntil:
+    visible: Sample system one, a system
+    timeout: 180000
+- assertNotVisible: Simple lists shown.*
+- takeScreenshot: voyage-01-universe
+# Fly to the first system's star: its planets are named buttons once the camera has arrived.
+- tapOn: Sample system one, a system
+- extendedWaitUntil:
+    visible: Sample planet .*, a planet
+    timeout: 120000
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: voyage-02-star
+# Drag the ship from where it parks toward the middle of the sky, hold, and let go.
+- swipe:
+    start: 50%, 67.5%
+    end: 50%, 40%
+    duration: 1500
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertVisible:
+    id: ks-space-gallery
+- takeScreenshot: voyage-03-ship-dragged

@@ -37,6 +37,8 @@ interface Options {
   readonly station?: boolean | 'live';
   /** The test walks the map, not its animations (universe-animations-smoke.spec.ts has those). */
   readonly calm?: boolean;
+  /** This device asked for the frame-rate readout in Settings → Accessibility. */
+  readonly frameRate?: boolean;
 }
 
 /** A room whose topic is the fixture's first system (authored for CI, never product data). */
@@ -88,6 +90,10 @@ async function openUniverse(page: Page, requests: Request[], options: Options = 
   if (options.station === 'live') world.stations.push(liveStation);
   await page.setViewportSize(size);
   if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
+  if (options.frameRate === true)
+    await page.addInitScript(() =>
+      window.localStorage.setItem('ks.device.preferences', JSON.stringify({ universeFrameRate: true })),
+    );
   // Count the frames the renderer draws: three.js clears the canvas once per frame. A frame is stamped
   // with the time the browser gave its animation-frame callback (the stamp the 30 fps cap is decided on),
   // not the time `clear` ran: that moves with the runner's stalls, and two frames could then look 14 ms apart.
@@ -265,6 +271,8 @@ test('holds the 30 fps cap on the real tab, and stops drawing when the tab is hi
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
     timeout: 60_000,
   });
+  // Nobody asked for the frame-rate readout on this device.
+  await expect(page.getByTestId('universe-frame-rate')).toHaveCount(0);
   const before = (await frames(page)).length;
   await page.waitForTimeout(4000);
   const drawn = (await frames(page)).slice(before);
@@ -290,6 +298,19 @@ test('holds the 30 fps cap on the real tab, and stops drawing when the tab is hi
   const stopped = (await frames(page)).length;
   await page.waitForTimeout(1500);
   expect((await frames(page)).length).toBe(stopped);
+});
+
+test('shows the frame-rate readout only when the device asked for it, with what the loop really drew', async ({
+  page,
+}, testInfo) => {
+  await openUniverse(page, [], { frameRate: true });
+  const readout = page.getByTestId('universe-frame-rate');
+  await expect(readout).toHaveText(/^\d+ fps · \d+% on time\s+longest \d+ ms · draw [\d.]+ ms$/, { timeout: 60_000 });
+  const line = `frame-rate readout (web, 390x844, software WebGL): ${(await readout.innerText()).replace(/\s+/g, ' ')}`;
+  // eslint-disable-next-line no-console -- the numbers go in the PR description
+  console.log(line);
+  await testInfo.attach('universe-frame-rate-readout', { body: line, contentType: 'text/plain' });
+  await shot(page, 'frame-rate-readout');
 });
 
 test('with reduced motion it draws a still map and flies by jumping', async ({ page }) => {
