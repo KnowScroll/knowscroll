@@ -64,6 +64,11 @@ export interface SpaceViewProps {
    * whole (D-417): the screen loads their planets. Never called for a map small enough to draw whole.
    */
   readonly onDetail?: (systemIds: readonly string[]) => void;
+  /**
+   * Told the time of every frame drawn, for the frame-rate readout. Unlike `diagnostics` it changes nothing about how
+   * the frame is drawn, so it is safe in a production build.
+   */
+  readonly onFrameTime?: (frame: { readonly atMs: number; readonly drawMs: number }) => void;
   /** Developer gallery only. Makes the drawing readable and reports every frame. */
   readonly diagnostics?: {
     readonly onFrame: (sample: SpaceFrameSample) => void;
@@ -102,6 +107,7 @@ export function SpaceView({
   fallback,
   onChoose,
   onDetail,
+  onFrameTime,
   diagnostics,
 }: SpaceViewProps) {
   const { reducedMotion } = useDisplay();
@@ -120,6 +126,7 @@ export function SpaceView({
   const active = failure === null && focused && appActive && onScreen;
   const live = useRef({
     diagnostics,
+    onFrameTime,
     reducedMotion,
     definition,
     camera,
@@ -135,6 +142,7 @@ export function SpaceView({
     live.current = {
       ...live.current,
       diagnostics,
+      onFrameTime,
       reducedMotion,
       definition,
       camera,
@@ -209,6 +217,7 @@ export function SpaceView({
             const probe = frames.current % PROBE_EVERY === 1 ? created.probe() : undefined;
             setAnchors((previous) => reuseUnchangedAnchors(previous, created.anchors()));
             setFar(created.isFar());
+            live.current.onFrameTime?.({ atMs, drawMs });
             live.current.diagnostics?.onFrame({ t, atMs, drawMs, probe });
           },
         });

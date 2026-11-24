@@ -12,6 +12,7 @@ import type { UniverseAnimation } from '../animation/use-universe-animation';
 import type { SpaceCameraSpec } from './space-renderer';
 import type { SpaceChoice, SpaceFailure } from './space-surface';
 import { SpaceView, type SpaceOverlayInfo } from './space-view';
+import { useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
 
 /**
  * U01, U08 and U02 in 3D: the whole universe (the Overview, and Far when the camera has drawn back) or
@@ -110,6 +111,7 @@ export function SpaceStage({
     ],
   );
 
+  const recordFrame = useFrameTimeRecorder();
   const choose = useCallback(
     (choice: SpaceChoice) => {
       if (choice.kind === 'station') onStation?.(choice.id);
@@ -119,6 +121,7 @@ export function SpaceStage({
   );
   return (
     <SpaceView
+      {...(recordFrame ? { onFrameTime: recordFrame } : {})}
       definition={space.definition}
       camera={camera}
       {...(animation?.script ? { script: animation.script } : {})}

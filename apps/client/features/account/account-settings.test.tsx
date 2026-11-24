@@ -225,17 +225,21 @@ describe('P01 Accessibility & playback', () => {
     await f.app.unmount();
   });
 
-  it('turns the Universe trial and its frame rate on and off for this device, both starting off', async () => {
+  it('turns the Universe frame rate on and off for this device, starting off', async () => {
     const f = await mount('/account/accessibility');
     const written = () => JSON.parse(mockWrite.mock.calls.at(-1)?.[0] ?? '{}') as Partial<DevicePreferences>;
-    await fireEvent.press(await screen.findByRole('switch', { name: 'Try the new Universe', checked: false }));
-    expect(written().universeTrial).toBe(true);
-    expect(written().universeFrameRate).toBe(false);
-    await fireEvent.press(screen.getByRole('switch', { name: 'Show the Universe frame rate', checked: false }));
+    await fireEvent.press(await screen.findByRole('switch', { name: 'Show the Universe frame rate', checked: false }));
     expect(written().universeFrameRate).toBe(true);
-    await fireEvent.press(screen.getByRole('switch', { name: 'Try the new Universe', checked: true }));
     expect(written().universeTrial).toBe(false);
-    expect(screen.getByRole('switch', { name: 'Show the Universe frame rate', checked: true })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('switch', { name: 'Show the Universe frame rate', checked: true }));
+    expect(written().universeFrameRate).toBe(false);
+    await f.app.unmount();
+  });
+
+  it('offers no switch for the new Universe until there is one to try', async () => {
+    const f = await mount('/account/accessibility');
+    expect(await screen.findByRole('switch', { name: 'Show the Universe frame rate' })).toBeOnTheScreen();
+    expect(screen.queryByRole('switch', { name: 'Try the new Universe' })).toBeNull();
     await f.app.unmount();
   });
 

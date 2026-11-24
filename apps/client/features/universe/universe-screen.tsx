@@ -18,7 +18,9 @@ import { lowMemoryDevice } from './space/low-memory-device';
 import { SkyBackdrop } from './space/sky-backdrop';
 import { indexUniverse } from './universe-layout';
 import { descriptorsOf, routesOf, skyOf } from './universe-places';
+import { FrameRateReadout } from './frame-rate/frame-rate-readout';
 import { UniverseSurface } from './universe-surface';
+import { useUniverseTrial } from './universe-trial';
 import { useUniverseBack } from './use-universe-back';
 import { useUniverseSession } from './use-universe-session';
 
@@ -39,6 +41,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
     { focus: focusParam } = useLocalSearchParams<{ focus?: string }>();
   const [foreground, setForeground] = useState(false);
   const stations = useRoomStationsOnMap(scope);
+  const { frameRate } = useUniverseTrial();
   useDocumentTitle('Universe · KnowScroll');
   useFocusEffect(
     useCallback(() => {
@@ -108,7 +111,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   if (!snapshot && read.status !== 'empty')
     return gated(<Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />);
   return gated(
-    <>
+    <FrameRateReadout on={frameRate}>
       <UniverseSurface
         session={session}
         state={state}
@@ -120,7 +123,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
         scope={scope}
       />
       <FormationPresentation session={session} />
-    </>,
+    </FrameRateReadout>,
   );
 }
 
