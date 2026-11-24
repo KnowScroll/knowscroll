@@ -194,6 +194,8 @@ async function throughTheFirstHold(page: Page, label: string): Promise<HoldRow[]
 test('the first hold of seasons pins its figure above its beats, changes its state and releases it, at phone', async ({
   page,
 }) => {
+  // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
+  test.setTimeout(90_000);
   await open(page, 'seasons', sizes[0].viewport);
   await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
   const rows = await throughTheFirstHold(page, 'phone');
@@ -224,10 +226,12 @@ test('the first hold of seasons pins its figure above its beats, changes its sta
   for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
 });
 
-test('the first hold of seasons keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
+test('the first hold of nerve keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
   page,
 }) => {
-  await open(page, 'seasons', sizes[1].viewport);
+  // Nerve, not seasons: seasons' held beats are taller than its figure at desktop, so its figure pins and the beats leave it,
+  // while this test is about a hold whose beats are shorter than the figure (the comment below).
+  await open(page, 'nerve', sizes[1].viewport);
   await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
   const rows = await throughTheFirstHold(page, 'desktop');
   const first = rows[0];
@@ -398,6 +402,8 @@ test.describe('keys', () => {
 
 for (const { label, viewport } of sizes) {
   test(`under reduced motion a held figure cross-fades and never tweens, at ${label}`, async ({ page }) => {
+    // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
+    test.setTimeout(90_000);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await open(page, 'seasons', viewport, { motion: 'reduce' });
     await page.evaluate(() => {
@@ -428,6 +434,8 @@ for (const { label, viewport } of sizes) {
 }
 
 test('without reduced motion the same hold glides (the control for the reduced-motion test)', async ({ page }) => {
+  // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
+  test.setTimeout(90_000);
   await open(page, 'seasons', phone);
   const rows = await throughTheFirstHold(page, 'full-motion');
   expect(new Set(rows.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
