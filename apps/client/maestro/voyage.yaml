@@ -6,8 +6,9 @@
 # ship followed the finger is read from the screenshots by a person. The emulator renders with swiftshader, so the
 # flight is slow and its timing is not a device figure.
 #
-# The ship parks at half the width and 67.5% of the height of the stage, which fills the screen (a place under that
-# point moves it a little to one side); the drag ends near the middle of the sky, where a planet of the star usually is.
+# The ship parks at half the width and 67.5% of the height of the stage, which fills the screen (a place under that point
+# moves it a little to one side). Maestro takes whole percentages only, so the drag starts at 68%; it ends near the middle
+# of the sky, where a planet of the star usually is.
 appId: com.knowscroll.client
 name: Voyage over the sample universe
 tags:
@@ -35,7 +36,7 @@ tags:
 - takeScreenshot: voyage-02-star
 # Drag the ship from where it parks toward the middle of the sky, hold, and let go.
 - swipe:
-    start: 50%, 67.5%
+    start: 50%, 68%
     end: 50%, 40%
     duration: 1500
 - waitForAnimationToEnd:
