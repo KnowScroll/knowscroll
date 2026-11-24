@@ -25,9 +25,10 @@ export interface SpikeRecipeV2 extends RecipeDataV2 {
 }
 
 /**
- * The twenty recipes of the first spike, in the order they ran: the three Seasons parts first, then
- * nine Earth & sky and Space recipes in all, four of the human body, and seven of computing,
- * machine learning and history. A recipe gets a stage only where its library entry names a kit
+ * The recipes of the first spike, in the order they ran: the three Seasons parts first, then
+ * Earth & sky and Space recipes, four of the human body, and seven of computing,
+ * machine learning and history. The twenty of that run lost three when `tides.v1` and `star.v1` were deleted (#799): `tides`,
+ * `tides-spring-neap` and `stars-fusion` have no kit to draw them with any more. A recipe gets a stage only where its library entry names a kit
  * (`stageKit`), so the stage recipes among them are the three Seasons parts and the ones a kit of
  * D-194 draws; the rest are plain Scrolls with calls. `seasons-elsewhere` is not one of the twenty: name
  * it with `--topics` (see `SEASONS_SPIKE_TOPICS_V2`).
@@ -36,11 +37,8 @@ export const SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'seasons',
   'seasons-hemispheres',
   'seasons-limits',
-  'tides',
-  'tides-spring-neap',
   'greenhouse-radiation',
   'greenhouse-balance',
-  'stars-fusion',
   'exoplanet-habitable-zone',
   'cardiac-cycle',
   'blood-pressure',
@@ -67,21 +65,11 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The eight Earth & sky and Space recipes the drawing kits of D-194 give a picture, to measure with the
- * v17 prompt: tides, the greenhouse effect, stars and exoplanet transits. The plan marks them `scrollV2`
- * (D-217), so each runs as the library produces it: a stage Scroll with the recipe's own kit and the plan's
- * misconception (none).
+ * The three Earth & sky recipes the greenhouse kit of D-194 gives a picture, to measure with the v17 prompt. The eight of that
+ * run (with tides, stars and exoplanet transits) lost five when `tides.v1`, `star.v1` and `transit.v1` were deleted (#799). Each
+ * runs as the plan marked it (D-217): a stage Scroll with the recipe's kit and the plan's misconception (none).
  */
-export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
-  'tides',
-  'tides-spring-neap',
-  'greenhouse',
-  'greenhouse-radiation',
-  'greenhouse-balance',
-  'stars-fusion',
-  'stars-lifecycle',
-  'exoplanet-transit',
-];
+export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = ['greenhouse', 'greenhouse-radiation', 'greenhouse-balance'];
 
 /**
  * The six Human body recipes the drawing kits of D-201 give a picture, to measure with the v18 prompt before the

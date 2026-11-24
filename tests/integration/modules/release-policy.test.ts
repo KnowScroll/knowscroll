@@ -496,7 +496,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
 
   describe('the withdrawal leaves a person’s own decisions alone', () => {
     it('refuses a Scroll an operator released, one still held and one that does not exist', async () => {
-      const own = await ready('stars-lifecycle');
+      const own = await ready('greenhouse-balance');
       expect(await gate().release({ assetId: own.assetId, revision: own.revision, decidedBy: person })).toMatchObject({
         kind: 'released',
       });
@@ -504,7 +504,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
         kind: 'refused',
         reason: 'not_auto_released',
       });
-      const waiting = await hold('stars-fusion');
+      const waiting = await hold('greenhouse-radiation');
       expect(await policy().withdraw({ ...waiting, withdrawnBy: person })).toEqual({
         kind: 'refused',
         reason: 'not_auto_released',
@@ -517,10 +517,10 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     });
 
     it('is not counted by the replay of the support check: it measures against a person’s decisions only', async () => {
-      // `seasons-hemispheres` was released by the policy and withdrawn above; `stars-lifecycle` by a person.
+      // `seasons-hemispheres` was released by the policy and withdrawn above; `greenhouse-balance` by a person.
       const decided = await libraryCheckStore.decided(database.db, { since: undefined, limit: 500 });
       const released = decided.filter((entry) => entry.decision === 'released');
-      expect(released.map((entry) => entry.assetId)).toEqual([TOPICS['stars-lifecycle'].assetId]);
+      expect(released.map((entry) => entry.assetId)).toEqual([TOPICS['greenhouse-balance'].assetId]);
       const byPolicy = await database.db
         .selectFrom('content.revision_reviews')
         .select(['asset_id', 'revision'])
@@ -541,11 +541,11 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
   describe('the daily cap', () => {
     it('holds under concurrent sweeps: two sweeps at a cap of one release one Scroll between them, and the next day releases the other', async () => {
       await startNewDay();
-      expect(await policy().approveTopic({ topicId: 'space.stars', approvedBy: person })).toMatchObject({
+      expect(await policy().approveTopic({ topicId: 'earth.greenhouse-effect', approvedBy: person })).toMatchObject({
         kind: 'approved',
       });
-      const first = await ready('stars-colour-brightness');
-      const second = await ready('stars-fusion');
+      const first = await ready('greenhouse');
+      const second = await ready('greenhouse-radiation');
       const capOne = { enabled: true, dailyCap: 1 } as const;
       const results = await Promise.all([policy().sweep(capOne), policy().sweep(capOne)]);
       const released = results.flatMap((result) => (result.kind === 'swept' ? result.released : []));
@@ -573,7 +573,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       expect(await policy().approveTopic({ topicId: 'space.exoplanets', approvedBy: person })).toMatchObject({
         kind: 'approved',
       });
-      const raised = await ready('exoplanet-transit');
+      const raised = await ready('exoplanet-habitable-zone');
       expect(await holds()).toMatchObject({ wouldRelease: 1 });
       const raise = {
         assetId: raised.assetId,
@@ -628,7 +628,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       const printed = JSON.stringify(status);
       expect(printed).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/u);
       expect(printed).not.toContain('earth.seasons');
-      expect(printed).not.toContain('space.stars');
+      expect(printed).not.toContain('earth.greenhouse-effect');
     });
   });
 

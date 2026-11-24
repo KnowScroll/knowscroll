@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { LiveStage, ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
+import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
 import { Stage, type StageProps } from './stage';
 import { stageEntryAt } from './stage-state';
 
@@ -104,7 +104,7 @@ describe('the recap of a Scroll whose picture stood on the orbit at two months, 
 
 describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
   it('keeps its last state and says so in the same words as before', async () => {
-    const other = tides as unknown as ScrollDocumentV2;
+    const other = circulation as unknown as ScrollDocumentV2;
     const stageOf = other.stage;
     if (stageOf === undefined) throw new Error('the fixture has a stage');
     const last = other.stops.at(-1)!.id;
@@ -119,12 +119,16 @@ describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
 });
 
 describe('a stored stage of a kit this build does not draw', () => {
-  it('draws nothing, and does not throw looking the kit up', async () => {
-    const gone = {
-      kit: 'gone.v1',
-      states: [{ stop: 'the-lean', state: { old: 'word' }, alt: 'What the removed kit drew.' }],
-    } as unknown as StageProps['document']['stage'];
-    await render(<Stage {...props} document={{ stops: document.stops, stage: gone }} />);
-    expect(screen.queryByTestId('stage')).toBeNull();
-  });
+  // transit.v1, tides.v1 and star.v1 were deleted from the code in #799; stage and main still store Scrolls that name them.
+  it.each(['gone.v1', 'transit.v1', 'tides.v1', 'star.v1'])(
+    'draws nothing for %s, and does not throw looking the kit up',
+    async (kit) => {
+      const gone = {
+        kit,
+        states: [{ stop: 'the-lean', state: { old: 'word' }, alt: 'What the removed kit drew.' }],
+      } as unknown as StageProps['document']['stage'];
+      await render(<Stage {...props} document={{ stops: document.stops, stage: gone }} />);
+      expect(screen.queryByTestId('stage')).toBeNull();
+    },
+  );
 });

@@ -14,10 +14,7 @@ import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
-import star from '@knowscroll/scroll-model/fixtures/star-stage-ci.json';
 import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
-import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
-import transit from '@knowscroll/scroll-model/fixtures/transit-stage-ci.json';
 import {
   canonicalJson,
   describePicture,
@@ -58,10 +55,7 @@ const folioGalleryMarker = 'ks-folio-gallery';
  */
 const documents = {
   seasons,
-  tides,
   greenhouse,
-  star,
-  transit,
   circulation,
   nerve,
   starlight,
@@ -334,7 +328,7 @@ const hand: readonly CoverFixture[] = [
   coverOf(
     'continue',
     'A cover the person has read part of: Continue',
-    tides as unknown as ScrollDocumentV2,
+    circulation as unknown as ScrollDocumentV2,
     'continue',
   ),
   coverOf('last', 'The last cover of the hand: the strip says MORE COVERS', greenhouse as unknown as ScrollDocumentV2),

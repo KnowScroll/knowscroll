@@ -13,6 +13,7 @@ import {
 } from './document.js';
 import { parseDocumentV2 } from './delivery.js';
 import { describeStageState } from './kit.js';
+import { isStageKitId } from './kits/index.js';
 import { computeMeasuresV2 } from './measures.js';
 import { computeIntegrityV2, validateDocumentV2 } from './validate.js';
 
@@ -489,6 +490,17 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(isLiveStage(outcome.document.stage ?? stageOf(fixture()))).toBe(false);
   });
 
+  it.each(['transit.v1', 'tides.v1', 'star.v1'])(
+    'takes the stored stage of %s, a kit deleted from the code (#799), on the client path and the server path',
+    (kit) => {
+      const stored = JSON.parse(JSON.stringify(legacyOf(kit))) as ScrollDocumentV2;
+      expect(isStageKitId(kit)).toBe(false);
+      expect(parseDocumentV2(stored).kind).toBe('valid');
+      expect(codes(stored)).toEqual([]);
+      expect(codes(stored, { verify: false })).toEqual([]);
+    },
+  );
+
   it('still checks the measures and the hash of the stored document', () => {
     const document = legacyOf();
     expect(
@@ -580,8 +592,10 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(found).toContainEqual({ code: 'schema_invalid_value', path: 'stage.states.0.state.focus' });
     expect(found.map((issue) => issue.path)).not.toContain('stage.kit');
     // The words of one kit under the name of another.
-    expect(typo({ view: 'bulges', moonAt: 'full', focus: 'none' })).not.toEqual([]);
-    expect(codes(signed({ ...document, stage: { kit: 'tides.v1', states: stage.states } }))).not.toEqual([]);
+    expect(
+      typo({ view: 'heart', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'atria' }),
+    ).not.toEqual([]);
+    expect(codes(signed({ ...document, stage: { kit: 'circulation.v1', states: stage.states } }))).not.toEqual([]);
   });
 
   it('takes only a well-formed kit id, so no name of an object’s own property is a kit', () => {

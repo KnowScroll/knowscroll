@@ -1,11 +1,5 @@
 import { defineKit, kitStateSchema, type KitPatch, type KitState } from './definition.js';
 import { blackbodyColour, peakNanometres } from './spectrum.js';
-import {
-  LUMINOSITY_MASS_EXPONENT,
-  mainSequenceLuminosityForMass,
-  mainSequenceRadiusForMass,
-  RADIUS_MASS_EXPONENT,
-} from './star.js';
 
 /**
  * The starlight kit (D-204): what the light of a star tells and what it makes possible. The writer
@@ -18,10 +12,25 @@ import {
  * closer in.
  *
  * The kinds of star are illustrative. The three main-sequence stars take their size and output from the
- * same power laws as the star kit (`star.v1`), and their temperature follows from them; the red giant and
+ * same main-sequence power laws (output as mass to 3.5, radius as mass to 0.8), and their temperature follows from them; the red giant and
  * the white dwarf are typical, not named stars. The picture gives no years and no real star's data.
  */
 export const STARLIGHT_KIT = 'starlight.v1';
+
+/** A main-sequence star's output goes as its mass to the power 3.5 (Suns' outputs, for masses in Suns). */
+const LUMINOSITY_MASS_EXPONENT = 3.5;
+/** A main-sequence star's radius goes as its mass to the power 0.8 (Sun radii, for masses in Suns). */
+const RADIUS_MASS_EXPONENT = 0.8;
+
+/** The output, in Suns' outputs, of a main-sequence star of the given mass in Suns. */
+function mainSequenceLuminosityForMass(massInSuns: number): number {
+  return massInSuns ** LUMINOSITY_MASS_EXPONENT;
+}
+
+/** The radius, in Sun radii, of a main-sequence star of the given mass in Suns. */
+function mainSequenceRadiusForMass(massInSuns: number): number {
+  return massInSuns ** RADIUS_MASS_EXPONENT;
+}
 
 export const STARLIGHT_ENUMS = {
   /**

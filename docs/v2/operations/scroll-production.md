@@ -262,10 +262,10 @@ Before any V3 engine is built, the team measures whether the writer can produce 
 node dist/operator.js content writer-spike-v2 --topics <recipe key,…> [--blocks <recipe=sort|fork|scale|chart>[+ray],…] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
 ```
 
-The twenty topics of the first run, in order (the three Seasons parts first; nine Earth & sky and Space recipes, four of the human body, seven of computing, machine learning and history). That run used prompt v14, which gave a stage to every Earth & sky and Space recipe. Since v15 a recipe has a stage only where its library entry names a `stageKit` (D-125): three Seasons parts. The others run as plain Scrolls with calls:
+The topics of the first run, in order (the three Seasons parts first; six Earth & sky and Space recipes, four of the human body, seven of computing, machine learning and history; the first run had twenty, and `tides`, `tides-spring-neap` and `stars-fusion` left the list with their kits in #799). That run used prompt v14, which gave a stage to every Earth & sky and Space recipe. Since v15 a recipe has a stage only where its library entry names a `stageKit` (D-125): three Seasons parts. The others run as plain Scrolls with calls:
 
 ```text
-seasons,seasons-hemispheres,seasons-limits,tides,tides-spring-neap,greenhouse-radiation,greenhouse-balance,stars-fusion,exoplanet-habitable-zone,cardiac-cycle,blood-pressure,reflex-arc,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
+seasons,seasons-hemispheres,seasons-limits,greenhouse-radiation,greenhouse-balance,exoplanet-habitable-zone,cardiac-cycle,blood-pressure,reflex-arc,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
 ```
 
 To measure the Seasons stage again with the v15 prompt (the three Seasons stages, and "Seasons elsewhere" as a plain Scroll to check its Mars and Uranus sources), at most eight requests. Since D-137 the plan marks these four recipes v2, and the spike runs them as the library produces them: the plan's picture choice and misconception, not the spike's own table:
@@ -276,13 +276,13 @@ node dist/operator.js content writer-spike-v2 --topics seasons,seasons-hemispher
 
 What to read in the lines for these four: `variant` is `stage` for the first three and `plain` for `seasons-elsewhere`, `stageStates` is at least 3 for the stage ones, and the `findings` have no `common_guess_*`, `stage_state_on_call`, `earth_axis_sideways` or `final_call_restates_call` that survive the repair. Then read each accepted document on the server: the picture must match each stop's words (the month decides the pins and Ray), no stage text calls Earth's axis sideways, and every statement about Mars and Uranus must be in the NASA pages the recipe cites. The recipes the drawing kits of D-194 give a picture are measured next (below).
 
-To measure the eight Earth & sky and Space recipes the drawing kits give a picture (D-194: tides and spring and neap tides with `tides.v1`; `greenhouse`, `greenhouse-radiation` and `greenhouse-balance` with `greenhouse.v1`; `stars-fusion` and `stars-lifecycle` with `star.v1`; `exoplanet-transit` with `transit.v1`), at most sixteen requests. Each runs as the library produces it since D-217 marked them `scrollV2`: a stage Scroll drawn with its recipe's kit, no misconception, with its landmark:
+To measure the three Earth & sky recipes the greenhouse kit gives a picture (D-194: `greenhouse`, `greenhouse-radiation` and `greenhouse-balance` with `greenhouse.v1`), at most six requests. The first measure had eight recipes; the five that `tides.v1`, `star.v1` and `transit.v1` drew left with those kits (#799). Each runs as the library produces it since D-217 marked them `scrollV2`: a stage Scroll drawn with its recipe's kit, no misconception, with its landmark:
 
 ```sh
-node dist/operator.js content writer-spike-v2 --topics tides,tides-spring-neap,greenhouse,greenhouse-radiation,greenhouse-balance,stars-fusion,stars-lifecycle,exoplanet-transit --concurrency 2 --spike-id sky-kits-v17 --out /var/tmp/ks-v3-spike/sky-kits-v17.jsonl
+node dist/operator.js content writer-spike-v2 --topics greenhouse,greenhouse-radiation,greenhouse-balance --concurrency 2 --spike-id sky-kits-v17 --out /var/tmp/ks-v3-spike/sky-kits-v17.jsonl
 ```
 
-What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all eight, and no `stage_choice_invalid` survives the repair (the writer used a word the kit does not have). Then read each accepted document on the server: the picture must match each stop's words (the Moon's phase decides spring or neap; the layer and `change` decide the energy bars; the mass and stage decide the star; the planet and place decide the dip), and no stop may say what the picture cannot (a coast, a temperature, a year, a real planet's size).
+What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all three, and no `stage_choice_invalid` survives the repair (the writer used a word the kit does not have). Then read each accepted document on the server: the picture must match each stop's words (the layer and `change` decide the energy bars), and no stop may say what the picture cannot (a coast, a temperature, a year, a real planet's size).
 
 To measure the six Human body recipes the drawing kits of D-201 give a picture (`cardiac-cycle`, `blood-pressure` and `oxygen-transport` with `circulation.v1`; `action-potential`, `synapse-signalling` and `reflex-arc` with `nerve.v1`), at most twelve requests. Each runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, no misconception, with its landmark. Read the results before the first wave of these recipes:
 
@@ -437,23 +437,20 @@ does it on dev, one kit at a time**, in this order, and reads each kit's rewrite
 
 | # | Kit | Recipes | `--only` |
 |---|---|---|---|
-| 1 | transit (`transit.v1`) | `exoplanet-transit` | `exoplanet-transit` |
-| 2 | tides (`tides.v1`) | `tides`, `tides-spring-neap` | `tides,tides-spring-neap` |
-| 3 | greenhouse (`greenhouse.v1`) | `greenhouse`, `greenhouse-radiation`, `greenhouse-balance` | `greenhouse,greenhouse-radiation,greenhouse-balance` |
-| 4 | star (`star.v1`) | `stars-fusion`, `stars-lifecycle` | `stars-fusion,stars-lifecycle` |
-| 5 | black hole (`black-hole.v1`) | `black-hole-formation`, `black-hole-horizon`, `black-hole-evidence` | `black-hole-formation,black-hole-horizon,black-hole-evidence` |
-| 6 | starlight (`starlight.v1`) | `stars-colour-brightness`, `exoplanet-habitable-zone` | `stars-colour-brightness,exoplanet-habitable-zone` |
-| 7 | circulation (`circulation.v1`) | `cardiac-cycle`, `blood-pressure`, `oxygen-transport` | `cardiac-cycle,blood-pressure,oxygen-transport` |
-| 8 | nerve (`nerve.v1`) | `action-potential`, `synapse-signalling`, `reflex-arc` | `action-potential,synapse-signalling,reflex-arc` |
-| 9 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
+| 1 | greenhouse (`greenhouse.v1`) | `greenhouse`, `greenhouse-radiation`, `greenhouse-balance` | `greenhouse,greenhouse-radiation,greenhouse-balance` |
+| 2 | black hole (`black-hole.v1`) | `black-hole-formation`, `black-hole-horizon`, `black-hole-evidence` | `black-hole-formation,black-hole-horizon,black-hole-evidence` |
+| 3 | starlight (`starlight.v1`) | `stars-colour-brightness`, `exoplanet-habitable-zone` | `stars-colour-brightness,exoplanet-habitable-zone` |
+| 4 | circulation (`circulation.v1`) | `cardiac-cycle`, `blood-pressure`, `oxygen-transport` | `cardiac-cycle,blood-pressure,oxygen-transport` |
+| 5 | nerve (`nerve.v1`) | `action-potential`, `synapse-signalling`, `reflex-arc` | `action-potential,synapse-signalling,reflex-arc` |
+| 6 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
 
-One recipe, the exact command (the first row; nothing is sent by the dry run):
+One recipe, the exact command (the first row's `greenhouse`; nothing is sent by the dry run):
 
 ```sh
 # worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash
-node dist/operator.js content produce-library --dry-run --only exoplanet-transit   # wouldQueue, take 1 at scroll-production-v3.v1
-node dist/operator.js content produce-library --only exoplanet-transit             # queues the job; the dev worker writes it and it ends held
-node dist/operator.js content production-status --only exoplanet-transit           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
+node dist/operator.js content produce-library --dry-run --only greenhouse   # wouldQueue, take 1 at scroll-production-v3.v1
+node dist/operator.js content produce-library --only greenhouse             # queues the job; the dev worker writes it and it ends held
+node dist/operator.js content production-status --only greenhouse           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
 node dist/operator.js content review-list
 node dist/operator.js content review-show --asset <asset id from review-list> --sources
 node dist/operator.js content release --asset <asset id> --revision <n>             # or reject with a reason; or leave it to the release policy
@@ -480,7 +477,7 @@ until then `production-status` shows it `not_started`. Supply never commissions 
 them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
 a reader's ask or the Planner's demand for a Scroll the library has not made yet starts production only for a stored (`gen-`) recipe, within
 the growth cap; with none, the ask closes as `no_recipe_left` and is counted as a gap. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
-is inside one batch, except the three Earth & sky parts, which wait for their kit batches above: tides, greenhouse and Earth & sky):
+is inside one batch, except the three Earth & sky parts, which wait for their kit batches above: greenhouse and Earth & sky; the tides batch is done, #799):
 
 | # | Batch | Recipes | `--only` |
 |---|---|---|---|

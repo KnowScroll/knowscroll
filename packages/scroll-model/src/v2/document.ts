@@ -13,14 +13,8 @@ import {
   NERVE_KIT,
   NerveStateSchema,
   isStageKitId,
-  STAR_KIT,
   STARLIGHT_KIT,
   StarlightStateSchema,
-  StarStateSchema,
-  TIDES_KIT,
-  TidesStateSchema,
-  TRANSIT_KIT,
-  TransitStateSchema,
 } from './kits/index.js';
 import { FIELD_LIMITS_V2 as F, LIMITS_V2 as L, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 
@@ -212,10 +206,7 @@ export type LegacyStage = z.infer<typeof LegacyStageSchema>;
 /** The stages of the kits the code still defines, one arm each. */
 const LIVE_STAGES = [
   stageOf(EARTH_SKY_KIT, StageStateSchema),
-  stageOf(TIDES_KIT, TidesStateSchema),
   stageOf(GREENHOUSE_KIT, GreenhouseStateSchema),
-  stageOf(STAR_KIT, StarStateSchema),
-  stageOf(TRANSIT_KIT, TransitStateSchema),
   stageOf(CIRCULATION_KIT, CirculationStateSchema),
   stageOf(NERVE_KIT, NerveStateSchema),
   stageOf(STARLIGHT_KIT, StarlightStateSchema),
@@ -248,10 +239,7 @@ function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: S
 
 const LIVE_FRAMES = [
   frameOf(EARTH_SKY_KIT, StageStateSchema),
-  frameOf(TIDES_KIT, TidesStateSchema),
   frameOf(GREENHOUSE_KIT, GreenhouseStateSchema),
-  frameOf(STAR_KIT, StarStateSchema),
-  frameOf(TRANSIT_KIT, TransitStateSchema),
   frameOf(CIRCULATION_KIT, CirculationStateSchema),
   frameOf(NERVE_KIT, NerveStateSchema),
   frameOf(STARLIGHT_KIT, StarlightStateSchema),
