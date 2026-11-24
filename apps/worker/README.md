@@ -265,17 +265,11 @@ outside dev/stage/ci/local, and call no provider. `review-show` prints the Scrol
 
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-6>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
-`MiniMax-M3.1-Flash`, prints the request maximum (two for a v1 recipe: one writer call and at most one repair; six for a v2 library recipe, D-198), uses the
+`MiniMax-M3.1-Flash`, prints the request maximum (two for a v1 recipe: one writer call and at most one repair; six for a library recipe that is a document v3, which the bound of D-198 kept), uses the
 explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
 `--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is
 refused, `node dist/operator.js reasoning rejected [--attempt <uuid>]` shows the kept, redacted answer
 and the validator's findings. No production job or source text is placed on the HTTP path.
-
-`node dist/operator.js content writer-spike-v2 --topics <recipe keys> [--blocks <recipe=sort|fork|scale|chart>[+ray],…] [--out <file>] [--concurrency <1-4>]`
-(`src/writer-spike-operator.ts`, S-0 and S-1a, D-120 to D-126) runs the v15 writer for `scroll-authoring.v2` on library recipes through the
-same nonpersonal harness grant (one request and at most one repair per topic, `MiniMax-M3.1-Flash` only) and prints one JSON
-line per topic with its outcome, findings, measured minutes, counts and tokens. It admits and publishes nothing and creates no
-table, so it needs no migration. How to read the output: the runbook, "The v2 writer spike (S-0)".
 
 `node dist/operator.js content writer-spike-v3 --topics <recipe keys> --arms <a,b> [--raw-dir <absolute dir>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]`
 (`src/writer-spike-v3-operator.ts`, #771) runs the document v3 writer on the ten recipes of the spike's own plan table, in arm `a` (one

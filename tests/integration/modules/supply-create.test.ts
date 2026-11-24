@@ -39,7 +39,10 @@ import {
   type ResolveRequest,
 } from '@knowscroll/backend/modules/supply';
 import { SUPPLY_PORTS, recoverOpenDemand, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
-import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
+import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
@@ -51,7 +54,7 @@ import { fixtureProductionWorker, type QuotaScript } from '../support/production
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { plannedIntent } from '../support/planned-demand.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
-import { markLibraryV1, markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
+import { markLibraryV1 } from '../support/scroll-v2.js';
 
 const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
 const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -59,6 +62,21 @@ const matchAnswer = (topicId: string | null, facetId: string | null = null): Fix
   kind: 'success',
   text: JSON.stringify({ topicId, facetId }),
 });
+
+/**
+ * Marks a library recipe a document v3 recipe for a test and returns the undo. The plan marks every recipe so (#787, #790) and this file
+ * runs on the v1 library (`markLibraryV1`), so a test that needs a recipe Create does not own marks one. A recipe the plan marks v2 or
+ * document v3 waits at the operator's review gate (D-138): Create has none of those to start.
+ */
+function markScrollV3(key: ScrollTopic): () => void {
+  const recipe = RECIPES[key] as { scrollV3?: ScrollV3Plan };
+  const before = recipe.scrollV3;
+  recipe.scrollV3 = spikePlanV3('seasons');
+  return () => {
+    if (before === undefined) delete recipe.scrollV3;
+    else recipe.scrollV3 = before;
+  };
+}
 
 /**
  * Quartermaster's Create end to end (D-037): a request for a topic with no admitted content commits
@@ -451,7 +469,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       await build();
       const person = await seedPerson(database.db);
       // Every recipe for this facet waits at the operator's review gate (D-138): Create has none to start.
-      const undo = markScrollV2('tides', ORRIN_PLAN);
+      const undo = markScrollV3('tides');
       let requestId: string;
       try {
         requestId = await ask(person, facet());
@@ -745,7 +763,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       expect((await status(fourth, c)).status).toBe('preparing');
     });
 
-    it('does not send a v2 recipe job again when someone joins a group that named it before the plan marked it v2', async () => {
+    it('does not send a document v3 recipe job again when someone joins a group that named it before the plan marked it v3', async () => {
       await build();
       const first = await seedPerson(database.db),
         second = await seedPerson(database.db);
@@ -754,8 +772,8 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       expect(old).toMatchObject({ production_recipe: 'transformer-architecture', decision: 'create', active: true });
       await sql`delete from pgboss.job where name=${produceScrollQueue.name}`.execute(database.db);
 
-      // The plan now makes the recipe v2: Create does not own its production (D-138).
-      const undo = markScrollV2('transformer-architecture', ORRIN_PLAN);
+      // The plan now makes the recipe document v3: Create does not own its production (D-138).
+      const undo = markScrollV3('transformer-architecture');
       try {
         const b = await ask(second, catalogue('machine-learning.transformers'));
         const joined = await workOf(b);

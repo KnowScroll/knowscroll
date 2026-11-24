@@ -594,10 +594,4 @@ export const EARTH_SKY_KIT_DEFINITION = defineKit({
   initial: INITIAL_STAGE_STATE,
   settle: settleStageState,
   describe: describeStageState,
-  writerGuide: [
-    'Code draws the picture from a fixed kit: the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in the north and one in the south, and the Moon. You choose only the view, the month, the Moon’s phase and the part to look at, from the listed words. Code decides everything else: Earth’s tilt is fixed, and which half of Earth leans toward the Sun, the pins and the angle of Ray all follow from the month. So the month you choose is a claim the picture makes: choose the month that matches what the stop says.',
-    '- The views: "sun-earth" shows the Sun and Earth side by side, with Ray and the pins; "orbit" shows Earth’s orbit from above, drawn to scale (nearly a circle); "orbit-stretched" is the same orbit stretched so that the nearest and farthest points show; "earth-close" is a close view of Earth with Ray and the pins; "moon-orbit" shows the Moon circling Earth and is the only view with a Moon phase. A focus on a part the view does not draw is ignored.',
-    '- The picture shows only Earth, the Sun and the Moon.',
-    '- Earth’s axis is tilted by a fixed angle and points the same way all year. Say that it is tilted or that it leans, and never call it sideways or say it lies on its side: those words belong to Uranus, which the picture does not draw. A text that does so is refused.',
-  ],
 });

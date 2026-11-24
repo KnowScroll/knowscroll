@@ -42,10 +42,7 @@ import {
   type RetryRequest,
 } from '@knowscroll/backend/modules/supply';
 import { SUPPLY_PORTS, supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
+import { fixtureResearchPageV2 } from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import {
   LIMITS_TEXT,
@@ -90,7 +87,8 @@ import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { seedScroll } from '../support/thread-fixtures.js';
-import { markScrollV1, v2Capabilities, markFormerV2Recipes } from '../support/scroll-v2.js';
+import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 import type { FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -133,11 +131,6 @@ const limitsOf = (document: unknown) => {
     text: callouts[0]?.data.spans?.map((span) => span.text).join(''),
   };
 };
-
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   let database: TestDatabase<Database>;
@@ -236,13 +229,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   beforeAll(async () => {
     database = await createTestDatabase<Database>('supply_ask');
     await enableProductionScope(database.db);
-    // The source: the labelled Orrin fixture as the released v2 revision of the `seasons` recipe, as production makes it.
-    const published = fixtureProduction(
-      database.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    expect(await published.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', held: true });
+    // The source: the labelled Orrin fixture as the released v2 revision of the `seasons` recipe, stored as the v2 production job stored it.
+    expect(await storeV2(database.db, 'seasons')).toMatchObject({ assetId: TOPICS.seasons.assetId, revision: 1 });
     scroll = { assetId: TOPICS.seasons.assetId, revision: 1 };
     expect(await makeReviewGate(database.db).release({ ...scroll, decidedBy: 'cli:ci-reviewer' })).toMatchObject({
       kind: 'released',
@@ -2787,16 +2775,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     it('reads nothing of a revision the review gate holds, so a question cannot be asked from it', async () => {
       await setup();
       // The operator's next take of the source is stored held (D-138): it is a v2 Scroll with the same stops.
-      const next = fixtureProduction(
-        database.db,
-        () => answerWith(fixtureAuthoredV2()),
-        () => fixtureResearchPageV2,
-      );
-      expect(await next.produce('seasons', false, signal(), false, 2)).toMatchObject({
-        outcome: 'published',
-        held: true,
-        revision: 2,
-      });
+      expect(await storeV2(database.db, 'seasons')).toMatchObject({ revision: 2 });
       expect(await factsOf({ assetId: scroll.assetId, assetRevision: 2 }, stopId)).toBeUndefined();
     });
   });

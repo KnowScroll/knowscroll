@@ -12,7 +12,7 @@ import {
   reasoningOperatorFor,
   type HarnessSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { runSpikeJobs, SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-v2/run.js';
+import { runSpikeJobs, SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-run.js';
 import {
   makeWriterSpikeV3,
   spikeJobLabel,

@@ -3,7 +3,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
-import { parseDocumentV2 } from '@knowscroll/scroll-model';
+import { parseDocumentV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
@@ -32,9 +32,12 @@ import {
 } from '../../../packages/backend/src/modules/content/production/library-support.js';
 import {
   FIXTURE_SOURCE_V2,
-  fixtureAuthoredV2,
   fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
+} from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
+import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
+import type { ScrollV3Plan } from '../../../packages/backend/src/modules/content/domain/library/plan.js';
+import { spikePlanV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/plans.js';
+import { fixtureReplyV3 } from '../../../packages/backend/src/modules/content/production/spike-v3/writer-v3.fixture.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
@@ -49,7 +52,7 @@ import {
   supportRequestOf,
 } from '../support/generated-scroll.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
-import { markFormerV2Recipes } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
  * The writer's recorded answer: the labelled Orrin fixture (an invented planet) with six sentences reworded. The library check takes no "no fact"
@@ -75,13 +78,14 @@ const REWORDED: readonly (readonly [string, string])[] = [
   ],
 ];
 
-function orrinAnswer() {
-  let json = JSON.stringify(fixtureAuthoredV2());
+/** Puts the reworded sentences into the stored document's text (the same strings stand verbatim in the stored Orrin Scroll). */
+function reword(document: ScrollDocumentV2): void {
+  let json = JSON.stringify(document);
   for (const [from, to] of REWORDED) {
     if (!json.includes(from)) throw new Error(`CI fixture: the sentence to reword is not there: ${from}`);
     json = json.replaceAll(from, to);
   }
-  return JSON.parse(json) as unknown;
+  Object.assign(document, JSON.parse(json) as object);
 }
 
 /** The page the fixture serves for a recipe URL: the Orrin page. Only recipes with one page are used here. */
@@ -100,14 +104,10 @@ const checkerReply = (call: FixtureCall) => supportReply(call, {}, LIBRARY_CHECK
 const countsOfCheck = (check: { readonly sentences: Parameters<typeof countsOf>[0] }) => countsOf(check.sentences);
 
 /**
- * The support check of library Scrolls (D-415) against a real PostgreSQL 16 database. The Scrolls are produced held by the real
- * production job, with the labelled Orrin fixture in place of the writer, and the checker is a labelled CI fixture: this proves what the
+ * The support check of library Scrolls (D-415) against a real PostgreSQL 16 database. The Scrolls are stored held as the v2
+ * production job stored them (`storeV2`, #815), with the labelled Orrin fixture, and the checker is a labelled CI fixture: this proves what the
  * check reads, asks, stores, closes and leaves alone, never what a model says about a Scroll.
  */
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('the support check of a library Scroll (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
@@ -127,7 +127,7 @@ describe('the support check of a library Scroll (labelled CI fixtures, real Post
   beforeAll(async () => {
     database = await createTestDatabase<Database>('library_support');
     await enableProductionScope(database.db);
-    worker = fixtureProductionWorker(database, () => answerWith(orrinAnswer()), {
+    worker = fixtureProductionWorker(database, () => answerWith(fixtureReplyV3()), {
       research: (url) => Promise.resolve(orrinPageFor(url)),
       librarySupport: (n, call) => librarySupport(n, call),
       quota: () => ({
@@ -163,10 +163,9 @@ describe('the support check of a library Scroll (labelled CI fixtures, real Post
           }),
         ).toMatchObject({ kind: 'rejected' });
     }
-    const result = await worker.producer()(key, false, signal(), false, take);
-    expect(result).toMatchObject({ outcome: 'published', held: true });
+    const result = await storeV2(database.db, key, { edit: reword });
     takes.set(key, take);
-    return { key, assetId: TOPICS[key].assetId, revision: result.revision! };
+    return { key, assetId: TOPICS[key].assetId, revision: result.revision };
   }
 
   const reviewOf = (assetId: string, revision: number) =>
@@ -270,6 +269,27 @@ describe('the support check of a library Scroll (labelled CI fixtures, real Post
           role_version: LIBRARY_SUPPORT_CHECK_VERSION,
           background: true,
         });
+      // A writer's request is not background: the one the document v3 writer sends for a recipe (the production job that stored this
+      // revision is gone, #815), then rejected so that it stays out of the held ones.
+      const writtenKey = 'stars-colour-brightness';
+      const planned = RECIPES[writtenKey] as { scrollV3?: ScrollV3Plan };
+      const ownPlan = planned.scrollV3;
+      planned.scrollV3 = spikePlanV3('seasons');
+      let written: Awaited<ReturnType<ReturnType<typeof worker.producer>>>;
+      try {
+        written = await worker.producer()(writtenKey, false, signal());
+      } finally {
+        planned.scrollV3 = ownPlan;
+      }
+      expect(written).toMatchObject({ outcome: 'published', held: true });
+      expect(
+        await gate().reject({
+          assetId: TOPICS[writtenKey].assetId,
+          revision: written.revision!,
+          reason: 'CI fixture',
+          decidedBy: operator,
+        }),
+      ).toMatchObject({ kind: 'rejected' });
       const writer = await sql<{
         background: boolean;
       }>`select receipt.background from reasoning.production_attempts attempt
@@ -643,7 +663,7 @@ describe('measuring the check against the operator’s own decisions (labelled C
   beforeAll(async () => {
     database = await createTestDatabase<Database>('library_support_replay');
     await enableProductionScope(database.db);
-    worker = fixtureProductionWorker(database, () => answerWith(orrinAnswer()), {
+    worker = fixtureProductionWorker(database, () => answerWith({}), {
       research: (url) => Promise.resolve(orrinPageFor(url)),
       librarySupport: (_n, call) => {
         const { assetId, revision } = librarySupportTarget(call);
@@ -672,17 +692,16 @@ describe('measuring the check against the operator’s own decisions (labelled C
   /** A recipe's next take, held, then decided by the operator; `flag` makes the fixture checker flag a sentence of it. */
   async function decided(key: ScrollTopic, decision: 'released' | 'rejected', flag: boolean) {
     const take = (takes.get(key) ?? 0) + 1;
-    const result = await worker.producer()(key, false, signal(), false, take);
-    expect(result).toMatchObject({ outcome: 'published', held: true });
+    const result = await storeV2(database.db, key, { edit: reword });
     takes.set(key, take);
     const assetId = TOPICS[key].assetId;
     if (flag) flagged.add(`${assetId}:${String(result.revision)}`);
     const done =
       decision === 'released'
-        ? await gate().release({ assetId, revision: result.revision!, decidedBy: operator })
-        : await gate().reject({ assetId, revision: result.revision!, reason: 'CI fixture', decidedBy: operator });
+        ? await gate().release({ assetId, revision: result.revision, decidedBy: operator })
+        : await gate().reject({ assetId, revision: result.revision, reason: 'CI fixture', decidedBy: operator });
     expect(done).toMatchObject({ kind: decision });
-    return { assetId, revision: result.revision! };
+    return { assetId, revision: result.revision };
   }
 
   const replay = (model = 'MiniMax-M3.1-Flash') =>
@@ -905,10 +924,9 @@ describe('measuring the check against the operator’s own decisions (labelled C
     const before = (await lines(window)).summary.agreement;
     // The check of this revision is made first, and the operator decides afterwards: a result existed that the operator could have seen.
     const take = (takes.get('seasons') ?? 0) + 1;
-    const produced = await worker.producer()('seasons', false, signal(), false, take);
-    expect(produced).toMatchObject({ outcome: 'published', held: true });
+    const produced = await storeV2(database.db, 'seasons', { edit: reword });
     takes.set('seasons', take);
-    const target = { assetId: TOPICS.seasons.assetId, revision: produced.revision! };
+    const target = { assetId: TOPICS.seasons.assetId, revision: produced.revision };
     const checked = await makeCheckLibrarySupport({
       db: database.db,
       authority,
@@ -976,7 +994,7 @@ describe('what the check stores about each sentence, and what it refuses to chec
   beforeAll(async () => {
     database = await createTestDatabase<Database>('library_support_sentences');
     await enableProductionScope(database.db);
-    worker = fixtureProductionWorker(database, () => answerWith(orrinAnswer()), {
+    worker = fixtureProductionWorker(database, () => answerWith({}), {
       research: (url) => Promise.resolve(orrinPageFor(url)),
       librarySupport: (_n, call) => reply(call),
     });
@@ -1004,10 +1022,9 @@ describe('what the check stores about each sentence, and what it refuses to chec
           }),
         ).toMatchObject({ kind: 'rejected' });
     }
-    const result = await worker.producer()(key, false, signal(), false, take);
-    expect(result).toMatchObject({ outcome: 'published', held: true });
+    const result = await storeV2(database.db, key, { edit: reword });
     takes.set(key, take);
-    return { assetId: TOPICS[key].assetId, revision: result.revision! };
+    return { assetId: TOPICS[key].assetId, revision: result.revision };
   }
   const run = (held: { assetId: string; revision: number }, policy = LIBRARY_SUPPORT_POLICY) =>
     check(policy)({ assetId: held.assetId, revision: held.revision, signal: signal() });

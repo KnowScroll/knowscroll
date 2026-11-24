@@ -233,7 +233,7 @@ export function fixtureAnswer(
 
 export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
 
-/** Whether a request is the answer checker's (a v2 library Scroll's second role, D-198). */
+/** Whether a request is the answer checker's (the second role of a v2 library Scroll's job, D-198; a document v3 job sends none). */
 export const isCheckerCall = (call: FixtureCall): boolean =>
   call.request.system.includes('content.scroll-answer-check');
 

@@ -5,8 +5,8 @@ import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
 
 /**
  * Every drawing kit a Scroll's stage can use (D-194). A stage names one kit and every state of that
- * stage holds that kit's words and no others. A recipe names the kit that draws its subject (the library
- * plan's `stageKit`), and a test keeps the plan's list and this one the same. Adding a kit is a new id,
+ * stage holds that kit's words and no others. The library plan keeps a list of these ids (`STAGE_KIT_IDS`), and a
+ * test keeps the plan's list and this one the same. Adding a kit is a new id,
  * its own words and physics, and a new decision.
  */
 export const STAGE_KIT_IDS = [EARTH_SKY_KIT, STARLIGHT_KIT, BLACK_HOLE_KIT] as const;

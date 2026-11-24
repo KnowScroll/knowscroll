@@ -1,28 +1,17 @@
 /**
  * The library's calls for a room's Launch (v3 R-6, D-179) over real PostgreSQL: a `scroll-document.v2` revision that anyone may be
  * served reaches a room through its topic with the question, options, key and reason of each call as its authors wrote them, and a
- * held revision, a withdrawn Scroll and a Scroll made for a thread reach no one. The Scroll is the authored CI fixture (Orrin),
- * published as production does and released by an operator; never provider output or product content.
+ * held revision, a withdrawn Scroll and a Scroll made for a thread reach no one. The Scroll is the stored CI fixture (Orrin),
+ * stored as the v2 production job stored it (`storeV2`) and released by an operator; never provider output or product content.
  */
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { makeReadLibraryCalls, makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { signal } from '../support/fixture-model.js';
-import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { callsOfRevision } from '../support/play.js';
-import { markFormerV2Recipes } from '../support/scroll-v2.js';
-
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
+import { storeV2 } from '../support/stored-v2.js';
 
 describe('the library’s calls for a room (real PostgreSQL, labelled CI fixture)', () => {
   let database: TestDatabase<Database>;
@@ -30,13 +19,7 @@ describe('the library’s calls for a room (real PostgreSQL, labelled CI fixture
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('content_library_calls');
-    await enableProductionScope(database.db);
-    const production = fixtureProduction(
-      database.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    expect(await production.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', held: true });
+    expect(await storeV2(database.db, 'seasons')).toMatchObject({ assetId: scroll.assetId, revision: 1 });
   });
   afterAll(async () => {
     await database.drop();

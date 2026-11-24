@@ -13,34 +13,15 @@ import broadStreet from '../fixtures/document-v3/broad-street.editorial-scroll-v
 import fence from '../fixtures/document-v3/fence.editorial-scroll-v3.json' with { type: 'json' };
 import seasons from '../fixtures/document-v3/seasons.editorial-scroll-v3.json' with { type: 'json' };
 import { compileEditorialSourceV3 } from './scroll-compiler-v3.js';
-import { evidencePassages } from '../production/evidence.js';
-import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
-import { storedScrollV2 } from '../production/stored-v2.js';
-import { publicationV2, type WriterV2Context } from '../production/writer-v2.js';
+import { storedOrrinV2 } from '../production/orrin.fixture.js';
 import { answerCheckLines, reviewTextOf, reviewTextV3 } from './review-text.js';
 
-const context: WriterV2Context = {
-  publication: publicationV2(RECIPES.seasons),
-  recipe: {
-    variant: 'stage',
-    misconception: {
-      kind: 'myth',
-      claim: 'Orrin is warmest because it is closest to its star.',
-      source: { label: 'CI fixture label', reviewed: true },
-    },
-  },
-  passages: evidencePassages([fixtureResearchPageV2]),
-  pages: [fixtureResearchPageV2],
-};
-
-/** The labelled Orrin fixture (invented, never product content), compiled the way production stores it. */
+/** The labelled Orrin fixture (invented, never product content), as the v2 writer stored it. */
 function orrin() {
-  const outcome = storedScrollV2(fixtureAuthoredV2(), context, {
-    runId: 'run-ci-1',
-    attemptIds: ['attempt-ci-1'],
-    model: 'MiniMax-M3.1-Flash',
+  const outcome = storedOrrinV2({
+    assetId: RECIPES.seasons.assetId,
+    explanationUnitId: RECIPES.seasons.explanationUnitId,
   });
-  if (outcome.kind !== 'compiled') throw new Error('CI expected a compile');
   const checked = validateDocumentV2(outcome.document);
   if (checked.kind !== 'valid') throw new Error('CI expected a valid document');
   return checked.document;

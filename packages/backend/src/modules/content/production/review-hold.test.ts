@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { ScrollV2Plan, ScrollV3Plan } from '../domain/library/plan.js';
+import type { ScrollV3Plan } from '../domain/library/plan.js';
 import { hasAnswerCheck, isHeldForReview } from './review-hold.js';
 
-const v2: ScrollV2Plan = { variant: 'plain', misconception: { kind: 'none' } };
 const v3: ScrollV3Plan = {
   shape: 'mechanism',
   sections: ['What happens', 'Why it matters'],
@@ -10,8 +9,7 @@ const v3: ScrollV3Plan = {
 };
 
 describe('the review hold', () => {
-  it('holds a library Scroll planned as v2 or as document v3, whoever sent the job', () => {
-    expect(isHeldForReview({ attribution: 'library', scrollV2: v2 })).toBe(true);
+  it('holds a library Scroll planned as a document v3, whoever sent the job', () => {
     // Without this a document v3 job would be published straight to the library, unread.
     expect(isHeldForReview({ attribution: 'library', scrollV3: v3 })).toBe(true);
   });
@@ -24,7 +22,6 @@ describe('the review hold', () => {
 
 describe('the answer check', () => {
   it('runs for exactly the Scrolls the review gate holds, so a document v3 records its empty check', () => {
-    expect(hasAnswerCheck({ attribution: 'library', scrollV2: v2 })).toBe(true);
     expect(hasAnswerCheck({ attribution: 'library', scrollV3: v3 })).toBe(true);
     expect(hasAnswerCheck({ attribution: 'library' })).toBe(false);
     expect(hasAnswerCheck({ attribution: 'none', scrollV3: v3 })).toBe(false);

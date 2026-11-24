@@ -5,7 +5,6 @@ import { MAX_CONTEXT_ITEM_CHARS } from '../../../reasoning/public.js';
 import { RECIPES } from '../domain/library/index.js';
 import { LIBRARY_CHECK_RULES, LIBRARY_SUPPORT_POLICY, resultsOf } from '../domain/library-support.js';
 import { ASK_SUPPORT_INSTRUCTIONS, askOrderCheckerRole, askSupportRole } from './ask-support.js';
-import { evidencePassages } from './evidence.js';
 import { CHECK_LIBRARY_SUPPORT_CLAIM_SECONDS } from './library-support-events.js';
 import {
   LIBRARY_SUPPORT_BATCH_SENTENCES,
@@ -29,32 +28,14 @@ import {
   normalisedSource,
   readCheckSources,
 } from './library-support-version.js';
-import { fixtureAuthoredV2, fixtureResearchPageV2 } from './spike-v2/writer-v2.fixture.js';
-import { storedScrollV2 } from './stored-v2.js';
-import { publicationV2, type WriterV2Context } from './writer-v2.js';
+import { storedOrrinV2 } from './orrin.fixture.js';
 
-const context: WriterV2Context = {
-  publication: publicationV2(RECIPES.seasons),
-  recipe: {
-    variant: 'stage',
-    misconception: {
-      kind: 'myth',
-      claim: 'Orrin is warmest because it is closest to its star.',
-      source: { label: 'CI fixture label', reviewed: true },
-    },
-  },
-  passages: evidencePassages([fixtureResearchPageV2]),
-  pages: [fixtureResearchPageV2],
-};
-
-/** The labelled Orrin fixture (invented, never product content), compiled and stored the way production stores it: the document and its private provenance. */
+/** The labelled Orrin fixture (invented, never product content), as the v2 writer stored it: the document and its private provenance. */
 function orrin(): { readonly document: ScrollDocumentV2; readonly provenance: ScrollProvenanceV2 } {
-  const outcome = storedScrollV2(fixtureAuthoredV2(), context, {
-    runId: 'run-ci-1',
-    attemptIds: ['attempt-ci-1'],
-    model: 'MiniMax-M3.1-Flash',
+  const outcome = storedOrrinV2({
+    assetId: RECIPES.seasons.assetId,
+    explanationUnitId: RECIPES.seasons.explanationUnitId,
   });
-  if (outcome.kind !== 'compiled') throw new Error('CI expected a compile');
   const checked = validateDocumentV2(outcome.document);
   const provenance = ScrollProvenanceV2.safeParse(outcome.provenance);
   if (checked.kind !== 'valid' || !provenance.success) throw new Error('CI expected a valid document and provenance');

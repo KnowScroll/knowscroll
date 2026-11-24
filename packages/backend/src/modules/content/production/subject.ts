@@ -4,7 +4,7 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { codeRecipeOf } from '../application/recipe-book.js';
 import { makeStoredRecipes } from '../adapters/stored-recipes.js';
 import { isGeneratedRecipeKey, type BookRecipe } from '../domain/library/generated.js';
-import type { ScrollV2Plan, ScrollV3Plan, StageKitId } from '../domain/library/plan.js';
+import type { ScrollV3Plan } from '../domain/library/plan.js';
 import type { ProductionRecipeKey } from '../domain/library/serving.js';
 import { isMadeToOrderKey, type MadeToOrderKey } from '../domain/order-key.js';
 import {
@@ -31,12 +31,8 @@ export interface ProductionSubject {
    * is a hypothetical or a lens on someone's content and never grows the real-world map (D-049).
    */
   readonly attribution: 'library' | 'none';
-  /** Present when the library plan marks the recipe as a `scroll-document.v2`; absent for v1 recipes and orders. */
-  readonly scrollV2?: ScrollV2Plan;
-  /** Present when the library plan marks the recipe as a `scroll-document.v3` (#771); absent for v1 and v2 recipes and orders. */
+  /** Present when the library plan marks the recipe as a `scroll-document.v3` (#771); absent for v1 recipes and orders. */
   readonly scrollV3?: ScrollV3Plan;
-  /** The kit that draws this recipe's subject, when the plan names one (D-125, D-194). Only a `stage` Scroll uses it. */
-  readonly stageKit?: StageKitId;
   /**
    * For the answer to a question: the title of the Scroll the person asked from, read from the brief. It is library text, so code may
    * build a title from it (D-351); the person's own words are never read into the subject.
@@ -54,9 +50,7 @@ export function librarySubject(recipe: BookRecipe): ProductionSubject {
     pages: recipe.pages,
     format: writerFormatOf(recipe),
     attribution: 'library',
-    ...(recipe.scrollV2 === undefined ? {} : { scrollV2: recipe.scrollV2 }),
     ...(recipe.scrollV3 === undefined ? {} : { scrollV3: recipe.scrollV3 }),
-    ...(recipe.stageKit === undefined ? {} : { stageKit: recipe.stageKit }),
   };
 }
 

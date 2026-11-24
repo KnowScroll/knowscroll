@@ -2,7 +2,7 @@
 
 Scroll production uses this adapter to turn an approved public page into bounded, inert source
 passages before asking a model to write. The [production use case](../../modules/content/production/produce.ts)
-and [writer spike](../../modules/content/production/spike-v2/run.ts) call
+and the [v3 writer spike](../../modules/content/production/spike-v3/run.ts) call
 [fetchResearchPage](public-pages.ts); it must run outside a database transaction.
 
 The URL policy allows only individually reviewed HTTPS hosts and paths. It rejects credentials,

@@ -49,7 +49,7 @@ import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureProduction } from '../support/generated-scroll.js';
 import { plannedIntent, realSupply } from '../support/planned-demand.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { markRecipesV1, orrinResearchFor, plainOrrin, v2Capabilities } from '../support/scroll-v2.js';
+import { markRecipesV1, orrinResearchFor, v2Capabilities } from '../support/scroll-v2.js';
 import { quotablePassages } from '../support/held-v3.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 import { orrinV3, storedFormatsOf, v3Client, V3_FORMATS } from '../support/scroll-v3.js';
@@ -964,17 +964,17 @@ describe('Stored recipes (labelled CI fixtures, real PostgreSQL and pg-boss)', (
         },
       });
       expect(subject!.scrollV3!.pictures).toBeUndefined();
-      expect(subject!.scrollV2).toBeUndefined();
-      expect(subject!.stageKit).toBeUndefined();
+      expect(subject).not.toHaveProperty('scrollV2');
+      expect(subject).not.toHaveProperty('stageKit');
       expect(isHeldForReview(subject!)).toBe(true);
     });
 
     it('refuses to produce a stored recipe whose row still holds the v2 plan: a plan problem with a code, no job and no request', async () => {
       const key = (await insertPlans('legacy-v2', { scroll_v2: V2, scroll_v3: null })) as `gen-${string}`;
       const subject = await subjectOf(database.db, key);
-      expect(subject?.scrollV2).toEqual(V2);
       expect(subject?.scrollV3).toBeUndefined();
-      const run = fixtureProduction(database.db, () => answerWith(plainOrrin()), orrinResearchFor);
+      // No request is sent, so the answer is never read.
+      const run = fixtureProduction(database.db, () => answerWith({}), orrinResearchFor);
       expect(await run.produce(key, false, signal(), true, 1)).toMatchObject({
         outcome: 'plan_refused',
         codes: ['stored_recipe_plan_not_v3'],

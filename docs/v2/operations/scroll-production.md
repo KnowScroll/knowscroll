@@ -253,74 +253,9 @@ Usual findings and what they mean:
 | `reading_length_out_of_brief` | Under two or over eight minutes of reading. |
 | `MODEL_MISMATCH` (attempt code) | The route answered with another model than the configured one. |
 
-## The v2 writer spike (S-0)
+## The v2 writer spike (deleted)
 
-Before any V3 engine is built, the team measures whether the writer can produce `scroll-document.v2` Scrolls reliably, and what a library wave costs (issues #471 and #472, decisions D-120 to D-126). The command runs the v15 writer on real library recipes, validates and assembles what it writes, and **admits and publishes nothing**. It needs no migration, so a branch with it can be deployed to dev by manual dispatch.
-
-```sh
-# worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash (the only model it accepts)
-node dist/operator.js content writer-spike-v2 --topics <recipe key,…> [--blocks <recipe=sort|fork|scale|chart>[+ray],…] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
-```
-
-The topics of the first run, in order (the three Seasons parts first; four Earth & sky and Space recipes, one of the human body, seven of computing, machine learning and history; the first run had twenty, and `tides`, `tides-spring-neap` and `stars-fusion` left the list with their kits in #799, and `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle` and `blood-pressure` with theirs in #802, and `reflex-arc` with the nerve kit's in #809). That run used prompt v14, which gave a stage to every Earth & sky and Space recipe. Since v15 a recipe has a stage only where its library entry names a `stageKit` (D-125): three Seasons parts. The others run as plain Scrolls with calls:
-
-```text
-seasons,seasons-hemispheres,seasons-limits,exoplanet-habitable-zone,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
-```
-
-To measure the Seasons stage again with the v15 prompt (the three Seasons stages, and "Seasons elsewhere" as a plain Scroll to check its Mars and Uranus sources), at most eight requests. Since D-137 the plan marks these four recipes v2, and the spike runs them as the library produces them: the plan's picture choice and misconception, not the spike's own table:
-
-```sh
-node dist/operator.js content writer-spike-v2 --topics seasons,seasons-hemispheres,seasons-limits,seasons-elsewhere --concurrency 2 --spike-id seasons-v15 --out /var/tmp/ks-v3-spike/seasons-v15.jsonl
-```
-
-What to read in the lines for these four: `variant` is `stage` for the first three and `plain` for `seasons-elsewhere`, `stageStates` is at least 3 for the stage ones, and the `findings` have no `common_guess_*`, `stage_state_on_call`, `earth_axis_sideways` or `final_call_restates_call` that survive the repair. Then read each accepted document on the server: the picture must match each stop's words (the month decides the pins and Ray), no stage text calls Earth's axis sideways, and every statement about Mars and Uranus must be in the NASA pages the recipe cites. The recipes the drawing kits of D-194 give a picture are measured next (below).
-
-To measure the five Space recipes the starlight and black-hole kits of D-204 give a picture (`stars-colour-brightness` and `exoplanet-habitable-zone` with `starlight.v1`; `black-hole-formation`, `black-hole-horizon` and `black-hole-evidence` with `black-hole.v1`), at most ten requests, with prompt v19. As above, each runs as the plan marks it since D-217 (no misconception, with its landmark):
-
-```sh
-node dist/operator.js content writer-spike-v2 --topics stars-colour-brightness,exoplanet-habitable-zone,black-hole-formation,black-hole-horizon,black-hole-evidence --concurrency 2 --spike-id space-kits-v19 --out /var/tmp/ks-v3-spike/space-kits-v19.jsonl
-```
-
-What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all five, and no `stage_choice_invalid` survives the repair. Then read each accepted document: the picture must match each stop's words (the kind of star decides its colour, output and place on the chart; the orbit decides which zone holds the planet; the star and stage decide whether a black hole can form; the hole decides the horizon), and no stop may say what the picture cannot: that a planet in a zone has water or life, that colour alone gives a star's age, that a Sun-like star becomes a black hole, that a black hole sucks in everything, that the horizon is a surface, that the centre is understood, that the shadow is the horizon, or that one clue proves a black hole.
-
-To measure the play blocks of D-207 (a sort, a growing chart, a scale, a fork and a guide) before any recipe is marked, at most eight requests, with prompt v20. The plan names no block, so `--blocks <recipe>=<sort|fork|scale|chart>[+ray],…` asks for them: `hybrid-sorting` a sort (the steps of Timsort), `industrial-causes` a chart (the population figures of its page), `black-hole-formation` a scale (the masses its page states) and `seasons-elsewhere` a fork between Mars and Uranus with Ray as the guide:
-
-```sh
-node dist/operator.js content writer-spike-v2 --topics hybrid-sorting,industrial-causes,black-hole-formation,seasons-elsewhere --blocks hybrid-sorting=sort,industrial-causes=chart,black-hole-formation=scale,seasons-elsewhere=fork+ray --concurrency 2 --spike-id blocks-v20 --out /var/tmp/ks-v3-spike/blocks-v20.jsonl
-```
-
-What to read in the lines: `blocksAsked` and `blocksWritten` agree for all four, and no `block_missing`, `block_unexpected`, `block_value_invalid` or `authoring_number_not_in_evidence` survives the repair. Then read each accepted document with `content review-show`: it prints the answer key of a sort, both paths of a fork, and every figure of a scale and a chart, so each can be checked against its page. The sort's order must be the order the page gives; each figure must be the page's and mean what its label says (a unit the page never names is not caught by code); the two paths must be two real readings of one idea. A person marks a recipe's `blocks` only after reading its Scroll.
-
-Each run is two requests at most per topic (the writer and one repair), at most 40 for the twenty, inside the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) and the MiniMax window. `--concurrency` (default 1, at most 4) runs topics side by side. `--out` appends the assembled documents of accepted topics to a file, one JSON line each; the file holds the model's own text about public sources, so read it on the server and do not paste it into an issue. A recipe key that is not one of the twenty runs as a plain Scroll with no misconception, and the line says `recipeDefaulted: true`.
-
-### Reading the output
-
-One JSON line on stdout for the start (`result: "starting"`), one for each topic as it finishes (`result: "topic"`), and one for the end (`done` or `stopped`). The exit status is 0 when every topic was accepted or rejected on its merits, 2 when the command was refused or stopped early, 1 on a failure.
-
-A topic line has these fields (never any text of the Scroll):
-
-| Field | Meaning |
-|---|---|
-| `key`, `variant`, `misconception` | The recipe, `stage` or `plain`, `myth` or `none`. |
-| `outcome` | `accepted_first_take`, `accepted_after_repair`, `rejected` (the writer and its repair were both refused), or why nothing was judged: `research_failed`, `evidence_insufficient`, `provider_failed`, `model_mismatch`, `paused` (a cap or the quota stopped it; nothing sent), `unknown` (never resent; see `reasoning unknown`), `refused`, `scope_refused`. |
-| `requests` | Paid requests sent: 1 for a first take, 2 after a repair. |
-| `findings` | For each refused answer, `{attempt, code, path}`: the validator's fixed code and the writer's item (`items[4]`, `recap`). A repaired Scroll lists the findings that caused the repair. Count the codes over all topics for the top findings. |
-| `words`, `readingMinutes` | Reader words (stops, calls, asides, recap) and the measured minutes at 230 words a minute plus 10 seconds a call. |
-| `stops`, `calls`, `stageStates`, `asides` | Counts in the accepted document. |
-| `tokens` | `input`, `output` (thinking included), `thinking`, and `complete: false` when the provider did not report every count. |
-| `attempts`, `models` | Each paid attempt's id, step, state and usage, and the model they report. The transport fails an attempt whose reply names another model (D-031), so a line with `models` other than `MiniMax-M3.1-Flash` is `model_mismatch`. |
-| `notices` | `misconception_source_unreviewed`: the placeholder source label of a spike recipe (only the seasons myth has a reviewed one). |
-| `wallMs` | `research`, `writer` and `total` milliseconds. |
-| `runId`, `spikeId`, `code` | Identity of the run and of this spike run; `code` is the reason for a non-accepted outcome. |
-
-The end line has `requested`, `completed`, `notStarted` (topics never started because an earlier outcome stopped the batch) and, if it stopped, `stoppedBy {key, outcome}`.
-
-To read a refused answer: `node dist/operator.js reasoning rejected --attempt <attemptId>` (kept 30 days, redacted). To size a wave: sum `tokens` and `wallMs.total` over the lines, and note how much of the five-hour MiniMax window the run used.
-
-### Running it again
-
-Each run starts fresh and remembers nothing. Before running again, reconcile every attempt the last run left `unknown` with `reasoning unknown` (or write it off): re-running that topic before then would send a second paid request while the first is unsettled. Then re-run only the topics in `notStarted` plus `stoppedBy.key`, which is not in `notStarted`. Re-running all twenty repeats the finished ones and pays for them again.
+`content writer-spike-v2` is gone (#815). It ran the v15 writer of `scroll-document.v2` on real recipes before the V3 engine was built (S-0, D-120 to D-126), and nothing produces a v2 Scroll any more. The measure of the document v3 writer is the spike below. What the v2 spike found stays in the decisions it produced.
 
 ## The v3 writer spike (#771)
 
@@ -356,7 +291,7 @@ node dist/operator.js content writer-spike-v3 --topics gradient-descent,dns-look
 
 ### Reading the output
 
-One JSON line on stdout for the start (`result: "starting"`), one for each job as it finishes (`result: "job"`), and one for the end (`done` or `stopped`). The exit status is as for the v2 spike: 0, 2 when refused or stopped early, 1 on a failure. A job line never holds any text of the Scroll.
+One JSON line on stdout for the start (`result: "starting"`), one for each job as it finishes (`result: "job"`), and one for the end (`done` or `stopped`). The exit status is 0 when every job was accepted or rejected on its merits, 2 when the command was refused or stopped early, and 1 on a failure. A job line never holds any text of the Scroll.
 
 | Field | Meaning |
 |---|---|
@@ -381,7 +316,7 @@ The raw folder, the `--out` file, the page and the key hold the model's own text
 
 ### Running it again
 
-As for the v2 spike: reconcile every `unknown` attempt first (`reasoning unknown`), then re-run only the jobs in `notStarted` and `stoppedBy.job`. A new `--spike-id` gives a new raw folder.
+Each run starts fresh and remembers nothing: reconcile every `unknown` attempt first (`reasoning unknown`), then re-run only the jobs in `notStarted` and `stoppedBy.job`. A new `--spike-id` gives a new raw folder.
 
 ## Producing a document v3 Scroll (#783)
 
@@ -448,13 +383,11 @@ What to read for, besides the list under the previous section: the briefs of the
 how), so a Scroll that states more than its page is a finding; every figure in a picture is in a passage the writer was offered. A recipe has three takes
 at the production version; if all are rejected, the plan or the brief needs a change (a code change), so stop and say so on #787.
 
-The deletion of a kit is a later change, one kit at a time, after the owner has read that kit's rewrites. Its recipes' v2 plans stay in `spike-v2/former-v2-plans.ts`
-until then, for the v2 spike only; the table and the kit leave together.
+The deletion of a kit is a later change, one kit at a time, after the owner has read that kit's rewrites. The v2 plans these recipes had were kept for the v2 spike until the v2 writer was deleted (#815); the kit's own code and the table left together.
 
 ## The other 33 recipes as document v3 Scrolls, by system (#790)
 
-The other 33 recipes of the library carry `scrollV3` too, so **no library recipe is planned as v1 or v2 now**: the 32 plain v2 recipes (their
-v2 plans are kept in `spike-v2/former-v2-plans.ts` for the v2 spike and tests only) and the v1 recipe `exoplanet-kinds`. As for the kit recipes, marking
+The other 33 recipes of the library carry `scrollV3` too, so **no library recipe is planned as v1 or v2 now**: the 32 plain v2 recipes (their v2 plans went with the v2 writer, #815) and the v1 recipe `exoplanet-kinds`. As for the kit recipes, marking
 them changes nothing a reader is served: each keeps serving its current v1 or v2 Scroll until a v3 Scroll is produced, read and released, and
 until then `production-status` shows it `not_started`. Supply never commissions a recipe the plan marks v2 or v3, so only this operator run makes
 them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
@@ -492,22 +425,11 @@ What to read for: the briefs of these recipes were narrowed to what their pages 
 picture is in a passage the writer was offered; a chart that shows `142` for the autumn of Mars (`seasons-elsewhere`) rests on a page that writes it as "142 days" beside three lengths in sols,
 which fill the Martian year, so check that Scroll's chart. A recipe has three takes at the production version; if all are rejected, the plan or the brief needs a change (a code change): stop and say so on #790.
 
-## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
+## A v2 Scroll is no longer produced (#815)
 
-A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. Since #790 the plan marks no recipe v2: the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217) were v2 recipes, and are document v3 recipes now (#787 for the 22 a kit drew, #790 for the other 33). The v2 production path stays for the v2 spike and the tests, with the v2 plan each recipe had kept in `spike-v2/former-v2-plans.ts`. What follows describes that path. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v21`. A v2 recipe is a job of its own version (`scroll-production.v21`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
+No recipe is planned as a `scroll-document.v2` Scroll, and the code that wrote one is deleted: the v2 writer, its stored compile, the plan fields (`scrollV2`, `stageKit`, `stagePlan`) and the spike. Every library recipe is a document v3 recipe (#787, #790): see "Producing a document v3 Scroll". What stays is the reading side, because stage and main still store and serve the v2 Scrolls the writer made: the review gate and the release policy over a stored v2 revision, its coverage, its reading facts and its serving to an older app (D-433). `content produce-library`, `produce-scroll`, `production-status` and `readmit-coverage` work as they do for document v3 recipes.
 
-**A produced v2 library Scroll is held, not published (D-138).** The job stores it with its provenance and coverage and then waits: nobody is served it until you have read it and released it (next section). The commands that start a job are the same for every recipe; the plan decides which writer runs and the gate decides what happens to the result.
-
-```sh
-node dist/operator.js content produce-library --dry-run --only <recipe key,…>   # a recipe with only a v1 Scroll is listed as not started
-node dist/operator.js content produce-library --only <recipe key,…>
-node dist/operator.js content production-status --only <recipe key,…>          # `held` once produced; `published` only after release
-node dist/operator.js content readmit-coverage                                 # after a plan change; picks the rule that matches each revision
-```
-
-What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a recipe refused with `plan_refused` / `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`): it is `stopped` in `production-status`, no job was reserved and no request was sent. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim, and `review-list` then shows `coverage: unmapped`.
-
-A client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Explore and `/scroll/<id>` of this app declare v2 and draw it with Folio's essay (D-425).
+A client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll, and a direct open of a v2 asset by such a client says it needs an app update. Explore and `/scroll/<id>` of this app declare v2 and draw it with Folio's essay (D-425).
 
 ## The review gate for v2 library Scrolls (S-1e, D-138)
 
@@ -536,7 +458,7 @@ Only an operator account sees any of it, and only in an operator world (`dev`, `
 
 ### The answer check (S-6a, D-198)
 
-Before a v2 library Scroll is stored, a second model checks that the answer key of each call agrees with the call's own words: the marked answer is the one the explanation supports, no other option is also right, the twist does not contradict the key. It sees no sources, so it does not check facts. Code decides what a verdict does:
+Before the v2 writer was deleted (#815), a second model checked, before a v2 library Scroll was stored, that the answer key of each call agrees with the call's own words. That model step and the writer's one repair after a flag are deleted with the writer: a document v3 has no calls, so its job records the check as passed, with no request. A stored v2 revision keeps the check its job recorded, and the review and the release policy still read it:
 
 | What `review-list` and `review-show` say | What happened | What you do |
 |---|---|---|
@@ -545,64 +467,11 @@ Before a v2 library Scroll is stored, a second model checks that the answer key 
 | `NOT CHECKED (<code>)` | The checker gave no usable answer (`provider_failed`, `outcome_unknown`, `invalid_output`, `refused_…`). The Scroll is held with no verdict. | Read every call's answer key yourself. For `outcome_unknown`, the attempt is listed by `reasoning unknown`. |
 | _not run_ | The revision was made before the check existed. | Read every call. |
 
-A Scroll still flagged after the one repair is not stored: its take is spent, `production-status` shows the recipe `retryable` (or `stopped` after three) with `check.outcome: flagged` and, for each flagged call, the checker's problem and the call itself (`check.flags[].call`: question, options, marked answer index, explanation), because no draft was stored. `review-list` carries the problems and call ids only. A draft the validator had already repaired has no repair left, so a flag on it ends the take at once. The check is a model's opinion: if a flagged problem looks wrong to you, the recipe's next take is the remedy, and three such takes is the signal to read the brief.
+A v2 Scroll that was still flagged after the one repair was never stored (its take was spent), so no stored revision says `flagged`; `production-status` may still show `check.outcome: flagged` for an old job, with the checker's problem and the call itself.
 
 ### What to read for
 
 The checks the machine cannot make (D-123): the picture matches each stop's words (the month decides the pins and Ray); no sentence calls Earth's axis sideways; each statement is in the passages it cites (`--sources`); the correct option of each call is correct and the wrong ones are plausible; the Final call is a new case and not a repeat of an earlier call; the Plot twist reads warm; a plain Scroll about other worlds says nothing the pages do not state; nothing is invented (dates, temperatures, season lengths).
-
-### Seasons on dev (S-1e)
-
-The worker environment is the one above. Producing takes at most eight writer requests (four recipes, one repair each) and the answer check's requests (at most four a recipe, usually one) inside the MiniMax window.
-
-```sh
-# 1. What would be queued (nothing is sent). All four show as not started: the library holds v1 Scrolls of the first three, and v1 does not satisfy a v2 recipe.
-node dist/operator.js content produce-library --dry-run --only seasons,seasons-hemispheres,seasons-elsewhere,seasons-limits
-# 2. Queue them. The dev worker writes them and every one ends held.
-node dist/operator.js content produce-library --only seasons,seasons-hemispheres,seasons-elsewhere,seasons-limits
-# 3. Watch. held = waiting for you; retryable = the writer was refused (see "When a Scroll is refused"); running = still at it.
-node dist/operator.js content production-status --only seasons,seasons-hemispheres,seasons-elsewhere,seasons-limits
-# 4. Read each held Scroll against its sources.
-node dist/operator.js content review-list
-node dist/operator.js content review-show --asset <asset id from review-list> --sources
-# 5. Decide, revision by revision.
-node dist/operator.js content release --asset <asset id> --revision <n>
-# 6. When the three series parts are released (seasons, seasons-hemispheres, seasons-elsewhere; seasons-limits is the related move), admit the series and the move.
-node dist/operator.js content admit-continuity --dry-run
-node dist/operator.js content admit-continuity
-# 7. Decide coverage again from the plan (idempotent; the new Scrolls already have theirs and show as unchanged).
-node dist/operator.js content readmit-coverage --dry-run
-node dist/operator.js content readmit-coverage
-```
-
-Release all three parts before step 6. `admit-continuity` binds a series to the Scrolls that are served at that moment, so run it once the parts are served: a series with a part still held is skipped whole and named in `seriesSkipped`. A Part tab shows only after step 6. `seasons-limits` is a related move from `seasons-elsewhere`; when it is released after the others, run `admit-continuity` once more. After it, `seasons-limits` may keep a `previous` link into the old series revision 1 (D-125): decide then whether to retire it.
-
-### Seasons Part 1 after the stage plan (v3 S-10, D-382 to D-384)
-
-`seasons` (Part 1) asks the writer for orbit views at two months at least (so the recap of the journey draws at the end), for the nearest and farthest distance and the hours of daylight where a cited passage states them, and for a first call that turns the picture when the guess is wrong. No other recipe has a stage plan. The change is a new production version (`scroll-production.v21`), so `seasons` has three fresh takes. Producing makes one writer request and the answer check's, as for any v2 recipe, and at most one repair. Run it on dev after the change is deployed:
-
-```sh
-# 1. Nothing is sent. `seasons` shows regeneration `available` (its Scroll is served).
-node dist/operator.js content regenerate --only seasons --dry-run
-# 2. Queue the next take. The dev worker writes it and it ends held.
-node dist/operator.js content regenerate --only seasons
-# 3. Watch. held = waiting for you; retryable = the writer was refused (see "When a Scroll is refused").
-node dist/operator.js content production-status --only seasons
-# 4. Read it against its source (asset id af2628f1-98a7-4c39-9f81-628506d247a1).
-node dist/operator.js content review-list
-node dist/operator.js content review-show --asset af2628f1-98a7-4c39-9f81-628506d247a1 --sources
-# 5. Release the revision you read, or reject it to free the next take. Read "Before you release" below first.
-node dist/operator.js content release --asset af2628f1-98a7-4c39-9f81-628506d247a1 --revision <n>
-# 6. Admit the series again for the new revision, then decide coverage again (idempotent).
-node dist/operator.js content admit-continuity --dry-run
-node dist/operator.js content admit-continuity
-node dist/operator.js content readmit-coverage --dry-run
-node dist/operator.js content readmit-coverage
-```
-
-**Before you release: native readers.** The document schema is strict. A native build made before this change parses a document that carries `figures` or `revealStage` as invalid, so that app cannot open the Scroll. There is no capability gate: the server offers the revision to every client that declares `scroll-document.v2`, exactly as for any other v2 Scroll, and cannot tell an older native build from a newer one. So release the new revision only when no native build older than this change is in use (D-384). The web reader ships with the server and needs nothing. D-210 recorded that there were no native users; check that is still so before you release.
-
-What to read for, besides the list above: each `PICTURE:` line says the figures a state shows, and every number, unit and place in it must be in a passage the stop cites (`--sources`). The page of `seasons` states the distances in miles and no hours of daylight, so expect the distances in miles and no daylight bands; a figure that is not there was left out on purpose and is no fault. `review-show` also prints, under the first call, "After a wrong pick the picture turns to:", which must be the true picture of the call (the nearest and farthest points of the orbit), and the picture must stand on the orbit at two months at least. The Part 2 and Part 3 Scrolls are not changed and need no new take.
 
 ### If you reject
 

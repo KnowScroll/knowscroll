@@ -8,7 +8,6 @@ import type {
 import type { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { CompileOutcome } from '../application/ports.js';
-import { flaggedCalls, type CallVerdict } from '../domain/answer-check.js';
 import {
   passes,
   unsupportedOf,
@@ -16,8 +15,7 @@ import {
   type SentenceVerdict,
   type UnsupportedVerdict,
 } from '../domain/ask-support.js';
-import { callsOfStoredDocument, type CallUnderCheck } from './answer-check.js';
-import { makeAnswerCheckStep } from './answer-check-step.js';
+import { emptyAnswerCheckReceipt } from './answer-check.js';
 import { dropFlagged, onlyTitleOrDekFlagged, type DropOutcome } from './ask-support-drop.js';
 import { hasSupportCheck, sentencesOfAnswer } from './ask-support.js';
 import { makeAskSupportStep } from './ask-support-step.js';
@@ -125,7 +123,6 @@ function linksDroppedReceipt(compiled: Compiled): readonly RoleReceipt[] {
  * served and never reads that line.
  */
 export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperations) {
-  const answerCheck = makeAnswerCheckStep(deps);
   const supportCheck = makeAskSupportStep(deps);
 
   const paused = (row: ProductionRow, code: string): ProduceScrollResult => ({
@@ -200,90 +197,13 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   }
 
   /**
-   * Asks the checker about a draft and acts on the verdicts. All consistent, or no usable answer: the
-   * Scroll is published held, the second case with no verdict at all. A flag earns the writer one repair
-   * if it has not used it; a flag that stands after that ends the job (D-198).
+   * A document v3 has no calls to check (decision I1 on #756), so its answer check is the empty one: recorded as passed with no
+   * request, and its one draft is published here, with the count of links its compile left out. The model step that asked a checker
+   * about a v2 Scroll's answer keys, and the writer's one repair after a flag, were reachable only from the v2 job and are deleted (#815).
    */
-  async function checkDraft(stage: Stage, draft: Draft, history: History): Promise<ProduceScrollResult> {
-    const { row } = stage;
-    const calls = callsOfStoredDocument(draft.compiled.document);
-    const checked = await answerCheck.check({
-      jobId: row.id,
-      policyVersion: productionVersionOf(stage.subject.key),
-      draft: draft.number,
-      calls,
-      signal: stage.signal,
-    });
-    if (checked.kind === 'advanced') return ops.replayCurrent(row);
-    if (checked.kind === 'paused') return paused(row, checked.code);
-
-    const checkRuns: readonly ClosingRun[] =
-      calls.length === 0
-        ? []
-        : [
-            {
-              runId: checked.runId,
-              state: checked.record.kind === 'checked' ? 'completed' : 'failed',
-            },
-          ];
-    const flagged = flaggedCalls(checked.record.verdicts ?? []);
-    // A document v3 has no calls to flag, so its one draft is published here, with the count of links its compile left out.
-    const receipts = [draft.receipt, ...linksDroppedReceipt(draft.compiled), ...history.receipts, checked.receipt];
-    if (flagged.length === 0)
-      return ops.publish(stage.subject, row, receipts, draft.authored, draft.compiled, draft.runId, [
-        ...history.closing,
-        ...checkRuns,
-      ]);
-    if (draft.number === 1 && !draft.repaired) {
-      // The flagged first draft is superseded: its writer receipt is kept as history, not as the Scroll's writer.
-      const earlier: History = {
-        receipts: [
-          ...history.receipts,
-          { ...draft.receipt, role: 'checks', kind: 'draft_flagged', runId: draft.runId },
-          checked.receipt,
-        ],
-        closing: [...history.closing, { runId: draft.runId, state: 'failed' }, ...checkRuns],
-      };
-      return repairFlagged(stage, draft, calls, flagged, earlier);
-    }
-    return ops.end(row, 'rejected', ['answer_check_flagged'], receipts, [
-      ...history.closing,
-      { runId: draft.runId, state: 'failed' },
-      ...checkRuns,
-    ]);
-  }
-
-  /** The one repair a flagged first draft earns: the writer sees the problems and its draft, and the new draft is checked in turn. */
-  async function repairFlagged(
-    stage: Stage,
-    draft: Draft,
-    calls: readonly CallUnderCheck[],
-    flagged: readonly CallVerdict[],
-    history: History,
-  ): Promise<ProduceScrollResult> {
-    const { row } = stage;
-    const repaired = await answerCheck.repair({
-      jobId: row.id,
-      policyVersion: productionVersionOf(stage.subject.key),
-      writer: stage.plan.role,
-      writerItems: stage.items,
-      calls,
-      flagged,
-      previousDraft: draft.authored,
-      signal: stage.signal,
-    });
-    if (repaired.kind === 'advanced') return ops.replayCurrent(row);
-    if (repaired.kind === 'paused') return paused(row, repaired.code);
-    if (repaired.kind === 'ended')
-      return ops.end(
-        row,
-        repaired.state,
-        [repaired.code],
-        [...history.receipts, repaired.receipt],
-        [...history.closing, { runId: repaired.runId, state: 'failed' }],
-      );
-    const second = await acceptDraft(stage, repaired.runId, 2, repaired.writer, history);
-    return isResult(second) ? second : checkDraft(stage, second, history);
+  function checkDraft(stage: Stage, draft: Draft): Promise<ProduceScrollResult> {
+    const receipts = [draft.receipt, ...linksDroppedReceipt(draft.compiled), emptyAnswerCheckReceipt(draft.number)];
+    return ops.publish(stage.subject, stage.row, receipts, draft.authored, draft.compiled, draft.runId, []);
   }
 
   /**
@@ -465,7 +385,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
   async function settleFirstDraft(stage: Stage, writer: Proposed): Promise<ProduceScrollResult> {
     const draft = await acceptDraft(stage, stage.row.writer_run_id, 1, writer, NO_HISTORY);
     if (isResult(draft)) return draft;
-    if (hasAnswerCheck(stage.subject)) return checkDraft(stage, draft, NO_HISTORY);
+    if (hasAnswerCheck(stage.subject)) return checkDraft(stage, draft);
     if (hasSupportCheck(stage.subject)) return supportCheckDraft(stage, draft, NO_HISTORY);
     return ops.publish(stage.subject, stage.row, [draft.receipt], draft.authored, draft.compiled, draft.runId, []);
   }

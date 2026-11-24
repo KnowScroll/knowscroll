@@ -3,12 +3,11 @@ import { ScrollProvenanceV3 } from '@knowscroll/scroll-model/internal';
 import { codeRecipeOf } from '../application/recipe-book.js';
 import type { BookRecipe } from '../domain/library/generated.js';
 import { evidencePassages } from './evidence.js';
-import { fixtureResearchPageV2 } from './spike-v2/writer-v2.fixture.js';
+import { fixtureResearchPageV2 } from './orrin.fixture.js';
 import { spikePlanV3 } from './spike-v3/plans.js';
 import { fixtureReplyV3 } from './spike-v3/writer-v3.fixture.js';
 import { librarySubject, type ProductionSubject } from './subject.js';
 import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
-import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
 import { writerPlanFor, type WriterPlanInput } from './writer-plan.js';
 
@@ -18,10 +17,9 @@ const production = { runId: 'run-ci-1', attemptIds: ['attempt-ci-1'], model: 'Mi
 const v3Plan = spikePlanV3('seasons');
 
 /** The seasons recipe as the library plan states it, with the plan marker chosen by the test and no other. */
-function subjectWith(marker: 'v1' | 'v2' | 'v3'): ProductionSubject {
-  const { scrollV2: _v2, scrollV3: _v3, ...base } = librarySubject(codeRecipeOf('seasons') as BookRecipe);
+function subjectWith(marker: 'v1' | 'v3'): ProductionSubject {
+  const { scrollV3: _v3, ...base } = librarySubject(codeRecipeOf('seasons') as BookRecipe);
   if (marker === 'v3') return { ...base, scrollV3: v3Plan };
-  if (marker === 'v2') return { ...base, scrollV2: { variant: 'plain', misconception: { kind: 'none' } } };
   return base;
 }
 
@@ -66,13 +64,7 @@ describe('the writer plan of a recipe planned as document v3', () => {
   });
 });
 
-describe('the writer plan of every other recipe', () => {
-  it('stays the v2 writer for a recipe planned as v2', () => {
-    const plan = writerPlanFor(inputFor(subjectWith('v2')));
-    expect(plan.promptVersion).toBe(WRITER_V2_PROMPT_VERSION);
-    expect(plan.role.version).toBe(WRITER_V2_PROMPT_VERSION);
-  });
-
+describe('the writer plan of every other recipe (a v2 plan is gone: no recipe is written as a v2 Scroll, #815)', () => {
   it('stays the v1 writer for a recipe with no marker', () => {
     const plan = writerPlanFor(inputFor(subjectWith('v1')));
     expect(plan.promptVersion).toBe(WRITER_PROMPT_VERSION);

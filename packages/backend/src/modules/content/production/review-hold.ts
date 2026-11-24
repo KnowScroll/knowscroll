@@ -4,13 +4,13 @@ import type { ProductionSubject } from './subject.js';
 export const HELD_FOR_REVIEW_CODE = 'held_for_review';
 
 /**
- * Whether a produced Scroll goes through the operator review gate (D-138): a v2 or a document v3 library
+ * Whether a produced Scroll goes through the operator review gate (D-138): a document v3 library
  * recipe does, whoever sent the job (Quartermaster, the operator's library run or a direct run), because
  * the rule is applied where the revision is stored. A v1 recipe and a Scroll ordered from code publish as
  * they always have. Pure.
  */
-export function isHeldForReview(subject: Pick<ProductionSubject, 'attribution' | 'scrollV2' | 'scrollV3'>): boolean {
-  return subject.attribution === 'library' && (subject.scrollV2 !== undefined || subject.scrollV3 !== undefined);
+export function isHeldForReview(subject: Pick<ProductionSubject, 'attribution' | 'scrollV3'>): boolean {
+  return subject.attribution === 'library' && subject.scrollV3 !== undefined;
 }
 
 /**
@@ -20,6 +20,6 @@ export function isHeldForReview(subject: Pick<ProductionSubject, 'attribution' |
  * has no calls either (decision I1 on #756), so its check is recorded as passed with no request; the
  * release policy still reads that record. Pure.
  */
-export function hasAnswerCheck(subject: Pick<ProductionSubject, 'attribution' | 'scrollV2' | 'scrollV3'>): boolean {
+export function hasAnswerCheck(subject: Pick<ProductionSubject, 'attribution' | 'scrollV3'>): boolean {
   return isHeldForReview(subject);
 }

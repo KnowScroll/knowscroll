@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { compileAuthoredV2 } from '../producer/v2/compile.js';
-import { authoredV2, compileInputV2 } from '../test-support/v2-fixtures.js';
+import { orrinDocumentV2 } from '../test-support/v2-fixtures.js';
 import { FULL_V1_CAPABILITIES } from '../negotiation.js';
 import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, type ScrollDocumentV2 } from './document.js';
 import { negotiateV2, parseDocumentV2 } from './delivery.js';
 import { INTERACTION_KINDS_V2 } from './interactions.js';
 import { validateDocumentV2 } from './validate.js';
 
-const compiled = compileAuthoredV2(authoredV2(), compileInputV2());
-if (compiled.kind !== 'compiled') throw new Error('CI fixture must compile');
-const document: ScrollDocumentV2 = compiled.document;
+const document: ScrollDocumentV2 = orrinDocumentV2('stage');
 const wire = (): Record<string, unknown> => JSON.parse(JSON.stringify(document)) as Record<string, unknown>;
 
 describe('the client path of a v2 document', () => {

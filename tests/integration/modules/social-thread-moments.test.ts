@@ -11,8 +11,7 @@ import {
 } from '@knowscroll/scroll-model';
 import type { ContentThreadRef, SnippetAnchor } from '@knowscroll/contracts';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { assembleScrollV2 } from '../../../packages/scroll-model/src/producer/v2/assemble.js';
-import { authoredV2, PUBLICATION_V2, recipeV2 } from '../../../packages/scroll-model/src/test-support/v2-fixtures.js';
+import { orrinDocumentV2 } from '../../../packages/scroll-model/src/test-support/v2-fixtures.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { befriend, seedFriend, talkCases, withdraw, type Friend } from '../support/talk.js';
 
@@ -35,12 +34,10 @@ describe('a moment of a v2 Scroll in a thread (real PostgreSQL, labelled CI fixt
     await database.drop();
   });
 
-  /** The labelled assembled v2 fixture, admitted under a fresh asset with its integrity hash made right. */
+  /** The labelled stored v2 fixture, admitted under a fresh asset with its integrity hash made right. */
   async function seedStageScroll(): Promise<{ assetId: string; document: ScrollDocumentV2 }> {
-    const assembled = assembleScrollV2(authoredV2('plain'), PUBLICATION_V2, recipeV2('plain'));
-    if (assembled.kind !== 'assembled') throw new Error('CI v2 fixture did not assemble');
     const assetId = randomUUID();
-    const document = JSON.parse(JSON.stringify(assembled.document)) as ScrollDocumentV2;
+    const document = orrinDocumentV2('plain');
     Object.assign(document, { assetId, revision: 1 });
     document.integrity.sha256 = computeIntegrityV2(document);
     await database.db

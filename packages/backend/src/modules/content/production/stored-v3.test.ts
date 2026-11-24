@@ -3,7 +3,7 @@ import { ScrollProvenanceV3 } from '@knowscroll/scroll-model/internal';
 import type { WrittenScrollV3 } from '@knowscroll/scroll-model/producer';
 import { RECIPES } from '../domain/library/index.js';
 import { evidencePassages } from './evidence.js';
-import { fixtureResearchPageV2 } from './spike-v2/writer-v2.fixture.js';
+import { fixtureResearchPageV2 } from './orrin.fixture.js';
 import { spikePlanV3 } from './spike-v3/plans.js';
 import { fixtureReplyV3 } from './spike-v3/writer-v3.fixture.js';
 import { storedScrollV3 } from './stored-v3.js';

@@ -1,21 +1,12 @@
 import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
-import { stopWords, WORDS_PER_MINUTE_V2 } from '@knowscroll/scroll-model';
+import { stopWords, WORDS_PER_MINUTE_V2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
 import { makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
-import { readingFactsOfV2 } from '../../../packages/backend/src/modules/content/adapters/reading-facts-v2.js';
-import { evidencePassages } from '../../../packages/backend/src/modules/content/production/evidence.js';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
+import { storedOrrinV2 } from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
-import {
-  compileGeneratedScrollV2,
-  publicationV2,
-} from '../../../packages/backend/src/modules/content/production/writer-v2.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { coverageLocatorTypes } from '../../../packages/backend/src/modules/content/domain/coverage.js';
 import { ELIGIBLE_BY_FACTS_VERSION } from '../../../packages/backend/src/modules/evidence/domain/coverage.js';
@@ -31,7 +22,8 @@ import { geographyWorld, type GeographyWorld } from '../support/geography-world.
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV1, ORRIN_PLAN, markFormerV2Recipes } from '../support/scroll-v2.js';
+import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
  * How a v2 Scroll is read (D-128): a stop counts after its own reading time, a call when it is
@@ -39,18 +31,17 @@ import { markScrollV1, ORRIN_PLAN, markFormerV2Recipes } from '../support/scroll
  * Orrin fixture: no provider output, no product content.
  */
 function orrin(): { readonly facts: ReadingFacts; readonly nominalMs: ReadonlyMap<string, number> } {
-  const compiled = compileGeneratedScrollV2(fixtureAuthoredV2(), {
-    publication: publicationV2(RECIPES.seasons),
-    recipe: ORRIN_PLAN,
-    passages: evidencePassages([fixtureResearchPageV2]),
-    pages: [fixtureResearchPageV2],
+  // The stored stage Scroll of the Orrin fixture, as the v2 job stored it, with the facts stored beside it.
+  const stored = storedOrrinV2({
+    assetId: RECIPES.seasons.assetId,
+    explanationUnitId: RECIPES.seasons.explanationUnitId,
   });
-  if (compiled.kind !== 'compiled') throw new Error('CI fixture must compile');
+  const document = stored.document as unknown as ScrollDocumentV2;
   // What reading each stop's words takes at 230 words a minute, from the document and not from the facts.
   const nominalMs = new Map(
-    compiled.document.stops.map((stop) => [stop.id, (stopWords(stop) * 60_000) / WORDS_PER_MINUTE_V2] as const),
+    document.stops.map((stop) => [stop.id, (stopWords(stop) * 60_000) / WORDS_PER_MINUTE_V2] as const),
   );
-  return { facts: readingFactsOfV2(compiled.document), nominalMs };
+  return { facts: stored.readingFacts, nominalMs };
 }
 
 interface Reading {
@@ -148,11 +139,6 @@ function tapTrace(
   const played = order.filter((block) => block.seen?.kind === 'interaction');
   return { visits, locked: played.filter(() => calls.lockAll || random() < 0.7).map((block) => block.id) };
 }
-
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('Qualifying a v2 reading (pure, from the labelled Orrin fixture)', () => {
   const { facts, nominalMs } = orrin();
@@ -308,17 +294,8 @@ describe('The Seasons planet forms from a v2 Part 1 and two v1 parts (real Postg
   it('qualifies a full reading of the v2 Part 1, and a quick tap through it forms nothing', async () => {
     const { database, observe, snapshot } = world;
     const scrolls: { assetId: string; revision: number }[] = [];
-    // Part 1 is a v2 Scroll as the plan makes it: produced, held, and served once an operator releases it (D-138).
-    const part1 = fixtureProduction(
-      database.db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    expect(await part1.produce('seasons', false, signal())).toMatchObject({
-      outcome: 'published',
-      held: true,
-      revision: 1,
-    });
+    // Part 1 is a stored v2 Scroll, as the v2 job stored it: held, and served once an operator releases it (D-138).
+    expect(await storeV2(database.db, 'seasons')).toMatchObject({ revision: 1 });
     expect(
       await makeReviewGate(database.db).release({
         assetId: TOPICS.seasons.assetId,

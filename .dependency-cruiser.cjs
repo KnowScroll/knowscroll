@@ -63,8 +63,6 @@ const compositionRoots = [
   '^apps/worker/src/rooms-feed-operator\\.ts$',
   // The scenes operator sends the look backfill jobs (U-1, D-102).
   '^apps/worker/src/scenes-operator\\.ts$',
-  // The writer spike composes the production harness and the v2 writer for one operator command (S-0, D-120).
-  '^apps/worker/src/writer-spike-operator\\.ts$',
   // The v3 writer spike composes the production harness and the document v3 writer for one operator command; its blind-read page reads the accepted documents it wrote (#771).
   '^apps/worker/src/writer-spike-v3-operator\\.ts$',
   '^apps/worker/src/writer-spike-v3-blind\\.ts$',

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INTEGRITY_METHOD } from '../document.js';
-import { assembleScrollV2 } from '../producer/v2/assemble.js';
-import { authoredV2, filler, liveStageOf, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
+import { filler, liveStageOf, orrinDocumentV2 } from '../test-support/v2-fixtures.js';
 import {
   callsOf,
   type CallItStop,
@@ -18,9 +17,7 @@ import { computeMeasuresV2 } from './measures.js';
 import { computeIntegrityV2, validateDocumentV2 } from './validate.js';
 
 function fixture(variant: 'stage' | 'plain' = 'stage'): ScrollDocumentV2 {
-  const result = assembleScrollV2(authoredV2(variant), PUBLICATION_V2, recipeV2(variant));
-  if (result.kind !== 'assembled') throw new Error('expected an assembled Scroll');
-  return JSON.parse(JSON.stringify(result.document)) as ScrollDocumentV2;
+  return orrinDocumentV2(variant);
 }
 
 /** Recomputes the measures and the hash, so a test changes one rule at a time. */

@@ -5,11 +5,11 @@ import {
   makeWithProductionScope,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
+import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { makeReleasePolicy, makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
 import { readScrollSourcePages } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { LIBRARY_CHECK_RULES } from '../../../packages/backend/src/modules/content/domain/library-support.js';
-import { RECIPES } from '../../../packages/backend/src/modules/content/domain/library/index.js';
 import { RELEASE_POLICY } from '../../../packages/backend/src/modules/content/domain/release-policy.js';
 import { makeCheckLibrarySupport } from '../../../packages/backend/src/modules/content/production/library-support-check.js';
 import { makeLibrarySupportReplay } from '../../../packages/backend/src/modules/content/production/library-support-replay.js';
@@ -19,10 +19,9 @@ import { LIBRARY_SUPPORT_CHECK_VERSION } from '../../../packages/backend/src/mod
 import { LIBRARY_CHECKER_VERSIONS } from '../../../packages/backend/src/modules/content/production/library-support-kinds.js';
 import {
   FIXTURE_SOURCE_V2,
-  fixtureAuthoredV2,
   fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
-import { SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-v2/run.js';
+} from '../../../packages/backend/src/modules/content/production/orrin.fixture.js';
+import { SPIKE_MODEL } from '../../../packages/backend/src/modules/content/production/spike-run.js';
 import { TOPICS, type ScrollTopic } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { catalogueOf } from '../support/catalogue.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
@@ -36,10 +35,10 @@ import {
 } from '../support/generated-scroll.js';
 import { seedPerson } from '../support/fixtures.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
-import { markFormerV2Recipes } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
- * The words of the labelled Orrin fixture (an invented planet) with the six sentences reworded that the library check could never quote, as in
+ * The words of the stored labelled Orrin fixture (an invented planet) with the sentences reworded that the library check could never quote, as in
  * `library-support-check.test.ts`: the fixture Scroll is clean unless a test makes it otherwise.
  */
 const REWORDED: readonly (readonly [string, string])[] = [
@@ -59,24 +58,14 @@ const REWORDED: readonly (readonly [string, string])[] = [
   ],
 ];
 
-/** The recorded answer for a recipe, drawn with the kit the recipe names; a recipe with no kit is a plain Scroll, so the picture is taken out. */
-function answerFor(key: ScrollTopic) {
-  const kit = RECIPES[key].stageKit;
-  const authored = JSON.parse(JSON.stringify(fixtureAuthoredV2(kit))) as {
-    items: { stage?: unknown; revealsNext?: unknown }[];
-  };
-  if (kit === undefined)
-    for (const item of authored.items) {
-      delete item.stage;
-      // A call that turns the picture needs a picture to turn (D-383).
-      delete item.revealsNext;
-    }
-  let json = JSON.stringify(authored);
+/** Puts the reworded sentences into the stored document's text. */
+function reword(document: ScrollDocumentV2): void {
+  let json = JSON.stringify(document);
   for (const [from, to] of REWORDED) {
     if (!json.includes(from)) throw new Error(`CI fixture: the sentence to reword is not there: ${from}`);
     json = json.replaceAll(from, to);
   }
-  return JSON.parse(json) as unknown;
+  Object.assign(document, JSON.parse(json) as object);
 }
 
 const orrinPageFor = (url: string) =>
@@ -99,22 +88,16 @@ interface Held {
 }
 
 /**
- * The release policy of held library Scrolls (#674, D-418) against a real PostgreSQL 16 database. The Scrolls are produced held by the real
- * production job and checked by the real support-check use case, with a labelled CI fixture in place of the writer and of the checker. This
- * proves what the policy reads, releases, holds and refuses, never what a model says about a Scroll.
+ * The release policy of held library Scrolls (#674, D-418) against a real PostgreSQL 16 database. The Scrolls are stored held, as the v2
+ * production job stored them (`storeV2`, #815), and checked by the real support-check use case, with a labelled CI fixture in place of
+ * the checker. This proves what the policy reads, releases, holds and refuses, never what a model says about a Scroll.
  */
-// Every recipe of the library is a document v3 recipe (#787, #790). This file tests the v2 path, so it makes them v2 recipes
-// again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('the release policy of held library Scrolls (labelled CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
   let worker: ReturnType<typeof fixtureProductionWorker>;
-  let currentKey: ScrollTopic = 'seasons-hemispheres';
   /** What the library checker does with the next request: pass every sentence, or find the first unsupported. */
   let checker: 'passes' | 'flags' = 'passes';
-  const takes = new Map<ScrollTopic, number>();
   const gate = () => makeReviewGate(database.db);
   const policy = () => makeReleasePolicy(database.db, catalogueOf(database.db));
   const withScope = () => makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
@@ -124,7 +107,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
   beforeAll(async () => {
     database = await createTestDatabase<Database>('release_policy');
     await enableProductionScope(database.db);
-    worker = fixtureProductionWorker(database, () => answerWith(answerFor(currentKey)), {
+    worker = fixtureProductionWorker(database, () => answerWith({}), {
       research: (url) => Promise.resolve(orrinPageFor(url)),
       librarySupport: (_n, call) => {
         const [first] = supportRequestOf(call).sentences;
@@ -142,14 +125,10 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     await database.drop();
   });
 
-  /** The recipe's next take, produced by the real job and held for review. */
+  /** The recipe's next revision, stored held for review as the v2 production job stored it. */
   async function hold(key: ScrollTopic): Promise<Held> {
-    currentKey = key;
-    const take = (takes.get(key) ?? 0) + 1;
-    const result = await worker.producer()(key, false, signal(), false, take);
-    expect(result).toMatchObject({ outcome: 'published', held: true });
-    takes.set(key, take);
-    return { key, assetId: TOPICS[key].assetId, revision: result.revision! };
+    const stored = await storeV2(database.db, key, { edit: reword });
+    return { key, assetId: stored.assetId, revision: stored.revision };
   }
 
   /** A held Scroll whose support check ran and passed. */

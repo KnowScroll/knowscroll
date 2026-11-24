@@ -1,57 +1,21 @@
-import type { AuthoringEvidence } from '../producer/authoring-bind.js';
-import { AuthoredScrollV2 } from '../producer/v2/authoring-schema.js';
-import type { PublicationV2, RecipeDataV2 } from '../producer/v2/assemble.js';
-import type { CompileV2Input } from '../producer/v2/compile.js';
-import { isLiveStage, type LiveStage, type Misconception, type ScrollDocumentV2 } from '../v2/document.js';
-import { EARTH_SKY_KIT } from '../v2/kit.js';
-import type { StageKitId } from '../v2/kits/index.js';
+import { readFileSync } from 'node:fs';
+import { isLiveStage, type LiveStage, type ScrollDocumentV2 } from '../v2/document.js';
 
 /**
- * CI FIXTURES for `scroll-document.v2`, never product content. The evidence is a few authored
- * sentences about an invented planet; the stop texts are generated filler of invented words, so that
- * no run of nine words can match the evidence and the reading time lands where the tests need it.
+ * CI FIXTURES for `scroll-document.v2`, never product content. The stop texts are generated filler of invented words, so
+ * that no run of nine words can match any evidence and the reading time lands where the tests need it.
  */
-export const PASSAGES_V2 = [
-  'Orrin’s axis leans by 31 degrees, and the lean points the same way all year while the planet circles its star Vael.',
-  'When Orrin’s northern half leans toward Vael, sunlight there arrives steeply and days run long, so the north warms.',
-  'Half an orbit later the lean points away from Vael, sunlight arrives at a low angle and the northern days shorten.',
-  'Orrin passes nearest to Vael in the middle of its southern summer, and its closest and farthest distances differ by only a few percent.',
-  'A beam of light that strikes the ground at a low angle spreads over a wider patch, so each square metre receives less energy.',
-  'Near the equator the noon sun stays high in every season, so the tropics change far less across the year than the poles do.',
-];
 
-const claimIds = PASSAGES_V2.map((_, index) => `claim-v2-${index + 1}`);
-export const EVIDENCE_V2: AuthoringEvidence = {
-  claimIdOf: new Map(claimIds.map((id, index) => [`e${index + 1}`, id])),
-  quoteOf: new Map(claimIds.map((id, index) => [id, PASSAGES_V2[index] ?? ''])),
-  minDistinctCitations: 4,
-};
-
-export const PUBLICATION_V2: PublicationV2 = {
-  assetId: 'fixture-orrin-seasons',
-  revision: 1,
-  language: 'en',
-  explanationUnitId: 'fixture-orrin-seasons-unit',
-  kicker: 'A closer look',
-  framing: { kind: 'factual' },
-  themeFamily: 'worlds',
-};
-
-export const MYTH_V2 = {
-  kind: 'myth',
-  claim: 'Orrin is warmest because it is closest to its star.',
-  source: { label: 'CI fixture label', reviewed: true },
-} as const satisfies Misconception;
-
-export const recipeV2 = (
-  variant: 'stage' | 'plain',
-  misconception: Misconception = MYTH_V2,
-  kit: StageKitId = EARTH_SKY_KIT,
-): RecipeDataV2 => ({
-  variant,
-  misconception,
-  ...(kit === EARTH_SKY_KIT ? {} : { kit }),
-});
+/**
+ * The stored v2 Scroll about the invented planet Orrin that the reading side's tests read: eight stops, two Call its and a
+ * Final call, a limits aside, a recap and questions, with a pinned picture (`stage`) or without (`plain`). It is a committed
+ * snapshot (`orrin-v2/*.json`) of what the v2 assembler made of that authored Scroll before the v2 writing side was deleted
+ * (#815): code that reads a stored v2 revision is tested on a document as the old production stored it, never on a producer.
+ * Each call gives a fresh copy, so a test may change it.
+ */
+export function orrinDocumentV2(variant: 'stage' | 'plain' = 'stage'): ScrollDocumentV2 {
+  return JSON.parse(readFileSync(new URL(`./orrin-v2/${variant}.json`, import.meta.url), 'utf8')) as ScrollDocumentV2;
+}
 
 const WORDS = [
   'amber',
@@ -99,119 +63,6 @@ export function filler(count: number, tag: number): string {
     }
   }
   return sentences.join(' ');
-}
-
-/**
- * `count` invented words that no other `tag` shares, in letters only so that no figure appears. The
- * call questions and options use them: `filler` cycles through thirty words, so two filler
- * questions would restate one another and the Final call would be refused (D-126).
- */
-export function distinct(count: number, tag: number): string {
-  const letters = (value: number): string => {
-    let rest = value;
-    let out = '';
-    do {
-      out = String.fromCharCode(97 + (rest % 26)) + out;
-      rest = Math.floor(rest / 26);
-    } while (rest > 0);
-    return out;
-  };
-  return Array.from({ length: count }, (_, at) => `zq${letters(tag * 100 + at)}`).join(' ');
-}
-
-/**
- * Six stage changes for each kit but Earth & sky, each a whole state so that none depends on what carries
- * over, and no two the same. A stop takes the one its tag points at; the first stop's is the first picture.
- */
-export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, readonly Record<string, string>[]>> =
-  {
-    'starlight.v1': [
-      { view: 'colour', star: 'sun-like', distance: 'near', orbit: 'none', focus: 'spectrum' },
-      { view: 'output', star: 'giant', distance: 'near', orbit: 'none', focus: 'none' },
-      { view: 'dimming', star: 'sun-like', distance: 'middle', orbit: 'none', focus: 'looks' },
-      { view: 'diagram', star: 'white-dwarf', distance: 'near', orbit: 'none', focus: 'none' },
-      { view: 'zone', star: 'sun-like', distance: 'near', orbit: 'earth', focus: 'planet' },
-      { view: 'colour', star: 'bright', distance: 'near', orbit: 'none', focus: 'none' },
-    ],
-    'black-hole.v1': [
-      { view: 'formation', star: 'massive', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
-      { view: 'horizon', star: 'massive', stage: 'fusing', hole: 'large', merger: 'apart', focus: 'horizon' },
-      { view: 'pull', star: 'massive', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
-      { view: 'waves', star: 'massive', stage: 'fusing', hole: 'small', merger: 'close', focus: 'signal' },
-      { view: 'formation', star: 'massive', stage: 'end', hole: 'small', merger: 'apart', focus: 'remnant' },
-      { view: 'shadow', star: 'massive', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'shadow' },
-    ],
-  };
-
-const patch = (tag: number) => ({ earthAt: (['jan', 'mar', 'jun', 'sep', 'dec', 'feb', 'may'] as const)[tag % 7] });
-
-/**
- * A valid authored Scroll: eight stops, two Call its and a Final call, a limits aside after stop
- * seven, a recap and questions. About 700 words, so about three and a half minutes to read.
- * `variant: 'plain'` leaves the stage out. Only stops change the picture, never a call, and the
- * first Call it's second option is the common guess (D-126).
- */
-export function authoredV2(variant: 'stage' | 'plain' = 'stage', kit: StageKitId = EARTH_SKY_KIT): AuthoredScrollV2 {
-  const stageFor = (tag: number, first = false) => {
-    if (variant !== 'stage') return {};
-    if (kit !== EARTH_SKY_KIT) return { stage: FIXTURE_STAGES[kit][first ? 0 : tag % 6] };
-    return { stage: first ? { view: 'sun-earth' as const, ...patch(tag) } : patch(tag) };
-  };
-  const stop = (tag: number, cites: string[], first = false) => ({
-    type: 'stop' as const,
-    cites,
-    text: filler(52, tag),
-    simple: filler(24, tag + 40),
-    ...stageFor(tag, first),
-  });
-  const call = (tag: number, type: 'call_it' | 'final_call', cites: string[], extra: object = {}) => ({
-    type,
-    cites,
-    prompt: `Which of these ${distinct(8, tag)}?`,
-    options: [distinct(6, tag * 10 + 1), distinct(6, tag * 10 + 2), distinct(6, tag * 10 + 3)],
-    explain: filler(36, tag + 4),
-    twist: filler(26, tag + 5),
-    simple: filler(20, tag + 6),
-    ...extra,
-  });
-  return AuthoredScrollV2.parse({
-    title: 'Why Orrin has summers and winters',
-    dek: 'A planet that leans and a guess that most people get wrong, told in short steps.',
-    items: [
-      stop(1, ['e1', 'e2'], true),
-      call(2, 'call_it', ['e1', 'e4']),
-      stop(3, ['e4']),
-      stop(4, ['e1', 'e3']),
-      call(5, 'call_it', ['e3', 'e5']),
-      stop(6, ['e2', 'e5']),
-      stop(7, ['e3', 'e5']),
-      stop(8, ['e6']),
-      {
-        type: 'aside',
-        cites: ['e6'],
-        kind: 'limits',
-        title: 'Where this stops',
-        text: filler(30, 9),
-      },
-      call(10, 'final_call', ['e1', 'e5']),
-    ],
-    recap: { cites: ['e1', 'e5'], captions: [filler(8, 11), filler(8, 12), filler(8, 13)] },
-    askSuggestions: ['What would a planet tipped on its side be like?', 'Why do the tropics have so few seasons?'],
-  });
-}
-
-/** The compile input for the fixtures above. */
-export function compileInputV2(
-  variant: 'stage' | 'plain' = 'stage',
-  misconception: Misconception = MYTH_V2,
-  kit: StageKitId = EARTH_SKY_KIT,
-): CompileV2Input {
-  return {
-    publication: PUBLICATION_V2,
-    recipe: recipeV2(variant, misconception, kit),
-    evidence: EVIDENCE_V2,
-    sources: PASSAGES_V2,
-  };
 }
 
 /**

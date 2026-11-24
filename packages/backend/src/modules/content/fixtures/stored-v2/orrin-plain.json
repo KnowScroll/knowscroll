@@ -1,0 +1,366 @@
+{
+  "document": {
+    "schemaVersion": "scroll-document.v2",
+    "assetId": "af2628f1-98a7-4c39-9f81-628506d247a1",
+    "revision": 1,
+    "language": "en",
+    "explanationUnitId": "legacy-cutroom-seasons-v5",
+    "theme": {
+      "family": "worlds"
+    },
+    "kicker": "A closer look",
+    "title": "Why Orrin has summers and winters",
+    "dek": "A planet that leans, a star that stays put, and a guess that most people get wrong.",
+    "framing": {
+      "kind": "factual"
+    },
+    "misconception": {
+      "kind": "myth",
+      "claim": "Orrin is warmest because it is closest to its star.",
+      "source": {
+        "label": "CI fixture label",
+        "reviewed": true
+      }
+    },
+    "stops": [
+      {
+        "kind": "read",
+        "id": "s1",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Orrin has long warm summers and short grey winters in the north, and the reason is not the one most people reach for first. Keep your eye on the picture while you read, because it will change with every step."
+          },
+          {
+            "type": "line",
+            "text": "First, make a guess."
+          }
+        ],
+        "emphasis": "hook",
+        "simple": "Orrin has warm summers and cold winters. Watch the picture as you read. First, make a guess."
+      },
+      {
+        "kind": "call_it",
+        "id": "s2",
+        "prompt": "Why is the north of Orrin warm in midsummer?",
+        "options": ["Orrin is closest to Vael at that moment", "Its northern half leans toward Vael"],
+        "answer": 1,
+        "explain": "The north is warm because that half of the planet leans toward Vael, so sunlight arrives steeply there. Orrin is actually nearest to its star during the southern summer, when the north is having its winter.",
+        "twist": "Most people pick the nearness answer at first, and it is easy to see why. A closer star sounds like a hotter star. The surprise is that the gap in distance is tiny, and the lean does the real work.",
+        "simple": "The north is warm because it leans toward Vael. Orrin is closest to Vael in the north’s winter.",
+        "commonGuess": {
+          "option": 0,
+          "source": {
+            "label": "CI fixture label",
+            "reviewed": true
+          }
+        }
+      },
+      {
+        "kind": "read",
+        "id": "s3",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Drawn to scale, the orbit of Orrin is almost a perfect circle. The gap between its nearest and farthest points is only a few percent, far too little to explain months of heat or frost. Distance was never the lever."
+          },
+          {
+            "type": "line",
+            "text": "Distance is not it."
+          }
+        ],
+        "emphasis": "turn",
+        "simple": "The orbit is nearly a circle, so distance cannot explain the seasons."
+      },
+      {
+        "kind": "read",
+        "id": "s4",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "What matters is the lean of the axis. It tips by 31 degrees and keeps pointing the same direction all year. So for part of the orbit the northern half faces toward Vael, and half an orbit later it faces away."
+          }
+        ],
+        "simple": "The axis tips and keeps pointing the same way. The north faces Vael for half the year and away for half."
+      },
+      {
+        "kind": "call_it",
+        "id": "s5",
+        "prompt": "A beam hits the ground at a low angle. What happens to the patch it lights?",
+        "options": ["It spreads over a wider patch", "It shrinks to a smaller patch", "It stays exactly the same size"],
+        "answer": 0,
+        "explain": "A slanted beam is stretched across the ground, so the same energy is shared by a wider patch and each square metre gets less. That is why low winter sun feels weak.",
+        "twist": "Many people expect a slanted beam to be a squeezed one, and the picture is easy to get backwards. Slanting stretches the patch, and a stretched patch means thinner warmth.",
+        "simple": "A low beam stretches over more ground, so each bit of ground gets less warmth."
+      },
+      {
+        "kind": "read",
+        "id": "s6",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Meet Ray, a single beam of Vael’s light. In the north’s summer Ray arrives from high in the sky and lands on a small patch, packing its warmth into a tight space. That is a hot, long day."
+          },
+          {
+            "type": "line",
+            "text": "Same sunshine, smaller patch."
+          }
+        ],
+        "simple": "In summer the light comes from high up and lands on a small patch, so it feels hot."
+      },
+      {
+        "kind": "read",
+        "id": "s7",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Half an orbit on, the north leans away. Ray now comes in low and spreads thin across the ground, the days shrink, and the same sunshine does far less work. Winter is not a distance problem; it is an angle problem."
+          }
+        ],
+        "simple": "Later the north leans away. The light comes in low, spreads out, and the days get short."
+      },
+      {
+        "kind": "read",
+        "id": "s8",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "text": "Near the equator the noon sun stays high whatever the month, so the tropics barely notice the year turning. The poles feel it most. The same lean produces very different seasons depending on where you stand."
+          }
+        ],
+        "simple": "Near the equator the sun stays high all year, so the seasons barely change. The poles change most."
+      },
+      {
+        "kind": "final_call",
+        "id": "s9",
+        "prompt": "Imagine Orrin stood perfectly upright. What would happen to its seasons?",
+        "options": [
+          "Summers would get hotter everywhere",
+          "Winters would get longer and colder",
+          "Day length would stay much the same, so seasons would fade"
+        ],
+        "answer": 2,
+        "explain": "With no lean, no half of the planet ever tips toward the star, so day length hardly changes over the year and the seasons we know would mostly disappear.",
+        "twist": "It is tempting to think a straight planet must be extreme in some way. In fact the lean is what makes the year uneven, and removing it makes the year calm.",
+        "simple": "With no lean, days stay about the same length, so there are almost no seasons."
+      }
+    ],
+    "asides": [
+      {
+        "id": "a1",
+        "kind": "limits",
+        "title": "Where this stops",
+        "text": "This picture explains the main rhythm, not every local detail. Oceans, winds and mountains bend the seasons of each place, so treat the lean and the angle as a guide rather than a forecast.",
+        "anchorStop": "s8",
+        "collapsed": false
+      }
+    ],
+    "recap": {
+      "captions": [
+        "The axis leans and points the same way all year.",
+        "A lean changes the angle of sunlight.",
+        "A low angle spreads the warmth thin."
+      ],
+      "smallPrintAside": "a1"
+    },
+    "askSuggestions": [
+      "What would seasons look like on a planet tipped on its side?",
+      "Why do the tropics have almost no seasons?",
+      "How much do oceans change the seasons of a place?"
+    ],
+    "limitsVersion": "scroll-limits.v2",
+    "measures": {
+      "version": "scroll-measures.v2",
+      "readingSeconds": 186,
+      "readingMinutes": 3.1,
+      "totalWeight": 711,
+      "recapWeight": 24,
+      "stops": [
+        {
+          "stopId": "s1",
+          "weight": 44
+        },
+        {
+          "stopId": "s2",
+          "weight": 137
+        },
+        {
+          "stopId": "s3",
+          "weight": 44
+        },
+        {
+          "stopId": "s4",
+          "weight": 41
+        },
+        {
+          "stopId": "s5",
+          "weight": 134
+        },
+        {
+          "stopId": "s6",
+          "weight": 42
+        },
+        {
+          "stopId": "s7",
+          "weight": 41
+        },
+        {
+          "stopId": "s8",
+          "weight": 73
+        },
+        {
+          "stopId": "s9",
+          "weight": 131
+        }
+      ]
+    },
+    "integrity": {
+      "method": "canonical-json-sha256.v1",
+      "sha256": "7418b96cdc8d51056e15a142e3d1d7f987e61f08969e36a056e8df8d639e2cd9"
+    }
+  },
+  "provenance": {
+    "schemaVersion": "scroll-provenance.v2",
+    "assetId": "af2628f1-98a7-4c39-9f81-628506d247a1",
+    "revision": 1,
+    "documentSha256": "7418b96cdc8d51056e15a142e3d1d7f987e61f08969e36a056e8df8d639e2cd9",
+    "claims": [
+      {
+        "claimId": "claim-ca4ce8d858807720a53bfd5cc6f87c7fdd5a2f27",
+        "statement": "Orrin’s axis leans by 31 degrees, and the lean points the same way all year while the planet circles its star Vael.",
+        "quote": "Orrin’s axis leans by 31 degrees, and the lean points the same way all year while the planet circles its star Vael.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-5d65f885601a786144943967f1cebd1c7a71475f",
+        "statement": "When Orrin’s northern half leans toward Vael, sunlight there arrives steeply and days run long, so the north warms.",
+        "quote": "When Orrin’s northern half leans toward Vael, sunlight there arrives steeply and days run long, so the north warms.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-10c81d287f0feac546373729ae3f635a97f4d12e",
+        "statement": "Half an orbit later the lean points away from Vael, sunlight arrives at a low angle and the northern days shorten.",
+        "quote": "Half an orbit later the lean points away from Vael, sunlight arrives at a low angle and the northern days shorten.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-a83596af7c9bf84f084ec0723fa1e1c1b0ee9e16",
+        "statement": "Orrin passes nearest to Vael in the middle of its southern summer, and its closest and farthest distances differ by only a few percent.",
+        "quote": "Orrin passes nearest to Vael in the middle of its southern summer, and its closest and farthest distances differ by only a few percent.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-baa4149d771e135a2799fe8eae5b4ce1d2427a6d",
+        "statement": "A beam of light that strikes the ground at a low angle spreads over a wider patch, so each square metre receives less energy.",
+        "quote": "A beam of light that strikes the ground at a low angle spreads over a wider patch, so each square metre receives less energy.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-455b8de936abd756d52a84d4b6f6b5873fb44d55",
+        "statement": "Near the equator the noon sun stays high in every season, so the tropics change far less across the year than the poles do.",
+        "quote": "Near the equator the noon sun stays high in every season, so the tropics change far less across the year than the poles do.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-866e1ee80013de1d8371dd99fb3760230441a3ad",
+        "statement": "Weather and oceans also shape local seasons, so the simple picture of lean and sunlight angle is a guide and not a full forecast.",
+        "quote": "Weather and oceans also shape local seasons, so the simple picture of lean and sunlight angle is a guide and not a full forecast.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      },
+      {
+        "claimId": "claim-c9869c137e796a811192767db1873a9b6f6fb503",
+        "statement": "Were Orrin to stand upright with no lean at all, every place would keep much the same day length all year round.",
+        "quote": "Were Orrin to stand upright with no lean at all, every place would keep much the same day length all year round.",
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "truthState": "documented"
+      }
+    ],
+    "sources": [
+      {
+        "sourceId": "page-2ea8a8be0f9cb3008799fabd",
+        "title": "CI fixture",
+        "url": "https://spaceplace.nasa.gov/seasons/en/",
+        "snapshotSha256": "2ea8a8be0f9cb3008799fabd90a66d0c3d44fd68095240e75379089c0993ab17",
+        "retrievedAt": "2026-10-20T00:00:00.000Z"
+      }
+    ],
+    "citations": [
+      {
+        "partId": "s1",
+        "claimIds": ["claim-ca4ce8d858807720a53bfd5cc6f87c7fdd5a2f27", "claim-5d65f885601a786144943967f1cebd1c7a71475f"]
+      },
+      {
+        "partId": "s2",
+        "claimIds": [
+          "claim-ca4ce8d858807720a53bfd5cc6f87c7fdd5a2f27",
+          "claim-5d65f885601a786144943967f1cebd1c7a71475f",
+          "claim-a83596af7c9bf84f084ec0723fa1e1c1b0ee9e16"
+        ]
+      },
+      {
+        "partId": "s3",
+        "claimIds": ["claim-a83596af7c9bf84f084ec0723fa1e1c1b0ee9e16"]
+      },
+      {
+        "partId": "s4",
+        "claimIds": ["claim-ca4ce8d858807720a53bfd5cc6f87c7fdd5a2f27", "claim-10c81d287f0feac546373729ae3f635a97f4d12e"]
+      },
+      {
+        "partId": "s5",
+        "claimIds": ["claim-baa4149d771e135a2799fe8eae5b4ce1d2427a6d", "claim-10c81d287f0feac546373729ae3f635a97f4d12e"]
+      },
+      {
+        "partId": "s6",
+        "claimIds": ["claim-5d65f885601a786144943967f1cebd1c7a71475f", "claim-baa4149d771e135a2799fe8eae5b4ce1d2427a6d"]
+      },
+      {
+        "partId": "s7",
+        "claimIds": ["claim-10c81d287f0feac546373729ae3f635a97f4d12e", "claim-baa4149d771e135a2799fe8eae5b4ce1d2427a6d"]
+      },
+      {
+        "partId": "s8",
+        "claimIds": ["claim-455b8de936abd756d52a84d4b6f6b5873fb44d55"]
+      },
+      {
+        "partId": "s9",
+        "claimIds": ["claim-c9869c137e796a811192767db1873a9b6f6fb503", "claim-ca4ce8d858807720a53bfd5cc6f87c7fdd5a2f27"]
+      },
+      {
+        "partId": "a1",
+        "claimIds": ["claim-866e1ee80013de1d8371dd99fb3760230441a3ad"]
+      },
+      {
+        "partId": "recap",
+        "claimIds": ["claim-ca4ce8d858807720a53bfd5cc6f87c7fdd5a2f27", "claim-baa4149d771e135a2799fe8eae5b4ce1d2427a6d"]
+      }
+    ],
+    "checks": [
+      {
+        "name": "authoring",
+        "version": "scroll-authoring.v2",
+        "verdict": "pass",
+        "reasonCodes": []
+      },
+      {
+        "name": "document",
+        "version": "scroll-limits.v2",
+        "verdict": "pass",
+        "reasonCodes": []
+      }
+    ],
+    "production": {
+      "kind": "model",
+      "runId": "run-ci-1",
+      "attemptIds": ["attempt-ci-1"],
+      "model": "MiniMax-M3.1-Flash",
+      "promptVersion": "scroll-writer.v22"
+    }
+  }
+}

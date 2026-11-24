@@ -8,13 +8,14 @@ import { writerFormatOf } from '../../../packages/backend/src/modules/content/pr
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
-import { markFormerV2Recipe, markScrollV1, orrinResearchFor, plainOrrin } from '../support/scroll-v2.js';
+import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 
 /**
  * The 33 recipes planned as document v3 Scrolls in #790 (the 32 plain v2 recipes and the v1 recipe `exoplanet-kinds`) change nothing a
  * reader is served. A recipe whose current revision is a v1 or v2 Scroll keeps serving it while its plan is v3, reads `not_started` for a v3
  * take (so an operator's `produce-library` run offers one), and is never commissioned by supply: only code recipes with no `scrollV2` and
- * no `scrollV3` are Create's to make. The model is a labelled CI fixture and the Scrolls are the authored fixtures.
+ * no `scrollV3` are Create's to make. The model is a labelled CI fixture and the Scrolls are the stored fixtures.
  */
 describe('Recipes planned as document v3 keep what they serve and are never commissioned by supply (#790; CI fixtures, real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
@@ -60,21 +61,14 @@ describe('Recipes planned as document v3 keep what they serve and are never comm
 
   it('keeps serving the v2 Scroll of "seasons-elsewhere", reads not_started for a v3 take, and never commissions it', async () => {
     const key = 'seasons-elsewhere';
-    // The Scroll the library held before the plan marked the recipe v3: a released v2 revision.
-    const undoV2 = markFormerV2Recipe(key);
-    try {
-      const run = fixtureProduction(database.db, () => answerWith(plainOrrin()), orrinResearchFor);
-      expect(await run.produce(key, false, signal())).toMatchObject({ outcome: 'published', held: true, revision: 1 });
-      const released = await makeReviewGate(database.db).release({
-        assetId: TOPICS[key].assetId,
-        revision: 1,
-        decidedBy: 'cli:ci-reviewer',
-      });
-      expect(released).toMatchObject({ kind: 'released', revision: 1 });
-      expect(await standingOf(key)).toMatchObject({ state: 'published', revision: 1 });
-    } finally {
-      undoV2();
-    }
+    // The Scroll the library held before the plan marked the recipe v3: a released v2 revision, stored as the v2 production job stored it.
+    expect(await storeV2(database.db, key, { variant: 'plain' })).toMatchObject({ revision: 1 });
+    const released = await makeReviewGate(database.db).release({
+      assetId: TOPICS[key].assetId,
+      revision: 1,
+      decidedBy: 'cli:ci-reviewer',
+    });
+    expect(released).toMatchObject({ kind: 'released', revision: 1 });
     expect(RECIPES[key]).not.toHaveProperty('scrollV2');
     expect(RECIPES[key].scrollV3).toBeDefined();
     expect(await revisionOf(key)).toMatchObject({ status: 'admitted', revision: 1 });

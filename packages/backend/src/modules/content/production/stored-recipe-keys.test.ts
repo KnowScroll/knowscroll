@@ -7,7 +7,6 @@ import {
   productionVersionOf,
   REQUEST_BOUND_V3_PER_TOPIC,
   requestBoundOf,
-  scrollV2PlanOf,
   scrollV3PlanOf,
   SCROLL_PRODUCTION_V3_VERSION,
   storedPlanRefusalOf,
@@ -23,8 +22,7 @@ describe('production keys of stored recipes (D-412, #781)', () => {
     expect(productionVersionOf(stored)).toBe(SCROLL_PRODUCTION_V3_VERSION);
     expect(requestBoundOf(stored)).toBe(REQUEST_BOUND_V3_PER_TOPIC);
     expect(plannedDocumentVersionOf(stored)).toBe('scroll-document.v3');
-    // It has no v2 plan any more, and its key-only v3 plan is a marker: no misconception, no pictures.
-    expect(scrollV2PlanOf(stored)).toBeUndefined();
+    // Its key-only v3 plan is a marker: no misconception, no pictures.
     expect(scrollV3PlanOf(stored)).toMatchObject({ misconception: { kind: 'none' } });
     expect(scrollV3PlanOf(stored)?.pictures).toBeUndefined();
     // Nothing the plan refuses applies: it has no myth to review.
@@ -35,7 +33,6 @@ describe('production keys of stored recipes (D-412, #781)', () => {
     for (const key of ['gen-a-11111111', 'gen-how-the-sea-rises-twice-a-day-aabbccdd']) {
       expect(productionVersionOf(key)).toBe(SCROLL_PRODUCTION_V3_VERSION);
       expect(requestBoundOf(key, 'question')).toBe(REQUEST_BOUND_V3_PER_TOPIC);
-      expect(scrollV2PlanOf(key)).toBeUndefined();
     }
   });
 

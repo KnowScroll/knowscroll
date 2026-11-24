@@ -1,10 +1,9 @@
 /** Labelled fixtures for "Call it together" tests: admitted v2 Scrolls with one authored call, written straight to the content tables. */
 import { createHash, randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
-import { callsOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { callsOf } from '@knowscroll/scroll-model';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { assembleScrollV2 } from '../../../packages/scroll-model/src/producer/v2/assemble.js';
-import { authoredV2, PUBLICATION_V2, recipeV2 } from '../../../packages/scroll-model/src/test-support/v2-fixtures.js';
+import { orrinDocumentV2 } from '../../../packages/scroll-model/src/test-support/v2-fixtures.js';
 import type { SeededAsset } from './thread-fixtures.js';
 
 /** What a test sets on the first Call it of a seeded Scroll. */
@@ -35,7 +34,7 @@ export interface SeededCallScroll extends SeededAsset {
 }
 
 /**
- * A v2 Scroll (the labelled assembled fixture) whose first Call it is `call`, admitted under a fresh asset ID.
+ * A v2 Scroll (the labelled stored Orrin fixture) whose first Call it is `call`, admitted under a fresh asset ID.
  * The stored document is read the way the server reads it, structure and bounds (the integrity hash is not
  * recomputed on that path), so only the call's own words change.
  */
@@ -70,9 +69,7 @@ async function insertCallRevision(
   revision: number,
   call: CallFixture | null,
 ): Promise<void> {
-  const assembled = assembleScrollV2(authoredV2('plain'), PUBLICATION_V2, recipeV2('plain'));
-  if (assembled.kind !== 'assembled') throw new Error('CI v2 fixture did not assemble');
-  const document = JSON.parse(JSON.stringify(assembled.document)) as ScrollDocumentV2;
+  const document = orrinDocumentV2('plain');
   if (call === null) {
     document.stops = document.stops.filter((stop) => stop.kind === 'read');
   } else {

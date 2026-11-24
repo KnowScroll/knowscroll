@@ -1,5 +1,5 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import { SCROLL_DOCUMENT_V3_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
@@ -23,13 +23,7 @@ import {
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
 import { answerChecksOf } from '../production/answer-check.js';
-import {
-  parseProductionRecipe,
-  planRefusalOf,
-  productionVersionOf,
-  scrollV2PlanOf,
-  scrollV3PlanOf,
-} from '../production/topics.js';
+import { parseProductionRecipe, planRefusalOf, productionVersionOf, scrollV3PlanOf } from '../production/topics.js';
 import { codeRecipeOf } from '../application/recipe-book.js';
 import { recipeBookOf } from './stored-recipes.js';
 
@@ -107,24 +101,22 @@ async function readRecipeIdentities(
 
 /**
  * The document schema a recipe's Scroll must have to count as published, or `undefined` for a v1 recipe, which any
- * admitted Scroll satisfies. A recipe the plan marks `scrollV3` needs a `scroll-document.v3`, one it marks `scrollV2` a
- * `scroll-document.v2`. Pure.
+ * admitted Scroll satisfies. A recipe the plan marks `scrollV3` needs a `scroll-document.v3`. Pure.
  */
 export function plannedDocumentVersionOf(recipe: string): string | undefined {
-  if (scrollV3PlanOf(recipe) !== undefined) return SCROLL_DOCUMENT_V3_SCHEMA_VERSION;
-  return scrollV2PlanOf(recipe) === undefined ? undefined : SCROLL_DOCUMENT_V2_SCHEMA_VERSION;
+  return scrollV3PlanOf(recipe) === undefined ? undefined : SCROLL_DOCUMENT_V3_SCHEMA_VERSION;
 }
 
-/** Whether the plan marks a recipe as a v2 or a document v3 Scroll: such a Scroll is read by an operator and may be regenerated. Pure. */
+/** Whether the plan marks a recipe as a document v3 Scroll: such a Scroll is read by an operator and may be regenerated. Pure. */
 export function isPlannedAsV2OrV3(recipe: string): boolean {
-  return scrollV2PlanOf(recipe) !== undefined || scrollV3PlanOf(recipe) !== undefined;
+  return scrollV3PlanOf(recipe) !== undefined;
 }
 
 /**
  * Every named recipe's production standing: its Scroll is admitted, its jobs at the current recipe
  * version are running, rejected (and may be taken again) or ended for good, or nothing has happened.
- * A recipe the plan marks `scrollV2` is published only once its current revision is a v2 document, and one it marks
- * `scrollV3` only once it is a document v3: a Scroll of an earlier schema admitted before does not satisfy it, so the
+ * A recipe the plan marks `scrollV3` is published only once its current revision is a document v3: a Scroll of an earlier
+ * schema (a v1 or a stored v2) admitted before does not satisfy it, so the
  * recipe is produced again as a new revision (D-129). Reads shared, nonpersonal tables only.
  */
 export async function readLibraryStatus(
@@ -257,9 +249,7 @@ export async function chooseScrollRecipeIn(
       ? await book.servingBrief(brief)
       : facetFirst(await book.servingBrief({ topicId: brief.topicId }), aimedFacet);
   // A code recipe is Create's to make only while it is a v1 Scroll. A stored recipe has a status and is always a document v3 (#781).
-  const producible = ranked.filter(
-    (recipe) => recipe.status !== undefined || (recipe.scrollV2 === undefined && recipe.scrollV3 === undefined),
-  );
+  const producible = ranked.filter((recipe) => recipe.status !== undefined || recipe.scrollV3 === undefined);
   const standing = await readLibraryStatus(
     db,
     producible.map((recipe) => recipe.key as ProductionRecipeKey),

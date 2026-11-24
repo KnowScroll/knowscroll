@@ -30,8 +30,6 @@ export interface KitDefinition {
   readonly settle: (state: WordState) => WordState;
   /** The text version and the accessible name of a state, derived by code. */
   readonly describe: (state: WordState) => string;
-  /** Lines for the writer's instructions: what the picture draws, what each key means, what code decides. */
-  readonly writerGuide: readonly string[];
 }
 
 /** The keys of a kit, in the order its state lists them. */
@@ -50,7 +48,6 @@ export function defineKit<Enums extends KitEnums>(kit: {
   readonly initial: KitState<Enums>;
   readonly settle: (state: KitState<Enums>) => KitState<Enums>;
   readonly describe: (state: KitState<Enums>) => string;
-  readonly writerGuide: readonly string[];
 }): KitDefinition {
   return kit as unknown as KitDefinition;
 }

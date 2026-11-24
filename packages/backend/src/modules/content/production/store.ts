@@ -5,13 +5,7 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { RoleReceipt } from './types.js';
 import { isGeneratedRecipeKey } from '../domain/library/generated.js';
 import { takeIsRefused } from '../domain/library/serving.js';
-import {
-  MAX_TAKE_NUMBER,
-  MAX_TAKES_PER_RECIPE,
-  productionVersionOf,
-  scrollV2PlanOf,
-  scrollV3PlanOf,
-} from './topics.js';
+import { MAX_TAKE_NUMBER, MAX_TAKES_PER_RECIPE, productionVersionOf, scrollV3PlanOf } from './topics.js';
 
 /**
  * A job's state as far as takes and the recipe's standing are concerned. A job whose Scroll the review
@@ -111,8 +105,8 @@ export function productionStore(db: Kysely<Database>) {
       const existing = await read();
       if (existing) return { kind: 'job', row: existing, created: false };
       if (take > 1) {
-        // A v2 or a document v3 recipe may be taken again after a published take: the new Scroll is held, the served one stays.
-        const regenerates = scrollV2PlanOf(topic) !== undefined || scrollV3PlanOf(topic) !== undefined;
+        // A document v3 recipe may be taken again after a published take: the new Scroll is held, the served one stays.
+        const regenerates = scrollV3PlanOf(topic) !== undefined;
         const stateOfEarlier = regenerates ? jobStateForRegeneration : jobStateForTakes;
         const earlier = (
           await sql<{

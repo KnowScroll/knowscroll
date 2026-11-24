@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { assembleScrollV2 } from '../producer/v2/assemble.js';
-import { authoredV2, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
+import { orrinDocumentV2 } from '../test-support/v2-fixtures.js';
 import { firstFrameOf, LiveStage, LiveStageFrame, Stage, StageFrame, type ScrollDocumentV2 } from './document.js';
 import { STAGE_KIT_IDS } from './kits/index.js';
 
-/** The labelled CI fixture, assembled with or without a stage. Not product content. */
+/** The labelled CI fixture, with or without a stage. Not product content. */
 function fixture(variant: 'stage' | 'plain'): ScrollDocumentV2 {
-  const result = assembleScrollV2(authoredV2(variant), PUBLICATION_V2, recipeV2(variant));
-  if (result.kind !== 'assembled') throw new Error('expected an assembled Scroll');
-  return JSON.parse(JSON.stringify(result.document)) as ScrollDocumentV2;
+  return orrinDocumentV2(variant);
 }
 
 describe('the first frame of a Scroll (what its cover shows)', () => {

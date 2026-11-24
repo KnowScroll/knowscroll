@@ -24,14 +24,7 @@ import { Picture } from '../../v3/pictures.js';
 import { computeIntegrityV3, validateDocumentV3 } from '../../v3/validate.js';
 import { copiedRunsOfFields, copyDetailV3, copyMaterialOf, type NamedText } from './copy-detail.js';
 import { MAGNITUDES, type Magnitude } from '../../v2/blocks.js';
-import {
-  digitFiguresIn,
-  plainFigure,
-  pointAgrees,
-  readingsOf,
-  unitInPassages,
-  unstatedFigures,
-} from '../v2/figures.js';
+import { digitFiguresIn, plainFigure, pointAgrees, readingsOf, unitInPassages, unstatedFigures } from '../figures.js';
 
 /**
  * `scroll-authoring.v3`: a document v3 as a person writes it by hand, before code sets what is code's (ids, measures,

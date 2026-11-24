@@ -9,10 +9,6 @@ import { playStore } from '../../../packages/backend/src/modules/play/adapters/p
 import type { PlayUseCases } from '@knowscroll/backend/modules/play';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
 import { makeReviewGate, readScrollPlayFacts } from '@knowscroll/backend/modules/content/nest-providers';
-import {
-  fixtureAuthoredV2,
-  fixtureResearchPageV2,
-} from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
@@ -26,7 +22,8 @@ import { activatedAgo, coverage, dwell, event, openActive } from '../support/obs
 import { callsOfRevision, picks, playFor } from '../support/play.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { markFormerV2Recipes, markScrollV1 } from '../support/scroll-v2.js';
+import { markScrollV1 } from '../support/scroll-v2.js';
+import { storeV2 } from '../support/stored-v2.js';
 import { seedDocumentV3 } from '../support/scroll-v3.js';
 import { beatsOfV3 } from '@knowscroll/scroll-model';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -40,19 +37,12 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 type Scroll = { readonly assetId: string; readonly revision: number };
 
 /**
- * Publishes the Orrin fixture as the v2 revision of the `seasons` recipe, as production does: stored
- * held (D-138), then released by an operator. Until then no one can open it, and its calls read as
+ * Stores the Orrin fixture as the v2 revision of the `seasons` recipe, as the v2 job stored it (`storeV2`, with the landmark and the tilt
+ * control the recipe's former plan set): held (D-138), then released by an operator. Until then no one can open it, and its calls read as
  * absent to play.
  */
-async function publishOrrin(db: Parameters<typeof fixtureProduction>[0]): Promise<Scroll> {
-  const production = fixtureProduction(
-    db,
-    () => answerWith(fixtureAuthoredV2()),
-    () => fixtureResearchPageV2,
-  );
-  expect(await production.produce('seasons', false, signal())).toMatchObject({
-    outcome: 'published',
-    held: true,
+async function publishOrrin(db: Parameters<typeof storeV2>[0]): Promise<Scroll> {
+  expect(await storeV2(db, 'seasons', { landmark: LEANING_AXIS, finalCall: { kind: 'tilt' } })).toMatchObject({
     revision: 1,
   });
   const scroll = { assetId: TOPICS.seasons.assetId, revision: 1 };
@@ -65,11 +55,6 @@ async function publishOrrin(db: Parameters<typeof fixtureProduction>[0]): Promis
   });
   return scroll;
 }
-
-// Every recipe of the library is a document v3 recipe (#787, #790). This file publishes the v2 Orrin fixture as the
-// `seasons` recipe, so it makes them v2 recipes again, with the plan (and kit) they had, for the file's own process.
-const restoreFormerV2Recipes = markFormerV2Recipes();
-afterAll(restoreFormerV2Recipes);
 
 describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
   let database: TestDatabase<Database>;
@@ -431,7 +416,7 @@ describe('The stored tally bounds of a Scroll (migration 0077, real PostgreSQL)'
   });
 });
 
-/** The landmark the `seasons` recipe names; the published Orrin fixture carries it from the plan (D-188). */
+/** The landmark the `seasons` recipe named in its former v2 plan; the stored Orrin fixture carries it (D-188). */
 const LEANING_AXIS = { key: 'the-leaning-axis', name: 'The Leaning Axis' };
 
 describe('The Final call and its landmark (real PostgreSQL, labelled CI fixtures)', () => {

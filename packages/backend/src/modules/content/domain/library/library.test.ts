@@ -4,24 +4,12 @@ import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { seedSnapshot } from '../catalogue/seed.js';
 import {
   EARTH_SKY_KIT,
-  GUIDE_CHARACTERS,
-  INTERACTIVE_KINDS as SCROLL_MODEL_PLAY_KINDS,
-  LIMITS_V2,
   PICTURE_KINDS,
   SCROLL_SHAPES,
-  STAGE_FIGURE_SLOTS,
   STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS,
 } from '@knowscroll/scroll-model';
 import { LIBRARY_SERIES } from './continuity.js';
-import {
-  GUIDE_CHARACTER_IDS,
-  INTERACTIVE_KINDS,
-  PICTURE_KIND_IDS,
-  PLAY_BLOCK_KINDS,
-  SCROLL_SHAPE_IDS,
-  STAGE_FIGURE_SLOT_IDS,
-  STAGE_KIT_IDS,
-} from './plan.js';
+import { INTERACTIVE_KINDS, PICTURE_KIND_IDS, SCROLL_SHAPE_IDS, STAGE_KIT_IDS } from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS } from './index.js';
 
 /** The catalogue the plan seeds, which is what the plan's own checks read: concepts, meanings, silhouettes and hazes. */
@@ -233,23 +221,10 @@ const DELETED_KIT_IDS: readonly string[] = [
 const V3_KIT_KEYS: readonly string[] = Object.values(KIT_RECIPES_V3).flat();
 const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
 
-describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
-  const byKit = (kit: string): string[] =>
-    recipes
-      .filter((recipe) => recipe.stageKit === kit)
-      .map((recipe) => recipe.key)
-      .sort();
-
+describe('the drawing kits of the plan (D-125, D-194; no recipe names one since #787, and the field is deleted, #815)', () => {
   it('names only kits that exist, and keeps the plan’s list in step with the kits of scroll-model', () => {
     expect([...STAGE_KIT_IDS]).toEqual([...SCROLL_MODEL_KIT_IDS]);
     expect(STAGE_KIT_IDS[0]).toBe(EARTH_SKY_KIT);
-    for (const recipe of recipes)
-      if (recipe.stageKit !== undefined) expect(STAGE_KIT_IDS, recipe.key).toContain(recipe.stageKit);
-  });
-
-  it('names no kit on any recipe: the 22 recipes that had one are planned as document v3 Scrolls, which have none (#787)', () => {
-    for (const kit of STAGE_KIT_IDS) expect(byKit(kit), kit).toEqual([]);
-    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toEqual([]);
   });
 
   it('plans the 22 recipes that had a kit as document v3 Scrolls, each kit’s recipes together (#787)', () => {
@@ -267,30 +242,11 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
     expect(recipes).toHaveLength(55);
     for (const recipe of recipes) {
       expect(recipe.scrollV3, recipe.key).toBeDefined();
-      expect(recipe.scrollV2, recipe.key).toBeUndefined();
-      expect(recipe.stageKit, recipe.key).toBeUndefined();
     }
-  });
-
-  it('leaves the recipes no kit draws plain: coasts, the blanket audit, kinds of planet and other worlds', () => {
-    for (const key of [
-      'tides-coasts',
-      // The audit of the blanket analogy: the greenhouse kit draws the layer, not an argument about a comparison.
-      'greenhouse-limits',
-      // A mass ruler would be a chart of real data, and the name says nothing a picture could draw (D-204).
-      'exoplanet-kinds',
-      'seasons-elsewhere',
-      // No kit draws the immune system.
-      'innate-immunity',
-      'adaptive-immunity',
-      'immune-memory',
-    ] as const)
-      expect(RECIPES[key].stageKit, key).toBeUndefined();
   });
 
   it('plans the recipes no kit drew as document v3 Scrolls too, not v2: coasts, the blanket audit, other worlds and kinds of planet (#790)', () => {
     for (const key of ['tides-coasts', 'greenhouse-limits', 'seasons-elsewhere', 'exoplanet-kinds'] as const) {
-      expect(RECIPES[key], key).not.toHaveProperty('scrollV2');
       expect(RECIPES[key].scrollV3, key).toBeDefined();
     }
   });
@@ -310,13 +266,7 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
 const WAVE_SYSTEMS = ['human-body', 'computing', 'machine-learning', 'history'];
 const WAVE_RECIPES = recipes.filter((recipe) => WAVE_SYSTEMS.includes(recipe.systemId)).map((recipe) => recipe.key);
 
-describe('the recipes the plan once produced as v2 Scrolls (scrollV2, D-137)', () => {
-  it('marks no recipe v2 now: every recipe is planned as a document v3 Scroll (#790), and a recipe never carries both plans', () => {
-    expect(recipes.filter((recipe) => recipe.scrollV2 !== undefined)).toEqual([]);
-    for (const recipe of recipes)
-      expect(recipe.scrollV2 !== undefined && recipe.scrollV3 !== undefined, recipe.key).toBe(false);
-  });
-
+describe('the misconception sources of the plan (D-129)', () => {
   it('ships only misconception sources a person has reviewed, because the library refuses the rest at dispatch', () => {
     for (const recipe of recipes) {
       const misconception = recipe.scrollV3?.misconception;
@@ -339,23 +289,19 @@ describe('the recipes the plan once produced as v2 Scrolls (scrollV2, D-137)', (
 describe('the waves marked for S-6 (D-199)', () => {
   const waves = WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
 
-  it('covers every recipe of the four systems, and none has a kit', () => {
+  it('covers every recipe of the four systems', () => {
     expect(waves).toHaveLength(35);
-    for (const recipe of waves) expect(recipe.stageKit, recipe.key).toBeUndefined();
   });
 
   it('plans each as a document v3 Scroll with no myth, since #787 for the six a kit drew and #790 for the rest: none of its pages states a common wrong belief', () => {
     for (const recipe of waves) {
-      expect(recipe.scrollV2, recipe.key).toBeUndefined();
       expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
     }
   });
 
   it('marks every part of a series or none of it, as a document v3 Scroll, so a series is admitted whole', () => {
     for (const series of LIBRARY_SERIES) {
-      const marked = series.parts.filter(
-        (part) => RECIPES[part].scrollV2 !== undefined || RECIPES[part].scrollV3 !== undefined,
-      );
+      const marked = series.parts.filter((part) => RECIPES[part].scrollV3 !== undefined);
       expect([0, series.parts.length], series.id).toContain(marked.length);
     }
   });
@@ -368,7 +314,6 @@ describe('the kit waves marked for S-6b (D-217)', () => {
   it('plans every Earth and Space recipe a document v3 Scroll with no myth, the plain parts of the series (since #790) and the recipes a kit drew (since #787), and no Final call control', () => {
     for (const key of PLAIN) expect(RECIPES[key as keyof typeof RECIPES].scrollV3, key).toBeDefined();
     for (const recipe of earthAndSpace) {
-      expect(recipe.scrollV2, recipe.key).toBeUndefined();
       expect(recipe.scrollV3, recipe.key).toBeDefined();
       if (recipe.key !== 'seasons') expect(recipe.scrollV3?.misconception, recipe.key).toEqual({ kind: 'none' });
     }
@@ -376,63 +321,12 @@ describe('the kit waves marked for S-6b (D-217)', () => {
 });
 
 describe('landmarks and the Final call control (D-187, D-188)', () => {
-  it('names a landmark for no recipe now: a landmark is a v2 plan field, and every recipe is a document v3 recipe (#790)', () => {
-    for (const recipe of recipes) {
-      expect(recipe.scrollV2, recipe.key).toBeUndefined();
-      expect(recipe.scrollV3, recipe.key).not.toHaveProperty('landmark');
-    }
+  it('names a landmark for no recipe now: a landmark was a v2 plan field, and every recipe is a document v3 recipe (#790)', () => {
+    for (const recipe of recipes) expect(recipe.scrollV3, recipe.key).not.toHaveProperty('landmark');
   });
 
   it('hands no reader the tilt of Earth now: the one Scroll that had it, "seasons", is a document v3 recipe with no picture to turn (#787)', () => {
-    expect(RECIPES.seasons.scrollV2).toBeUndefined();
     expect(RECIPES.seasons.scrollV3).not.toHaveProperty('finalCall');
-  });
-});
-
-describe('the play blocks and the guide of a recipe (D-207)', () => {
-  it('names only blocks and characters that exist, and keeps the plan’s lists in step with scroll-model', () => {
-    expect([...PLAY_BLOCK_KINDS]).toEqual([...SCROLL_MODEL_PLAY_KINDS]);
-    expect([...GUIDE_CHARACTER_IDS]).toEqual([...GUIDE_CHARACTERS]);
-  });
-
-  it('gives a Scroll each block at most once and no more than its interactive budget', () => {
-    for (const recipe of recipes) {
-      const blocks = recipe.scrollV2?.blocks ?? [];
-      expect(new Set(blocks).size, recipe.key).toBe(blocks.length);
-      expect(blocks.length, recipe.key).toBeLessThanOrEqual(LIMITS_V2.otherInteractives);
-    }
-  });
-
-  it('puts blocks and a guide only on a recipe that is a v2 Scroll', () => {
-    for (const recipe of recipes) {
-      const plan = recipe as { readonly scrollV2?: unknown; readonly blocks?: unknown; readonly guide?: unknown };
-      if (plan.scrollV2 === undefined) expect([plan.blocks, plan.guide], recipe.key).toEqual([undefined, undefined]);
-    }
-  });
-});
-
-describe('what a recipe asks of its picture (D-382, D-383)', () => {
-  const planned = recipes.filter((recipe) => recipe.scrollV2?.stagePlan !== undefined);
-
-  it('keeps the plan’s figure slots in step with scroll-model', () => {
-    expect([...STAGE_FIGURE_SLOT_IDS]).toEqual([...STAGE_FIGURE_SLOTS]);
-  });
-
-  it('is asked by no recipe now: the one that asked, "seasons", is a document v3 recipe (#787); a recipe that asks must be a stage Scroll drawn with Earth & sky, the one kit that draws orbits, figures and a reveal', () => {
-    expect(planned.map((recipe) => recipe.key)).toEqual([]);
-    for (const recipe of planned) {
-      expect(recipe.scrollV2?.variant, recipe.key).toBe('stage');
-      expect(recipe.stageKit, recipe.key).toBe(EARTH_SKY_KIT);
-    }
-  });
-
-  it('asks for at least two months, so the recap draws, and names each figure slot once', () => {
-    for (const recipe of planned) {
-      const plan = recipe.scrollV2?.stagePlan;
-      expect(plan?.orbitMonths ?? 2, recipe.key).toBeGreaterThanOrEqual(2);
-      expect(plan?.orbitMonths ?? 2, recipe.key).toBeLessThanOrEqual(12);
-      expect(new Set(plan?.figures).size, recipe.key).toBe(plan?.figures?.length ?? 0);
-    }
   });
 });
 
@@ -442,11 +336,6 @@ describe('the document v3 plan (scrollV3, #771)', () => {
   it('keeps the plan’s picture kinds and shapes in step with scroll-model', () => {
     expect([...PICTURE_KIND_IDS]).toEqual([...PICTURE_KINDS]);
     expect([...SCROLL_SHAPE_IDS]).toEqual([...SCROLL_SHAPES]);
-  });
-
-  it('gives a recipe one plan at most: v2 or document v3, never both', () => {
-    for (const recipe of recipes)
-      expect(recipe.scrollV2 !== undefined && recipe.scrollV3 !== undefined, recipe.key).toBe(false);
   });
 
   it('names two or three sections, and at most three pictures, each with what it is there to show', () => {
