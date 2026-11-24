@@ -6,7 +6,14 @@
 # the v2 release, it builds it for $GITHUB_SHA (`build.mjs --commit "$GITHUB_SHA"`), never a PR head
 # SHA, and uploads it as the artifact `release-$GITHUB_SHA` holding exactly
 # `release-$GITHUB_SHA.tar` and `release-$GITHUB_SHA.tar.sha256` at its root. deploy.yml takes it
-# only from successful runs triggered by a push in this repository.
+# only from successful runs triggered by a push or a manual dispatch in this repository.
+#
+# When it runs (D-440): once per commit. Pull requests run it; pushes run it only on `dev`, `stage`
+# and `main`, so a feature branch is checked through its pull request alone. A manual dispatch
+# checks any branch, which is how a branch gets a release that deploy.yml may send to dev. A newer
+# push to a pull request cancels that pull request's older run. Push and dispatch runs are never
+# cancelled and never wait on each other: each deploy needs a finished run on its exact commit, and
+# a shared concurrency group would also make GitHub drop every pending run but the newest.
 #
 # Jobs: `integrity` (main-update hook, vendored design and Cutroom snapshots), `static` (format,
 # lint, typecheck, import boundaries, unused code, migration lint), `backend` (unit tests and
@@ -14,10 +21,21 @@
 # readers drive the real recommendation, formation and Planner modules against PostgreSQL, and
 # invariants judge the run), `build` (production builds, the `pnpm deploy` release
 # trees, generated database types, and those trees booted against PostgreSQL through the S1.2
-# spike journey) and `client` (jest-expo tests and the Expo web
-# export). Never remove, skip or weaken a job to get a green run.
+# spike journey) and `client` (jest-expo tests, the Expo web and gallery exports, and the browser
+# smoke over them; `client build` and the `client e2e` shards do the work and `client` passes only
+# if all of them passed). These seven names are the required checks of the `dev` ruleset.
+# Never remove, skip or weaken a job to get a green run.
 name: checks
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches: [dev, stage, main]
+  workflow_dispatch:
+# Keyed on the pull request's number, never on a branch name: a fork's branch called `dev` must not
+# share a group with the real `dev`. Every push or dispatch run has a group of its own.
+concurrency:
+  group: checks-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
@@ -311,7 +329,10 @@ jobs:
       - name: Boot the deployed release against PostgreSQL (health, refusals, spike journey)
         run: pnpm --filter @knowscroll/integration-tests test:release
 
-  client:
+  # The client's unit and component tests and its two exports, once. The browser smoke runs over
+  # these exports in the `client e2e` shards below.
+  client-build:
+    name: client build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -359,6 +380,52 @@ jobs:
             echo 'the dev evidence panel is in a production export'; exit 1
           fi
           grep -rlq 'BricolageGrotesque' apps/client/dist
+      - name: Upload the exports for the browser smoke shards
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: client-exports
+          path: |
+            apps/client/dist
+            apps/client/dist-gallery
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # The browser smoke, split by Playwright's --shard over the exports `client build` made. Every
+  # spec runs in exactly one shard, with the config's own projects and `retries: 0`. A failing
+  # shard does not stop the others, so one run reports every failure. To change the number of
+  # shards, edit the list; the names and the --shard argument follow from it.
+  client-e2e:
+    name: client e2e (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: client-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # .npmrc puts the pnpm store under ${KS_DEV_ROOT}; on runners that is the job's temp folder.
+      - name: Point KS_DEV_ROOT at the runner's temp folder
+        run: echo "KS_DEV_ROOT=$RUNNER_TEMP/ks-dev" >> "$GITHUB_ENV"
+      # The pnpm version comes from package.json `packageManager` (pnpm@10.34.7).
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.0
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      # The specs import @knowscroll/contracts and @knowscroll/scroll-model, which resolve to dist/.
+      - name: Build the packages the specs import
+        run: pnpm --filter '@knowscroll/contracts...' build
+      - name: Download the exports that client build made
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: client-exports
+          path: apps/client
+      - name: The exports are in place
+        run: test -f apps/client/dist/index.html && test -f apps/client/dist-gallery/index.html
       # The browser is installed here only; nothing installs it on a developer machine.
       - name: Install Chromium for the web smoke
         # Without the Ubuntu archive (#674, 2026-11-11) --with-deps cannot fetch packages; the runner
@@ -366,14 +433,32 @@ jobs:
         run: |
           pnpm --filter @knowscroll/client exec playwright install --with-deps chromium ||
             { echo "::warning::system dependencies unavailable; installing Chromium alone"; pnpm --filter @knowscroll/client exec playwright install chromium; }
-      - name: Web smoke over the exports (keyboard, links, titles, sheet, no gallery in production)
-        run: pnpm --filter @knowscroll/client test:web
+      - name: Web smoke over the exports, one shard (keyboard, links, titles, sheet, no gallery in production)
+        env:
+          SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+        run: pnpm --filter @knowscroll/client exec playwright test -c e2e/playwright.config.ts --shard="$SHARD"
+
+  # The required check `client`. It always runs and passes only when `client build` and every
+  # shard succeeded: without `if: always()` a failed shard would leave it skipped, and the ruleset
+  # counts a skipped required check as passing. A cancelled or skipped shard is a failure here.
+  client:
+    if: always()
+    needs: [client-build, client-e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: client build and every browser smoke shard passed
+        env:
+          BUILD: ${{ needs.client-build.result }}
+          SHARDS: ${{ needs.client-e2e.result }}
+        run: |
+          echo "client build: $BUILD; client e2e shards: $SHARDS"
+          [ "$BUILD" = success ] && [ "$SHARDS" = success ]
 
   # #228: the release deploy.yml ships (docs/v2/operations/environments.md). Built once, here, for
   # this exact commit ($GITHUB_SHA), after the build and client jobs passed; checked with the
   # server's own rules (scripts/release/smoke.mjs uses ops/vps/tool) and booted against this job's
   # disposable PostgreSQL the way a world's v2 units run it; then uploaded as `release-$GITHUB_SHA`
-  # holding exactly the tar and its .sha256. deploy.yml takes it only from push-triggered runs.
+  # holding exactly the tar and its .sha256. deploy.yml takes it only from push and dispatch runs.
   release:
     needs: [build, client]
     runs-on: ubuntu-latest
@@ -452,7 +537,7 @@ jobs:
         run: |
           {
             echo "### release-$GITHUB_SHA"
-            echo "- event: \`$GITHUB_EVENT_NAME\` (deploy.yml uses only push runs)"
+            echo "- event: \`$GITHUB_EVENT_NAME\` (deploy.yml uses only push and dispatch runs)"
             echo "- tar sha256: \`$ARTIFACT\`"
             echo "- tar size: $BYTES bytes"
           } >> "$GITHUB_STEP_SUMMARY"

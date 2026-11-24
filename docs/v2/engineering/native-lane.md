@@ -6,7 +6,7 @@ runner and drives it on an Android emulator with Maestro. It is the source of **
 issue #249 (S6.4 part 1) built it, pulled forward into Phase 2 because the Scroll renderers (#230), generated
 Scrolls (#232) and the Explore journeys (#234) need emulator evidence.
 
-It is **not** one of the six required `checks` jobs (D-020) and does not change `checks.yml`. It never gates
+It is **not** one of the seven required `checks` jobs (D-020) and does not change `checks.yml`. It never gates
 a merge, never deploys, uses no secret and no signing key, and never runs on a self-hosted runner (CF-04).
 Android builds and the emulator run only here, never on a developer's Mac.
 
