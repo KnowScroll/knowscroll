@@ -490,8 +490,8 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(isLiveStage(outcome.document.stage ?? stageOf(fixture()))).toBe(false);
   });
 
-  it.each(['transit.v1', 'tides.v1', 'star.v1'])(
-    'takes the stored stage of %s, a kit deleted from the code (#799), on the client path and the server path',
+  it.each(['transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1'])(
+    'takes the stored stage of %s, a kit deleted from the code (#799, #802), on the client path and the server path',
     (kit) => {
       const stored = JSON.parse(JSON.stringify(legacyOf(kit))) as ScrollDocumentV2;
       expect(isStageKitId(kit)).toBe(false);
@@ -593,9 +593,17 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(found.map((issue) => issue.path)).not.toContain('stage.kit');
     // The words of one kit under the name of another.
     expect(
-      typo({ view: 'heart', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'atria' }),
+      typo({
+        view: 'spike',
+        phase: 'rest',
+        along: 'start',
+        synapseAt: 'arrives',
+        effect: 'excite',
+        arcAt: 'sensor',
+        focus: 'none',
+      }),
     ).not.toEqual([]);
-    expect(codes(signed({ ...document, stage: { kit: 'circulation.v1', states: stage.states } }))).not.toEqual([]);
+    expect(codes(signed({ ...document, stage: { kit: 'nerve.v1', states: stage.states } }))).not.toEqual([]);
   });
 
   it('takes only a well-formed kit id, so no name of an object’s own property is a kit', () => {

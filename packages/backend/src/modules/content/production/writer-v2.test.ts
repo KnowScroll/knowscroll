@@ -315,8 +315,6 @@ describe('the Final call that turns the tilt (D-187)', () => {
 
 /** One recipe for each drawing kit of D-194: the recipe's own `stageKit` decides which kit its Scroll is drawn with. */
 const KIT_RECIPES = [
-  ['greenhouse.v1', 'greenhouse-radiation', 'In it the layer lets sunlight through'],
-  ['circulation.v1', 'cardiac-cycle', 'The picture draws no heart rate, no blood pressure figure'],
   ['nerve.v1', 'action-potential', 'The picture draws no voltage figure, speed or time'],
   ['starlight.v1', 'exoplanet-habitable-zone', 'A habitable zone is where liquid water could exist on a surface'],
   [

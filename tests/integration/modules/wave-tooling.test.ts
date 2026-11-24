@@ -609,32 +609,4 @@ describe('regenerating a served v2 Scroll and checking its answers (labelled CI 
       });
     });
   });
-
-  describe('a heart recipe of the first waves (cardiac-cycle), drawn by its kit (D-201)', () => {
-    const key = 'cardiac-cycle';
-
-    it('is produced as a stage Scroll of circulation.v1 with its landmark, checked, and held for the read', async () => {
-      const run = fixtureProduction(
-        database.db,
-        () => answerWith(fixtureAuthoredV2('circulation.v1')),
-        orrinResearchFor,
-      );
-      expect(await run.produce(key, false, signal())).toMatchObject({ outcome: 'published', held: true });
-      const stored = await database.db
-        .selectFrom('content.asset_revisions')
-        .select('document')
-        .where('asset_id', '=', TOPICS[key].assetId)
-        .executeTakeFirstOrThrow();
-      const document = stored.document as {
-        stage?: { kit: string; states: unknown[] };
-        misconception: unknown;
-        landmark: unknown;
-      };
-      expect(document.stage?.kit).toBe('circulation.v1');
-      expect(document.stage?.states.length).toBeGreaterThanOrEqual(3);
-      expect(document.misconception).toEqual({ kind: 'none' });
-      expect(document.landmark).toEqual({ key: 'the-beating-pump', name: 'The Beating Pump' });
-      expect(await statusOf(key)).toMatchObject({ state: 'held', heldRevision: 1 });
-    });
-  });
 });

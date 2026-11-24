@@ -125,22 +125,6 @@ export function distinct(count: number, tag: number): string {
  */
 export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, readonly Record<string, string>[]>> =
   {
-    'greenhouse.v1': [
-      { view: 'sunlight', layer: 'none', change: 'settled', focus: 'none' },
-      { view: 'infrared', layer: 'thin', change: 'settled', focus: 'back-down' },
-      { view: 'infrared', layer: 'thick', change: 'settled', focus: 'none' },
-      { view: 'energy-balance', layer: 'thick', change: 'just-thickened', focus: 'none' },
-      { view: 'energy-balance', layer: 'thick', change: 'settled', focus: 'surface' },
-      { view: 'sunlight', layer: 'thin', change: 'settled', focus: 'reflected' },
-    ],
-    'circulation.v1': [
-      { view: 'heart', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'atria' },
-      { view: 'heart', phase: 'ejection', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'valves' },
-      { view: 'circuits', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'lungs' },
-      { view: 'pressure', phase: 'filling', flow: 'usual', vessels: 'narrowed', where: 'lungs', focus: 'arterioles' },
-      { view: 'oxygen', phase: 'filling', flow: 'usual', vessels: 'usual', where: 'active-tissue', focus: 'handoff' },
-      { view: 'heart', phase: 'relaxing', flow: 'usual', vessels: 'usual', where: 'lungs', focus: 'none' },
-    ],
     'nerve.v1': [
       {
         view: 'spike',

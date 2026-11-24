@@ -50,8 +50,8 @@ It lives in `domain/` because the catalogue's import and its seed are pure funct
 No recipe is produced as a v2 Scroll any more. A recipe with `scrollV2` would be written as a `scroll-document.v2` Scroll and held for an
 operator's read before anyone is served it (D-129, D-138), and the v2 production path, the v2 writer and the answer check on its calls
 (D-198) still exist. But the plan holds no `scrollV2` since #790: the 22 recipes a drawing kit drew became document v3 recipes in
-#787, and the other 33 (the 32 plain v2 recipes and the v1 recipe `exoplanet-kinds`) in #790. The v2 plan each of them had (the five whose kit was deleted in #799 kept none), and the kit
-of the 17 whose kit still exists, is kept in `production/spike-v2/former-v2-plans.ts` (`FORMER_V2_PLANS`) for the v2 writer spike and the tests of the v2 path,
+#787, and the other 33 (the 32 plain v2 recipes and the v1 recipe `exoplanet-kinds`) in #790. The v2 plan each of them had (the eleven whose kit was deleted in #799 and #802 kept none), and the kit
+of the 11 whose kit still exists, is kept in `production/spike-v2/former-v2-plans.ts` (`FORMER_V2_PLANS`) for the v2 writer spike and the tests of the v2 path,
 until the v2 code is deleted (Phase 6); an integration test makes a recipe v2 again for its own process with `markFormerV2Recipe`
 (`tests/integration/support/scroll-v2.ts`). `library.test.ts` pins that no recipe carries `scrollV2` and none carries both plans.
 `content regenerate` makes a take again for a recipe the plan marks v2 or document v3 (D-197).
@@ -66,8 +66,6 @@ has no kit: its pictures come from the closed set of six kinds (`statement`, `fl
 | Kit they had     | Recipes                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------- |
 | `earth-sky.v1`   | `seasons`, `seasons-hemispheres`, `seasons-limits`                                         |
-| `greenhouse.v1`  | `greenhouse`, `greenhouse-radiation`, `greenhouse-balance`                                 |
-| `circulation.v1` | `cardiac-cycle`, `blood-pressure`, `oxygen-transport`                                      |
 | `nerve.v1`       | `action-potential`, `synapse-signalling`, `reflex-arc`                                     |
 | `starlight.v1`   | `stars-colour-brightness`, `exoplanet-habitable-zone`                                      |
 | `black-hole.v1`  | `black-hole-formation`, `black-hole-horizon`, `black-hole-evidence`                        |
@@ -130,9 +128,8 @@ v3; the revisions already published keep theirs, and play awards nothing for a r
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.
 - `blocks` and `guide` (on `scrollV2`, D-207; no recipe carries a `scrollV2` since #790) name the play blocks a Scroll has (`sort`, `fork`, `scale`, `chart`; each once, two at most) and the character that speaks its guide lines (`ray`). A person chooses them per recipe, only where the recipe's pages state what a block shows (an order, a series of figures), and no recipe names one until the spike `blocks-v20` has been read. `library.test.ts` keeps the lists in step with `scroll-model`.
 - `stageKit` names the drawing kit that draws the recipe's subject, and only then, for a recipe produced as a v2 `stage` Scroll. No recipe
-  names one since #787: the 22 recipes that did (`earth-sky.v1` the three Seasons recipes, `greenhouse.v1` three, `circulation.v1` three,
-  `nerve.v1` three, `starlight.v1` two and `black-hole.v1` three, and five whose kits `tides.v1`, `star.v1` and `transit.v1` are deleted since #799)
-  are document v3 recipes, which have no kit. The six kits that remain exist in `scroll-model` and are deleted one at a time, after the owner reads that kit's rewrites (the table above says which
+  names one since #787: the 22 recipes that did (`earth-sky.v1` the three Seasons recipes, `nerve.v1` three, `starlight.v1` two and `black-hole.v1` three, and eleven whose kits `tides.v1`, `star.v1` and `transit.v1` (#799), `greenhouse.v1` and `circulation.v1` (#802) are deleted)
+  are document v3 recipes, which have no kit. The four kits that remain exist in `scroll-model` and are deleted one at a time, after the owner reads that kit's rewrites (the table above says which
   recipes each drew). Every other recipe stays plain: coasts, the audit of the blanket analogy (`greenhouse-limits`), kinds of planet
   (`exoplanet-kinds`), other worlds (`seasons-elsewhere`) and the three immune recipes. Adding a kit to a recipe is a person's decision, and
   `library.test.ts` pins that none has one. A brief stays free of the picture, because the v1 writer reads it too.

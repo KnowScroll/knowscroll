@@ -1,6 +1,4 @@
 import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
-import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
-import greenhouse from '@knowscroll/scroll-model/fixtures/greenhouse-stage-ci.json';
 import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
@@ -16,8 +14,6 @@ import { beatsOf, type ReadingBlock } from './reading-model';
 /** The labelled CI fixtures of `scroll-model` (not product content): every kit, and the two without a picture. */
 const FIXTURES = Object.entries({
   seasons,
-  greenhouse,
-  circulation,
   nerve,
   starlight,
   blackHole,
