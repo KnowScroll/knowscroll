@@ -73,6 +73,13 @@ const SPIN_PER_SECOND = (2 * Math.PI) / 70;
 /** How the turn a finger gives (points) becomes an angle round a star or the whole universe. */
 const TURN_RADIANS_PER_POINT = 0.004;
 const VIEW_ELEVATION = (30 * Math.PI) / 180;
+/**
+ * A star is seen from farther than the map's System view framed it: in the prototype its sun is a small bright ball
+ * with its planets round it, not a disc filling a third of the screen.
+ */
+const STAR_DISTANCE_SCALE = 2.5;
+/** Where each stop holds what it looks at, as a share of the view's height from the top (the prototype's `anchorY`). */
+const HELD_AT: Readonly<Record<Stop, number>> = { universe: 0.455, star: 0.5, planet: 0.415, ground: 0.45 };
 
 const TAN_HALF_FOV = Math.tan(((FIELD_OF_VIEW / 2) * Math.PI) / 180);
 
@@ -175,8 +182,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     closeUpOf = { id: planetId, siblings: control.siblings.filter((id) => id !== planetId) };
     space.script.closeUp(planetId, {
       atmosphere: 1.15 * (1 - opacity),
-      sunBloom: 1 - 0.6 * opacity,
-      sunGlow: 1 - 0.6 * opacity,
+      sunBloom: 1 - 0.85 * opacity,
+      sunGlow: 1 - 0.85 * opacity,
     });
     const body = space.script.planet(planetId);
     if (body) body.object.visible = opacity < 0.98;
@@ -201,7 +208,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     if (target.stop === 'universe' || systemFocus === undefined || target.systemId === null)
       return { ids: [UNIVERSE_ID], chain: [universeLink], stopDistance: universeLink.distance, planetRadius: null };
     const system = rigPose({ focus: systemFocus, frame: { x: 0, y: 0, scale: 1 }, ...size });
-    const systemLink = { distance: distanceOf(system), point: system.target };
+    const systemLink = { distance: distanceOf(system) * STAR_DISTANCE_SCALE, point: system.target };
     const planet = target.planetId === null ? undefined : planetAt(space, target.planetId);
     if (target.stop === 'star' || planet === undefined || target.planetId === null)
       return {
@@ -357,9 +364,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const up = new THREE.Vector3(0, 1, 0).addScaledVector(direction, -direction.y).normalize();
       const right = new THREE.Vector3().crossVectors(up, direction).normalize();
       const leanUnits = distance / focal;
+      // Holding the subject above the middle means looking a little below it.
+      const held = (0.5 - HELD_AT[control.target.stop]) * size.height;
       const leaned = new THREE.Vector3(...focus)
         .addScaledVector(right, control.lean.x * leanUnits)
-        .addScaledVector(up, -control.lean.y * leanUnits);
+        .addScaledVector(up, -(control.lean.y + held) * leanUnits);
       const position = leaned.clone().addScaledVector(direction, distance);
       lastPose = { position: vec(position), target: vec(leaned), fov: FIELD_OF_VIEW };
 

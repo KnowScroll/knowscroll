@@ -386,6 +386,7 @@ Geography and Scenes path and the CI fixture model). A mark that names a day and
 | Simple drawing: the whole tab as two plain lists, by the setting or by itself when 3D fails (v3 U-5, D-111) | runtime-verified (web, fixture stack; dev, 2 Nov, fidelity-v3); native: not driven |
 | Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
 | Frame-rate readout over the 3D views, behind a device switch that is off (#811)               | implemented; browser-tested       |
+| Round 7.3 on trial: one camera, the planet as one world, the ship (#806, #811)               | implemented; browser-tested (software WebGL); not on a phone |
 | Formation story (U05), all five beats                                                        | runtime-verified                 |
 | Routes between planets: a "Route to ..." chip on a planet, never a line (D-074)               | implemented                      |
 | Desktop D02: full-width map, on-demand Browse and Settings, key hints and zoom (D-395, #662) | implemented; verification in the issue PR |
@@ -494,6 +495,26 @@ float over it.
   median CPU time of a draw, over the last two seconds. It reads the loop's own frame stamps (`SpaceView`'s
   `onFrameTime`), changes nothing about how a frame is drawn, and says "No 3D frames" while the loop rests or a planet's
   SVG view is up. It exists to measure the Universe on a real phone and goes when that work ends.
+- **Round 7.3 on trial** (`voyage/`, #806, #811). "Try the new Universe" in Settings → Accessibility, off by default and
+  kept on the device, swaps the map of your own Universe (never a friend's) for the Round 7.3 look:
+  - **One camera along a ladder of stops** (`ladder.ts`): the whole universe, a star, a planet, its ground. The stored
+    camera is unchanged (`focusId`, `landed`, `frame`); the stop follows from it, and `frame` holds how far you turned
+    what is in front of you. Tap a name and the camera flies there (`flight.ts`, pure): distance changes
+    exponentially, falls in faster as it nears (`gravity`), and climbs to the shared star between two of its planets.
+    A pinch, the wheel or `+`/`-` move one stop; the Back pill climbs one stop, the ground to its globe first
+    (`climbOneStop`). Reduced motion cuts instead of flying.
+  - **The planet as one world** (`globe.ts`, `world-texture.ts`): a sphere wearing the `worldmap.v1` globe band,
+    painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey
+    land not reached yet shows from orbit too, outlined as one shape, never named, counted or tappable. The ground is
+    the same sphere from nearer: no cross-fade.
+  - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky, round the globe, or on the region you
+    came down over, never on a button; drag it and the view leans; let it go within 70 pt of a place to go there. Hidden
+    during a flight.
+  - It drives the map's own scene through `SpaceView` with a camera driver (`voyage-driver.ts`, `SpaceCameraDriver`
+    in `space-renderer.ts`); without the switch nothing of it runs and the animated steps down play as before.
+  - Not yet: stations, search card, list, a friend's Universe, desktop, tablet (Phase 3 of #806).
+    `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
+    read out and browsing sends no write.
 - **Desktop D02** (`universe-panel.tsx`, D-395). From 1024 px the map uses the full available width.
   Browse opens a modal over it: search, selected-place details, Resume and Orbit when available, and the complete
   systems, planets and rooms outline. Settings holds Lately and Simple drawing using the same account-scoped device

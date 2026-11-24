@@ -11,7 +11,7 @@ flows request a link, sign in and explore, then restart to check persistence. A 
 origin instead runs the signed-out flows. Fixture content and emulator screenshots are never
 real provider or physical-device evidence.
 
-The other YAML flows check shell navigation, Back, galleries, Scroll blocks and Universe views.
+The other YAML flows check shell navigation, Back, galleries, Scroll blocks and Universe views; `voyage.yaml` flies and drags the ship of the Round 7.3 look over the labelled sample universe.
 The debug-signed build has no production signing authority. Keep the test-API flag and Android
 cleartext checks together so a fixture network exception cannot enter an ordinary build. Follow
 [the lane guide](../../../docs/v2/engineering/native-lane.md) for the exact inputs and recovery.
