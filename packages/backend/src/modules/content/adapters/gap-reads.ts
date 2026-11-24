@@ -70,7 +70,7 @@ export async function readGapRecipes(db: Queryable, target: CatalogueBrief): Pro
   return recipes.flatMap((recipe) => {
     const row = standing.find((entry) => entry.recipe === recipe.key);
     if (row === undefined) return [];
-    const take = takeToSend(row.state, row.takes);
+    const take = takeToSend(row.state, row.latestTake);
     return [
       {
         key: recipe.key,

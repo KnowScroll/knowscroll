@@ -7,9 +7,12 @@ import { isGeneratedRecipeKey, type BookRecipe } from '../domain/library/generat
 import { summariseAnswerChecks } from '../domain/answer-check.js';
 import {
   MAX_TAKES_PER_RECIPE,
+  MAX_TAKE_NUMBER,
+  countedTakes,
   pickRecipeToProduce,
   productionStanding,
   regenerationStanding,
+  takeIsRefused,
   takeToSend,
   type CatalogueBrief,
   type ChooseRecipeOptions,
@@ -35,10 +38,17 @@ type Queryable = Kysely<Database> | Transaction<Database>;
 interface RunRow {
   readonly topic: string;
   readonly state: 'research' | 'writer' | 'published' | 'rejected' | 'unknown';
+  /** The job's number among the recipe's takes at this version. */
+  readonly take: number;
   /** The review gate's decision on the revision this job published, when it went through the gate (D-138). */
   readonly review: 'held' | 'released' | 'rejected' | null;
   readonly revision: number | null;
-  readonly outcomes: readonly { readonly attempts?: readonly unknown[] }[];
+  readonly outcomes: readonly {
+    readonly attempts?: readonly unknown[];
+    readonly role?: string;
+    readonly kind?: string;
+    readonly code?: string;
+  }[];
 }
 
 /** The revision of each asset that waits for an operator's decision, whichever production version made it. */
@@ -57,9 +67,11 @@ async function readHeldRevisions(db: Queryable, assetIds: readonly string[]): Pr
 
 /**
  * The job's state for the recipe's standing. A job that published into the review gate is `held` until
- * an operator decides, and `rejected` (its take spent, the next may start) once the gate rejected it.
+ * an operator decides, and `rejected` (its take spent, the next may start) once the gate rejected it. A job that ended
+ * `asset_conflict` on an asset that is not withdrawn is `refused`: it was refused before anything was stored, so it does not count (#800).
  */
-function standingStateOf(run: RunRow): ProductionJobState {
+function standingStateOf(run: RunRow, assetStatus: string | undefined): ProductionJobState {
+  if (takeIsRefused(run, assetStatus)) return 'refused';
   if (run.state !== 'published') return run.state;
   if (run.review === 'held') return 'held';
   return run.review === 'rejected' ? 'rejected' : 'published';
@@ -125,7 +137,7 @@ export async function readLibraryStatus(
   const recipes = requested.filter((recipe) => identities.has(recipe));
   if (recipes.length === 0) return [];
   const runs = (
-    await sql<RunRow>`select run.topic, run.state, review.state as review, run.asset_revision as revision, run.outcomes
+    await sql<RunRow>`select run.topic, run.take, run.state, review.state as review, run.asset_revision as revision, run.outcomes
       from content.scroll_production_runs run
       left join content.revision_reviews review on review.asset_id = run.asset_id and review.revision = run.asset_revision
       where (run.topic, run.policy_version) in (${sql.join(recipes.map((recipe) => sql`(${recipe}, ${productionVersionOf(recipe)})`))})
@@ -149,7 +161,11 @@ export async function readLibraryStatus(
     const admitted =
       asset?.status === 'admitted' && (plannedVersion === undefined || asset.document_version === plannedVersion);
     const latest = jobs.at(-1);
-    const jobStates = jobs.map(standingStateOf);
+    const jobStates = jobs.map((job) => standingStateOf(job, asset?.status));
+    const counted = countedTakes(jobStates);
+    // A refused take keeps its number, so the next take follows the highest one, not the count.
+    const latestTake = jobs.reduce((highest, job) => Math.max(highest, job.take), 0);
+    const refused = jobStates.length - counted;
     // The flag's name is old: a recipe planned as document v3 is regenerated like a v2 one, from its served take.
     const v2 = isPlannedAsV2OrV3(recipe);
     const regeneration = regenerationStanding({
@@ -170,8 +186,10 @@ export async function readLibraryStatus(
             !admitted && heldRevisions.has(assetOf(recipe)) && ['not_started', 'retryable'].includes(standing)
             ? 'held'
             : standing,
-      ...(latest === undefined ? {} : { job: standingStateOf(latest) }),
-      takes: jobs.length,
+      ...(latest === undefined ? {} : { job: standingStateOf(latest, asset?.status) }),
+      takes: counted,
+      latestTake,
+      ...(refused === 0 ? {} : { refusedTakes: refused }),
       ...(admitted ? { assetId: asset.id, revision: asset.revision } : {}),
       ...(heldRevisions.has(assetOf(recipe))
         ? { assetId: asset?.id ?? assetOf(recipe), heldRevision: heldRevisions.get(assetOf(recipe)) }
@@ -181,7 +199,9 @@ export async function readLibraryStatus(
         0,
       ),
       regeneration,
-      ...(v2 ? { takesLeft: Math.max(0, MAX_TAKES_PER_RECIPE - jobs.length) } : {}),
+      ...(v2
+        ? { takesLeft: Math.max(0, Math.min(MAX_TAKES_PER_RECIPE - counted, MAX_TAKE_NUMBER - jobs.length)) }
+        : {}),
       ...(check === undefined ? {} : { check }),
     };
   });
@@ -258,7 +278,7 @@ export async function chooseScrollRecipeIn(
   );
   if (key === undefined) return { kind: 'none', capped: true };
   const chosen = row(key);
-  const take = chosen === undefined ? undefined : takeToSend(chosen.state, chosen.takes);
+  const take = chosen === undefined ? undefined : takeToSend(chosen.state, chosen.latestTake);
   return take === undefined ? { kind: 'none' } : { kind: 'recipe', recipe: key as ProductionRecipeKey, take };
 }
 
@@ -284,6 +304,6 @@ export async function readScrollProductionIn(db: Queryable, recipe: string): Pro
   if (standing === undefined) return { state: 'stopped' };
   if (!isGeneratedRecipeKey(key) && isPlannedAsV2OrV3(key) && standing.state !== 'published')
     return { state: 'stopped' };
-  const take = takeToSend(standing.state, standing.takes);
+  const take = takeToSend(standing.state, standing.latestTake);
   return { state: standing.state, ...(take === undefined ? {} : { take }) };
 }

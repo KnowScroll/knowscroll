@@ -82,8 +82,12 @@ const mixedAndCurrentIsOld = (alias: string): RawBuilder<boolean> =>
 
 /**
  * A mixed asset's current revision moves to its newest revision that is not old and not waiting at, or refused by, the review gate.
- * When none is left the asset is withdrawn, or held when the newest kept revision still waits for a decision, so nothing unreleased
- * is served by the move.
+ * When none is left the asset is held (an asset that is already withdrawn stays withdrawn), whether the newest kept revision still
+ * waits for a decision or was rejected, and the pointer is that newest kept revision. That is where the review gate itself leaves an
+ * asset whose only revisions are held or rejected (`rejectRevision` writes the review and leaves the asset's status as it was, and
+ * a new asset is born `held`), and the readers serve only `admitted`, so nothing unreleased is served by the move and the recipe's
+ * next take still publishes the next revision. It must never be `withdrawn`: `publish` refuses every take of a withdrawn asset
+ * as `asset_conflict` (#800, D-439).
  */
 const movePointer = sql`with target as (
     select asset.id,
@@ -101,10 +105,47 @@ const movePointer = sql`with target as (
     status = case
       when target.servable is not null then t.status
       when t.status = 'withdrawn' then t.status
-      when exists (select 1 from content.revision_reviews review
-        where review.asset_id = t.id and review.revision = target.latest and review.state = 'held') then 'held'
-      else 'withdrawn' end
+      else 'held' end
   from target where t.id = target.id`;
+
+/**
+ * The assets the first version of this cleanup withdrew by mistake (#800, D-439): a Scroll that is `withdrawn`, and every one of whose
+ * revisions is a kept (not v1 or v2) revision that the review gate rejected. Such an asset was served an old revision, lost it to the
+ * cleanup, and was left with only its rejected newer revision, which the old `movePointer` wrongly withdrew instead of holding.
+ *
+ * Told apart from a real withdrawal by what a real withdrawal leaves. The release policy's withdrawal (`release-policy.ts`, the only
+ * code that withdraws an asset besides this cleanup) requires the revision to be `released`, so the asset has a released review; and it
+ * records the asset in `content.release_withdrawals`, which must have no row for the asset here. An asset the cleanup withdrew whole
+ * has old revisions, so it is not "every revision kept". An asset with a revision that has no review row, or a held or released one,
+ * is not this state. A withdrawn asset in this state serves nothing either way, so holding it exposes nothing; it only lets the
+ * recipe's next take publish.
+ */
+const wronglyWithdrawn = sql<boolean>`asset.kind = 'scroll' and asset.status = 'withdrawn'
+  and exists (select 1 from content.asset_revisions revision where revision.asset_id = asset.id)
+  and not exists (select 1 from content.asset_revisions revision
+    where revision.asset_id = asset.id
+      and (revision.document_version in (${oldVersionList})
+        or not exists (select 1 from content.revision_reviews review
+          where review.asset_id = revision.asset_id and review.revision = revision.revision and review.state = 'rejected')))
+  and not exists (select 1 from content.release_withdrawals withdrawal where withdrawal.asset_id = asset.id)`;
+
+/** The ids of the assets {@link repairWronglyWithdrawnAssets} would put back to `held`, in id order. Changes nothing. */
+export async function findWronglyWithdrawnAssets(trx: Transaction<Database>): Promise<readonly string[]> {
+  const found = await sql<{ id: string }>`select asset.id::text as id from content.assets asset
+    where ${wronglyWithdrawn} order by asset.id`.execute(trx);
+  return found.rows.map((row) => row.id);
+}
+
+/**
+ * Puts every asset {@link findWronglyWithdrawnAssets} finds back to `held` and returns their ids, in id order. One statement, so the
+ * rows it changes are the rows its predicate reads; idempotent (a repaired asset is `held`, no longer `withdrawn`, so a second call
+ * changes none). The pointer is left where it is: a held asset serves nothing.
+ */
+export async function repairWronglyWithdrawnAssets(trx: Transaction<Database>): Promise<readonly string[]> {
+  const repaired = await sql<{ id: string }>`update content.assets asset set status = 'held'
+    where ${wronglyWithdrawn} returning asset.id::text as id`.execute(trx);
+  return repaired.rows.map((row) => row.id).sort();
+}
 
 const jobsNaming = (queues: readonly string[], match: RawBuilder<boolean>): RemovalStep => ({
   table: `${JOB_SCHEMA}.job`,

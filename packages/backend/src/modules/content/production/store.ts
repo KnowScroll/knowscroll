@@ -4,7 +4,14 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { RoleReceipt } from './types.js';
 import { isGeneratedRecipeKey } from '../domain/library/generated.js';
-import { MAX_TAKES_PER_RECIPE, productionVersionOf, scrollV2PlanOf, scrollV3PlanOf } from './topics.js';
+import { takeIsRefused } from '../domain/library/serving.js';
+import {
+  MAX_TAKE_NUMBER,
+  MAX_TAKES_PER_RECIPE,
+  productionVersionOf,
+  scrollV2PlanOf,
+  scrollV3PlanOf,
+} from './topics.js';
 
 /**
  * A job's state as far as takes and the recipe's standing are concerned. A job whose Scroll the review
@@ -45,7 +52,7 @@ export interface ProductionRow {
   /** The recipe key: a library recipe's, or `order-…` for a Scroll ordered from code. */
   readonly topic: string;
   readonly policy_version: string;
-  /** Which attempt at the recipe at this version this job is (1 to {@link MAX_TAKES_PER_RECIPE}). */
+  /** Which attempt at the recipe at this version this job is (1 to {@link MAX_TAKE_NUMBER}; a refused take keeps its number, D-439). */
   readonly take: number;
   readonly scope_generation: number;
   readonly target_revision: number;
@@ -82,7 +89,9 @@ export function productionStore(db: Kysely<Database>) {
      * every earlier take exists and was rejected (never after an unknown attempt), decided here under the
      * transaction so two senders cannot both start it. A v2 library recipe's later take may also follow a
      * take whose Scroll an operator released: that is a regeneration (D-197). It never follows a held
-     * one. At most three takes exist per recipe and version, which is what bounds paid regeneration.
+     * one. At most three takes count per recipe and version, which is what bounds paid regeneration; a take refused with
+     * `asset_conflict` on an asset that is not withdrawn does not count (D-439), keeps its number and is followed by the next one,
+     * and no take number passes {@link MAX_TAKE_NUMBER}.
      */
     async create(
       tx: Transaction<Database>,
@@ -91,8 +100,8 @@ export function productionStore(db: Kysely<Database>) {
       generation: number,
       take: number,
     ): Promise<CreateJobResult> {
-      // The table holds three takes per recipe and version: a fourth is refused here, not by a constraint.
-      if (!Number.isInteger(take) || take < 1 || take > MAX_TAKES_PER_RECIPE) return { kind: 'take_refused' };
+      // The table holds at most MAX_TAKE_NUMBER takes per recipe and version (a check constraint): a later one is refused here first.
+      if (!Number.isInteger(take) || take < 1 || take > MAX_TAKE_NUMBER) return { kind: 'take_refused' };
       const read = async () =>
         (
           await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${productionVersionOf(topic)} and take=${take} for update`.execute(
@@ -108,13 +117,18 @@ export function productionStore(db: Kysely<Database>) {
         const earlier = (
           await sql<{
             state: string;
-          }>`select ${stateOfEarlier} as state from content.scroll_production_runs run where run.topic=${topic} and run.policy_version=${productionVersionOf(topic)} and run.take<${take}`.execute(
+            outcomes: readonly { role?: string; kind?: string; code?: string }[];
+          }>`select ${stateOfEarlier} as state, run.outcomes from content.scroll_production_runs run where run.topic=${topic} and run.policy_version=${productionVersionOf(topic)} and run.take<${take}`.execute(
             tx,
           )
         ).rows;
         const mayFollow = (state: string) => state === 'rejected' || (regenerates && state === 'published');
         if (earlier.length !== take - 1 || !earlier.every((job) => mayFollow(job.state)))
           return { kind: 'take_refused' };
+        // A take refused with `asset_conflict` on an asset that is not withdrawn does not count toward the three (D-439).
+        const asset = await sql<{ status: string }>`select status from content.assets where id=${assetId}`.execute(tx);
+        const counted = earlier.filter((job) => !takeIsRefused(job, asset.rows[0]?.status));
+        if (counted.length >= MAX_TAKES_PER_RECIPE) return { kind: 'take_refused' };
       }
       const inserted =
         await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${productionVersionOf(topic)},${take},(select greatest(coalesce((select revision from content.assets where id=${assetId}),0),coalesce((select max(revision) from content.asset_revisions where asset_id=${assetId}),0))+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
