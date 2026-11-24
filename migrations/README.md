@@ -369,3 +369,9 @@ now let a **delete** through only when the transaction set `knowscroll.old_scrol
 `content.asset_revisions`. Every other delete, and every update, is refused exactly as before. The triggers are not touched; no table,
 column or index changes. Additive for older processes: they never set the setting, so the guards refuse for them as before. Only
 `content cleanup-old-scrolls` in the worker release sets it (worlds `local`, `ci` and `dev`). Tests: `tests/integration/modules/old-scroll-cleanup.test.ts`.
+
+0126 widens `content.scroll_production_runs.scroll_production_runs_take_check` from `take between 1 and 3` to `take between 1 and 6` (#800, D-439).
+A take refused with `asset_conflict` on an asset that is not withdrawn no longer counts toward a recipe's three takes but keeps its number (the
+number is part of the job's identity and is never reused), so a recipe has room for three counted takes and up to three refused ones. The new
+constraint is `NOT VALID` and only widens the range, so no row is scanned or rewritten. Additive for older processes, which write only takes 1 to
+3 and count every take. The code (`MAX_TAKES_PER_RECIPE` = 3 counted, `MAX_TAKE_NUMBER` = 6) bounds paid production on both sides.

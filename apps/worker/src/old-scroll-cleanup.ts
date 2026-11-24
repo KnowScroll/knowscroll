@@ -4,7 +4,9 @@ import type { ModuleRemovalReport, OldScrollRemoval, RemovalCount } from '@knows
 import { withTransaction, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   contentOldScrollRemoval,
+  findWronglyWithdrawnAssets,
   prepareOldScrolls,
+  repairWronglyWithdrawnAssets,
   withdrawOldAssets,
   withOldScrollCleanupLock,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -62,7 +64,14 @@ interface Plan {
   readonly reports: Readonly<Record<string, ModuleRemovalReport>>;
   readonly accounts: readonly AccountLoss[];
   readonly clearRowsByTable: Readonly<Record<string, number>>;
+  /** The assets an earlier run of this cleanup withdrew by mistake (#800, D-439): library assets, never a person's data. */
+  readonly wronglyWithdrawn: readonly string[];
 }
+
+/** What the summary says about the repair: how many assets and which, the ids of library assets. In a dry run they are the ones a run would repair. */
+const wronglyWithdrawnSection = (assetIds: readonly string[]) => ({
+  wronglyWithdrawnAssets: { count: assetIds.length, assetIds },
+});
 
 const tablesOf = (reports: Readonly<Record<string, ModuleRemovalReport>>): TableRows[] =>
   REMOVALS.flatMap((removal) =>
@@ -139,7 +148,12 @@ async function plan(db: Kysely<Database>): Promise<Plan> {
         trx,
         new Map(keepRows.map((row) => [row.universeId, row.keeps])),
       );
-      throw new PlanDone({ reports, accounts, clearRowsByTable: byTable });
+      throw new PlanDone({
+        reports,
+        accounts,
+        clearRowsByTable: byTable,
+        wronglyWithdrawn: await findWronglyWithdrawnAssets(trx),
+      });
     });
   } catch (error) {
     if (error instanceof PlanDone) return error.plan;
@@ -190,6 +204,11 @@ function failureOf(error: unknown): Readonly<Record<string, unknown>> {
  * Removes every v1 and v2 Scroll from the database `db`, and everything that points at them, keeping the accounts, the document v3
  * Scrolls and the Reels (`content cleanup-old-scrolls`, #791, D-437). `dry_run` counts and changes nothing. `run`:
  *
+ * 0. Repairs what the first version of this cleanup did wrongly (#800, D-439), in its own short transaction before anything else:
+ *    an asset that is `withdrawn`, every revision of which is a kept revision the review gate rejected and which no release
+ *    withdrawal names, goes back to `held`, as the review gate leaves an asset that was never released. A dry run lists the same
+ *    asset ids (`wronglyWithdrawnAssets`). When this is all there is to do (no old revision is left), a run does only this: it
+ *    does not clear anyone.
  * 1. Withdraws the assets that go whole, in one short transaction, so no one opens one and no job writes about it while the rest
  *    runs. (Stop the worker first anyway: `docs/v2/operations/scroll-cleanup.md`.)
  * 2. Clears the exploration history of every account with the product's own Clear, one account at a time in its own transaction,
@@ -212,7 +231,8 @@ export async function cleanupOldScrolls(
     return { command: 'content cleanup-old-scrolls', mode, world, result: 'refused', code: 'world_not_allowed' };
   const outcome = await withOldScrollCleanupLock(db, async (): Promise<CleanupSummary> => {
     const planned = await plan(db);
-    const nothing = !tablesOf(planned.reports).some((table) => table.rows > 0);
+    const nothingOld = !tablesOf(planned.reports).some((table) => table.rows > 0);
+    const nothing = nothingOld && planned.wronglyWithdrawn.length === 0;
     if (nothing || mode === 'dry_run')
       return summaryOf(
         mode,
@@ -221,8 +241,9 @@ export async function cleanupOldScrolls(
         planned.reports,
         planned.accounts,
         planned.clearRowsByTable,
+        wronglyWithdrawnSection(planned.wronglyWithdrawn),
       );
-    return run(db, world, planned);
+    return run(db, world, planned, nothingOld);
   });
   return (
     outcome ?? {
@@ -235,7 +256,17 @@ export async function cleanupOldScrolls(
   );
 }
 
-async function run(db: Kysely<Database>, world: string, planned: Plan): Promise<CleanupSummary> {
+async function run(db: Kysely<Database>, world: string, planned: Plan, nothingOld: boolean): Promise<CleanupSummary> {
+  // The repair comes first and stands on its own: it reads no old revision and a failure further on must not undo it.
+  const repaired = wronglyWithdrawnSection(
+    await withTransaction(db, 'old-scroll-cleanup-repair', (trx) => repairWronglyWithdrawnAssets(trx)),
+  );
+  if (nothingOld)
+    return summaryOf('run', world, 'done', planned.reports, planned.accounts, planned.clearRowsByTable, {
+      ...repaired,
+      withdrawnAssets: 0,
+      accountsCleared: 0,
+    });
   const withdrawn = await withTransaction(db, 'old-scroll-cleanup-withdraw', async (trx) => {
     await prepareOldScrolls(trx);
     return withdrawOldAssets(trx);
@@ -246,6 +277,7 @@ async function run(db: Kysely<Database>, world: string, planned: Plan): Promise<
   } catch (error) {
     return summaryOf('run', world, 'failed', planned.reports, planned.accounts, planned.clearRowsByTable, {
       ...failureOf(error),
+      ...repaired,
       phase: 'clear',
       withdrawnAssets: withdrawn,
       note: 'Some accounts may be cleared and none of the removal has started. A Clear in flight is finished by the next run.',
@@ -255,6 +287,7 @@ async function run(db: Kysely<Database>, world: string, planned: Plan): Promise<
   if (refused.length > 0)
     return summaryOf('run', world, 'failed', planned.reports, planned.accounts, planned.clearRowsByTable, {
       code: 'clear_incomplete',
+      ...repaired,
       withdrawnAssets: withdrawn,
       accountsNotCleared: refused,
     });
@@ -270,6 +303,7 @@ async function run(db: Kysely<Database>, world: string, planned: Plan): Promise<
   } catch (error) {
     return summaryOf('run', world, 'failed', planned.reports, planned.accounts, planned.clearRowsByTable, {
       ...failureOf(error),
+      ...repaired,
       phase: 'remove',
       withdrawnAssets: withdrawn,
       accountsCleared: outcomes.length,
@@ -277,6 +311,7 @@ async function run(db: Kysely<Database>, world: string, planned: Plan): Promise<
     });
   }
   return summaryOf('run', world, 'done', reports, planned.accounts, planned.clearRowsByTable, {
+    ...repaired,
     withdrawnAssets: withdrawn,
     accountsCleared: outcomes.length,
   });

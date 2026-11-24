@@ -7,9 +7,43 @@ export type ProductionRecipeKey = RecipeKey | GeneratedRecipeKey;
 
 /**
  * A recipe's job at one recipe version may be taken again after it was rejected, at most this many
- * times in all. A new take is a new business run: nothing the earlier takes sent is sent again.
+ * times in all. A new take is a new business run: nothing the earlier takes sent is sent again. A take that was refused
+ * before anything was stored (see {@link takeIsRefused}) does not count.
  */
 export const MAX_TAKES_PER_RECIPE = 3;
+
+/**
+ * The highest take number a recipe has at one production version: the takes that count, and as many that were refused before
+ * anything was stored. A take number is never reused (the job's identity is its recipe, version and number), so a refused take keeps
+ * its number and a recipe has room for refusals only up to here, which is what stops a loop of paid takes that the asset refuses.
+ */
+export const MAX_TAKE_NUMBER = 2 * MAX_TAKES_PER_RECIPE;
+
+/** The receipts of a job, as far as telling a refused take goes. */
+type ReceiptsOfJob = readonly { readonly role?: string; readonly kind?: string; readonly code?: string }[];
+
+/**
+ * Whether a take ended with the publication step refusing the asset (`{role: 'checks', kind: 'rejected', code: 'asset_conflict'}`,
+ * `publish` in `production/produce.ts`) and was refused before anything was stored: the writer's Scroll passed every check, so the
+ * take is not the writer's fault. Pure.
+ */
+export function endedInAssetConflict(outcomes: ReceiptsOfJob): boolean {
+  return outcomes.some(
+    (receipt) => receipt.role === 'checks' && receipt.kind === 'rejected' && receipt.code === 'asset_conflict',
+  );
+}
+
+/**
+ * Whether a take that ended `rejected` was refused and does not count toward {@link MAX_TAKES_PER_RECIPE} (#800, D-439): its run
+ * ended `asset_conflict` and the asset is not withdrawn. An asset that really is withdrawn keeps the refusal: every take counts,
+ * so a withdrawn asset cannot be given endless takes. Pure.
+ */
+export function takeIsRefused(
+  run: { readonly state: string; readonly outcomes: ReceiptsOfJob },
+  assetStatus: string | undefined,
+): boolean {
+  return run.state === 'rejected' && endedInAssetConflict(run.outcomes) && assetStatus !== 'withdrawn';
+}
 
 /** Where a recipe's Scroll stands, as far as choosing what to produce is concerned. */
 export type ScrollProductionState =
@@ -23,20 +57,27 @@ export type ScrollProductionState =
   | 'held'
   /** Every take so far was rejected and another may start. */
   | 'retryable'
-  /** No take can start: one is of unknown outcome, the takes are used up, or its Scroll was withdrawn. */
+  /** No take can start: one is of unknown outcome, the takes are used up (refused takes do not count), or its Scroll was withdrawn. */
   | 'stopped';
 
 /**
  * A production job's own state, as far as a recipe's standing is concerned. `held`: the job published
  * its Scroll into the review gate and an operator has not decided yet. A job whose Scroll the gate
- * rejected is counted `rejected`, because the take is spent and the next may start (D-138).
+ * rejected is counted `rejected`, because the take is spent and the next may start (D-138). `refused`: the take ended
+ * `asset_conflict` on an asset that is not withdrawn ({@link takeIsRefused}); it keeps its number and is not counted.
  */
-export type ProductionJobState = 'research' | 'writer' | 'published' | 'held' | 'rejected' | 'unknown';
+export type ProductionJobState = 'research' | 'writer' | 'published' | 'held' | 'rejected' | 'refused' | 'unknown';
+
+/** How many of a recipe's takes count toward {@link MAX_TAKES_PER_RECIPE}: every one but a refused take. Pure. */
+export function countedTakes(jobs: readonly ProductionJobState[]): number {
+  return jobs.filter((job) => job !== 'refused').length;
+}
 
 /**
  * A recipe's standing from its takes at the current recipe version, in take order. A published job
  * or an unknown attempt ends it for good: only rejections can be taken again, up to
- * {@link MAX_TAKES_PER_RECIPE}. `admitted` says the recipe's Scroll is in the library. A job held for
+ * {@link MAX_TAKES_PER_RECIPE} that count, and never past take {@link MAX_TAKE_NUMBER}. A recipe whose only takes were refused
+ * is `retryable`, not `stopped`. `admitted` says the recipe's Scroll is in the library. A job held for
  * review is neither: it waits for an operator, and only a rejection by the gate frees the next take. Pure.
  */
 export function productionStanding(jobs: readonly ProductionJobState[], admitted: boolean): ScrollProductionState {
@@ -46,18 +87,22 @@ export function productionStanding(jobs: readonly ProductionJobState[], admitted
   if (latest === 'research' || latest === 'writer') return 'running';
   if (latest === 'held') return 'held';
   if (jobs.some((job) => job === 'unknown' || job === 'published')) return 'stopped';
-  return jobs.length < MAX_TAKES_PER_RECIPE ? 'retryable' : 'stopped';
+  return countedTakes(jobs) < MAX_TAKES_PER_RECIPE && jobs.length < MAX_TAKE_NUMBER ? 'retryable' : 'stopped';
 }
 
-/** The take a send for the recipe should name: the next one after a rejection, the running one to resume, else the first. */
-export function takeToSend(standing: ScrollProductionState, takes: number): number | undefined {
+/**
+ * The take a send for the recipe should name: the next number after the latest take once a take was rejected or refused, the
+ * running one to resume, else the first. `latestTake` is the highest take number there is, not how many takes count, because a
+ * refused take keeps its number.
+ */
+export function takeToSend(standing: ScrollProductionState, latestTake: number): number | undefined {
   switch (standing) {
     case 'not_started':
       return 1;
     case 'running':
-      return takes;
+      return latestTake;
     case 'retryable':
-      return takes + 1;
+      return latestTake + 1;
     case 'published':
     case 'held':
     case 'stopped':
@@ -103,13 +148,13 @@ export function regenerationStanding(facts: {
   if (latest === 'research' || latest === 'writer') return 'running';
   if (latest === 'held' || facts.heldRevision) return 'held';
   if (facts.jobs.includes('unknown')) return 'stopped';
-  return facts.jobs.length < MAX_TAKES_PER_RECIPE ? 'available' : 'spent';
+  return countedTakes(facts.jobs) < MAX_TAKES_PER_RECIPE && facts.jobs.length < MAX_TAKE_NUMBER ? 'available' : 'spent';
 }
 
-/** The take a regeneration should send: the next one, or the running one to resume. */
-export function regenerationTake(state: RegenerationState, takes: number): number | undefined {
-  if (state === 'available') return takes + 1;
-  return state === 'running' ? takes : undefined;
+/** The take a regeneration should send: the next number after the latest take, or the running one to resume. */
+export function regenerationTake(state: RegenerationState, latestTake: number): number | undefined {
+  if (state === 'available') return latestTake + 1;
+  return state === 'running' ? latestTake : undefined;
 }
 
 /** A recipe's standing with the take a send for it should name (none when nothing can be sent). */
@@ -130,8 +175,12 @@ export interface LibraryRecipeStatus {
   readonly state: ScrollProductionState;
   /** The latest take's own state at the current recipe version; absent before any job. */
   readonly job?: ProductionJobState;
-  /** How many takes exist at the current recipe version. */
+  /** How many takes at the current recipe version count toward the limit: every take but a refused one (#800, D-439). */
   readonly takes: number;
+  /** The highest take number at the current recipe version, 0 before any: the next take is the one after it. */
+  readonly latestTake: number;
+  /** How many takes were refused on an asset that is not withdrawn and so do not count; present only when there are some. */
+  readonly refusedTakes?: number;
   /** The recipe's stable asset; present once a Scroll is admitted. */
   readonly assetId?: string;
   readonly revision?: number;
@@ -244,7 +293,7 @@ export function planRegeneration(standing: readonly LibraryRecipeStatus[]): Rege
   const skipped: { recipe: ProductionRecipeKey; reason: RegenerationSkip }[] = [];
   for (const row of standing) {
     const state = row.regeneration ?? 'not_v2';
-    const take = regenerationTake(state, row.takes);
+    const take = regenerationTake(state, row.latestTake);
     if (take !== undefined) queue.push({ recipe: row.recipe, take });
     else if (state !== 'available' && state !== 'running') skipped.push({ recipe: row.recipe, reason: state });
   }
@@ -282,7 +331,7 @@ export function planLibraryProduction(
       : [],
   );
   const queue = standing.flatMap((row): ProductionSend[] => {
-    const take = takeToSend(row.state, row.takes);
+    const take = takeToSend(row.state, row.latestTake);
     return take === undefined ? [] : [{ recipe: row.recipe, take }];
   });
   if (options.interactiveFirst) queue.sort((a, b) => Number(isInteractive(b.recipe)) - Number(isInteractive(a.recipe)));

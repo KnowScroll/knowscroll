@@ -316,8 +316,17 @@ its own `adapters/old-scroll-removal.ts` (`OldScrollRemoval`, `infrastructure/er
 - **Whole assets** go with their revisions, provenance, reviews, support checks, release-policy rows, discovery chain, coverage, region
   bindings, series units and continuity links (either end old), then the asset. **A mixed asset** (a v3 revision beside old ones)
   keeps its v3 revisions and loses the old ones; when its current revision was old, `content.assets.revision` moves to its newest
-  revision that is not held or rejected by the review gate. When none is left the asset is withdrawn, or held when the newest kept
-  revision still waits for a decision, so the move never serves an unreleased revision.
+  revision that is not held or rejected by the review gate. When none is left the asset is **held** (an asset already withdrawn stays
+  withdrawn), whether the newest kept revision still waits for a decision or was rejected: that is where the review gate itself leaves an
+  asset that was never released, nothing unreleased is served (the readers serve only `admitted`), and the recipe's next take still
+  publishes the next revision. It is never withdrawn by the move: `publish` refuses every take of a withdrawn asset as `asset_conflict`
+  (#800, D-439).
+- **The repair of what the first cleanup withdrew (#800, D-439).** `findWronglyWithdrawnAssets` and `repairWronglyWithdrawnAssets`
+  (`adapters/old-scroll-removal.ts`) find and fix a Scroll asset that is `withdrawn`, every revision of which is a kept revision the review
+  gate rejected, and which has no row in `content.release_withdrawals`. The release policy's withdrawal is the only other code that
+  withdraws an asset: it needs a `released` review and records the withdrawal, so it never matches. The command lists the assets in the
+  dry run and the run (`wronglyWithdrawnAssets`: `count` and `assetIds`) and the run puts them back to `held`, in its own short transaction
+  before anything else; when no old revision is left it does only that and clears nobody. Idempotent.
 - **Rows with no foreign key** of a removed asset: its `content.made_to_order_scrolls` row; the `content.scroll_production_runs` that
   published an old revision or belong to a removed order; `content.recipes` whose asset went go back from `queued` or `produced`
   to `checked`; queued `content.check-library-support` jobs that name an old revision and queued produce jobs for a removed order
@@ -465,7 +474,7 @@ live in `content.recipes`, and the system can propose new ones for planets and f
   counts growth (`KS_SUPPLY_GROWTH_DAILY_CAP`, default 10) apart from a person's and the Planner's Create caps.
 - **Held**: a stored recipe's Scroll goes through the review gate below like any document v3 library Scroll, so nobody is served it before `content release`.
   The recipe's status moves with its job: `checked` to `queued` when the first job row is created, `queued` to `produced` in the transaction that stores
-  the Scroll (`production/store.ts`). A recipe whose three takes were rejected is `stopped` and never chosen again.
+  the Scroll (`production/store.ts`). A recipe whose three counted takes were rejected is `stopped` and never chosen again. A take that ended `asset_conflict` on an asset that is not withdrawn does not count (D-439).
 - **Flow**: `content propose-recipes`, then `content produce-library --only <key>`, then `content review-list` and `review-show`, then `content release`.
   See the [runbook](../../../../../docs/v2/operations/scroll-production.md).
 

@@ -316,10 +316,19 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
         [3, 'rejected'],
       ]);
       expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'stopped', takes: 3 });
-      // The job schema refuses a fourth take, and the database refuses a fourth row.
-      expect(ProduceScrollJobSchema.safeParse({ ...produceScrollJob('stars-fusion'), take: 4 }).success).toBe(false);
+      // A fourth take is refused before anything is sent: three takes count, and none was refused with `asset_conflict` (D-439).
+      const calls = p.fixture.calls.length;
+      expect(await p.run(produceScrollJob('stars-fusion', 4), delivery())).toMatchObject({
+        result: { outcome: 'take_refused' },
+      });
+      expect(p.fixture.calls).toHaveLength(calls);
+      expect(await takes()).toHaveLength(3);
+      // The take numbers go to six, to leave room for takes that were refused and do not count; the job schema and the database
+      // refuse a seventh number.
+      expect(ProduceScrollJobSchema.safeParse({ ...produceScrollJob('stars-fusion'), take: 6 }).success).toBe(true);
+      expect(ProduceScrollJobSchema.safeParse({ ...produceScrollJob('stars-fusion'), take: 7 }).success).toBe(false);
       await expect(
-        sql`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (gen_random_uuid(),'stars-fusion',${SCROLL_PRODUCTION_VERSION},4,1,1,'research',gen_random_uuid())`.execute(
+        sql`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (gen_random_uuid(),'stars-fusion',${SCROLL_PRODUCTION_VERSION},7,1,1,'research',gen_random_uuid())`.execute(
           database.db,
         ),
       ).rejects.toMatchObject({ constraint: 'scroll_production_runs_take_check' });

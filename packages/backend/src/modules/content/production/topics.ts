@@ -59,7 +59,7 @@ export const REQUEST_BOUND_V3_PER_TOPIC = 6;
  * the harness repairs one unusable reply in the whole check, so a draft costs its batches plus one (D-250, D-267, D-297, D-353).
  */
 export const REQUEST_BOUND_ASK_ORDER = 2 + 1 + 1 + 2 * (ASK_SUPPORT_MAX_BATCHES + 1);
-export { MAX_TAKES_PER_RECIPE } from '../domain/library/serving.js';
+export { MAX_TAKES_PER_RECIPE, MAX_TAKE_NUMBER } from '../domain/library/serving.js';
 /**
  * The explanation recipes the generator runs, by operator key. The plan itself (systems, planets,
  * facets, briefs and research pages) is code-owned data in `domain/library/`, one file per system.

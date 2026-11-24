@@ -1,19 +1,14 @@
 import { z } from 'zod';
 import { defineQueue } from '../../../infrastructure/jobs/queues.js';
 import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
-import {
-  MAX_TAKES_PER_RECIPE,
-  productionVersionOf,
-  REQUEST_BOUND_ASK_ORDER,
-  REQUEST_BOUND_V2_PER_TOPIC,
-} from './topics.js';
+import { MAX_TAKE_NUMBER, productionVersionOf, REQUEST_BOUND_ASK_ORDER, REQUEST_BOUND_V2_PER_TOPIC } from './topics.js';
 
 /**
  * One request to produce the Scroll of a library recipe, or of an order placed from code (`order-…`).
  * IDs only: the recipe key names code-owned or stored data, so no brief, research or person is in
  * the payload. `policyVersion` is the recipe version the
  * sender knew; a worker running another version drops the job instead of producing under it. `take`
- * says which attempt at the recipe this is: 1, or the next after every earlier one was rejected.
+ * says which attempt at the recipe this is: 1, or the next after every earlier one was rejected or refused (D-439).
  */
 export const ProduceScrollJobSchema = z.strictObject({
   v: z.literal(1),
@@ -22,7 +17,7 @@ export const ProduceScrollJobSchema = z.strictObject({
     .regex(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/)
     .max(64),
   policyVersion: z.string().min(1).max(64),
-  take: z.number().int().min(1).max(MAX_TAKES_PER_RECIPE),
+  take: z.number().int().min(1).max(MAX_TAKE_NUMBER),
 });
 export type ProduceScrollJob = z.infer<typeof ProduceScrollJobSchema>;
 
