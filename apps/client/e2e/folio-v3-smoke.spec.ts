@@ -473,8 +473,8 @@ test('the first hold of broad-street keeps its plan beside its beats, in full vi
   for (const row of rows) expect(row.figureLeft).toBeGreaterThan(row.beatsRight);
   expect(Math.abs(first.firstBeatTop - first.figureTop)).toBeLessThanOrEqual(24);
   // These three beats run a little longer than the plan, so it pins near the top while the rest of them pass beside it
-  // (D-434): over some step the beats move up a whole step and the figure, at the top, moves much less. Circulation's
-  // shorter hold rises with its beats instead.
+  // (D-434): over some step the beats move up a whole step and the figure, at the top, moves much less. The v2
+  // fixtures' shorter holds rise with their beats instead.
   const held = rows.slice(1).some((row, index) => {
     const before = rows[index];
     if (before === undefined) return false;

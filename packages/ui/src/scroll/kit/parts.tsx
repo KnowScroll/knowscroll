@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
-import { content, fontFamily, family, printed, scrollPage, status } from '@knowscroll/design-tokens';
+import { content, fontFamily, printed, scrollPage, status } from '@knowscroll/design-tokens';
 import type { Point } from './earth-sky-scene';
 
 /**
@@ -22,7 +22,6 @@ export const SUN = content.continue;
 export const BLUE = content.accent;
 export const FOCUS = content.accentDeep;
 export const WARM = status.danger.fill;
-export const SKY_LIGHT = family.systems.pattern;
 export const GREEN = content.fresh;
 export const MUTED = content.muted;
 export const SOLID = scrollPage.solid;

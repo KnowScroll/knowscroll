@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { LiveStage, ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
+import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import { Stage, type StageProps } from './stage';
 import { stageEntryAt } from './stage-state';
 
@@ -104,7 +104,7 @@ describe('the recap of a Scroll whose picture stood on the orbit at two months, 
 
 describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
   it('keeps its last state and says so in the same words as before', async () => {
-    const other = circulation as unknown as ScrollDocumentV2;
+    const other = nerve as unknown as ScrollDocumentV2;
     const stageOf = other.stage;
     if (stageOf === undefined) throw new Error('the fixture has a stage');
     const last = other.stops.at(-1)!.id;
@@ -119,8 +119,8 @@ describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
 });
 
 describe('a stored stage of a kit this build does not draw', () => {
-  // transit.v1, tides.v1 and star.v1 were deleted from the code in #799; stage and main still store Scrolls that name them.
-  it.each(['gone.v1', 'transit.v1', 'tides.v1', 'star.v1'])(
+  // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802) were deleted from the code; stage and main still store Scrolls that name them.
+  it.each(['gone.v1', 'transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1'])(
     'draws nothing for %s, and does not throw looking the kit up',
     async (kit) => {
       const gone = {

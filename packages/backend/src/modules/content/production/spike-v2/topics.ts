@@ -26,9 +26,11 @@ export interface SpikeRecipeV2 extends RecipeDataV2 {
 
 /**
  * The recipes of the first spike, in the order they ran: the three Seasons parts first, then
- * Earth & sky and Space recipes, four of the human body, and seven of computing,
+ * Earth & sky and Space recipes, human body recipes, and seven of computing,
  * machine learning and history. The twenty of that run lost three when `tides.v1` and `star.v1` were deleted (#799): `tides`,
- * `tides-spring-neap` and `stars-fusion` have no kit to draw them with any more. A recipe gets a stage only where its library entry names a kit
+ * `tides-spring-neap` and `stars-fusion` have no kit to draw them with any more. It lost four more when `greenhouse.v1` and
+ * `circulation.v1` were deleted (#802): `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle` and `blood-pressure`.
+ * A recipe gets a stage only where its library entry names a kit
  * (`stageKit`), so the stage recipes among them are the three Seasons parts and the ones a kit of
  * D-194 draws; the rest are plain Scrolls with calls. `seasons-elsewhere` is not one of the twenty: name
  * it with `--topics` (see `SEASONS_SPIKE_TOPICS_V2`).
@@ -37,11 +39,7 @@ export const SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'seasons',
   'seasons-hemispheres',
   'seasons-limits',
-  'greenhouse-radiation',
-  'greenhouse-balance',
   'exoplanet-habitable-zone',
-  'cardiac-cycle',
-  'blood-pressure',
   'reflex-arc',
   'immune-memory',
   'dns-lookup',
@@ -65,26 +63,12 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The three Earth & sky recipes the greenhouse kit of D-194 gives a picture, to measure with the v17 prompt. The eight of that
- * run (with tides, stars and exoplanet transits) lost five when `tides.v1`, `star.v1` and `transit.v1` were deleted (#799). Each
- * runs as the plan marked it (D-217): a stage Scroll with the recipe's kit and the plan's misconception (none).
+ * The three Human body recipes the nerve kit of D-201 gives a picture, to measure with the v18 prompt before the
+ * first wave of them. The six of that run (with the heart and the blood, `circulation.v1`) lost three when `circulation.v1` was
+ * deleted (#802). Each runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, with the
+ * plan's misconception (none).
  */
-export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = ['greenhouse', 'greenhouse-radiation', 'greenhouse-balance'];
-
-/**
- * The six Human body recipes the drawing kits of D-201 give a picture, to measure with the v18 prompt before the
- * first wave of them: the heart and the blood with `circulation.v1`, the nerves with `nerve.v1`. Each
- * runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, with the plan's
- * misconception (none).
- */
-export const BODY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
-  'cardiac-cycle',
-  'blood-pressure',
-  'oxygen-transport',
-  'action-potential',
-  'synapse-signalling',
-  'reflex-arc',
-];
+export const BODY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = ['action-potential', 'synapse-signalling', 'reflex-arc'];
 
 /**
  * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v19 prompt: colour and brightness

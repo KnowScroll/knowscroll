@@ -496,7 +496,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
 
   describe('the withdrawal leaves a person’s own decisions alone', () => {
     it('refuses a Scroll an operator released, one still held and one that does not exist', async () => {
-      const own = await ready('greenhouse-balance');
+      const own = await ready('seasons-limits');
       expect(await gate().release({ assetId: own.assetId, revision: own.revision, decidedBy: person })).toMatchObject({
         kind: 'released',
       });
@@ -504,7 +504,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
         kind: 'refused',
         reason: 'not_auto_released',
       });
-      const waiting = await hold('greenhouse-radiation');
+      const waiting = await hold('black-hole-horizon');
       expect(await policy().withdraw({ ...waiting, withdrawnBy: person })).toEqual({
         kind: 'refused',
         reason: 'not_auto_released',
@@ -517,10 +517,10 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     });
 
     it('is not counted by the replay of the support check: it measures against a person’s decisions only', async () => {
-      // `seasons-hemispheres` was released by the policy and withdrawn above; `greenhouse-balance` by a person.
+      // `seasons-hemispheres` was released by the policy and withdrawn above; `seasons-limits` by a person.
       const decided = await libraryCheckStore.decided(database.db, { since: undefined, limit: 500 });
       const released = decided.filter((entry) => entry.decision === 'released');
-      expect(released.map((entry) => entry.assetId)).toEqual([TOPICS['greenhouse-balance'].assetId]);
+      expect(released.map((entry) => entry.assetId)).toEqual([TOPICS['seasons-limits'].assetId]);
       const byPolicy = await database.db
         .selectFrom('content.revision_reviews')
         .select(['asset_id', 'revision'])
@@ -541,11 +541,11 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
   describe('the daily cap', () => {
     it('holds under concurrent sweeps: two sweeps at a cap of one release one Scroll between them, and the next day releases the other', async () => {
       await startNewDay();
-      expect(await policy().approveTopic({ topicId: 'earth.greenhouse-effect', approvedBy: person })).toMatchObject({
-        kind: 'approved',
-      });
-      const first = await ready('greenhouse');
-      const second = await ready('greenhouse-radiation');
+      // The two Scrolls are of two topics: no ordinary topic has two kit recipes left that the other tests do not use.
+      for (const topicId of ['space.stars', 'space.black-holes'])
+        expect(await policy().approveTopic({ topicId, approvedBy: person })).toMatchObject({ kind: 'approved' });
+      const first = await ready('stars-colour-brightness');
+      const second = await ready('black-hole-horizon');
       const capOne = { enabled: true, dailyCap: 1 } as const;
       const results = await Promise.all([policy().sweep(capOne), policy().sweep(capOne)]);
       const released = results.flatMap((result) => (result.kind === 'swept' ? result.released : []));
@@ -603,8 +603,8 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
     });
 
     it('releases nothing of a topic the catalogue calls sensitive, produced by the real job and approved by a row', async () => {
-      const body = await ready('cardiac-cycle');
-      await approveDirectly('human-body.heart-and-blood');
+      const body = await ready('reflex-arc');
+      await approveDirectly('human-body.nervous-system');
       expect(await policy().sweep(on)).toMatchObject({
         kind: 'swept',
         considered: 1,
@@ -628,7 +628,7 @@ describe('the release policy of held library Scrolls (labelled CI fixtures, real
       const printed = JSON.stringify(status);
       expect(printed).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/u);
       expect(printed).not.toContain('earth.seasons');
-      expect(printed).not.toContain('earth.greenhouse-effect');
+      expect(printed).not.toContain('space.stars');
     });
   });
 

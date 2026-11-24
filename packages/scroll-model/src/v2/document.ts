@@ -4,12 +4,8 @@ import { LanguageTag, LocalId, OpaqueId, plainText, Revision } from '../primitiv
 import { Guide, Interactive } from './blocks.js';
 import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
 import {
-  CIRCULATION_KIT,
-  CirculationStateSchema,
   BLACK_HOLE_KIT,
   BlackHoleStateSchema,
-  GREENHOUSE_KIT,
-  GreenhouseStateSchema,
   NERVE_KIT,
   NerveStateSchema,
   isStageKitId,
@@ -206,8 +202,6 @@ export type LegacyStage = z.infer<typeof LegacyStageSchema>;
 /** The stages of the kits the code still defines, one arm each. */
 const LIVE_STAGES = [
   stageOf(EARTH_SKY_KIT, StageStateSchema),
-  stageOf(GREENHOUSE_KIT, GreenhouseStateSchema),
-  stageOf(CIRCULATION_KIT, CirculationStateSchema),
   stageOf(NERVE_KIT, NerveStateSchema),
   stageOf(STARLIGHT_KIT, StarlightStateSchema),
   stageOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
@@ -239,8 +233,6 @@ function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: S
 
 const LIVE_FRAMES = [
   frameOf(EARTH_SKY_KIT, StageStateSchema),
-  frameOf(GREENHOUSE_KIT, GreenhouseStateSchema),
-  frameOf(CIRCULATION_KIT, CirculationStateSchema),
   frameOf(NERVE_KIT, NerveStateSchema),
   frameOf(STARLIGHT_KIT, StarlightStateSchema),
   frameOf(BLACK_HOLE_KIT, BlackHoleStateSchema),

@@ -7,11 +7,13 @@ import type { ScrollV2Plan, StageKitId } from '../../domain/library/plan.js';
  * no kit and no v2 plan, and no job reads them from it. The v2 writer spike (`content writer-spike`), the v2 writer's tests and the
  * integration tests of the v2 path still run these recipes as v2 recipes, with their kit where they had one, until the v2 code is
  * deleted (Phase 6). The entries of a kit leave this table with it: those of `tides.v1`, `star.v1` and `transit.v1` (`tides`,
- * `tides-spring-neap`, `stars-fusion`, `stars-lifecycle`, `exoplanet-transit`) left in #799. The spike measures and publishes
+ * `tides-spring-neap`, `stars-fusion`, `stars-lifecycle`, `exoplanet-transit`) left in #799, and those of `greenhouse.v1` and
+ * `circulation.v1` (`greenhouse`, `greenhouse-radiation`, `greenhouse-balance`, `cardiac-cycle`, `blood-pressure`,
+ * `oxygen-transport`) in #802. The spike measures and publishes
  * nothing, so a recipe listed here is never produced as a v2 Scroll by the library. `exoplanet-kinds` was never a v2 recipe and
  * is not listed.
  */
-/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (17 of the 22 recipes of #787 since #799). */
+/** A recipe's former v2 plan, and the drawing kit that drew it when it had one (11 of the 22 recipes of #787 since #802). */
 export interface FormerV2Plan {
   readonly kit?: StageKitId;
   readonly plan: ScrollV2Plan;
@@ -52,37 +54,6 @@ export const FORMER_V2_PLANS = {
       variant: 'stage',
       misconception: { kind: 'none' },
       landmark: { key: 'the-near-january', name: 'The Near January' },
-    },
-  },
-  greenhouse: {
-    // Sunlight in, infrared out, a layer that returns some and the ground warming until in and out match are
-    // the subject; the kit draws them with one layer and makes no energy.
-    kit: 'greenhouse.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-warm-layer', name: 'The Warm Layer' },
-    },
-  },
-  'greenhouse-radiation': {
-    // The radiation paths are what the kit draws: reflected sunlight, the ground's infrared, and the layer
-    // sending some up and some back down. It does not say all sunlight passes through or all infrared is
-    // blocked.
-    kit: 'greenhouse.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-returning-glow', name: 'The Returning Glow' },
-    },
-  },
-  'greenhouse-balance': {
-    // Balance and imbalance are the energy-balance view: two bars, equal once settled and unequal just after
-    // the layer thickens, with the ground warming until they match.
-    kit: 'greenhouse.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-even-ledger', name: 'The Even Ledger' },
     },
   },
   'stars-colour-brightness': {
@@ -132,36 +103,6 @@ export const FORMER_V2_PLANS = {
       variant: 'stage',
       misconception: { kind: 'none' },
       landmark: { key: 'the-unseen-weight', name: 'The Unseen Weight' },
-    },
-  },
-  'cardiac-cycle': {
-    // The beat in order (the atria, then the ventricles), the four valves opening and shutting with the pressure
-    // behind them, and the right side serving the lungs and the left the body are what the kit draws (D-201).
-    kit: 'circulation.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-beating-pump', name: 'The Beating Pump' },
-    },
-  },
-  'blood-pressure': {
-    // Pressure falling along the loop, the fall across a stretch as flow times resistance, and narrower or wider
-    // arterioles are the pressure view, with relative pressures and no figure (D-201).
-    kit: 'circulation.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-narrowing-pipe', name: 'The Narrowing Pipe' },
-    },
-  },
-  'oxygen-transport': {
-    // The S-shaped curve, haemoglobin loading in the lungs and giving some oxygen up in resting and in working
-    // tissue, are the oxygen view; the effects of acidity and warmth are left out and the picture says so (D-201).
-    kit: 'circulation.v1',
-    plan: {
-      variant: 'stage',
-      misconception: { kind: 'none' },
-      landmark: { key: 'the-oxygen-handoff', name: 'The Oxygen Handoff' },
     },
   },
   'action-potential': {

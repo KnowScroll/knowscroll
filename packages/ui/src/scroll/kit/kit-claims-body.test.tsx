@@ -5,7 +5,7 @@ import { BLUE, SUN, WARM } from './parts';
 import { KIT_PICTURES } from './registry';
 
 /**
- * The claims of the heart and nerve kits against their pictures. A text version says things about a picture, and
+ * The claims of the nerve kit against their pictures. A text version says things about a picture, and
  * the picture must carry a mark for each: a claim with no mark is a picture that does not show what it says, and
  * a mark with no claim is a picture that shows what the text leaves out. Every row pairs a sentence of the text
  * version with a mark found in the rendered picture, and the two must be present together in every settled state
@@ -61,156 +61,6 @@ interface Row {
   readonly claim: RegExp;
   readonly mark: (marks: Marks) => boolean;
 }
-
-/** A valve's flaps (the lines 4 wide) stand apart where it is open: their far ends are off the line of their hinges. */
-const valveOpen = (marks: Marks, hingeY: number): boolean =>
-  marks.lines.some(
-    (line) => num(line, 'strokeWidth') === 4 && num(line, 'y1') === hingeY && num(line, 'y2') !== hingeY,
-  );
-
-/** A chamber squeezes where its wall is drawn thick (6 wide, against 2.5). */
-const wallThick = (marks: Marks, halfHeight: number): boolean =>
-  marks.ellipses.some((ellipse) => num(ellipse, 'strokeWidth') === 6 && num(ellipse, 'ry') === halfHeight);
-
-const flowWidth = (marks: Marks): number | undefined => {
-  const arrow = marks.lines.find((line) => num(line, 'y1') === 192 && num(line, 'x1') === 64);
-  return arrow === undefined ? undefined : num(arrow, 'strokeWidth');
-};
-const USUAL_FLOW_WIDTH = 4.5;
-
-/** The tube of the arterioles is the second of the four rects centred on the tubes' row. */
-const arterioleHeight = (marks: Marks): number | undefined => {
-  const tubes = marks.rects
-    .filter(
-      (rect) => num(rect, 'strokeWidth') === 1.6 && Math.abs(num(rect, 'y') + num(rect, 'height') / 2 - 168) < 1e-6,
-    )
-    .sort((first, second) => num(first, 'x') - num(second, 'x'));
-  const tube = tubes[1];
-  return tube === undefined ? undefined : num(tube, 'height');
-};
-const USUAL_TUBE_HEIGHT = 18;
-
-/** Which stretch of the pressure line falls most: read off the drawn line (the one 3 wide, with no fill). */
-function biggestFall(marks: Marks): string | undefined {
-  const line = marks.nodes.find(
-    (node) =>
-      node.type === 'RNSVGPath' &&
-      num(node, 'strokeWidth') === 3 &&
-      (node.props?.['fill'] === null || node.props?.['fill'] === undefined),
-  );
-  const numbers = String(typeof line?.props?.['d'] === 'string' ? line.props['d'] : '')
-    .match(/-?\d+(?:\.\d+)?/gu)
-    ?.map(Number);
-  if (numbers === undefined || numbers.length !== 10) return undefined;
-  const heights = [1, 3, 5, 7, 9].map((at) => numbers[at] ?? 0);
-  const falls = [0, 1, 2, 3].map((at) => (heights[at + 1] ?? 0) - (heights[at] ?? 0));
-  return STRETCHES[falls.indexOf(Math.max(...falls))];
-}
-
-/** The carriers' bars: the two rects filled with oxygen-rich colour (opacity 0.85), the lungs' first. */
-const carrierHeights = (marks: Marks): number[] =>
-  marks.rects
-    .filter((rect) => num(rect, 'opacity') === 0.85)
-    .sort((first, second) => num(first, 'x') - num(second, 'x'))
-    .map((rect) => num(rect, 'height'));
-const CARRIER_FULL = 110;
-
-const STRETCHES = ['the large arteries', 'the arterioles', 'the capillaries', 'the veins'] as const;
-
-const CIRCULATION_ROWS: readonly Row[] = [
-  // The two stretches that can fall most with these vessels and flows; any other would be caught by the check below.
-  ...(['the arterioles', 'the capillaries'] as const).map((stretch): Row => ({
-    name: `the biggest fall is across ${stretch}`,
-    claim: new RegExp(`The biggest fall is across ${stretch}:`, 'u'),
-    mark: (m) => biggestFall(m) === stretch,
-  })),
-  { name: 'the colours are a convention', claim: /a drawing convention/u, mark: (m) => hasLabel(m, /CONVENTION/u) },
-  { name: 'the low pressures are drawn larger', claim: /drawn larger/u, mark: (m) => hasLabel(m, /DRAWN LARGER/u) },
-  {
-    name: 'acidity and warmth are left out',
-    claim: /Acidity and warmth, which shift it, are left out/u,
-    mark: (m) => hasLabel(m, /ACIDITY AND WARMTH LEFT OUT/u),
-  },
-  {
-    name: 'the valves between atria and ventricles are open',
-    claim: /between atria and ventricles are open/u,
-    mark: (m) => valveOpen(m, 113),
-  },
-  {
-    name: 'the valves to the arteries are open',
-    claim: /those to the arteries are open/u,
-    mark: (m) => valveOpen(m, 120),
-  },
-  { name: 'the atria squeeze', claim: /The two atria squeeze/u, mark: (m) => wallThick(m, 23) },
-  { name: 'the ventricles squeeze', claim: /The two ventricles squeeze/u, mark: (m) => wallThick(m, 31) },
-  { name: 'blood is pushed out', claim: /Blood is pushed out/u, mark: (m) => valveOpen(m, 120) },
-  { name: 'blood flows into the ventricles', claim: /Blood flows from the atria/u, mark: (m) => valveOpen(m, 113) },
-  {
-    name: 'more blood flows',
-    claim: /More blood flows/u,
-    mark: (m) => (flowWidth(m) ?? USUAL_FLOW_WIDTH) > USUAL_FLOW_WIDTH,
-  },
-  {
-    name: 'less blood flows',
-    claim: /Less blood flows/u,
-    mark: (m) => (flowWidth(m) ?? USUAL_FLOW_WIDTH) < USUAL_FLOW_WIDTH,
-  },
-  {
-    name: 'the arterioles are narrowed',
-    claim: /arterioles are narrowed/u,
-    mark: (m) => (arterioleHeight(m) ?? USUAL_TUBE_HEIGHT) < USUAL_TUBE_HEIGHT,
-  },
-  {
-    name: 'the arterioles are widened',
-    claim: /arterioles are widened/u,
-    mark: (m) => (arterioleHeight(m) ?? USUAL_TUBE_HEIGHT) > USUAL_TUBE_HEIGHT,
-  },
-  { name: 'oxygen is handed over', claim: /the blood gives up/u, mark: (m) => hasLabel(m, /HANDED OVER/u) },
-  {
-    name: 'nearly all the haemoglobin is loaded in the lungs',
-    claim: /nearly all of the haemoglobin is loaded/u,
-    mark: (m) => !hasLabel(m, /HANDED OVER/u) && (carrierHeights(m)[0] ?? 0) >= 0.95 * CARRIER_FULL,
-  },
-  {
-    name: 'a small share is handed over',
-    claim: /gives up a small share of its load/u,
-    mark: (m) => {
-      const [lungs, here] = carrierHeights(m);
-      return lungs !== undefined && here !== undefined && (lungs - here) / lungs < 0.35;
-    },
-  },
-  {
-    name: 'most of the load is handed over',
-    claim: /gives up most of its load/u,
-    mark: (m) => {
-      const [lungs, here] = carrierHeights(m);
-      return lungs !== undefined && here !== undefined && (lungs - here) / lungs >= 0.5;
-    },
-  },
-];
-
-/** The labels that name a part or an axis and claim nothing, and the labels each row above is the claim of. */
-const CIRCULATION_NAMES: readonly RegExp[] = [
-  /^(FROM|TO) (BODY|LUNGS)$/u,
-  /^(RIGHT|LEFT)$/u,
-  /^RELATIVE PRESSURE$/u,
-  /^(LEFT ATRIUM|LEFT VENTRICLE|AORTA)$/u,
-  /^(LUNGS|REST OF THE BODY|TISSUE)$/u,
-  /^(RICH|POOR) IN OXYGEN$/u,
-  /^(RIGHT|LEFT): TO THE (LUNGS|BODY)$/u,
-  /^A DRAWING CONVENTION:$/u,
-  /^BLOOD IS RED EITHER WAY$/u,
-  /^AVERAGE PRESSURE \(RELATIVE\)$/u,
-  /^(ARTERIES|ARTERIOLES|CAPILLARIES|VEINS)$/u,
-  /^FLOW$/u,
-  /^DASHED LINE: THE USUAL$/u,
-  /^SHARE OF HAEMOGLOBIN LOADED$/u,
-  /^OXYGEN AROUND: LOW TO HIGH$/u,
-  /CONVENTION/u,
-  /DRAWN LARGER/u,
-  /HANDED OVER/u,
-  /ACIDITY AND WARMTH LEFT OUT/u,
-];
 
 const sunLine = (marks: Marks, x: number): boolean =>
   marks.lines.some((line) => JSON.stringify(line.props?.['stroke']) === marks.colours.sun && num(line, 'x1') === x);
@@ -367,44 +217,31 @@ async function marksOf(kit: StageKitId, state: WordState): Promise<Marks> {
   };
 }
 
-describe.each([
-  ['circulation.v1', CIRCULATION_ROWS, CIRCULATION_NAMES],
-  ['nerve.v1', NERVE_ROWS, NERVE_NAMES],
-] as const)('the claims of the kit %s against its picture', (kit, rows, names) => {
-  it('has each sentence of the text version beside its mark in the picture, and each mark beside its sentence, in every state', async () => {
-    const mismatches: string[] = [];
-    const unknownLabels = new Set<string>();
-    const said = new Set<string>();
-    for (const state of settledStates(kit)) {
-      const alt = kitDefinition(kit).describe(state);
-      const marks = await marksOf(kit, state);
-      for (const row of rows) {
-        const claimed = row.claim.test(alt);
-        const drawn = row.mark(marks);
-        if (claimed) said.add(row.name);
-        if (claimed !== drawn)
-          mismatches.push(
-            `${row.name}: text ${claimed ? 'says it' : 'is silent'}, picture ${drawn ? 'draws it' : 'does not'} in ${JSON.stringify(state)}`,
-          );
+describe.each([['nerve.v1', NERVE_ROWS, NERVE_NAMES]] as const)(
+  'the claims of the kit %s against its picture',
+  (kit, rows, names) => {
+    it('has each sentence of the text version beside its mark in the picture, and each mark beside its sentence, in every state', async () => {
+      const mismatches: string[] = [];
+      const unknownLabels = new Set<string>();
+      const said = new Set<string>();
+      for (const state of settledStates(kit)) {
+        const alt = kitDefinition(kit).describe(state);
+        const marks = await marksOf(kit, state);
+        for (const row of rows) {
+          const claimed = row.claim.test(alt);
+          const drawn = row.mark(marks);
+          if (claimed) said.add(row.name);
+          if (claimed !== drawn)
+            mismatches.push(
+              `${row.name}: text ${claimed ? 'says it' : 'is silent'}, picture ${drawn ? 'draws it' : 'does not'} in ${JSON.stringify(state)}`,
+            );
+        }
+        for (const label of marks.labels) if (!names.some((name) => name.test(label))) unknownLabels.add(label);
       }
-      const fall = /The biggest fall is across (.+?):/u.exec(alt)?.[1];
-      if (fall !== undefined && fall !== biggestFall(marks))
-        mismatches.push(`the biggest fall: ${fall} against the drawn line`);
-      for (const label of marks.labels) if (!names.some((name) => name.test(label))) unknownLabels.add(label);
-    }
-    expect(mismatches).toEqual([]);
-    expect([...unknownLabels]).toEqual([]);
-    // Every row was said in some state, so no row is checking nothing.
-    expect(rows.map((row) => row.name).filter((name) => !said.has(name))).toEqual([]);
-  });
-
-  it('says the colours are a convention in every view that colours blood, in the text and the picture together', async () => {
-    if (kit !== 'circulation.v1') return;
-    for (const view of ['heart', 'circuits', 'pressure', 'oxygen']) {
-      const state = kitDefinition(kit).settle({ ...kitDefinition(kit).initial, view });
-      const marks = await marksOf(kit, state);
-      expect(kitDefinition(kit).describe(state).includes('a drawing convention')).toBe(true);
-      expect(hasLabel(marks, /CONVENTION/u)).toBe(true);
-    }
-  });
-});
+      expect(mismatches).toEqual([]);
+      expect([...unknownLabels]).toEqual([]);
+      // Every row was said in some state, so no row is checking nothing.
+      expect(rows.map((row) => row.name).filter((name) => !said.has(name))).toEqual([]);
+    });
+  },
+);
