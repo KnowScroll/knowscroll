@@ -272,8 +272,8 @@ A deploy is healthy only when `world`, `commit` and `artifact` match.
 
 ## Build and test (CI)
 
-The `release` job of `checks.yml` does this on every push and PR, after the `build` and `client`
-jobs passed (#228 part 2):
+The `release` job of `checks.yml` does this on every pull request, every push to `dev`, `stage` and
+`main`, and every manual dispatch (D-440), after the `build` and `client` jobs passed (#228 part 2):
 
 1. build the workspace as those jobs do (`nest build` for packages, api and worker; `expo export
    --platform web` for the client);
@@ -317,9 +317,10 @@ New: the commit's generation is read from the commit itself — a v2 commit carr
 `scripts/release/build.mjs` (v1 commits never did; `apps/api` cannot tell them apart because v1 had
 one too). For v2 nothing is built in deploy:
 
-- It waits for a successful `checks` run **triggered by a push** on the commit, and takes
-  `release-<sha>` only from such runs whose repository and head repository are this repository —
-  never from a `pull_request` run, which may run a fork's own workflow (#228 review m3). It uses the
+- It waits for a successful `checks` run **triggered by a push or a manual dispatch** on the commit
+  (D-440), and takes `release-<sha>` only from such runs whose repository and head repository are
+  this repository — never from a `pull_request` run, which may run a fork's own workflow (#228
+  review m3). Only people with write access can dispatch. It uses the
   earliest one; when the server already holds the release (a promotion) it must be that earliest
   run, the one the first deploy used.
 - "Not uploaded" and "expired" are told apart from errors: any API or download error fails the job

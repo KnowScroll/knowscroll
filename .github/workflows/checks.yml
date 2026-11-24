@@ -390,7 +390,7 @@ jobs:
           include-hidden-files: true
           overwrite: true
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   # The browser smoke, split by Playwright's --shard over the exports `client build` made. Every
   # spec runs in exactly one shard, with the config's own projects and `retries: 0`. A failing
