@@ -162,6 +162,7 @@ test('with reduced motion every stop is drawn at once, and the globe’s regions
   const planet = page.getByRole('button', { name: 'CI planet 2, a planet', exact: true });
   await expect(planet).toBeVisible({ timeout: 30_000 });
   await planet.click();
+  await shot(page, 'voyage-5-planet-reduced-motion');
   await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({ timeout: 30_000 });
   await page.getByTestId('voyage-stage').focus();
   await page.keyboard.press('+');

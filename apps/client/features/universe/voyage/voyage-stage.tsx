@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Platform, StyleSheet, View, type ViewProps } from 'react-native';
 import { chartWorld } from '@knowscroll/scene-core';
+import { target } from '@knowscroll/design-tokens';
 import { useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
 import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
@@ -8,6 +9,7 @@ import { useGlobeWorld } from '../planet/use-planet-world';
 import { BodyTarget, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from '../scene-parts';
 import { layOutUniverse, looksById, looksOfState } from '../space/space-model';
 import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
+import { CROWDED_TARGET, separateTargets } from '../space/separate-targets';
 import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import type { UniverseView } from '../universe-layout';
@@ -87,7 +89,9 @@ export function VoyageStage({
     systemFocus: space.systemFocus,
   };
   const [controller] = useState(() => createVoyageController(inputs));
-  useEffect(() => controller.sync(inputs));
+  // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must
+  // already see where you are now.
+  useLayoutEffect(() => controller.sync(inputs));
   const recordFrame = useFrameTimeRecorder();
 
   const systemId = inputs.target.systemId;
@@ -210,16 +214,25 @@ function VoyageOverlay({
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
 }) {
+  const shown = anchors.filter((anchor) => anchor.visible);
+  // Bodies orbit and pass close: crowded targets shrink and step apart so each stays a target of its own.
+  const targets = new Map(
+    separateTargets(shown.map((anchor) => ({ id: anchor.id, x: anchor.x, y: anchor.y, size: target.comfortable }))).map(
+      (box) => [box.id, box],
+    ),
+  );
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      {anchors.map((anchor) => {
-        if (!anchor.visible) return null;
+      {shown.map((anchor) => {
+        const box = targets.get(anchor.id)!;
         if (anchor.kind === 'dust')
           return (
             <BodyTarget
               key={anchor.id}
-              x={anchor.x}
-              y={anchor.y}
+              x={box.x}
+              y={box.y}
+              size={box.size}
+              floor={CROWDED_TARGET}
               label="Dust: something is forming"
               onPress={onDust}
               testID={`voyage-dust-${anchor.id}`}
@@ -236,8 +249,10 @@ function VoyageOverlay({
               variant={anchor.kind === 'region' ? 'pill' : 'plain'}
             />
             <BodyTarget
-              x={anchor.x}
-              y={anchor.y}
+              x={box.x}
+              y={box.y}
+              size={box.size}
+              floor={CROWDED_TARGET}
               label={anchor.kind === 'station' ? `${anchor.name}, a room` : anchor.name}
               {...(kind ? { kind } : {})}
               onPress={() => (anchor.kind === 'station' ? onStation(anchor.id) : onPlace(anchor.id))}

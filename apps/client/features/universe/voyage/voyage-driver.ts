@@ -84,7 +84,7 @@ const VIEW_ELEVATION = (30 * Math.PI) / 180;
  * A star is seen from farther than the map's System view framed it: in the prototype its sun is a small bright ball
  * with its planets round it, not a disc filling a third of the screen.
  */
-const STAR_DISTANCE_SCALE = 2.5;
+const STAR_DISTANCE_SCALE = 1.6;
 /** Where each stop holds what it looks at, as a share of the view's height from the top (the prototype's `anchorY`). */
 const HELD_AT: Readonly<Record<Stop, number>> = { universe: 0.455, star: 0.5, planet: 0.415, ground: 0.45 };
 
@@ -313,7 +313,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     globe.mesh.quaternion.setFromRotationMatrix(facing.multiply(turn));
   };
 
-  /** Where the globe should face: a slow spin from orbit, the chosen region (or the first) on the ground. */
+  /** Where the globe should face: on the ground the chosen region (or the first); from orbit a slow spin from the first. */
   const wantedOrientation = (t: number, radiusPx: number) => {
     const planet = worldPlanet();
     const turnLon = control.turn.x / Math.max(radiusPx, 1);
@@ -324,8 +324,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const lon = region === null ? 0 : (region.x / 480) * 2 * Math.PI - Math.PI;
       return { lon: lon + turnLon, lat: clamp((region?.lat ?? 0) - turnLat, -1.2, 1.2) };
     }
+    // From orbit the globe turns slowly, starting with the first formed region facing you.
+    const first = planet?.labels[0];
+    const facing = first === undefined ? 0 : (first.x / 480) * 2 * Math.PI - Math.PI;
     const spin = control.reducedMotion ? 0 : t * SPIN_PER_SECOND;
-    return { lon: spin + turnLon, lat: clamp(-turnLat, -0.95, 0.95) };
+    return { lon: facing + spin + turnLon, lat: clamp((first?.lat ?? 0) * 0.5 - turnLat, -0.95, 0.95) };
   };
 
   return {
