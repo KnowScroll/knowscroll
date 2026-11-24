@@ -95,7 +95,7 @@ function itemFieldsOf(item: Plain): NamedText[] {
 /**
  * The `copied_passage` findings of a reply that is not (yet) a valid `WrittenScrollV3` or `WrittenProseV3`: the reply
  * parsed as JSON, but a field is missing or too long, so the compile (and its copy rule) never ran on it. A model that is
- * only told about that fault keeps its copy through the repair (D-440), so the repair is told about the copies too. The same
+ * only told about that fault keeps its copy through the repair (D-441), so the repair is told about the copies too. The same
  * rule as the compile's strict one, run over whatever strings the reply holds, at the same paths and with the same detail:
  * a run of nine words that also stands in a research text, outside a quotation. It finds only what the compile would also
  * find in a valid reply, and nothing else is judged. Pure; `[]` for anything that is not an object.

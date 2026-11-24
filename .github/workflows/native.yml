@@ -1,7 +1,7 @@
 # The native lane (#249, S6.4 part 1; D-019): builds the Expo Android app on a GitHub-hosted runner and
 # drives it on an Android emulator with Maestro. Evidence from this lane is labelled "emulator".
 #
-# What it is not: one of the six required `checks` jobs (D-020). It never gates a merge, never
+# What it is not: one of the seven required `checks` jobs (D-020). It never gates a merge, never
 # deploys, uses no secret and no signing key (the APK is debug-signed), and never runs on a
 # self-hosted runner (CF-04). Android builds and the emulator run here, never on a developer's Mac.
 #

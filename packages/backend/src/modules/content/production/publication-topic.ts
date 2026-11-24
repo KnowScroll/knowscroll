@@ -189,7 +189,7 @@ function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
  * The pairs of a job's production version and the writer prompt version its Scroll names that the lineage accepts for a recipe's
  * Scroll of this document schema. A pair is the version of the job and the instructions that ran under it, so a Scroll never
  * names a prompt its job did not run. A document v3 of a recipe the plan marks `scrollV3` also accepts the earlier pairs (D-438,
- * D-440): the revisions `scroll-production-v3.v1` and `.v2` wrote keep their lineage after the version moved, and no new job is
+ * D-441): the revisions `scroll-production-v3.v1` and `.v2` wrote keep their lineage after the version moved, and no new job is
  * made at either. Pure.
  */
 export function lineagePairsOf(

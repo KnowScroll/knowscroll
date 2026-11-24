@@ -284,7 +284,7 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
     ['first', SCROLL_PRODUCTION_V3_FIRST_VERSION, 'scroll-writer-v3.v1'],
     ['second', SCROLL_PRODUCTION_V3_SECOND_VERSION, 'scroll-writer-v3.v2'],
   ])(
-    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-440)',
+    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-441)',
     async (_which, earlier, earlierPrompt) => {
       await produce();
       // Make the stored revision what an earlier production version wrote: its job's policy version and the prompt version it named.
@@ -422,7 +422,7 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
       expect(await reviewOf(1)).toMatchObject({ state: 'held' });
     });
 
-    it('tells the repair the part and the words when the copy is the only fault: the fixed hint in the findings, the quoted run in the repair notes (D-440)', async () => {
+    it('tells the repair the part and the words when the copy is the only fault: the fixed hint in the findings, the quoted run in the repair notes (D-441)', async () => {
       const worker = setup((sequence) => (sequence === 1 ? answerWith(copyingParagraph()) : good()));
       const result = await worker.producer()(key, false, signal());
       expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
@@ -437,7 +437,7 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
       expect(worker.writerCalls[0]?.request.user).not.toContain('<repair-notes>');
     });
 
-    it('names the copy to the repair when the first write was refused for its shape too: a chart without its marks hid the copy rule (D-440)', async () => {
+    it('names the copy to the repair when the first write was refused for its shape too: a chart without its marks hid the copy rule (D-441)', async () => {
       const worker = setup((sequence) =>
         sequence === 1 ? answerWith(copyingParagraphAndChartWithoutMarks()) : good(),
       );

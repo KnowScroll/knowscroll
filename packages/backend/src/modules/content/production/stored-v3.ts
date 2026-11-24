@@ -10,7 +10,7 @@ import { WRITER_V3_PROMPT_VERSION } from './writer-v3-version.js';
 /** The most findings a refusal carries, as in the editorial compile. */
 const MOST_ISSUES = 32;
 
-/** A stored refusal keeps the code and the path only: the copy detail (D-440) is for the repair notes and is never stored. */
+/** A stored refusal keeps the code and the path only: the copy detail (D-441) is for the repair notes and is never stored. */
 const asIssues = (issues: readonly AdmissionIssue[]): AdmissionIssue[] =>
   issues.slice(0, MOST_ISSUES).map(({ code, path }) => ({ code, path }));
 

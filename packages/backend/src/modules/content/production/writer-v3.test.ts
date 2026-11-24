@@ -158,7 +158,7 @@ describe('the three roles', () => {
     }
   });
 
-  it('tell the writer of a picture that a chart always has its "marks", in the instructions and in the shape (D-440)', () => {
+  it('tell the writer of a picture that a chart always has its "marks", in the instructions and in the shape (D-441)', () => {
     for (const role of [writerRoleV3One(context()), stagerRoleV3(context(), fixtureProseV3())]) {
       expect(role.instructions, role.version).toContain('A chart always has a "marks" list');
       expect(role.instructions, role.version).toContain('"marks": [] when no point needs one');
@@ -268,7 +268,7 @@ describe('arm a: the whole Scroll in one reply', () => {
     expect(role.repairNotes?.(JSON.stringify({ title: 'not a reply' }))).toBeUndefined();
   });
 
-  it('refuses a reply whose only fault is a copied run, sends the harness the fixed hint, and the repair notes carry the part and the quoted words (D-440)', () => {
+  it('refuses a reply whose only fault is a copied run, sends the harness the fixed hint, and the repair notes carry the part and the quoted words (D-441)', () => {
     const copied = edited(fixtureReplyV3(), (draft) => {
       patch(draft.items, EQUATOR_ITEM, { simple: `${COPIED_SENTENCE} Say it twice.` });
     });

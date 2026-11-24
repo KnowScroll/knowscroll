@@ -26,7 +26,7 @@ import { writerInstructionsV3, type WriterV3Plan, type WriterV3Step } from './wr
 
 /**
  * The versions of the three roles of the document v3 writer: one reply (arm a), prose (arm b step 1), staging (arm b step 2). They
- * moved from `.v1` with D-440, because the role's version names its instructions and its fixed hints, and both changed (the copy hint
+ * moved from `.v1` with D-441, because the role's version names its instructions and its fixed hints, and both changed (the copy hint
  * points to the repair notes, a chart is told it always has its marks).
  */
 export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v2';
@@ -242,7 +242,7 @@ export function compileStagedScrollV3(
 }
 
 /**
- * What the repair is told about a copy finding (D-440): for each item the part that copies and the copied words themselves
+ * What the repair is told about a copy finding (D-441): for each item the part that copies and the copied words themselves
  * (`copyRepairNotesV3`), cut from the research text and never from the model's own words. Rebuilt from the refused answer with the
  * same checks that refused it; and for an answer the shape refused (a field too long, a chart without its marks) and that the compile
  * therefore never read, with the same copy rule over the strings it holds (`looseCopyIssuesV3`), so that a copy the first take was

@@ -272,8 +272,8 @@ A deploy is healthy only when `world`, `commit` and `artifact` match.
 
 ## Build and test (CI)
 
-The `release` job of `checks.yml` does this on every push and PR, after the `build` and `client`
-jobs passed (#228 part 2):
+The `release` job of `checks.yml` does this on every pull request, every push to `dev`, `stage` and
+`main`, and every manual dispatch (D-440), after the `build` and `client` jobs passed (#228 part 2):
 
 1. build the workspace as those jobs do (`nest build` for packages, api and worker; `expo export
    --platform web` for the client);
@@ -286,7 +286,7 @@ jobs passed (#228 part 2):
    wrapper is deterministic with GNU tar (sorted,
    root-owned, timestamps = commit time), but `pnpm deploy` output is not guaranteed byte-stable
    (e.g. `node_modules/.modules.yaml`), so **two builds of one commit can differ: never rely on a
-   rebuild**. The server keeps the first copy and deploy.yml always uses the earliest push run's
+   rebuild**. The server keeps the first copy and deploy.yml always uses the earliest push or dispatch run's
    artifact;
 3. `node scripts/release/smoke.mjs "$RUNNER_TEMP/release/release-<sha>.tar" --start --world dev`
    with `DATABASE_URL` pointing at a fresh database in the job's postgres:16 service — checks the
@@ -317,9 +317,10 @@ New: the commit's generation is read from the commit itself — a v2 commit carr
 `scripts/release/build.mjs` (v1 commits never did; `apps/api` cannot tell them apart because v1 had
 one too). For v2 nothing is built in deploy:
 
-- It waits for a successful `checks` run **triggered by a push** on the commit, and takes
-  `release-<sha>` only from such runs whose repository and head repository are this repository —
-  never from a `pull_request` run, which may run a fork's own workflow (#228 review m3). It uses the
+- It waits for a successful `checks` run **triggered by a push or a manual dispatch** on the commit
+  (D-440), and takes `release-<sha>` only from such runs whose repository and head repository are
+  this repository — never from a `pull_request` run, which may run a fork's own workflow (#228
+  review m3). Only people with write access can dispatch. It uses the
   earliest one; when the server already holds the release (a promotion) it must be that earliest
   run, the one the first deploy used.
 - "Not uploaded" and "expired" are told apart from errors: any API or download error fails the job
@@ -444,11 +445,13 @@ The agent may do this for **dev** (by manual dispatch, below). **Stage** gets v2
 2. `ssh knowscroll-vps ks status`: under `worlds.dev`, `v2Provisioned: true`, `openPoolOrders: 0`,
    v1 `health` ok; `disk.critical: false`; `backups.nightly.ok: true` (a pre-migrate dump is taken
    anyway).
-3. The commit to deploy, `<sha>`, has a **successful push-triggered** `checks` run with the release
-   artifact (the `release` job's summary shows its sha256):
+3. The commit to deploy, `<sha>`, has a **successful push- or dispatch-triggered** `checks` run with
+   the release artifact (the `release` job's summary shows its sha256). A commit on `dev` has a push
+   run. A feature branch has none (D-440): dispatch one with `gh workflow run checks.yml --ref <branch>`
+   and wait for it to pass. A pull request's run never supplies a release.
 
    ```sh
-   gh run list --workflow checks.yml --commit <sha> --event push --json databaseId,conclusion
+   gh run list --workflow checks.yml --commit <sha> --json databaseId,event,conclusion
    gh api repos/KnowScroll/knowscroll/actions/runs/<run-id>/artifacts --jq '.artifacts[] | [.name, .size_in_bytes, .expired]'
    ```
 

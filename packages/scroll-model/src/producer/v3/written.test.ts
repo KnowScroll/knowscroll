@@ -483,7 +483,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
       compiled(marked([]));
     });
 
-    it('refuses a chart written without its "marks" at the reply shape, before any compile (D-440)', () => {
+    it('refuses a chart written without its "marks" at the reply shape, before any compile (D-441)', () => {
       const reply = JSON.parse(JSON.stringify(validReply())) as { pictures: Record<string, unknown>[] };
       reply.pictures[1] = {
         kind: 'chart',
@@ -551,7 +551,7 @@ describe('compileWrittenV3: strict figures (D-208, D-302)', () => {
   });
 });
 
-describe('compileWrittenV3: a copied_passage finding says what was copied (D-440)', () => {
+describe('compileWrittenV3: a copied_passage finding says what was copied (D-441)', () => {
   /** Ten words, as the research writes them, of the heating passage, the steam passage and the page. */
   const HEAT_RUN = 'The element of a kettle turns the electric current that';
   const STEAM_RUN = 'Many kettles switch themselves off when a bimetallic strip senses';

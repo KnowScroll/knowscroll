@@ -71,7 +71,7 @@ describe('writtenReferenceV3', () => {
     }
   });
 
-  it('tells a chart writer that "marks" is always written, and an empty list when no point needs one (D-440)', () => {
+  it('tells a chart writer that "marks" is always written, and an empty list when no point needs one (D-441)', () => {
     for (const arm of ['one', 'staging'] as const) {
       const chart = writtenReferenceV3(arm)
         .split('\n')
