@@ -7,7 +7,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { StyleSheet, View } from 'react-native';
 import { radius, space, spacing } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
-import { createFrameMeter, describeFrames, describeLegs, type FlightLeg, type FrameMeter, type FrameTime } from './frame-meter';
+import {
+  createFrameMeter,
+  describeFrames,
+  describeLegs,
+  type FlightLeg,
+  type FrameMeter,
+  type FrameTime,
+} from './frame-meter';
 
 /** Carries the meter from the readout to the drawing loop below it; null when nobody is reading. */
 const MeterContext = createContext<FrameMeter | null>(null);
