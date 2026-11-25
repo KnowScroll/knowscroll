@@ -1,6 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { tapOrbitingTarget } from './orbiting-target';
-import { frameLine, frameStamps, openVoyage, programCounts, readoutOf, shot, VOYAGE_READS } from './voyage-fixture';
+import {
+  flightLines,
+  frameLine,
+  frameStamps,
+  landed,
+  openVoyage,
+  programCounts,
+  readoutOf,
+  shot,
+  VOYAGE_READS,
+} from './voyage-fixture';
 
 /** How much of each flight is measured: its first 3 s, about the longest flight between two neighbouring stops. */
 const FLIGHT_MS = 3000;
@@ -46,6 +56,7 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   await shot(page, 'voyage-2-star');
 
   from = (await frameStamps(page)).length;
+  await landed(page);
   await tapOrbitingTarget(planet);
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await page.waitForTimeout(3500);
@@ -97,6 +108,19 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   // eslint-disable-next-line no-console -- the numbers go in the pull request
   console.log(line);
   await testInfo.attach('voyage-frame-numbers', { body: line, contentType: 'text/plain' });
+});
+
+test('a flight says where it is going while it flies, and the line goes when it lands', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openVoyage(page, [], { flightLines: true });
+  const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+  await system.click();
+  // What the line said is kept as it appears, so the test never has to catch a moment inside the flight. (Skipping a
+  // flight is the driver's, tested with its unit tests.)
+  await expect.poll(() => flightLines(page), { timeout: 30_000 }).toEqual(['Going to CI system 0 · tap to skip']);
+  await landed(page);
+  await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible();
 });
 
 test('with reduced motion every stop is drawn at once, and the globe’s regions are still there', async ({ page }) => {
@@ -282,6 +306,7 @@ test.describe('on a touch screen', () => {
     });
 
     // Closing them climbs one stop, back to the whole universe.
+    await landed(page);
     await pinch(page, { x: 195, y: 422 }, 220, 60);
     await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toHaveCount(0, {
       timeout: 30_000,

@@ -46,7 +46,10 @@ export function makeSun(radius: number, context: SceneContext): BuiltSun {
   let bloomShare = 1;
   let glowShare = 1;
   let bodyShare = 1;
+  /** The scene time of the last tick: a change of share is shown at once by ticking again at it. */
+  let lastT = 0;
   const tick = (t: number): void => {
+    lastT = t;
     const pulse = 1 + 0.05 * Math.sin(t * 1.3);
     inner.scale.setScalar(radius * 4.2 * pulse * glowShare * bodyShare);
     bloom.scale.setScalar(radius * 22 * (2 - pulse) * bloomShare * bodyShare);
@@ -58,8 +61,13 @@ export function makeSun(radius: number, context: SceneContext): BuiltSun {
     setCloseUp(bloom, glow, body = 1) {
       bloomShare = Math.max(bloom, 1e-3);
       glowShare = Math.max(glow, 1e-3);
-      bodyShare = Math.max(body, 1e-3);
+      const share = Math.max(body, 1e-3);
+      if (share === bodyShare) return;
+      bodyShare = share;
       core.scale.setScalar(bodyShare);
+      // Only the trial look changes the sun's own share, after the scene has ticked; under reduced motion it draws one
+      // still frame, so the new size has to be in that frame, not the next.
+      tick(lastT);
     },
   };
 }

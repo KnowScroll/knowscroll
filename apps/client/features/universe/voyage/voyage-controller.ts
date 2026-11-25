@@ -87,6 +87,8 @@ export interface VoyageInputs {
   readonly onStation?: (id: string) => void;
   /** Told of each flight once it lands, when the frame-rate readout is on. */
   readonly onFlight?: (leg: FlightLeg) => void;
+  /** Told when a flight starts and when it lands, so the screen can say where it is going. */
+  readonly onFlying?: (flying: boolean) => void;
 }
 
 /** The nearest visible anchor of one of `kinds` to a point on screen. */
@@ -145,6 +147,15 @@ const shipTargets = (anchors: readonly SpaceAnchor[]) =>
     .filter((anchor) => anchor.visible && anchor.kind !== 'dust')
     .map((anchor) => ({ id: anchor.id, x: anchor.x, y: anchor.y }));
 
+/**
+ * The region the ship stands on at the ground: the one chosen, else the first formed region, which the camera comes
+ * down over (the prototype stands it on the region you landed on). Null above the ground.
+ */
+export function standsOn(inputs: Pick<VoyageInputs, 'target' | 'planet'>): string | null {
+  if (inputs.target.stop !== 'ground') return null;
+  return inputs.target.regionId ?? inputs.planet?.labels[0]?.objectId ?? null;
+}
+
 /** Where the ship parks at each stop: standing on the region you landed on, round the globe, or low in the sky. */
 export function homeOf(
   frame: Pick<VoyageFrame, 'globe' | 'size'>,
@@ -190,6 +201,8 @@ export interface VoyageController {
   wheel(deltaY: number): void;
   /** A key the focused map heard. Returns whether it acted on it. */
   key(name: string): boolean;
+  /** Ends the flight under way at once: the camera is where it was going. A property, so the stage can hand it on. */
+  readonly skip: () => void;
   /** Stops what the controller started outside React (the wheel's rest timer). Call it when the stage goes. */
   dispose(): void;
 }
@@ -212,6 +225,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   let held: { x: number; y: number } | null = null;
   let seconds = 0;
   const legs = createFlightLegs(first.target);
+  /** A flight was under way in the last frame. */
+  let flying = false;
 
   const control: VoyageControl = {
     target: first.target,
@@ -223,6 +238,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     systemFocus: first.systemFocus,
     lean: { x: 0, y: 0 },
     zoom: null,
+    skips: 0,
     afterFrame: (frame): DrawnShip => {
       seconds += frame.dt;
       pinch.frame(frame.dt);
@@ -230,7 +246,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       ship = stepShip(
         ship,
         {
-          home: homeOf(frame, anchors, inputs.target.regionId, seconds, inputs.reducedMotion),
+          home: homeOf(frame, anchors, standsOn(inputs), seconds, inputs.reducedMotion),
           drag: held,
           targets: shipTargets(anchors),
           // A pinch moves the camera under the ship, so it goes, as it does for a flight (the prototype's `zoomBusy`).
@@ -248,6 +264,10 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         frame.dt,
       );
       control.lean = ship.lean;
+      if (frame.flying !== flying) {
+        flying = frame.flying;
+        inputs.onFlying?.(flying);
+      }
       const landed = legs.frame(frame.flying, frame.programs, performance.now());
       if (landed !== null) inputs.onFlight?.(landed);
       const caught = ship.candidate === null ? undefined : anchors.find((anchor) => anchor.id === ship.candidate);
@@ -403,6 +423,9 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       const action = Object.hasOwn(actions, name) ? actions[name] : undefined;
       action?.();
       return action !== undefined;
+    },
+    skip() {
+      control.skips += 1;
     },
     dispose() {
       clearTimeout(wheelTimer);

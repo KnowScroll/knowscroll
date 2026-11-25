@@ -5,9 +5,10 @@
  * globe and the ship are the driver's (`voyage-driver.ts`); the gestures are the controller's.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 import { chartWorld } from '@knowscroll/scene-core';
-import { target } from '@knowscroll/design-tokens';
+import { space, spacing, target } from '@knowscroll/design-tokens';
+import { Text } from '@knowscroll/ui';
 import { useFlightRecorder, useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
 import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
@@ -22,12 +23,14 @@ import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { STOPS, targetOf } from './ladder';
-import { createVoyageController, type VoyageInputs } from './voyage-controller';
+import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
 import { labelPoints } from './world-texture';
 
 /** How far below a region's point its name sits, in points. */
 const REGION_NAME_GAP = 14;
+/** The "you are here" pill sits this far below its region's point, just under the ship standing there. */
+const HERE_GAP = 6;
 /** A region's name is a pill: its sides take this much more than plain text (`MapLabel`'s pill padding). */
 const PILL_PADDING = 20;
 /** A star's sun keeps names off its glow as well as its disc: this many of its radii. */
@@ -61,9 +64,12 @@ export function VoyageStage({
   stations,
   onStation,
   onUnavailable,
+  visitor = false,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
+  /** A friend's Universe: their planets are drawn with every continent in colour and no region named or tappable. */
+  readonly visitor?: boolean;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -81,8 +87,9 @@ export function VoyageStage({
       }),
     [index, looks, stations, state.dust.cues, state.lately],
   );
-  const planet = usePlanetSurface(session, state, index, view);
+  const planet = usePlanetSurface(session, state, index, view, visitor);
   const recordFlight = useFlightRecorder();
+  const [flying, setFlying] = useState(false);
   const inputs: VoyageInputs = {
     session,
     view,
@@ -99,6 +106,7 @@ export function VoyageStage({
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),
     ...(recordFlight ? { onFlight: recordFlight } : {}),
+    onFlying: setFlying,
   };
   const [controller] = useState(() => createVoyageController(inputs));
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must
@@ -111,6 +119,8 @@ export function VoyageStage({
   const stop = inputs.target.stop;
   /** The place the camera is at: its name wins a crowded spot. */
   const focusId = inputs.target.regionId ?? inputs.target.planetId ?? inputs.target.systemId;
+  /** On the ground, the region the ship stands on: its name is a "you are here" pill under the ship. */
+  const hereId = standsOn(inputs);
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
   // you are, of what you turned or of the planet's world must be one. `redraw` only changes the camera's identity when
   // any of those does; the driver does not read it.
@@ -141,6 +151,7 @@ export function VoyageStage({
           keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
           size={size}
           focusId={focusId}
+          hereId={hereId}
           onAnchors={controller.setAnchors}
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
@@ -148,7 +159,7 @@ export function VoyageStage({
         />
       );
     },
-    [controller, session, onStation, onDust, stop, systemId, size, focusId],
+    [controller, session, onStation, onDust, stop, systemId, size, focusId, hereId],
   );
 
   const stage = useRef<ComponentRef<typeof View>>(null);
@@ -195,7 +206,64 @@ export function VoyageStage({
         fallback={(reason) => <Unavailable reason={reason} onUnavailable={onUnavailable} />}
         {...(recordFrame ? { onFrameTime: recordFrame } : {})}
       />
+      <FlightLine to={flying ? destinationOf(view, visitor) : null} size={size} onSkip={controller.skip} />
     </View>
+  );
+}
+
+/** Where a flight to `view` goes, as the flight line says it. A visitor's whole universe is their friend's, not theirs. */
+const destinationOf = (view: UniverseView, visitor: boolean): string => {
+  if (view.kind === 'universe') return visitor ? 'the whole universe' : 'your universe';
+  if (view.kind === 'system') return view.system.label;
+  return view.selectedRegion?.label ?? view.planet.label;
+};
+
+/** How far down the flight line sits: the prototype's 226 points on a phone, a fifth of the height on a desktop. */
+const FLIGHT_LINE_TOP = { phone: 226, desktopShare: 0.2 } as const;
+
+/**
+ * While the camera flies (`to` is where; null between flights): one line saying where it is going, read out once, and a
+ * tap anywhere skips to the end of the flight (the prototype's `skip`). The places are moving under the finger then, so
+ * a tap is never taken for one of them. The tap target is named by the line itself, which is all a person sees of it.
+ */
+function FlightLine({
+  to,
+  size,
+  onSkip,
+}: {
+  readonly to: string | null;
+  readonly size: { readonly width: number; readonly height: number };
+  readonly onSkip: () => void;
+}) {
+  const top = size.width >= DESKTOP_WIDTH ? size.height * FLIGHT_LINE_TOP.desktopShare : FLIGHT_LINE_TOP.phone;
+  const line = to === null ? null : `Going to ${to} · tap to skip`;
+  return (
+    <>
+      {line === null ? null : (
+        // Not in the keyboard's tab order: it goes away on landing, and focus on it would fall to the page.
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel={line}
+          focusable={false}
+          onPress={onSkip}
+          testID="voyage-skip"
+        />
+      )}
+      {/* Always there, so a screen reader hears the line when it appears, once; empty between flights. */}
+      <View
+        pointerEvents="none"
+        style={[styles.flightLine, { top }]}
+        accessibilityLiveRegion="polite"
+        testID="voyage-flight-line"
+      >
+        {line === null ? null : (
+          <Text variant="label" color={space.label} align="center" testID="voyage-flight">
+            {line}
+          </Text>
+        )}
+      </View>
+    </>
   );
 }
 
@@ -205,6 +273,7 @@ function usePlanetSurface(
   state: SceneProps['state'],
   index: SceneProps['index'],
   view: UniverseView,
+  visitor: boolean,
 ): VoyagePlanet | null {
   const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
@@ -215,21 +284,26 @@ function usePlanetSurface(
   const globe = useGlobeWorld(session, plan?.spec);
   return useMemo(() => {
     if (!planet || !plan || globe.status !== 'ready') return null;
-    const chart = chartWorld(globe.world, plan.sites);
+    // A friend shares no regions: their planet wears every continent in colour, as the old globe drew it, so it neither
+    // looks unreached nor shows which places they have. Nothing on it is named, so nothing is tappable either.
+    const charted = visitor
+      ? Array.from({ length: plan.spec.siteCount }, (_, site) => ({ objectId: `${planet.objectId}:${site}`, site }))
+      : plan.sites;
+    const chart = chartWorld(globe.world, charted);
     const names = new Map((index.regions.get(planet.objectId) ?? []).map((region) => [region.objectId, region.label]));
     const hueShift = plan.look?.hueShift ?? 0;
     // Everything the painted texture depends on: a new look (its type or hue) repaints the globe as a new chart does.
-    const sites = plan.sites.map((site) => `${site.objectId}:${String(site.site)}`).join(',');
+    const sites = charted.map((site) => `${site.objectId}:${String(site.site)}`).join(',');
     return {
       key: `${planet.objectId}|${plan.spec.type}|${String(hueShift)}|${sites}`,
       planetId: planet.objectId,
       world: globe.world,
       chart,
       palette: paletteOf(plan.spec.type, hueShift),
-      labels: labelPoints(chart),
+      labels: visitor ? [] : labelPoints(chart),
       names,
     };
-  }, [planet, plan, globe, index]);
+  }, [planet, plan, globe, index, visitor]);
 }
 
 /** A box no name may cover: the square round a body, `share` of its radius out from its middle. */
@@ -262,16 +336,25 @@ function placeNames(
   anchors: readonly SpaceAnchor[],
   size: { readonly width: number; readonly height: number },
   focusId: string | null,
+  hereId: string | null,
   keepOff: readonly Box[],
 ) {
   const bands = size.width >= DESKTOP_WIDTH ? LABEL_BANDS.desktop : LABEL_BANDS.phone;
   const requests: LabelRequest[] = anchors.map((anchor) => ({
     id: anchor.id,
     anchor: { x: anchor.x, y: anchor.y },
-    clearance: anchor.kind === 'region' ? REGION_NAME_GAP : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
-    width: anchor.kind === 'region' ? labelWidth(captioned(anchor), PILL_PADDING) : labelWidth(captioned(anchor)),
+    clearance:
+      anchor.id === hereId
+        ? HERE_GAP
+        : anchor.kind === 'region'
+          ? REGION_NAME_GAP
+          : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
+    width:
+      anchor.id === hereId
+        ? labelWidth(writtenName(anchor, hereId), PILL_PADDING)
+        : labelWidth(writtenName(anchor, hereId)),
     height: LABEL_HEIGHT,
-    priority: (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
+    priority: (anchor.id === hereId ? 8 : 0) + (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
   }));
   return new Map(
     placeLabels(requests, size, [
@@ -282,6 +365,10 @@ function placeNames(
   );
 }
 
+/** The name written beside a place: the region the ship stands on says so, as the prototype's pill does. */
+const writtenName = (anchor: SpaceAnchor, hereId: string | null): string =>
+  anchor.id === hereId ? `${anchor.name} · you are here` : captioned(anchor);
+
 /** A box on screen, in layout points. */
 type Box = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 
@@ -291,6 +378,7 @@ function VoyageOverlay({
   keepOff,
   size,
   focusId,
+  hereId,
   onAnchors,
   onPlace,
   onStation,
@@ -303,6 +391,8 @@ function VoyageOverlay({
   readonly keepOff: readonly Box[];
   readonly size: { readonly width: number; readonly height: number };
   readonly focusId: string | null;
+  /** The region the ship stands on, named "you are here" under it; null above the ground. */
+  readonly hereId: string | null;
   /** Told the places this stop names after each frame is shown: what the ship and the gestures can reach. */
   readonly onAnchors: (anchors: readonly SpaceAnchor[]) => void;
   readonly onPlace: (id: string) => void;
@@ -315,6 +405,7 @@ function VoyageOverlay({
     shown.filter((anchor) => written.includes(anchor.kind)),
     size,
     focusId,
+    hereId,
     keepOff,
   );
   // Bodies orbit and pass close: crowded targets shrink and step apart so each stays a target of its own.
@@ -345,7 +436,11 @@ function VoyageOverlay({
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             {name === undefined ? null : (
-              <MapLabel label={name} text={captioned(anchor)} variant={anchor.kind === 'region' ? 'pill' : 'plain'} />
+              <MapLabel
+                label={name}
+                text={writtenName(anchor, hereId)}
+                variant={anchor.id === hereId ? 'here' : anchor.kind === 'region' ? 'land' : 'plain'}
+              />
             )}
             <BodyTarget
               x={box.x}
@@ -363,3 +458,7 @@ function VoyageOverlay({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flightLine: { position: 'absolute', left: spacing[4], right: spacing[4] },
+});

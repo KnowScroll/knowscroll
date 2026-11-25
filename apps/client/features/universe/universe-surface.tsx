@@ -49,6 +49,8 @@ const CAPTION_GAP = 8;
 
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
+/** The new look's hint under a globe: the prototype's, with no mark beside it. */
+const VOYAGE_HINT_COLOUR = '#9CE8F0';
 
 /**
  * A friend's universe seen as a visitor (U06): the visitor bar goes on top, the map is named after its
@@ -355,12 +357,14 @@ export function UniverseSurface({
         </Text>
         {shown.planet.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
         <View style={compactCaption ? styles.globeHintCompact : styles.globeHint}>
-          <View style={compactCaption ? styles.hintMarkCompact : styles.hintMark} aria-hidden>
-            <Text variant="meta" color={HINT_COLOUR}>
-              ↔
-            </Text>
-          </View>
-          <Text variant="uiS" color={HINT_COLOUR}>
+          {voyage ? null : (
+            <View style={compactCaption ? styles.hintMarkCompact : styles.hintMark} aria-hidden>
+              <Text variant="meta" color={HINT_COLOUR}>
+                ↔
+              </Text>
+            </View>
+          )}
+          <Text variant="uiS" color={voyage ? VOYAGE_HINT_COLOUR : HINT_COLOUR}>
             {visitor ? 'Drag to rotate' : 'Drag to rotate · tap to land'}
           </Text>
         </View>
@@ -384,10 +388,19 @@ export function UniverseSurface({
           return other ? [{ route, other }] : [];
         })
       : [];
+  // The map as it ships offers the way back from the whole universe only. The new look offers it wherever the ship is
+  // parked somewhere other than the place in view (the prototype's "Return to"), never for where you already are.
+  const showsReturn = (shown: UniverseView, id: string): boolean => {
+    if (id === state.focusId) return false;
+    if (!voyage) return shown.kind === 'universe';
+    const here =
+      shown.kind === 'planet' ? shown.planet.objectId : shown.kind === 'system' ? shown.system.objectId : null;
+    return id !== here;
+  };
   const chipsOf = (shown: UniverseView): ReactNode =>
     !card && !sheet && !searching ? (
       <View style={styles.chips}>
-        {shown.kind === 'universe' && returnTo && returnTo.id !== state.focusId ? (
+        {returnTo && showsReturn(shown, returnTo.id) ? (
           <SpaceChip
             testID="universe-return"
             variant="solid"

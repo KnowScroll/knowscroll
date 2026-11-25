@@ -35,9 +35,14 @@ const visitAnswer = (body: Record<string, unknown>) => ({
   },
 });
 
-async function openVisit(page: Page, size: { width: number; height: number }) {
+async function openVisit(page: Page, size: { width: number; height: number }, options: { trial?: boolean } = {}) {
   await page.setViewportSize(size);
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  // "Try the new Universe" (Settings → Accessibility) draws a friend's Universe in the new look too.
+  if (options.trial === true)
+    await page.addInitScript(() =>
+      window.localStorage.setItem('ks.device.preferences', JSON.stringify({ universeTrial: true })),
+    );
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );
@@ -105,5 +110,27 @@ test('a desktop: the rail is kept with Universe current', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Universe', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Keep', exact: true })).toBeVisible();
   if (shots) await page.screenshot({ path: `${shots}/visit-desktop.png` });
+  await expectNoSeriousViolations(page);
+});
+
+test('a friend’s universe in the new look: their systems and planets, every continent in colour, nothing on a planet named', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openVisit(page, { width: 390, height: 844 }, { trial: true });
+  await expect(page.getByTestId('voyage-stage')).toBeVisible({ timeout: 60_000 });
+  const system = page.getByRole('button', { name: 'Machine learning, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+  await system.click();
+  const planet = page.getByRole('button', { name: 'Inference, a planet', exact: true });
+  await expect(planet).toBeVisible({ timeout: 30_000 });
+  await planet.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Inference', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  // A visit shares no regions: the globe is drawn, but no region is named, tappable or read out.
+  await page.waitForTimeout(2000);
+  await expect(page.getByRole('button', { name: /, a region$/ })).toHaveCount(0);
+  if (shots) await page.screenshot({ path: `${shots}/visit-new-look-planet-390x844.png` });
   await expectNoSeriousViolations(page);
 });
