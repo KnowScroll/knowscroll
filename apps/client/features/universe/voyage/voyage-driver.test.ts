@@ -172,6 +172,60 @@ describe('the voyage driver camera', () => {
   });
 });
 
+describe('a pinch', () => {
+  it('moves the camera with the fingers, toward the place under them, and eases back when let go short of a stop', () => {
+    const r = rig(target('universe', null));
+    r.step();
+    const atRest = r.step();
+    const restAim = r.driver.pose(0, r.space, size).target;
+    r.control.zoom = { scale: 0.6, toward: second.id };
+    const pinched = r.step();
+    expect(pinched).toBeCloseTo(atRest * 0.6);
+    // Pinched past the step (1 / 1.4), the camera aims at the second star, not at the middle of the universe.
+    const starAim = chainOf(target('star', second.id), { ...r.control, planetAt: () => undefined }, size).chain[0]!
+      .point;
+    const aim = r.driver.pose(0, r.space, size).target;
+    expect(Math.hypot(aim[0] - starAim[0], aim[2] - starAim[2])).toBeLessThan(
+      Math.hypot(restAim[0] - starAim[0], restAim[2] - starAim[2]) / 4,
+    );
+    r.control.zoom = null;
+    const easing = [r.step(), r.step(), r.step()];
+    expect(easing[0]).toBeGreaterThan(pinched);
+    expect(easing[2]).toBeGreaterThan(easing[0]);
+    for (let i = 0; i < 90; i += 1) r.step();
+    expect(r.step()).toBeCloseTo(atRest, 1);
+    expect(r.last().flying).toBe(false);
+  });
+
+  it('hands the flight it asks for the distance it left the camera at, and that flight is quicker', () => {
+    const plain = rig(target('universe', null));
+    plain.step();
+    plain.control.target = target('star', second.id);
+    const plainFlight = plain.settle().length;
+
+    const r = rig(target('universe', null));
+    r.step();
+    r.control.zoom = { scale: 0.6, toward: second.id };
+    const pinched = r.step();
+    // The fingers lift and the screen asks for the star: the flight starts from where the pinch left the camera.
+    r.control.target = target('star', second.id);
+    r.control.zoom = null;
+    const first = r.step();
+    expect(Math.abs(first - pinched) / pinched).toBeLessThan(0.1);
+    expect(r.settle().length).toBeLessThan(plainFlight);
+  });
+
+  it('never takes the camera inside a planet', () => {
+    const r = rig(target('ground', base.id, PLANET));
+    r.control.zoom = { scale: 0.05, toward: null };
+    r.step();
+    const body = r.built.script.planet(PLANET)!;
+    const centre = body.object.getWorldPosition(new THREE.Vector3());
+    const pose = r.driver.pose(r.frames.length / 30 + 1 / 30, r.space, size);
+    expect(new THREE.Vector3(...pose.position).distanceTo(centre)).toBeGreaterThan(body.radius);
+  });
+});
+
 describe('the globe of a planet', () => {
   it('takes over near the planet, then gives the painted planet back when the camera leaves', () => {
     const r = rig(target('star', base.id));
