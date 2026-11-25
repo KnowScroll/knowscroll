@@ -63,6 +63,7 @@ function rig(initial: VoyageTarget) {
     systemFocus: () => undefined,
     lean: { x: 0, y: 0 },
     zoom: null,
+    skips: 0,
   };
   const built = buildSpace(SAMPLE_SPACE, size.width / size.height, 1);
   const space: BuiltSpace = { ...built };
