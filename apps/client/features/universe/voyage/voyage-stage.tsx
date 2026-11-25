@@ -350,7 +350,9 @@ function placeNames(
           ? REGION_NAME_GAP
           : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
     width:
-      anchor.kind === 'region' ? labelWidth(writtenName(anchor, hereId), PILL_PADDING) : labelWidth(captioned(anchor)),
+      anchor.id === hereId
+        ? labelWidth(writtenName(anchor, hereId), PILL_PADDING)
+        : labelWidth(writtenName(anchor, hereId)),
     height: LABEL_HEIGHT,
     priority: (anchor.id === hereId ? 8 : 0) + (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
   }));
@@ -437,7 +439,7 @@ function VoyageOverlay({
               <MapLabel
                 label={name}
                 text={writtenName(anchor, hereId)}
-                variant={anchor.id === hereId ? 'here' : anchor.kind === 'region' ? 'pill' : 'plain'}
+                variant={anchor.id === hereId ? 'here' : anchor.kind === 'region' ? 'land' : 'plain'}
               />
             )}
             <BodyTarget

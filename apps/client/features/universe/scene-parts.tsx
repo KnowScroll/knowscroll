@@ -21,6 +21,8 @@ export interface SceneProps {
 }
 
 /** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */
+/** The cream halo round a name on land (the prototype's `#FFFDF2`, stroked 4 wide): it reads on sea and land alike. */
+const LAND_HALO = '#FFFDF2';
 export const labelWidth = (text: string, padding = 8) => Math.ceil(text.length * 7.3) + padding;
 export const LABEL_HEIGHT = 20;
 
@@ -90,10 +92,11 @@ export function MapLabel({
 }: {
   readonly label: PlacedLabel;
   readonly text: string;
-  readonly variant?: 'plain' | 'pill' | 'selected' | 'here';
+  /** `land`: a name written on a planet's land in the new look, ink with a cream halo, as the prototype draws it. */
+  readonly variant?: 'plain' | 'pill' | 'selected' | 'here' | 'land';
   readonly calm?: boolean;
 }) {
-  const pill = variant !== 'plain';
+  const pill = variant !== 'plain' && variant !== 'land';
   return (
     <View
       pointerEvents="none"
@@ -106,10 +109,16 @@ export function MapLabel({
     >
       <Text
         variant="spaceLabel"
-        color={variant === 'selected' || variant === 'here' ? content.ink : calm ? space.label2 : space.label}
+        color={
+          variant === 'selected' || variant === 'here' || variant === 'land'
+            ? content.ink
+            : calm
+              ? space.label2
+              : space.label
+        }
         align="center"
         numberOfLines={1}
-        style={pill ? null : styles.plainText}
+        style={variant === 'land' ? styles.landText : pill ? null : styles.plainText}
       >
         {text}
       </Text>
@@ -132,4 +141,5 @@ const styles = StyleSheet.create({
   pill: { backgroundColor: space.labelChip, borderRadius: 13, paddingHorizontal: 6 },
   selectedPill: { backgroundColor: space.focus },
   plainText: { textShadowColor: space.s0, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } },
+  landText: { textShadowColor: LAND_HALO, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } },
 });
