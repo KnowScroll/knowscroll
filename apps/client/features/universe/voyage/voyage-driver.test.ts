@@ -22,7 +22,10 @@ const PLANET = 'sample-planet-one';
 
 const sites = [0, 2, 3, 5, 8];
 const world = buildGlobe({ seed: '1234567890abcdef1234567890abcdef', type: 'lush', variant: 0, siteCount: 12 });
-const chart = chartWorld(world, sites.map((site) => ({ objectId: `region-${site}`, site })));
+const chart = chartWorld(
+  world,
+  sites.map((site) => ({ objectId: `region-${site}`, site })),
+);
 const voyagePlanet: VoyagePlanet = {
   key: 'p1',
   planetId: PLANET,
@@ -108,7 +111,16 @@ function rig(initial: VoyageTarget) {
     return distances;
   };
   return {
-    built, space, control, driver, frames, showOnly, renderer, compileAsync, step, settle,
+    built,
+    space,
+    control,
+    driver,
+    frames,
+    showOnly,
+    renderer,
+    compileAsync,
+    step,
+    settle,
     stopDistance: (to: VoyageTarget) => chainOf(to, places, size).stopDistance,
     last: () => frames[frames.length - 1]!,
     bodyVisible: (id: string) => built.script.planet(id)?.object.visible,

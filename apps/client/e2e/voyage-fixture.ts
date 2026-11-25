@@ -90,7 +90,9 @@ function countPrograms(): void {
 
 /** The shader programs linked and freed so far (see {@link VoyageOptions.programs}). */
 export const programCounts = (page: Page): Promise<{ linked: number; deleted: number }> =>
-  page.evaluate(() => ({ ...(window as unknown as { __ksPrograms: { linked: number; deleted: number } }).__ksPrograms }));
+  page.evaluate(() => ({
+    ...(window as unknown as { __ksPrograms: { linked: number; deleted: number } }).__ksPrograms,
+  }));
 
 /** The frame stamps recorded so far (see {@link VoyageOptions.stamps}). */
 export const frameStamps = (page: Page): Promise<number[]> =>

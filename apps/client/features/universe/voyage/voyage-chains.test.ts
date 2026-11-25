@@ -75,7 +75,8 @@ describe('making a chain increase', () => {
 });
 
 describe('the peak of a flight', () => {
-  const from = (id: string, planetId: string | null = null) => chainOf(at(planetId ? 'planet' : 'star', id, planetId), places, size);
+  const from = (id: string, planetId: string | null = null) =>
+    chainOf(at(planetId ? 'planet' : 'star', id, planetId), places, size);
 
   it('is null when one end is inside the other', () => {
     expect(peakOf(from('s1', 'p1'), from('s1'))).toBeNull();
