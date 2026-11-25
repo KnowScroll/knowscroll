@@ -514,7 +514,14 @@ float over it.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live.
   - It drives the map's own scene through `SpaceView` with a camera driver (`voyage-driver.ts`, `SpaceCameraDriver`
-    in `space-renderer.ts`); without the switch nothing of it runs and the animated steps down play as before.
+    in `space-renderer.ts`); without the switch nothing of it runs and the animated steps down play as before. The
+    driver is made of parts: where places stand (`voyage-chains.ts`, pure), which way the camera looks
+    (`voyage-view.ts`), the planet as one world (`planet-close-up.ts`) and the ship; `voyage-control.ts` is what the
+    stage and the driver say to each other. The per-stop facts are one table (`STOPS` in `ladder.ts`).
+  - **No stall from a rebuilt scene.** A flight never rebuilds the scene (the voyage's layout leaves out the last
+    place, which only parks the old map's rocket). When a scene must be rebuilt (a place formed, Lately), the renderer
+    takes the new scene's shader programs while the old one still holds them, so none is linked again mid-flight; the
+    globe's program is compiled ahead. The browser spec checks that no flight frees a program.
   - Not yet: the stations' own look, the search card, the list, a friend's Universe, desktop, tablet.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers; checks Escape, Light against Dark and the plain-lists

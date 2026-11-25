@@ -31,6 +31,8 @@ export interface VoyageOptions {
   readonly appearance?: 'light' | 'dark';
   /** Stamp every frame the scene draws, for {@link frameStamps}. */
   readonly stamps?: boolean;
+  /** Count the shader programs WebGL links and frees, for {@link programCounts}. */
+  readonly programs?: boolean;
 }
 
 /**
@@ -61,6 +63,34 @@ function stampFrames(): void {
     clear.call(this, mask);
   };
 }
+
+/**
+ * Counts the shader programs linked and freed. three.js frees a program when no material uses it any more, so a scene
+ * rebuilt in the middle of a flight shows here as programs freed and linked again: a stall of hundreds of milliseconds.
+ */
+function countPrograms(): void {
+  const counts = { linked: 0, deleted: 0 };
+  (window as unknown as { __ksPrograms: typeof counts }).__ksPrograms = counts;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
+  const link = WebGL2RenderingContext.prototype.linkProgram;
+  WebGL2RenderingContext.prototype.linkProgram = function (this: WebGL2RenderingContext, program: WebGLProgram): void {
+    counts.linked += 1;
+    link.call(this, program);
+  };
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
+  const remove = WebGL2RenderingContext.prototype.deleteProgram;
+  WebGL2RenderingContext.prototype.deleteProgram = function (
+    this: WebGL2RenderingContext,
+    program: WebGLProgram | null,
+  ): void {
+    counts.deleted += 1;
+    remove.call(this, program);
+  };
+}
+
+/** The shader programs linked and freed so far (see {@link VoyageOptions.programs}). */
+export const programCounts = (page: Page): Promise<{ linked: number; deleted: number }> =>
+  page.evaluate(() => ({ ...(window as unknown as { __ksPrograms: { linked: number; deleted: number } }).__ksPrograms }));
 
 /** The frame stamps recorded so far (see {@link VoyageOptions.stamps}). */
 export const frameStamps = (page: Page): Promise<number[]> =>
@@ -107,6 +137,7 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
     JSON.stringify(preferences),
   );
   if (options.stamps === true) await page.addInitScript(stampFrames);
+  if (options.programs === true) await page.addInitScript(countPrograms);
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );
