@@ -147,7 +147,8 @@ for (const [why, prepare] of NO_3D)
     await page.addInitScript(prepare);
     await openVoyage(page, []);
     await expect(page.getByTestId('universe-simple')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole('button', { name: /^CI system 0\b/ }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'CI system 0', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true })).toBeVisible();
   });
 
 test('with the trial on, a lost WebGL context at a star swaps in the plain lists of that star', async ({ page }) => {
