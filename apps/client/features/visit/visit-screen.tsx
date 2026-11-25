@@ -13,6 +13,7 @@ import { UniverseBackdrop } from '../universe/universe-backdrop';
 import { indexUniverse } from '../universe/universe-layout';
 import { UniverseSurface } from '../universe/universe-surface';
 import { useUniverseBack } from '../universe/use-universe-back';
+import { useUniverseTrial } from '../universe/universe-trial';
 import type { VisitMapSession } from './visit-map-session';
 import { useVisitSessions } from './use-visit-sessions';
 import { VisitFrame } from './visit-frame';
@@ -62,6 +63,8 @@ function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readon
 }
 
 function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: VisitMapSession }) {
+  // The Universe's new look on trial (a switch on this device) draws a friend's Universe too.
+  const trial = useUniverseTrial();
   const router = useRouter();
   const { reducedMotion } = useDisplay();
   const state = useSyncExternalStore(visit.subscribe, visit.getState, visit.getState);
@@ -105,6 +108,7 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
         session={map}
         state={mapState}
         index={index}
+        voyage={trial.on}
         status={state.stale ? 'Last list shown' : undefined}
         visitor={{
           ownerName: owner.displayName,

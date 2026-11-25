@@ -82,6 +82,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
    * so the flight that starts then is known to be a pinch's by this.
    */
   let pinchedLastFrame = false;
+  /** {@link VoyageControl.skips} as last seen: a larger count ends the flight under way. */
+  let skipsSeen = 0;
   /** The last planet the screen gave: kept while a flight leaves it, so its globe does not drop to the painted body. */
   let lastPlanet: VoyagePlanet | null = null;
   /** The planet drawn as a world now: the screen's, or the one a flight is still leaving. */
@@ -162,6 +164,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       lastT = t;
       lastDt = dt;
       const places = placesOf(space);
+      // A tap during a flight skips to its end (the prototype's `skip`): the camera is where it was going.
+      if (control.skips !== skipsSeen) {
+        skipsSeen = control.skips;
+        flight = null;
+      }
       // A new flight leaves from where the camera stands and looks, a pinch's zoom included, and carries it from there.
       if (retarget(places, size, pinchedLastFrame || control.zoom !== null)) zoom = 1;
       pinchedLastFrame = control.zoom !== null;
