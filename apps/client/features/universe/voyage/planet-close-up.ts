@@ -13,7 +13,7 @@ import { wrapAngle } from './flight';
 import { createGlobe, localPointOf } from './globe';
 import type { ViewSize } from './voyage-chains';
 import type { GlobeOnScreen, VoyageControl, VoyagePlanet } from './voyage-control';
-import { BAND_WIDTH, createWorldPainter, type WorldPainter } from './world-texture';
+import { BAND_WIDTH, createWorldPainter, worldLookOf, type WorldPainter } from './world-texture';
 
 /**
  * The textures of a planet's world, painted a few milliseconds per frame: a quick one so the globe has its continents
@@ -168,7 +168,12 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
       painting = { key: world.key, size: 0, painter: createWorldPainter({ ...world, ...TEXTURES[0] }) };
       painted = null;
       globe.setTexture(null);
-      globe.setColours({ sea: world.palette.sea[0], cap: world.palette.cloud[0], air: world.palette.atmosphere });
+      globe.setColours({
+        sea: world.palette.sea[0],
+        cap: world.palette.cloud[0],
+        air: world.palette.atmosphere,
+        look: worldLookOf(world.palette),
+      });
     } else if (painting === null && painted !== null && painted.size + 1 < TEXTURES.length) {
       const size = painted.size + 1;
       painting = { key: world.key, size, painter: createWorldPainter({ ...world, ...TEXTURES[size]! }) };
