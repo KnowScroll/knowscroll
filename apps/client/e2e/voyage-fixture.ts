@@ -27,6 +27,8 @@ export interface VoyageOptions {
   readonly size?: { width: number; height: number };
   readonly trial?: boolean;
   readonly calm?: boolean;
+  /** The app's appearance; the Universe must look the same in both (D-400). */
+  readonly appearance?: 'light' | 'dark';
 }
 
 /** Screenshots are written only when `KS_UNIVERSE_SHOTS` names a folder (outside the repository). */
@@ -47,13 +49,15 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
   const world = sceneFixture(5, 0, 3, 2);
   await page.setViewportSize(options.size ?? { width: 390, height: 844 });
   if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
-  if (options.trial !== false)
-    await page.addInitScript(() =>
-      window.localStorage.setItem(
-        'ks.device.preferences',
-        JSON.stringify({ universeTrial: true, universeFrameRate: true }),
-      ),
-    );
+  const preferences = {
+    universeTrial: options.trial !== false,
+    universeFrameRate: options.trial !== false,
+    ...(options.appearance ? { appearance: options.appearance } : {}),
+  };
+  await page.addInitScript(
+    (stored) => window.localStorage.setItem('ks.device.preferences', stored),
+    JSON.stringify(preferences),
+  );
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );
@@ -72,6 +76,26 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
     if (!isInboxPath(path) || path === '/v1/rooms/stations') paths.push(path);
     if (path === '/v1/rooms/stations') return route.fulfill({ json: world.reply(path, body) });
     if (isInboxPath(path)) return route.fulfill({ json: emptyInbox(path, body, fixtureAccount.accountId) });
+    if (path.endsWith('/region/preview'))
+      return route.fulfill({
+        json: {
+          ...body,
+          scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
+          recordedAt: '2026-10-22T00:00:00.000Z',
+          geographyRevision: 3,
+          status: 'available',
+          encounter: {
+            assetId: '0199a000-0000-7000-8000-000000000500',
+            assetRevision: 1,
+            metadata: {
+              kind: 'reel',
+              title: 'CI card title',
+              summary: 'Authored fixture text, not generated content.',
+              language: 'en',
+            },
+          },
+        },
+      });
     if (path.endsWith('/formation/read'))
       return route.fulfill({
         json: {

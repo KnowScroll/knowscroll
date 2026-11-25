@@ -90,6 +90,63 @@ test('with reduced motion every stop is drawn at once, and the globe’s regions
   await shot(page, 'voyage-5-ground-reduced-motion');
 });
 
+/**
+ * What the Universe screen paints, in page order: the colour of each visible piece of text, each background that is not
+ * transparent, each border that has a width, and each SVG shape's fill and stroke. The tab bar and the rest of the app
+ * follow the appearance; the Universe screen does not (D-400). Inherited colour on an empty box is not painted, so it
+ * is left out.
+ */
+const universeColours = (page: Page): Promise<string[]> =>
+  page.getByTestId('voyage-stage').evaluate((stage) => {
+    const screen = stage.closest('[data-ks-appearance]') ?? stage;
+    const painted: string[] = [];
+    for (const element of screen.querySelectorAll<HTMLElement | SVGElement>('*')) {
+      if (!element.checkVisibility() || element.getBoundingClientRect().width === 0) continue;
+      const style = getComputedStyle(element);
+      const name = element.tagName.toLowerCase();
+      const ownText = [...element.childNodes].some((node) => node.nodeType === 3 && (node.textContent ?? '').trim());
+      if (ownText) painted.push(`${name} "${(element.textContent ?? '').trim().slice(0, 24)}" text ${style.color}`);
+      if (style.backgroundColor !== 'rgba(0, 0, 0, 0)') painted.push(`${name} background ${style.backgroundColor}`);
+      if (parseFloat(style.borderTopWidth) > 0) painted.push(`${name} border ${style.borderTopColor}`);
+      if (element instanceof SVGElement && name !== 'svg')
+        painted.push(`${name} fill ${style.fill} stroke ${style.stroke}`);
+    }
+    return painted;
+  });
+
+test('looks the same in Light and in Dark, at every stop and in the region card (D-400)', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const seen: Record<string, string[][]> = {};
+  for (const appearance of ['light', 'dark'] as const) {
+    const page = await browser.newPage();
+    await openVoyage(page, [], { calm: true, appearance });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.getAttribute('data-ks-appearance')))
+      .toBe(appearance);
+    const stops: string[][] = [];
+    const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+    await expect(system).toBeVisible({ timeout: 60_000 });
+    stops.push(await universeColours(page));
+    await system.click();
+    await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    stops.push(await universeColours(page));
+    await page.getByTestId('voyage-stage').focus();
+    await page.keyboard.press('+');
+    const region = page.getByRole('button', { name: 'CI region 4, a region', exact: true });
+    await expect(region).toBeVisible({ timeout: 30_000 });
+    await region.click();
+    await page.waitForTimeout(1500);
+    stops.push(await universeColours(page));
+    await shot(page, `voyage-6-region-card-${appearance}`);
+    seen[appearance] = stops;
+    await page.close();
+  }
+  expect(seen['light']).toEqual(seen['dark']);
+});
+
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, isMobile: true });
 
