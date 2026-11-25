@@ -176,28 +176,42 @@ describe('Share a moment', () => {
     expect(JSON.stringify(body)).not.toContain(moment.quote.slice(0, 15));
   });
 
-  it('shows the stop and its picture before any thread is chosen, and keeps them while one is picked', async () => {
+  it('shows the stop and its words before any thread is chosen, and keeps them while one is picked: a v2 Scroll’s stored stage is not drawn (#835)', async () => {
+    // The fixture's stage is Earth & sky's, a kit no code draws any more: the sheet shows the words alone, as a v3 Scroll's does.
+    expect(document.stage?.kit).toBe('earth-sky.v1');
     await show({});
     expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
-    expect(screen.getByTestId('moment-picture')).toBeOnTheScreen();
-    expect(screen.getByTestId('stage')).toBeOnTheScreen();
+    expect(screen.queryByTestId('moment-picture')).toBeNull();
+    expect(screen.queryByTestId('stage')).toBeNull();
     expect(screen.getByTestId('moment-quote')).toHaveTextContent(`“${momentOf(document, readStop.id)!.quote}”`);
     await fireEvent.press((await screen.findAllByTestId('moment-thread'))[0]!);
     expect(await screen.findByTestId('moment-share')).toBeOnTheScreen();
-    expect(screen.getByTestId('moment-picture')).toBeOnTheScreen();
+    expect(screen.getByTestId('moment-quote')).toHaveTextContent(`“${momentOf(document, readStop.id)!.quote}”`);
+    expect(screen.queryByTestId('moment-picture')).toBeNull();
   });
 
-  it('draws no picture for a Scroll that has none', async () => {
+  it('draws no picture for a Scroll that has no stage', async () => {
     const plain = { ...document, stage: undefined } as unknown as ScrollDocumentV2;
     await show({ scroll: { ...scroll, document: plain } });
     expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
     expect(screen.queryByTestId('moment-picture')).toBeNull();
   });
 
-  it('draws no picture, and still shows the words, for a stored stage of a kit this build does not draw', async () => {
+  it.each([
+    'transit.v1',
+    'tides.v1',
+    'star.v1',
+    'greenhouse.v1',
+    'circulation.v1',
+    'nerve.v1',
+    'black-hole.v1',
+    'starlight.v1',
+    'earth-sky.v1',
+    'gone.v1',
+  ])('draws no picture, and still shows the words, for a stored stage of %s', async (kit) => {
     const states = (document.stage?.states ?? []).map((entry) => ({ ...entry, state: { old: 'word' } }));
-    const gone = { ...document, stage: { kit: 'gone.v1', states } } as unknown as ScrollDocumentV2;
-    await show({ scroll: { ...scroll, document: gone } });
+    const stored = { ...document, stage: { kit, states } } as unknown as ScrollDocumentV2;
+    await show({ scroll: { ...scroll, document: stored } });
     expect(await screen.findByTestId('moment-preview')).toBeOnTheScreen();
     expect(screen.getByTestId('moment-quote')).toHaveTextContent(`“${momentOf(document, readStop.id)!.quote}”`);
     expect(screen.queryByTestId('moment-picture')).toBeNull();

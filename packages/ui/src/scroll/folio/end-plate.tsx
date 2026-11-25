@@ -37,7 +37,7 @@ function summaryOf(takeaway: readonly string[]): string {
 
 /**
  * The end of the essay (folio README 5.2): the takeaway as a short summary ("To sum up", one paragraph in the essay's
- * body type), the picture of the whole journey where the kit draws one, the
+ * body type), the picture of the whole journey where the Scroll has one, the
  * small print one tap away, then the ways on, each a button the person presses: Part 2 when one was admitted, Next idea,
  * and Close. Nothing moves on by itself.
  */

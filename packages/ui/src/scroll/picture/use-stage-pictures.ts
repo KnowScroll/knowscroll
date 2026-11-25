@@ -10,7 +10,7 @@ export interface StagePictures<Scene> {
   readonly transition: StageTransition;
 }
 
-/** How a kit's scenes move: whether two scenes are one picture changing, and the scene part-way between them. */
+/** How a picture's scenes move: whether two scenes are one picture changing, and the scene part-way between them. */
 export interface SceneBlend<Scene> {
   readonly canTween: (from: Scene, to: Scene) => boolean;
   readonly lerpScene: (from: Scene, to: Scene, progress: number) => Scene;
@@ -34,14 +34,12 @@ function ease(t: number): number {
 interface Shown<Scene> {
   readonly key: string;
   readonly scene: Scene;
-  /** Which kit drew it: a move between two kits is never a glide, whatever their views are called. */
-  readonly kit?: string;
 }
 
 /**
- * The stage's picture over time (D-133). When the current state changes: the same view moves (Earth
- * glides along its orbit, the axis turns) over the subject motion token's 320 ms; a different view
- * fades from the old picture to the new one. Under reduced motion nothing moves in between: the two
+ * A picture over time (D-133). When the current state changes: the same view moves (a part glides
+ * along its path) over the subject motion token's 320 ms; a different view, or another picture, fades
+ * from the old picture to the new one (the blend says which, `canTween`). Under reduced motion nothing moves in between: the two
  * pictures cross-fade over the token's reduced 160 ms. A new change while one is under way starts
  * from the picture on screen, so a quick run of dot taps never jumps.
  */
@@ -75,7 +73,7 @@ export function useStagePictures<Scene>(
     const to = latest.current;
     const from = onScreen.current;
     const transition: StageTransition =
-      !reducedMotion && from.kit === to.kit && blendRef.current.canTween(from.scene, to.scene) ? 'tween' : 'crossfade';
+      !reducedMotion && blendRef.current.canTween(from.scene, to.scene) ? 'tween' : 'crossfade';
     const duration = reducedMotion ? motion.subject.reduced.duration : motion.subject.duration;
     const startedAt = Date.now();
     let handle = 0;

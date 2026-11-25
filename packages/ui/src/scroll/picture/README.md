@@ -1,8 +1,8 @@
 # Pictures of a document v3
 
 One renderer draws every picture of a `scroll-document.v3` (#762, D-432). A picture is data from the closed set of
-kinds in `packages/scroll-model/src/v3/pictures.ts`; this folder turns it into a drawing. No kit is involved: this folder
-imports nothing from the v2 kits (the `kit/` folder beside it), which stay for v2 Scrolls only.
+kinds in `packages/scroll-model/src/v3/pictures.ts`; this folder turns it into a drawing. No kit is involved: the v2 drawing
+kits are all deleted (#835), and this is the only renderer of a Scroll's figure.
 
 Status: **implemented**, unit-tested and browser-tested in the gallery (`folio-v3-smoke.spec.ts`). Web only, like
 Folio (#740).

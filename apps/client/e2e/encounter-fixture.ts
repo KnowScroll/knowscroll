@@ -10,7 +10,6 @@ import {
   beatsOfV3,
   callsOf,
   coverFrameOfV3,
-  firstFrameOf,
   tallyOf,
   type ScrollDocumentV2,
   type ScrollDocumentV3,
@@ -226,15 +225,14 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
   /**
    * What a Scroll offer shows before it opens, from the document served for it and the cover the session declared: a v2
-   * essay has a first stage frame; a document v3's picture is sent only under `offer-cover.v2`, as the server does.
+   * essay has its read-stop count and no figure (its stage is not drawn, #835); a document v3's picture is sent only under
+   * `offer-cover.v2`, as the server does.
    */
   const coverOf = (n: number): NonNullable<EncounterOffer['cover']> => {
     const figure =
-      playable !== undefined
-        ? firstFrameOf(playable)
-        : declaredCover === 'offer-cover.v2' && pictured !== undefined
-          ? coverFrameOfV3(pictured)
-          : undefined;
+      playable === undefined && declaredCover === 'offer-cover.v2' && pictured !== undefined
+        ? coverFrameOfV3(pictured)
+        : undefined;
     const readStops = playable?.stops.length ?? (pictured === undefined ? undefined : beatsOfV3(pictured).length);
     return {
       version: declaredCover ?? 'offer-cover.v1',

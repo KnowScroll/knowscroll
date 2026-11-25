@@ -4,7 +4,7 @@ import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { EncounterOffer, NavigationOutcome } from '@knowscroll/contracts';
-import { computeIntegrityV2, firstFrameOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import { computeIntegrityV2, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
@@ -137,7 +137,7 @@ describe('offer covers on Scroll offers (real PostgreSQL CI fixtures)', () => {
     }
   });
 
-  it('gives a v2 Scroll its read stops and its first stage frame, and no figure when it has no stage', async () => {
+  it('gives a v2 Scroll its read stops and no figure, with or without a stored stage (Earth & sky’s is not drawn any more)', async () => {
     const { outcome } = await open([V2, COVER]);
     const offers = offersOf(outcome);
     expect(offers.length).toBeGreaterThan(0);
@@ -150,8 +150,7 @@ describe('offer covers on Scroll offers (real PostgreSQL CI fixtures)', () => {
         readingMinutes: source.document.measures.readingMinutes,
         readStops: source.document.stops.filter((stop) => stop.kind === 'read').length,
       });
-      if (source === stage) expect(offer.cover?.figure).toEqual(firstFrameOf(stage.document));
-      else expect(offer.cover).not.toHaveProperty('figure');
+      expect(offer.cover).not.toHaveProperty('figure');
     }
     expect(offers.map((offer) => offer.assetId)).toContain(stage.assetId);
   });
@@ -280,7 +279,6 @@ describe('the cover of an asset regenerated as v2 (real PostgreSQL CI fixtures)'
       kicker: v2.document.kicker,
       readingMinutes: v2.document.measures.readingMinutes,
       readStops: v2.document.stops.filter((stop) => stop.kind === 'read').length,
-      figure: firstFrameOf(v2.document),
     });
   });
 });

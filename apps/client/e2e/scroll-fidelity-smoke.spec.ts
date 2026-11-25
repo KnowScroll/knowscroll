@@ -3,15 +3,18 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
+import { coverFrameOfV3, describePicture, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { answerActions, type ActionsState } from './actions-fixture';
 import { encounterFixture, readCover } from './encounter-fixture';
 
 /**
  * The Scroll reader's small fidelity fixes against the V3 frames (#497, part A) in the production export over labelled HTTP
- * fixtures: the Ask pill, Next with its word, the seven rows of the ••• sheet and what they do, their keys and the Share
- * a moment preview. The document is the
- * labelled CI fixture `seasons-stage-ci` (not product content). Screenshots are written only when `KS_FIDELITY_SHOTS`
- * names a folder (outside the repository).
+ * fixtures: the Ask pill, Next with its word, the rows of the ••• sheet and what they do, their keys and the Share
+ * a moment preview. The document is the labelled CI fixture `seasons-stage-ci` (not product content): a stored v2 Scroll
+ * whose stage (Earth & sky's) is not drawn any more (#835), so it has no picture, no Text version row and no picture in the
+ * Share a moment preview. What those do for a picture is checked on the labelled document v3 `seasons-v3-ci`.
+ * Screenshots are written only when `KS_FIDELITY_SHOTS` names a folder (outside the repository).
  */
 const phone = { width: 390, height: 844 };
 const desktop = { width: 1440, height: 900 };
@@ -34,12 +37,12 @@ async function audit(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
-async function open(page: Page, viewport = phone, actions?: ActionsState) {
+async function open(page: Page, viewport = phone, actions?: ActionsState, document: Record<string, unknown> = seasons) {
   const served = await encounterFixture(page, 'scroll', {
     ...(actions === undefined ? {} : { actions }),
     series: true,
     viewport,
-    scrollDocument: seasons as unknown as Record<string, unknown>,
+    scrollDocument: document,
   });
   await page.goto('/explore');
   await readCover(page);
@@ -80,52 +83,32 @@ for (const viewport of [phone, desktop]) {
     expect(await audit(page)).toEqual([]);
   });
 
-  test(`the ••• sheet is six rows, Ask about this first, each with its sub-line and key, at ${name}`, async ({
+  test(`the ••• sheet is five rows, Ask about this first, each with its sub-line and key, at ${name}`, async ({
     page,
   }) => {
     await open(page, viewport);
     await page.getByRole('button', { name: 'More', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'More' });
     await expect(dialog).toBeVisible();
-    // Ask, Challenge (the fixture's Scroll has calls), Text, Simpler, Small print, Report: no Save, no Share a moment (D-429).
-    await expect(rowsOf(page)).toHaveCount(6);
+    // Ask, Challenge (the fixture's Scroll has calls), Simpler, Small print, Report: no Save, no Share a moment (D-429), and no
+    // Text version, which a Scroll has only where it has a picture (this stored v2 Scroll's stage is not drawn).
+    await expect(rowsOf(page)).toHaveCount(5);
     const titles = await rowsOf(page)
       .getByRole('button')
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')));
-    expect(titles).toEqual([
-      'Ask about this',
-      'Challenge a friend',
-      'Text version',
-      'Simpler (this screen)',
-      'Small print',
-      'Report',
-    ]);
+    expect(titles).toEqual(['Ask about this', 'Challenge a friend', 'Simpler (this screen)', 'Small print', 'Report']);
     await expect(page.getByTestId('more-ask-detail')).toHaveText('A question about the part you are reading');
     // The shift sign carries U+FE0E so no system draws it as an emoji.
-    for (const key of [/^A$/, /^C$/, /^T$/, /^⇧︎?S$/, /^P$/, /^R$/])
+    for (const key of [/^A$/, /^C$/, /^⇧︎?S$/, /^P$/, /^R$/])
       await expect(page.getByTestId('more-list').getByText(key)).toBeVisible();
     await shot(page, `more-${name}`);
     // The sheet fades in over the page; judge it once it has settled.
     await expect.poll(() => audit(page)).toEqual([]);
   });
 
-  test(`Text version, Simpler, Small print and Report each do their work from the ••• sheet, at ${name}`, async ({
-    page,
-  }) => {
+  test(`Simpler, Small print and Report each do their work from the ••• sheet, at ${name}`, async ({ page }) => {
     await open(page, viewport);
     const more = () => page.getByRole('button', { name: 'More', exact: true }).click();
-    // Text version turns the picture into its words, and the row says it is on.
-    await more();
-    await page.getByTestId('more-text-version').click();
-    await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
-    const figure = page.locator('[data-ks-figure]').first();
-    await expect(figure).toContainText(/The Sun is on the left and Earth is on the right/);
-    await expect(figure.getByRole('img')).toHaveCount(0);
-    await more();
-    await expect(page.getByTestId('more-text-version-detail')).toHaveText('Showing the picture as words');
-    await page.getByTestId('more-text-version').click();
-    await expect(figure.getByRole('img')).toBeVisible();
-    await expect(figure).not.toContainText(/The Sun is on the left and Earth is on the right/);
     // Simpler swaps the stop on screen for its plainer words.
     await more();
     await page.getByTestId('more-simpler').click();
@@ -145,16 +128,41 @@ for (const viewport of [phone, desktop]) {
     await shot(page, `report-${name}`);
   });
 
-  test(`Share a moment shows the stop and its picture before a thread is chosen, at ${name}`, async ({ page }) => {
+  test(`Share a moment shows the stop and its words before a thread is chosen, with no picture, at ${name}`, async ({
+    page,
+  }) => {
     await open(page, viewport);
     await page.getByTestId('reader-dock').getByRole('button', { name: 'Share a moment' }).click();
     const sheet = page.getByRole('dialog', { name: 'Share a moment' });
     await expect(sheet.getByTestId('moment-preview')).toBeVisible();
-    await expect(sheet.getByTestId('moment-picture').getByRole('img')).toBeVisible();
+    // The card never carries a picture and no drawing kit is left to draw the stop's (#835): words alone, as for a v3 beat.
+    await expect(sheet.getByTestId('moment-picture')).toHaveCount(0);
     await expect(sheet.getByTestId('moment-quote')).toContainText('It leans.');
     await shot(page, `share-moment-preview-${name}`);
     // The sheet fades in over the page; judge it once it has settled.
     await expect.poll(() => audit(page)).toEqual([]);
+  });
+
+  test(`Text version from the ••• sheet turns every picture of a document v3 Scroll into its words, and the row says it is on, at ${name}`, async ({
+    page,
+  }) => {
+    // The document v3 counterpart of the v2 case this test had for Earth & sky's picture: the row exists only where there is a picture.
+    const frame = coverFrameOfV3(seasonsV3 as unknown as ScrollDocumentV3);
+    if (frame === undefined) throw new Error('the fixture shows a picture');
+    const words = describePicture(frame.picture, frame.state);
+    await open(page, viewport, undefined, seasonsV3);
+    const more = () => page.getByRole('button', { name: 'More', exact: true }).click();
+    await more();
+    await page.getByTestId('more-text-version').click();
+    await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
+    const figure = page.locator('[data-ks-figure]').first();
+    await expect(figure).toContainText(words);
+    await expect(figure.getByRole('img')).toHaveCount(0);
+    await more();
+    await expect(page.getByTestId('more-text-version-detail')).toHaveText('Showing the picture as words');
+    await page.getByTestId('more-text-version').click();
+    await expect(figure.getByRole('img')).toBeVisible();
+    await expect(figure).not.toContainText(words);
   });
 }
 

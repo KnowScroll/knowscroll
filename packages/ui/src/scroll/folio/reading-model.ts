@@ -1,5 +1,4 @@
 import type { Aside, Guide, Interactive, Picture, PictureState, QuoteCite, Tone } from '@knowscroll/scroll-model';
-import type { FigureState } from '../stage/kit-figure';
 
 /**
  * What the Folio reader draws: an essay as sections of beats and figures. The reader knows no document version;
@@ -75,16 +74,15 @@ export interface PictureFigure {
   readonly key: string;
 }
 
-/** What a figure draws: a kit's picture (a v2 Scroll) or a general picture (a document v3). */
-export type Figure = FigureState | PictureFigure;
+/** What a figure draws: a picture of a document v3. A v2 Scroll has no figure any more: its drawing kits are deleted (#835). */
+export type Figure = PictureFigure;
 
 /**
- * A control under a figure. `tilt` is Earth's axis on a v2 kit picture (D-187). The others belong to a document v3
- * picture: `scrub` steps through positions, `switch` flips to one other state, `pick` reads the note of an item.
- * Each has buttons and keys, and a sentence for its state; nothing a reader does with one is reported (D-209).
+ * A control under a figure: `scrub` steps through positions, `switch` flips to one other state, `pick` reads the note of
+ * an item. Each has buttons and keys, and a sentence for its state; nothing a reader does with one is reported (D-209).
+ * The v2 `tilt` is gone with Earth & sky's picture (#835); a stored Final call may still name it, and it is not read.
  */
 export type FigureControl =
-  | { readonly kind: 'tilt' }
   | {
       readonly kind: 'scrub';
       readonly label: string;

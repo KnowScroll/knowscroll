@@ -6,14 +6,16 @@ import { expect, test, type Page } from '@playwright/test';
 import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
-import type { ScrollDocumentV2, ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { beatsOfV3, type ScrollDocumentV2, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 
 /**
  * The Folio reader in a real browser (the gallery export, `/gallery-folio`, labelled CI fixture documents): every stop as
  * a beat in order, a call drawn as text, a held figure that changes state while its beats pass (pinned above them on a
- * phone, beside them on a wide screen), what the reader reports as read, the keys, reduced motion, small screens and 200 % text, axe,
- * Earth's tilt control, and opening at a stop. Screenshots are written only when `KS_FOLIO_SHOTS` names a folder
- * (outside the repository).
+ * phone, beside them on a wide screen), what the reader reports as read, the keys, small screens and 200 % text, axe, and
+ * opening at a stop. The stored v2 fixture `seasons` (Earth & sky's stage) draws no figure any more, no drawing kit being left
+ * (#835), so it is read here as text; every test of a figure, a hold, the Text chip or reduced motion on one is on a
+ * document v3 (`seasonsV3`, and the held-figure tests of `folio-v3-smoke.spec.ts`). Screenshots are written only when
+ * `KS_FOLIO_SHOTS` names a folder (outside the repository).
  */
 
 /** The `scroll-document.v2` fixtures: the tests that read a stop's kind, its prompt and its words need these. */
@@ -136,6 +138,10 @@ for (const { label, viewport } of sizes) {
       }
       await expect(page.getByRole('radio')).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Lock it in' })).toHaveCount(0);
+      // The stored stage (Earth & sky's) is parsed and served but not drawn: no plate, no hold, no tilt slider (#835).
+      await expect(page.locator('[data-ks-figure]')).toHaveCount(0);
+      await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
+      await expect(page.getByRole('slider')).toHaveCount(0);
       await scrollTo(page, 0);
       await shot(page, `${name}-${label}-top`);
     });
@@ -199,51 +205,13 @@ async function throughTheFirstHold(page: Page, label: string): Promise<HoldRow[]
   return rows;
 }
 
-test('the first hold of seasons pins its figure above its beats, changes its state and releases it, at phone', async ({
-  page,
-}) => {
-  // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
-  test.setTimeout(90_000);
-  await open(page, 'seasons', sizes[0].viewport);
-  await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
-  const rows = await throughTheFirstHold(page, 'phone');
-  const first = rows[0];
-  const last = rows.at(-1);
-  if (first === undefined || last === undefined) throw new Error('the hold was stepped through');
-
-  // The figure is the pinned figure when it sits at the top of the scroller (its panel's padding is under 24 px).
-  // Where it stays while the page scrolls: the height that the most steps share. The smallest height alone can be a step
-  // taken just as the figure starts to leave.
-  const tops = rows.map((row) => row.figureTop).filter((top) => top >= -2);
-  const sharing = (top: number) => tops.filter((other) => Math.abs(other - top) <= 3).length;
-  const pinnedTop = tops.reduce((best, top) => (sharing(top) > sharing(best) ? top : best), tops[0] ?? Infinity);
-  const pinned = rows.filter((row) => Math.abs(row.figureTop - pinnedTop) <= 3);
-  // It arrived from below, so it was pinned by the scroll and not drawn there.
-  expect(first.figureTop).toBeGreaterThan(pinnedTop + 40);
-  expect(pinnedTop).toBeLessThan(24);
-  expect(pinned.length).toBeGreaterThanOrEqual(3);
-  // Across the pinned steps the beats move up and the figure does not, and they move far enough for the last beat to
-  // come to where the first was when the figure pinned (held beats are spaced like any others, #769, D-434, so how far
-  // that is depends on the beats, not on room left between them). One step of slack, since the scroll is sampled.
-  const beatTravel = pinned[0] === undefined ? 0 : pinned[0].firstBeatTop - (pinned.at(-1)?.firstBeatTop ?? 0);
-  const firstToLast = pinned[0] === undefined ? Infinity : pinned[0].lastBeatTop - pinned[0].firstBeatTop;
-  expect(firstToLast).toBeGreaterThan(0);
-  expect(beatTravel).toBeGreaterThanOrEqual(firstToLast - HOLD_STEP);
-  for (const row of pinned) expect(Math.abs(row.figureTop - pinnedTop)).toBeLessThanOrEqual(3);
-  // Two or more states while it is pinned.
-  expect(new Set(pinned.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
-  // And when the hold is over it scrolls away: its bottom is above the top of the scroller.
-  expect(last.figureBottom).toBeLessThan(0);
-  // Above its beats on a phone: the figure is as wide as the column, not beside it.
-  for (const row of rows) expect(row.figureLeft).toBeLessThan(row.beatsRight);
-});
-
 test('the first hold of seasonsV3 keeps its figure beside its beats, in full view while it changes state, at desktop', async ({
   page,
 }) => {
-  // The document v3 seasons essay, not the v2 seasons: the v2 seasons' held beats are taller than its figure at desktop, so its
-  // figure pins and the beats leave it, while this test is about a hold whose beats are shorter than the figure (the comment
-  // below). The first hold of seasonsV3 is two beats of about 125 and 210 characters, each changing the picture.
+  // The document v3 seasons essay: this test is about a hold whose beats are shorter than the figure (the comment below). The
+  // first hold of seasonsV3 is two beats of about 125 and 210 characters, each changing the picture. The v2 `seasons` hold
+  // tests this file had (pinned above its beats at a phone, reduced motion, the glide) are the v3 ones of `folio-v3-smoke.spec.ts`
+  // on the Broad Street essay, whose first hold is three beats.
   await open(page, 'seasonsV3', sizes[1].viewport);
   await expect(page.locator('[data-testid^="hold-"]').first()).toBeVisible();
   const rows = await throughTheFirstHold(page, 'desktop');
@@ -325,7 +293,7 @@ async function inView(page: Page, selector: string): Promise<boolean> {
 }
 
 test.describe('keys', () => {
-  test('End goes to the end plate, Home to the title, T turns every picture into its words', async ({ page }) => {
+  test('End goes to the end plate and Home to the title', async ({ page }) => {
     await open(page, 'seasons', phone);
     await reader(page).focus();
     await page.keyboard.press('End');
@@ -335,39 +303,24 @@ test.describe('keys', () => {
     await expect.poll(() => inView(page, '[data-testid="folio-scroller"] h1')).toBe(true);
     await expect.poll(() => scroller(page).evaluate((node) => node.scrollTop)).toBe(0);
 
-    // Every plate is a picture named by its words until T.
-    const plates = page.locator('[data-ks-figure]');
-    const count = await plates.count();
-    expect(count).toBeGreaterThan(2);
-    const words = await plates.evaluateAll((nodes) =>
-      nodes.map((node) => node.querySelector('[role="img"]')?.getAttribute('aria-label') ?? ''),
-    );
-    expect(words.every((alt) => alt !== '')).toBe(true);
-    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
-    const holds = await page.locator('[data-testid^="hold-"]').count();
-    expect(holds).toBeGreaterThan(0);
-    await page.keyboard.press('t');
-    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-    // As words nothing needs to stay in view, so the holds lie flat: each beat is followed by its figure's words, and
-    // every picture that was drawn is now on the page as words.
+    // A stored v2 Scroll draws no picture (#835): T has none to turn into words, and nothing is held. `folio-v3-smoke.spec.ts` has the
+    // T key, the Text chips and the held figures on a document v3.
+    await expect(page.locator('[data-ks-figure]')).toHaveCount(0);
     await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
-    const shown = await plates.evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ''));
-    for (const alt of words) expect(shown.some((text) => text.includes(alt))).toBe(true);
-    // T again brings the pictures, and the holds, back.
-    await page.keyboard.press('t');
-    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(count);
-    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(holds);
   });
 
-  test('a figure’s own Text chip turns that one picture into its words', async ({ page }) => {
-    await open(page, 'seasons', phone);
-    const final = seasons.stops.at(-1);
-    if (final === undefined) throw new Error('seasons has a Final call');
-    const figure = page.getByTestId(`figure-figure-${final.id}`);
+  test('a lone figure’s own Text chip turns that one picture into its words, and no other (seasonsV3, a figure with no control)', async ({
+    page,
+  }) => {
+    // The v3 counterpart of the v2 case this file had on the Final call's figure: the figure after seasonsV3's beat b4 stands on its
+    // own (no hold, no control), so its chip is its own and does not turn on the reader's text version.
+    await open(page, 'seasonsV3', phone);
+    const figure = page.getByTestId('figure-figure-b4');
     await figure.scrollIntoViewIfNeeded();
     const plate = figure.locator('[data-ks-figure]');
     const chip = plate.getByRole('button', { name: 'Text version of this picture' });
     const pictures = await page.locator('[data-ks-figure] [role="img"]').count();
+    expect(pictures).toBeGreaterThan(1);
     await expect(plate.getByRole('img')).toBeVisible();
     await chip.click();
     await expect(plate.getByRole('img')).toHaveCount(0);
@@ -376,26 +329,6 @@ test.describe('keys', () => {
     await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(pictures - 1);
     await chip.click();
     await expect(plate.getByRole('img')).toBeVisible();
-  });
-
-  test('a held figure’s Text chip turns on the text version, lays the holds flat and keeps the beat being read', async ({
-    page,
-  }) => {
-    await open(page, 'seasons', phone);
-    const hold = page.locator('[data-testid^="hold-"]').first();
-    // Into the hold, so a beat inside it is the one being read.
-    const holdTop = await hold.evaluate((node) => (node as HTMLElement).offsetTop);
-    await scrollTo(page, holdTop + 200);
-    await expect.poll(async () => (await galleryEvents(page)).stops.at(-1) ?? null).not.toBeNull();
-    await page.waitForTimeout(300);
-    const reading = (await galleryEvents(page)).stops.at(-1);
-    if (reading === undefined || reading === null) throw new Error('a beat is being read');
-    await hold.getByTestId('held-figure').getByRole('button', { name: 'Text version of this picture' }).click();
-    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid^="hold-"]')).toHaveCount(0);
-    // The essay reflowed under the reader, and the beat being read is still in view and still the one being read.
-    await expect.poll(() => inView(page, `[data-ks-stop="${reading}"]`)).toBe(true);
-    expect((await galleryEvents(page)).stops.at(-1)).toBe(reading);
   });
 
   test('Space and Page Down move a screen, Shift+Space back, and the arrow keys a step', async ({ page }) => {
@@ -411,52 +344,6 @@ test.describe('keys', () => {
     await page.keyboard.press('Shift+Space');
     await expect.poll(top).toBeLessThan(screen - 200);
   });
-});
-
-for (const { label, viewport } of sizes) {
-  test(`under reduced motion a held figure cross-fades and never tweens, at ${label}`, async ({ page }) => {
-    // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
-    test.setTimeout(90_000);
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await open(page, 'seasons', viewport, { motion: 'reduce' });
-    await page.evaluate(() => {
-      const seen: { key: string; transition: string }[] = [];
-      (window as unknown as { __figures: typeof seen }).__figures = seen;
-      new MutationObserver((records) => {
-        for (const record of records) {
-          const node = record.target as HTMLElement;
-          if (node.closest('[data-testid="held-figure"]') === null) continue;
-          seen.push({
-            key: node.getAttribute('data-ks-figure') ?? '',
-            transition: node.getAttribute('data-ks-figure-transition') ?? '',
-          });
-        }
-      }).observe(document.body, {
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['data-ks-figure', 'data-ks-figure-transition'],
-      });
-    });
-    const rows = await throughTheFirstHold(page, `reduced-${label}`);
-    expect(new Set(rows.map((row) => row.key)).size, 'the held figure changed state').toBeGreaterThanOrEqual(2);
-    const seen = await page.evaluate(() => (window as unknown as { __figures: { transition: string }[] }).__figures);
-    const transitions = seen.map((entry) => entry.transition);
-    expect(transitions).toContain('crossfade');
-    expect(transitions).not.toContain('tween');
-  });
-}
-
-test('without reduced motion the same hold glides (the control for the reduced-motion test)', async ({ page }) => {
-  // Seasons' first hold is some 2,500 px down, so the walk to it takes longer than the default 30 s allows on a slow runner.
-  test.setTimeout(90_000);
-  await open(page, 'seasons', phone);
-  const rows = await throughTheFirstHold(page, 'full-motion');
-  expect(new Set(rows.map((row) => row.key)).size).toBeGreaterThanOrEqual(2);
-  const transition = await page
-    .locator('[data-testid="held-figure"] [data-ks-figure]')
-    .first()
-    .getAttribute('data-ks-figure-transition');
-  expect(transition).toBe('tween');
 });
 
 for (const name of ['seasons', 'fenceV3'] as const) {
@@ -548,59 +435,29 @@ test('the gallery dock toggles Like and Save, each keeping its word', async ({ p
 });
 
 for (const { label, viewport } of sizes) {
-  test(`axe finds nothing serious or critical on seasons at ${label}`, async ({ page }) => {
-    await open(page, 'seasons', viewport);
-    const audit = async () => {
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
-        .analyze();
-      return results.violations
-        .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-        .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
-    };
-    expect(await audit()).toEqual([]);
-    // And with the pictures as words, and at the end plate.
-    await reader(page).focus();
-    await page.keyboard.press('t');
-    await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-    await page.keyboard.press('End');
-    await expect.poll(() => inView(page, '[data-testid="end-plate"]')).toBe(true);
-    expect(await audit()).toEqual([]);
-  });
+  // The stored v2 seasons (read as text) and the document v3 seasons, whose pictures are drawn and then turned into words.
+  for (const name of ['seasons', 'seasonsV3'] as const) {
+    test(`axe finds nothing serious or critical on ${name} at ${label}`, async ({ page }) => {
+      await open(page, name, viewport);
+      const audit = async () => {
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+          .analyze();
+        return results.violations
+          .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+          .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
+      };
+      expect(await audit()).toEqual([]);
+      // And with the pictures as words, and at the end plate.
+      await reader(page).focus();
+      await page.keyboard.press('t');
+      await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
+      await page.keyboard.press('End');
+      await expect.poll(() => inView(page, '[data-testid="end-plate"]')).toBe(true);
+      expect(await audit()).toEqual([]);
+    });
+  }
 }
-
-test('the Earth tilt slider sits under the figure after the Final call, and its keys change the figure’s words', async ({
-  page,
-}) => {
-  await open(page, 'seasons', phone);
-  const final = seasons.stops.at(-1);
-  if (final === undefined) throw new Error('seasons has a Final call');
-  expect(final.kind).toBe('final_call');
-  const figure = page.getByTestId(`figure-figure-${final.id}`);
-  await figure.scrollIntoViewIfNeeded();
-  const slider = page.getByRole('slider', { name: 'Earth’s tilt' });
-  await expect(slider).toHaveCount(1);
-  await expect(slider).toBeVisible();
-
-  const beat = await page.getByTestId(`beat-${final.id}`).boundingBox();
-  const plate = await figure.locator('[data-ks-figure]').boundingBox();
-  const control = await slider.boundingBox();
-  if (beat === null || plate === null || control === null) throw new Error('the call, figure and slider are laid out');
-  expect(plate.y).toBeGreaterThanOrEqual(beat.y + beat.height - 1);
-  expect(control.y).toBeGreaterThanOrEqual(plate.y + plate.height - 1);
-
-  const picture = figure.getByRole('img');
-  const before = await picture.getAttribute('aria-label');
-  expect(before ?? '').not.toBe('');
-  await slider.focus();
-  await page.keyboard.press('Home');
-  await expect(page.getByTestId('tilt-value')).toHaveText('0°');
-  await expect.poll(() => picture.getAttribute('aria-label')).not.toBe(before);
-  const flat = await picture.getAttribute('aria-label');
-  await page.keyboard.press('End');
-  await expect.poll(() => picture.getAttribute('aria-label')).not.toBe(flat);
-  await shot(page, 'seasons-tilt');
-});
 
 /** The beat's top, in px under the top of the scroller, once the place has settled. */
 const settledTop = async (page: Page, selector: string) => {
@@ -608,18 +465,28 @@ const settledTop = async (page: Page, selector: string) => {
   return (await boxIn(page, selector))?.top ?? Number.NaN;
 };
 
+/** The ids of a fixture's stops (a v2 Scroll's) or beats (a document v3's): what `?stop=` and `data-ks-stop` name. */
+const unitIds = (name: Name): string[] => {
+  const document = documents[name];
+  return 'stops' in document ? document.stops.map((stop) => stop.id) : beatsOfV3(document).map((beat) => beat.id);
+};
+
 for (const { label, viewport } of sizes) {
-  const cases: { name: V2Name; stop: string | undefined }[] = [
+  const cases: { name: Name; stop: string | undefined }[] = [
     { name: 'seasons', stop: seasons.stops[Math.floor(seasons.stops.length / 2)]?.id },
     { name: 'seasons', stop: 'closest-in-january' },
     { name: 'seasons', stop: 'equinox' },
     { name: 'seasons', stop: 'solstices' },
     { name: 'seasons', stop: 'the-year' },
+    // The beats of seasonsV3 inside a hold (the second of the first hold, the second of the last), where a pinned figure
+    // holds the figure above the band at a phone: the v2 stops above were in holds too, before they stopped drawing a figure (#835).
+    { name: 'seasonsV3', stop: 'b2' },
+    { name: 'seasonsV3', stop: 'b10' },
   ];
   for (const { name, stop } of cases) {
     test(`?stop=${String(stop)} opens ${name} with that beat in view and read, at ${label}`, async ({ page }) => {
       if (stop === undefined) throw new Error('the document has a middle stop');
-      expect(v2Documents[name].stops.map((entry) => entry.id)).toContain(stop);
+      expect(unitIds(name)).toContain(stop);
       await open(page, name, viewport, { stop });
       const selector = `[data-testid="beat-${stop}"]`;
       const top = await settledTop(page, selector);

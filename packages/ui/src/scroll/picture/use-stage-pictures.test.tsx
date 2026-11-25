@@ -3,25 +3,23 @@ import { lerp } from './blend';
 import { useStagePictures, type SceneBlend } from './use-stage-pictures';
 
 /**
- * Scenes as a picture's renderer meets them: a view, and a number that can move inside it. The hook knows nothing of what
- * a scene is, only the blend it is given, so a plain one stands in for the pictures' and the kits' own.
+ * Scenes as a picture's renderer meets them: the picture they draw, a view, and a number that can move inside it. The hook
+ * knows nothing of what a scene is, only the blend it is given, so a plain one stands in for the pictures' own (which
+ * also glides only inside one picture, `canGlidePictures`).
  */
 interface Scene {
+  readonly pictureId: string;
   readonly view: string;
   readonly angle: number;
 }
 const blend: SceneBlend<Scene> = {
-  canTween: (from, to) => from.view === to.view,
-  lerpScene: (from, to, progress) => ({ view: to.view, angle: lerp(from.angle, to.angle, progress) }),
+  canTween: (from, to) => from.pictureId === to.pictureId && from.view === to.view,
+  lerpScene: (from, to, progress) => ({ ...to, angle: lerp(from.angle, to.angle, progress) }),
 };
-const shown = (key: string, scene: Scene, source?: string) => ({
-  key,
-  scene,
-  ...(source === undefined ? {} : { kit: source }),
-});
-const june = shown('june', { view: 'orbit', angle: 100 });
-const december = shown('december', { view: 'orbit', angle: 280 });
-const close = shown('close', { view: 'close', angle: 100 });
+const shown = (key: string, scene: Scene) => ({ key, scene });
+const june = shown('june', { pictureId: 'orbit-picture', view: 'orbit', angle: 100 });
+const december = shown('december', { pictureId: 'orbit-picture', view: 'orbit', angle: 280 });
+const close = shown('close', { pictureId: 'orbit-picture', view: 'close', angle: 100 });
 
 async function run(target: ReturnType<typeof shown>, reducedMotion: boolean, from = june) {
   const hook = await renderHook(
@@ -71,14 +69,14 @@ describe('the stage picture over time', () => {
     expect((out?.opacity ?? 0) + (into?.opacity ?? 0)).toBeCloseTo(1, 5);
   });
 
-  it('fades, and never glides, between two sources whose views share a name', async () => {
-    const first = { ...june, key: 'first/s1', kit: 'first' };
-    const second = { ...december, key: 'second/s1', kit: 'second' };
+  it('fades, and never glides, between two pictures whose views share a name', async () => {
+    const first = shown('first/s1', { pictureId: 'first', view: 'orbit', angle: 100 });
+    const second = shown('second/s1', { pictureId: 'second', view: 'orbit', angle: 280 });
     const { result } = await run(second, false, first);
     await act(() => {
       jest.advanceTimersByTime(100);
     });
-    // Both scenes are in the 'orbit' view, which one source may glide: across sources it is still a fade.
+    // Both scenes are in the 'orbit' view, which one picture may glide: across pictures it is still a fade.
     expect(result.current.transition).toBe('crossfade');
     expect(result.current.layers.map((layer) => layer.key)).toEqual(['first/s1', 'second/s1']);
   });

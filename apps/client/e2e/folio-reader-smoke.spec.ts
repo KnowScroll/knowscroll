@@ -313,30 +313,18 @@ test('the ••• button opens the More sheet with its rows, and Next idea on 
   await page.getByRole('button', { name: 'More', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'More' });
   await expect(dialog).toBeVisible();
-  // The rows of every v2 reader's sheet (the Scroll has calls, a limits aside and a Simpler version).
+  // The rows of every v2 reader's sheet (the Scroll has calls, a limits aside and a Simpler version). Text version is a row only
+  // for a Scroll with a picture, and a stored v2 Scroll's stage is not drawn any more (#835): `scroll-fidelity-smoke.spec.ts`
+  // checks that row on a document v3.
   const titles = await page
     .getByTestId('more-list')
     .getByRole('listitem')
     .getByRole('button')
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')));
-  expect(titles).toEqual([
-    'Ask about this',
-    'Challenge a friend',
-    'Text version',
-    'Simpler (this screen)',
-    'Small print',
-    'Report',
-  ]);
-  await expect(page.getByTestId('more-text-version')).toBeVisible();
+  expect(titles).toEqual(['Ask about this', 'Challenge a friend', 'Simpler (this screen)', 'Small print', 'Report']);
+  await expect(page.getByTestId('more-text-version')).toHaveCount(0);
   await expect(page.getByTestId('more-simpler')).toBeVisible();
   await shot(page, 'more-sheet');
-  // Text version draws every picture as its words.
-  await page.getByTestId('more-text-version').click();
-  await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
-  await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-  await expect(page.locator('[data-ks-figure]').first()).toContainText(
-    /The Sun is on the left and Earth is on the right/,
-  );
   // Simpler swaps the beat being read for its plainer words.
   await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByTestId('more-simpler').click();
@@ -378,9 +366,8 @@ for (const appearance of ['dark', 'light'] as const) {
     await expect(folio(page).getByRole('heading', { level: 1 })).toHaveCSS('color', INK[appearance]);
     expect(await audit(page), `axe in ${appearance}`).toEqual([]);
     await shot(page, `appearance-${appearance}`);
-    // Down to the end plate, with the pictures as words: still clean.
+    // Down to the end plate: still clean.
     await reader(page).focus();
-    await page.keyboard.press('t');
     await page.keyboard.press('End');
     await expect(page.getByTestId('end-plate').getByText('To sum up')).toBeInViewport();
     expect(await audit(page), `axe at the end in ${appearance}`).toEqual([]);

@@ -83,7 +83,7 @@ export const OfferCoverSchema = z
     kicker: z.string().min(1).max(40),
     readingMinutes: z.number().min(0.1).max(240),
     readStops: z.number().int().min(1).max(64).optional(),
-    figure: z.union([...StageFrame.options, PictureFrame]).optional(),
+    figure: z.union([StageFrame, PictureFrame]).optional(),
   })
   .refine((cover) => cover.version === OFFER_COVER_V2_SCHEMA || cover.figure === undefined || 'kit' in cover.figure, {
     message: 'A picture frame needs offer-cover.v2.',

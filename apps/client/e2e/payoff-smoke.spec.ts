@@ -167,23 +167,16 @@ test('on a 320 px screen the end plate and the dock fit, and the page does not s
   expect(await audit(page)).toEqual([]);
 });
 
-test('with reduced motion the tilt is heard as a value, and the end plate is drawn in its final state', async ({
+test('with reduced motion the end plate is drawn in its final state, and no tilt control or journey picture is left (#835)', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await open(page, phone);
-  const final = seasons.stops.at(-1);
-  if (final === undefined) throw new Error('seasons has a Final call');
-  await page.getByTestId(`figure-figure-${final.id}`).scrollIntoViewIfNeeded();
-  const slider = page.getByRole('slider', { name: 'Earth’s tilt' });
-  await expect(slider).toHaveAttribute('aria-valuenow', '23.4');
-  await expect(slider).toHaveAttribute('aria-valuetext', '23.4°');
-  await slider.focus();
-  await page.keyboard.press('Home');
-  await expect(slider).toHaveAttribute('aria-valuetext', '0°');
+  // The fixture's Final call stores the tilt control and its stage is Earth & sky's; neither is drawn or acted on any more.
+  await expect(page.getByRole('slider', { name: 'Earth’s tilt' })).toHaveCount(0);
   await toTheEnd(page);
   await expect(plate(page).getByRole('button', { name: /^Part 2 · / })).toBeVisible();
-  await expect(plate(page).getByTestId('end-figure')).toBeVisible();
+  await expect(plate(page).getByTestId('end-figure')).toHaveCount(0);
   expect(await audit(page)).toEqual([]);
 });
 
