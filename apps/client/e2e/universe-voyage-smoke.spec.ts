@@ -172,13 +172,14 @@ test('with the trial on, a lost WebGL context at a star swaps in the plain lists
  * What the Universe screen paints, in page order: the colour of each visible piece of text, each background that is not
  * transparent, each border that has a width, and each SVG shape's fill and stroke. The tab bar and the rest of the app
  * follow the appearance; the Universe screen does not (D-400). Inherited colour on an empty box is not painted, so it
- * is left out.
+ * is left out. So is the frame-rate readout: its words change with time, so two runs never read alike.
  */
 const universeColours = (page: Page): Promise<string[]> =>
   page.getByTestId('voyage-stage').evaluate((stage) => {
     const screen = stage.closest('[data-ks-appearance]') ?? stage;
     const painted: string[] = [];
     for (const element of screen.querySelectorAll<HTMLElement | SVGElement>('*')) {
+      if (element.closest('[data-testid="universe-frame-rate"]')) continue;
       if (!element.checkVisibility() || element.getBoundingClientRect().width === 0) continue;
       const style = getComputedStyle(element);
       const name = element.tagName.toLowerCase();
