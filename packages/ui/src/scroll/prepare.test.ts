@@ -88,7 +88,6 @@ describe('the renderer on the device', () => {
       'defaultBlockState',
       'fallbackTextOf',
       'findBlock',
-      'formatFigure',
       'isGraphemeBoundary',
       'isInteractiveBlock',
       'negotiate',
@@ -103,17 +102,6 @@ describe('the renderer on the device', () => {
       'partIds',
       'pickItems',
       'scrubPositions',
-      // The v2 reader's own: pure lookups over a parsed document, nothing that proves it.
-      'stageParts',
-      'stagePhysics',
-      // The tilt a reader turns at the Final call: the kit's physics at one angle, no grid and no admission.
-      'AXIAL_TILT_DEGREES',
-      'TILT_RANGE',
-      'physicsAtTilt',
-      'describeStageAtTilt',
-      // The recap picture's months and words (V3 F10): derived from the states a document already holds.
-      'recapMonths',
-      'describeStageRecap',
       'describeChart',
       'describePoint',
       'describeScale',

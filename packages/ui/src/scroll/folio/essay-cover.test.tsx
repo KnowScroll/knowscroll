@@ -1,25 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
-import {
-  coverFrameOfV3,
-  describePicture,
-  type ScrollDocumentV2,
-  type ScrollDocumentV3,
-} from '@knowscroll/scroll-model';
+import { coverFrameOfV3, describePicture, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
-import { drawableStage, stageFigureAt } from '../stage/stage-figure';
 import { EssayCover, type EssayCoverProps } from './essay-cover';
 import { pictureFigureOf } from './from-v3';
 
-// The labelled CI fixture of `scroll-model` (not product content): its first stage state is the cover's figure.
-const document = seasons as unknown as ScrollDocumentV2;
-const stage = drawableStage(document.stage);
-const first = stage?.states[0];
-if (stage === undefined || first === undefined) throw new Error('the fixture has a stage');
-const figure = stageFigureAt(stage, document.stops, first.stop);
-
-// The labelled document v3 fixture: the cover's picture is the first one its beats show, as the server picks it.
+// The labelled document v3 fixture (not product content): the cover's picture is the first one its beats show, as the server picks it.
 const frameOfV3 = coverFrameOfV3(seasonsV3 as unknown as ScrollDocumentV3);
 if (frameOfV3 === undefined) throw new Error('the fixture shows a picture');
 const pictureFigure = pictureFigureOf(frameOfV3.picture, frameOfV3.state);
@@ -30,7 +16,7 @@ async function cover(overrides: Partial<EssayCoverProps> = {}) {
     title: 'Why the fixture has seasons',
     dek: 'A tilted planet, in a few steps.',
     minutes: 3.4,
-    figure,
+    figure: pictureFigure,
     way: 'read',
     position: { index: 2, count: 3 },
     next: { kicker: 'Next fixture', title: 'How tides work' },
@@ -161,7 +147,7 @@ describe('a Scroll as a cover', () => {
       expect(screen.getAllByRole('button', { name: /Read|Continue|open/i })).toHaveLength(1);
     });
 
-    it('drops the picture where the text leaves no room for it, as a kit picture is', async () => {
+    it('drops the picture where the text leaves no room for it, whichever way the cover is built', async () => {
       const laid = (testID: string, height: number) =>
         fireEvent(screen.getByTestId(testID), 'layout', {
           nativeEvent: { layout: { x: 0, y: 0, width: 350, height } },

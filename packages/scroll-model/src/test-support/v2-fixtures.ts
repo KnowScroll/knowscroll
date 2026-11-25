@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { isLiveStage, type LiveStage, type ScrollDocumentV2 } from '../v2/document.js';
+import type { ScrollDocumentV2 } from '../v2/document.js';
 
 /**
  * CI FIXTURES for `scroll-document.v2`, never product content. The stop texts are generated filler of invented words, so
@@ -63,14 +63,4 @@ export function filler(count: number, tag: number): string {
     }
   }
   return sentences.join(' ');
-}
-
-/**
- * The stage of a test document, as one of the kits the code still defines. A test about a kit's words reads its states
- * through this, so a stage of a removed kit (a legacy stage, whose states have no kit words to read) fails loudly.
- */
-export function liveStageOf(document: Pick<ScrollDocumentV2, 'stage'>): LiveStage {
-  if (document.stage === undefined) throw new Error('the document has no stage');
-  if (!isLiveStage(document.stage)) throw new Error(`the stage of ${document.stage.kit} is legacy`);
-  return document.stage;
 }

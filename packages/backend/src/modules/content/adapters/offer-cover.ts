@@ -4,7 +4,7 @@ import {
   type OFFER_COVER_SCHEMA,
   type OfferCover,
 } from '@knowscroll/contracts';
-import { coverFrameOfV3, firstFrameOf, type ScrollDocumentV2, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
+import { coverFrameOfV3, type ScrollDocumentV2, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { isScrollDocumentV2, isScrollDocumentV3 } from './render-scroll.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -13,9 +13,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * The cover of a stored Scroll document of any version, under the cover version the session declared: its kicker and
- * reading minutes and, for an essay, the number of read stops (a v2's paragraphs, a v3's beats) and the first figure
- * when it has one. A v3's figure is a picture frame, which only `offer-cover.v2` can carry; a session that declared
- * only `offer-cover.v1` gets the count and no figure. Read structurally from the revision admission already
+ * reading minutes and, for an essay, the number of read stops (a v2's paragraphs, a v3's beats) and, for a v3, the first
+ * figure when it has one. A v3's figure is a picture frame, which only `offer-cover.v2` can carry; a session that declared
+ * only `offer-cover.v1` gets the count and no figure. A stored v2's stage is never read here: no drawing kit is left to
+ * draw its first frame (#835), so its cover has the count and no figure, as for the kits deleted before. The schema still
+ * accepts a stored stage frame, for an older app that was served one. Read structurally from the revision admission already
  * validated, then checked against the wire schema, so a stored shape this code does not expect gives no cover (the
  * client then opens the offer as it always did) instead of a reply the contract would refuse. Not a Scroll document:
  * no cover.
@@ -36,11 +38,10 @@ export function coverOfDocument(
   return parsed.success ? parsed.data : undefined;
 }
 
-/** What only a v2 essay has: its paragraphs (read stops) and the picture its stage opens on. */
+/** What only a v2 essay has: its paragraphs (read stops). */
 function essayFacts(document: ScrollDocumentV2): Record<string, unknown> {
   const readStops = Array.isArray(document.stops) ? document.stops.filter((stop) => stop.kind === 'read').length : 0;
-  const figure = firstFrameOf(document);
-  return { ...(readStops > 0 ? { readStops } : {}), ...(figure ? { figure } : {}) };
+  return readStops > 0 ? { readStops } : {};
 }
 
 /** What a v3 essay has: its beats, and the picture its first beats show, for a session that can draw a picture. */

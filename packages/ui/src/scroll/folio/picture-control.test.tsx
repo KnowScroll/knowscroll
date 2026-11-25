@@ -184,7 +184,7 @@ describe('the pick control (Compare the leans)', () => {
 
   it('reveals a chosen item the beat’s upTo has not reached, so lighting it changes what the reader sees', async () => {
     // The leans are a chart of three points; the beat has revealed only the first.
-    await show({ ...block, figure: { ...block.figure, state: { upTo: 1 } } } as FigureBlock);
+    await show({ ...block, figure: { ...block.figure, state: { upTo: 1 } } });
     expect(drawn().state).toEqual({ upTo: 1 });
     await press('Uranus', 'radio');
     expect(drawn().state).toEqual({ upTo: 3, lit: ['uranus'] });
@@ -207,7 +207,7 @@ describe('the pick control (Compare the leans)', () => {
 });
 
 describe('a picture figure', () => {
-  it('draws no control where its block has none, and the tilt control of v2 is not a picture control', async () => {
+  it('draws no control where its block has none', async () => {
     const block = figureWith(seasons, 'scrub');
     await show({ ...block, control: undefined });
     expect(screen.queryByLabelText('Move Earth through its year')).not.toBeOnTheScreen();

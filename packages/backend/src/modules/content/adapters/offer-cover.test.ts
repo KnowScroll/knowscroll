@@ -1,13 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { OfferCoverSchema } from '@knowscroll/contracts';
-import {
-  beatsOfV3,
-  coverFrameOfV3,
-  firstFrameOf,
-  type ScrollDocumentV2,
-  type ScrollDocumentV3,
-} from '@knowscroll/scroll-model';
+import { beatsOfV3, coverFrameOfV3, type ScrollDocumentV2, type ScrollDocumentV3 } from '@knowscroll/scroll-model';
 import { coverOfDocument } from './offer-cover.js';
 
 /** scroll-model's labelled CI fixtures: a Scroll v1, a v2 with a stage, a v2 without one. Not product content. */
@@ -32,7 +26,8 @@ describe('the cover of a stored Scroll document', () => {
     });
   });
 
-  it('adds the read stops and the first stage frame for a v2 Scroll with a stage', () => {
+  it('adds the read stops and no figure for a stored v2 Scroll with a stage (Earth & sky, a kit the code no longer defines)', () => {
+    expect(withStage.stage?.kit).toBe('earth-sky.v1');
     const cover = coverOfDocument(withStage, V1);
     const reads = withStage.stops.filter((stop) => stop.kind === 'read').length;
     // The fixture also has Call it and Final call stops, which are not paragraphs to read.
@@ -42,24 +37,35 @@ describe('the cover of a stored Scroll document', () => {
       kicker: withStage.kicker,
       readingMinutes: withStage.measures.readingMinutes,
       readStops: reads,
-      figure: firstFrameOf(withStage),
     });
-    expect(cover?.figure).toMatchObject({ kit: 'earth-sky.v1', state: withStage.stage?.states[0]?.state });
+    expect(cover).not.toHaveProperty('figure');
     expect(OfferCoverSchema.safeParse(cover).success).toBe(true);
   });
 
-  it('has no figure, and no throw, for a stored v2 Scroll whose stage is of a kit the code no longer defines', () => {
+  it('has no figure, and no throw, for a stored v2 Scroll whose stage names any of the nine retired kits', () => {
     const states = (withStage.stage?.states ?? []).map((entry) => ({ ...entry, state: { old: 'word' } }));
-    const stored = { ...withStage, stage: { kit: 'gone.v1', states } } as unknown as ScrollDocumentV2;
-    expect(firstFrameOf(stored)).toBeUndefined();
-    for (const version of [V1, V2] as const) {
-      const cover = coverOfDocument(stored, version);
-      expect(cover).toMatchObject({
-        version,
-        kicker: withStage.kicker,
-        readStops: withStage.stops.filter((stop) => stop.kind === 'read').length,
-      });
-      expect(cover).not.toHaveProperty('figure');
+    for (const kit of [
+      'gone.v1',
+      'transit.v1',
+      'tides.v1',
+      'star.v1',
+      'greenhouse.v1',
+      'circulation.v1',
+      'nerve.v1',
+      'black-hole.v1',
+      'starlight.v1',
+      'earth-sky.v1',
+    ]) {
+      const stored = { ...withStage, stage: { kit, states } } as unknown as ScrollDocumentV2;
+      for (const version of [V1, V2] as const) {
+        const cover = coverOfDocument(stored, version);
+        expect(cover, kit).toMatchObject({
+          version,
+          kicker: withStage.kicker,
+          readStops: withStage.stops.filter((stop) => stop.kind === 'read').length,
+        });
+        expect(cover).not.toHaveProperty('figure');
+      }
     }
   });
 
@@ -91,9 +97,10 @@ describe('the cover of a stored Scroll document', () => {
     expect(
       coverOfDocument({ ...v1, measures: { ...(v1['measures'] as object), readingMinutes: 'soon' } }, V1),
     ).toBeUndefined();
+    // A stored stage is never read for the cover, so a malformed one changes nothing and cannot make the reply refuse.
     expect(
       coverOfDocument({ ...withStage, stage: { kit: 'earth-sky.v1', states: [{ state: {}, alt: 'x' }] } }, V1),
-    ).toBeUndefined();
+    ).not.toHaveProperty('figure');
   });
 });
 
@@ -122,8 +129,9 @@ describe('the cover of a document v3', () => {
     expect(cover).not.toHaveProperty('figure');
   });
 
-  it('keeps a v2 stage frame under offer-cover.v2, so one session gets one cover version for every Scroll', () => {
-    expect(coverOfDocument(withStage, V2)).toMatchObject({ version: V2, figure: firstFrameOf(withStage) });
+  it('gives a v2 Scroll with a stage the cover version the session declared and no figure, so one session gets one cover version for every Scroll', () => {
+    expect(coverOfDocument(withStage, V2)).toMatchObject({ version: V2, kicker: withStage.kicker });
+    expect(coverOfDocument(withStage, V2)).not.toHaveProperty('figure');
     expect(coverOfDocument(v1, V2)).toEqual({ version: V2, kicker: 'Machine learning', readingMinutes: 2 });
   });
 

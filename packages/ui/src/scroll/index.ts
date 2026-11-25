@@ -22,4 +22,3 @@ export { type ScrollMediaRenderer, type ScrollMediaRequest } from './media';
 export * from './reader';
 export * from './calls';
 export * from './folio';
-export { Stage, type StageProps } from './stage/stage';

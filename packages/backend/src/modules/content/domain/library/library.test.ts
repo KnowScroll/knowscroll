@@ -2,14 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { seedSnapshot } from '../catalogue/seed.js';
-import {
-  EARTH_SKY_KIT,
-  PICTURE_KINDS,
-  SCROLL_SHAPES,
-  STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS,
-} from '@knowscroll/scroll-model';
+import { PICTURE_KINDS, SCROLL_SHAPES } from '@knowscroll/scroll-model';
 import { LIBRARY_SERIES } from './continuity.js';
-import { INTERACTIVE_KINDS, PICTURE_KIND_IDS, SCROLL_SHAPE_IDS, STAGE_KIT_IDS } from './plan.js';
+import { INTERACTIVE_KINDS, PICTURE_KIND_IDS, SCROLL_SHAPE_IDS } from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS } from './index.js';
 
 /** The catalogue the plan seeds, which is what the plan's own checks read: concepts, meanings, silhouettes and hazes. */
@@ -195,8 +190,8 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
 });
 
 /**
- * The 22 recipes that had a drawing kit until #787. Each is now planned as a document v3 Scroll, which has no kit; the kit code
- * stays until the owner has read that kit's rewrites, and is then deleted one kit at a time.
+ * The 22 recipes that had a drawing kit until #787. Each is now planned as a document v3 Scroll, which has no kit, and every kit's
+ * code is deleted (the last, `earth-sky.v1`, with #835).
  */
 const KIT_RECIPES_V3 = {
   'earth-sky.v1': ['seasons', 'seasons-hemispheres', 'seasons-limits'],
@@ -209,8 +204,9 @@ const KIT_RECIPES_V3 = {
   'starlight.v1': ['exoplanet-habitable-zone', 'stars-colour-brightness'],
   'black-hole.v1': ['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon'],
 } as const;
-/** The kits whose code is already deleted (#799, #802, #809, #832, #834): `STAGE_KIT_IDS` no longer lists them, and their recipes are still planned as v3. */
+/** The nine kits, all deleted from the code (#799, #802, #809, #832, #834, #835); their recipes are planned as v3. */
 const DELETED_KIT_IDS: readonly string[] = [
+  'earth-sky.v1',
   'tides.v1',
   'star.v1',
   'transit.v1',
@@ -224,15 +220,10 @@ const V3_KIT_KEYS: readonly string[] = Object.values(KIT_RECIPES_V3).flat();
 const isV3 = (key: string): boolean => V3_KIT_KEYS.includes(key);
 
 describe('the drawing kits of the plan (D-125, D-194; no recipe names one since #787, and the field is deleted, #815)', () => {
-  it('names only kits that exist, and keeps the plan’s list in step with the kits of scroll-model', () => {
-    expect([...STAGE_KIT_IDS]).toEqual([...SCROLL_MODEL_KIT_IDS]);
-    expect(STAGE_KIT_IDS[0]).toBe(EARTH_SKY_KIT);
-  });
-
   it('plans the 22 recipes that had a kit as document v3 Scrolls, each kit’s recipes together (#787)', () => {
     expect(V3_KIT_KEYS).toHaveLength(22);
     for (const [kit, keys] of Object.entries(KIT_RECIPES_V3)) {
-      expect([...STAGE_KIT_IDS, ...DELETED_KIT_IDS], kit).toContain(kit);
+      expect(DELETED_KIT_IDS, kit).toContain(kit);
       for (const key of keys) expect(RECIPES[key].scrollV3, key).toBeDefined();
     }
     // Earth & sky, Space and the heart and nerves of the Human body: the systems whose subjects the kits drew.

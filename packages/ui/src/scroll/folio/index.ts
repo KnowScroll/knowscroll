@@ -5,8 +5,5 @@ export { pictureFigureOf, readingModelOfV3 } from './from-v3';
 export { type Figure, type PictureFigure, type ReadingModel } from './reading-model';
 export { type UnitReadingObserver } from '../reading/types';
 export { FigureView } from './figure-view';
-export { type FigureState } from '../stage/kit-figure';
 export { EssayCover, type EssayCoverProps } from './essay-cover';
 export { EssayOpening, type EssayOpeningProps } from './essay-opening';
-export { drawableStage, stageFigureAt } from '../stage/stage-figure';
-export { isKitPictureId } from '../kit';

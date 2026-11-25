@@ -3,11 +3,11 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { threadRowView, threadsHolding, type AccountScope, type ThreadsHolding } from '@knowscroll/client-core';
 import type { ContentThreadRef, ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, drawableStage, Skeleton, Stage, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
+import { Banner, Button, Skeleton, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
 import { momentAnchorOf, type NoMoment } from '@knowscroll/scroll-model';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
-import { isScrollV2, type OpenedScrollFolio } from '../scroll/scroll-session';
+import type { OpenedScrollFolio } from '../scroll/scroll-session';
 import { momentOfPlace, whyNoMomentAt } from '../scroll/scroll-moment';
 import { useSnippetSend } from './use-snippet-send';
 import { useThreadInbox } from './use-thread-inbox';
@@ -212,29 +212,16 @@ function SendMoment({
 }
 
 /**
- * What is about to be shared, shown before any thread is chosen (V3 G5, "This stop, with its picture"): for a v2 Scroll
- * the stop's picture as the reader draws it at that stop, when the Scroll has one this build draws, and the words the card will quote. The
- * picture is the reader's own drawing, so nothing about it is sent; the card carries the stop and a hash (D-292). A v3
- * Scroll's moment is one beat and shows words alone: the card never carries a picture, so the sheet does not promise one.
+ * What is about to be shared, shown before any thread is chosen (V3 G5): the stop and the words the card will quote. The
+ * card never carries a picture, so the sheet does not promise one. A v2 Scroll once showed its stage's picture here; no
+ * drawing kit is left (#835), so a v2 Scroll's moment shows words alone, as a v3 Scroll's one beat does.
  */
 function MomentPreview({ scroll, stopId }: { readonly scroll: OpenedScrollFolio; readonly stopId: string }) {
   const moment = momentOfPlace(scroll, stopId);
   if (moment === undefined) return null;
   const { document } = scroll;
-  // A stored stage of a kit this build no longer draws has no picture to show: the sheet then shows the words alone.
-  const stage = isScrollV2(scroll) ? drawableStage(scroll.document.stage) : undefined;
   return (
     <View style={styles.preview} testID="moment-preview">
-      {isScrollV2(scroll) && stage !== undefined ? (
-        <View style={styles.picture} testID="moment-picture">
-          <Stage
-            document={{ stops: scroll.document.stops, stage }}
-            stopId={stopId}
-            reducedMotion
-            height={PICTURE_HEIGHT}
-          />
-        </View>
-      ) : null}
       <Text variant="monoXs" color={content.ink2}>
         This stop · {document.title}
       </Text>
@@ -289,19 +276,9 @@ export function ShareStopSheet({
   );
 }
 
-const PICTURE_HEIGHT = 150;
-
 const styles = StyleSheet.create({
   step: { gap: spacing[3] },
   preview: { gap: spacing[2] },
-  picture: {
-    overflow: 'hidden',
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    borderRadius: radius.md,
-    // The stage draws its own rule under the picture.
-    borderBottomWidth: 0,
-  },
   choice: {
     gap: spacing[1],
     padding: spacing[3],

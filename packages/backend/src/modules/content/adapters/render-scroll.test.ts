@@ -43,10 +43,10 @@ describe('whether a client can be given a stored Scroll document', () => {
     expect(canRenderScroll(undefined, declaring('scroll-document.v3'))).toBe(false);
   });
 
-  it('serves a stored v2 whose stage is of a kit the code no longer defines, and still refuses a live kit’s wrong state', () => {
+  it('serves a stored v2 whose stage names any kit, the stored Earth & sky one included: the code defines none (#835)', () => {
     const stored = v2 as { stage: { kit: string; states: { state: unknown }[] } };
     const states = stored.stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } }));
-    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832) and starlight.v1 (#834) were deleted from the code; stage and main still store Scrolls that name them.
+    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832), starlight.v1 (#834) and earth-sky.v1 (#835) were deleted from the code; stage and main still store Scrolls that name them.
     for (const kit of [
       'gone.v1',
       'transit.v1',
@@ -57,11 +57,14 @@ describe('whether a client can be given a stored Scroll document', () => {
       'nerve.v1',
       'black-hole.v1',
       'starlight.v1',
+      'earth-sky.v1',
     ])
       expect(canRenderScroll({ ...stored, stage: { kit, states } }, declaring('scroll-document.v2')), kit).toBe(true);
-    expect(
-      canRenderScroll({ ...stored, stage: { kit: 'earth-sky.v1', states } }, declaring('scroll-document.v2')),
-    ).toBe(false);
+    // The stored document as it is, with Earth & sky's own words, serves too.
+    expect(canRenderScroll(stored, declaring('scroll-document.v2'))).toBe(true);
+    expect(canRenderScroll({ ...stored, stage: { kit: 'constructor', states } }, declaring('scroll-document.v2'))).toBe(
+      false,
+    );
   });
 
   it('names a document v3 by its declared schema', () => {

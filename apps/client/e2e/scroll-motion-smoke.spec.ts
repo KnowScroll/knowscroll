@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import blocks from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import { encounterFixture, id, readCover, type EncounterFixtureOptions } from './encounter-fixture';
 
@@ -90,8 +91,10 @@ test('on a Scroll’s own address a step forward says the place in the Part befo
 
 for (const width of [320, 390]) {
   for (const [label, fixture] of [
-    ['a Part with a picture', seasons],
+    // A document v3 draws pictures; a stored v2 Scroll's stage is not drawn any more (#835), so its Part has none, like `blocks`.
+    ['a Part with a picture', seasonsV3],
     ['a Part with no picture', blocks],
+    ['a Part with a stored stage, not drawn', seasons],
   ] as const) {
     test(`at ${String(width)} px the reader of ${label} has nothing past the right edge (#648)`, async ({ page }) => {
       await encounterFixture(page, 'scroll', {

@@ -9,9 +9,6 @@ import { useFocusRing } from '../../display/focus-ring';
 import { toggleSemantics } from '../../display/semantics';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
-import { FigureDrawing, useKitFigure, type FigureState } from '../stage/kit-figure';
-import { TiltControl } from '../stage/tilt-control';
-import { AXIAL_TILT_DEGREES } from '../model';
 import { PictureDrawing } from '../picture';
 import { PictureControl } from './picture-control';
 import type { Figure, FigureControl, PictureFigure } from './reading-model';
@@ -41,16 +38,11 @@ export interface FigureViewProps {
 
 /**
  * One figure in the essay: a plate with its picture, a "Text" chip that swaps the picture for its words, and the
- * control under it when it has one. A v2 Scroll's figure is drawn by its kit, a document v3's by the general picture
- * renderer; both move from one state to the next in place (a glide, or a fade), so a held figure changes where it is.
+ * control under it when it has one. A document v3's picture is drawn by the general picture renderer, and moves from one
+ * state to the next in place (a glide, or a fade), so a held figure changes where it is.
  */
 export function FigureView(props: FigureViewProps) {
-  const { figure } = props;
-  return figure.kind === 'picture' ? (
-    <PictureFigureView {...props} figure={figure} />
-  ) : (
-    <KitFigureView {...props} figure={figure} />
-  );
+  return <PictureFigureView {...props} figure={props.figure} />;
 }
 
 /**
@@ -106,7 +98,7 @@ function PictureFigureView({
           <TextChip on={asText} onPress={onTextVersion ?? (() => setOwnText(!asText))} />
         </View>
       </View>
-      {control === undefined || control.kind === 'tilt' ? null : (
+      {control === undefined ? null : (
         <PictureControl
           picture={figure.picture}
           control={control}
@@ -115,44 +107,6 @@ function PictureFigureView({
           onState={setState}
         />
       )}
-    </View>
-  );
-}
-
-/** A v2 Scroll's figure, drawn by its kit, with Earth's tilt under it when the Final call hands it over. */
-function KitFigureView({
-  figure,
-  height,
-  reducedMotion,
-  textVersion,
-  control,
-  fixedHeight = false,
-  onTextVersion,
-  testID,
-}: FigureViewProps & { readonly figure: FigureState }) {
-  const page = usePagePalette();
-  const [ownText, setOwnText] = useState<boolean | undefined>(undefined);
-  const [tilt, setTilt] = useState<number | undefined>(undefined);
-  const drawn = useKitFigure(figure, reducedMotion, control?.kind === 'tilt' ? tilt : undefined);
-  const asText = onTextVersion === undefined ? (ownText ?? textVersion) : textVersion;
-  const drawingHeight = fixedHeight ? height - FIGURE_CHIP_ROOM : height;
-  return (
-    <View style={styles.figure} testID={testID}>
-      <View
-        style={[styles.plate, { backgroundColor: page.raised, borderColor: page.ink }]}
-        {...dataSet({ ksFigure: figure.key, ksFigureTransition: drawn.transition })}
-      >
-        {/* The words take the room they need; a picture takes the room the figure gives it. */}
-        <View style={asText ? { minHeight: drawingHeight } : { height: drawingHeight }}>
-          <FigureDrawing drawn={drawn} textVersion={asText} />
-        </View>
-        <View style={styles.chipRow}>
-          <TextChip on={asText} onPress={onTextVersion ?? (() => setOwnText(!asText))} />
-        </View>
-      </View>
-      {control?.kind === 'tilt' && figure.kind === 'state' ? (
-        <TiltControl value={tilt ?? AXIAL_TILT_DEGREES} onChange={setTilt} onDragging={() => undefined} />
-      ) : null}
     </View>
   );
 }
@@ -178,7 +132,7 @@ function TextChip({ on, onPress }: { readonly on: boolean; readonly onPress: () 
 const CHIP_HEIGHT = 32;
 /**
  * How much taller than its drawing a figure's plate is: the strip along its bottom that the chip sits in, so the chip
- * never covers a kit's label (a kit draws to the edges of its frame, and the bottom right is where several put one).
+ * never covers a label (a picture draws to the edges of its frame, and the bottom right is where one may be put).
  */
 const FIGURE_CHIP_ROOM = CHIP_HEIGHT + spacing[2];
 

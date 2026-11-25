@@ -332,7 +332,8 @@ describe('Explore prerequisite wire contracts', () => {
       { ...cover, readStops: 65 },
       { ...cover, readStops: 1.5 },
       { ...cover, figure: { ...cover.figure, extra: true } },
-      { ...cover, figure: { ...cover.figure, state: { old: 'word' } } },
+      { ...cover, figure: { ...cover.figure, state: 'jun' } },
+      { ...cover, figure: { ...cover.figure, kit: 'Earth-Sky' } },
     ])
       expect(EncounterOfferSchema.safeParse({ ...offer, cover: invalid }).success).toBe(false);
     expect(
@@ -340,7 +341,7 @@ describe('Explore prerequisite wire contracts', () => {
     ).toBe(false);
   });
 
-  it('accepts a figure of a stage kit the code no longer defines, and still refuses a live kit’s wrong state', () => {
+  it('accepts a figure of any stage kit, since the code defines none: a stored offer may still name one', () => {
     const cover = {
       version: 'offer-cover.v1',
       kicker: 'Wire fixture',
@@ -348,7 +349,7 @@ describe('Explore prerequisite wire contracts', () => {
       figure: { kit: 'gone.v1', state: { old: 'word' }, alt: 'What the removed kit drew.' },
     };
     expect(EncounterOfferSchema.parse({ ...offer, cover }).cover).toEqual(cover);
-    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832) and starlight.v1 (#834) were deleted from the code; a stored offer may still name them.
+    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832), starlight.v1 (#834) and earth-sky.v1 (#835) were deleted from the code; a stored offer may still name them.
     for (const kit of [
       'transit.v1',
       'tides.v1',
@@ -358,15 +359,14 @@ describe('Explore prerequisite wire contracts', () => {
       'nerve.v1',
       'black-hole.v1',
       'starlight.v1',
+      'earth-sky.v1',
     ]) {
       const stored = { ...cover, figure: { ...cover.figure, kit } };
       expect(EncounterOfferSchema.parse({ ...offer, cover: stored }).cover, kit).toEqual(stored);
     }
     expect(
-      EncounterOfferSchema.safeParse({
-        ...offer,
-        cover: { ...cover, figure: { ...cover.figure, kit: 'earth-sky.v1' } },
-      }).success,
+      EncounterOfferSchema.safeParse({ ...offer, cover: { ...cover, figure: { ...cover.figure, kit: 'constructor' } } })
+        .success,
     ).toBe(false);
   });
 

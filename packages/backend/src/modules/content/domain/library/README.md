@@ -15,7 +15,7 @@ It lives in `domain/` because the catalogue's import and its seed are pure funct
 
 ## Files
 
-- `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `STAGE_KIT_IDS`, `ScrollV2Plan`, `ScrollV3Plan`).
+- `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `ScrollV2Plan`, `ScrollV3Plan`).
   A `LibrarySystem` may also name its `sceneFamily` (the silhouette) and its `haze` (one of teal, cobalt,
   coral, amber, pink, violet; a different one for each of the first six systems). Scenes gives both to a system once and never
   changes them, so edit them for new systems only (D-102); a new system that names none gets them assigned from its id, and may repeat
@@ -55,11 +55,7 @@ No recipe is produced as a v2 Scroll any more, and the code that wrote one is de
 A recipe with `scrollV3` is written as a `scroll-document.v3` Scroll and held for an operator's read (#771, #783). Since #787 the
 22 recipes that had a drawing kit carry it, and since #790 every other recipe does too, so **every recipe of the library is planned as
 a document v3 Scroll** and none is planned as v1 or v2. None names a drawing kit (the field is deleted, #815). A document v3
-has no kit: its pictures come from the closed set of six kinds (`statement`, `flow`, `cycle`, `grid`, `chart`, `plan`).
-
-| Kit they had     | Recipes                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------- |
-| `earth-sky.v1`   | `seasons`, `seasons-hemispheres`, `seasons-limits`                                         |
+has no kit: its pictures come from the closed set of six kinds (`statement`, `flow`, `cycle`, `grid`, `chart`, `plan`). Every drawing kit is deleted from the code (the last, `earth-sky.v1`, whose recipes were `seasons`, `seasons-hemispheres` and `seasons-limits`, with #835).
 
 The other 33 (#790) are `seasons-elsewhere`, `tides-coasts` and `greenhouse-limits` (Earth & sky); `exoplanet-kinds` (Space); the three
 immune-system recipes (Human body); the nine recipes of Computing; the twelve of Machine learning; and the five of History.

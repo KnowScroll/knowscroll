@@ -189,7 +189,7 @@ function envelope() {
 
 test.describe('accessibility (axe) of the reader', () => {
   for (const viewport of [phone, desktop]) {
-    test(`no serious violations at ${String(viewport.width)} × ${String(viewport.height)}, with asides open, the end plate and its small print, the text version and the ••• sheet`, async ({
+    test(`no serious violations at ${String(viewport.width)} × ${String(viewport.height)}, with asides open, the end plate and its small print and the ••• sheet`, async ({
       page,
     }) => {
       await open(page, viewport);
@@ -218,10 +218,7 @@ test.describe('accessibility (axe) of the reader', () => {
       await plate.getByRole('button', { name: 'Small print', exact: true }).click();
       await expect(page.getByTestId('end-small-print')).toBeVisible();
       expect(await audit()).toEqual([]);
-      await reader(page).focus();
-      await page.keyboard.press('t');
-      await expect(page.locator('[data-ks-figure] [role="img"]')).toHaveCount(0);
-      expect(await audit()).toEqual([]);
+      // The text version of a picture is audited on a document v3 (`folio-gallery.spec.ts`): this stored v2 Scroll has no picture (#835).
       await page.getByRole('button', { name: 'More', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'More', exact: true })).toBeVisible();
       await page.waitForTimeout(400);

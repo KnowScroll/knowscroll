@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import { signedInAccount } from './account-fixture';
 import { encounterFixture, id, type EncounterFixtureOptions } from './encounter-fixture';
 
@@ -25,7 +26,10 @@ async function shot(page: Page, name: string) {
 const phone = { width: 390, height: 844 };
 const desktop = { width: 1440, height: 900 };
 const small = { width: 320, height: 568 };
+/** A stored v2 Scroll with a stage (Earth & sky's): its cover has no figure, since no drawing kit is left (#835). */
 const document2 = seasons as unknown as Record<string, unknown>;
+/** A document v3 Scroll, whose cover carries its first picture (`offer-cover.v2`): the covers whose figure is looked at. */
+const pictured = { scrollDocument: seasonsV3 as unknown as Record<string, unknown> };
 const HAND = 3;
 
 type Calls = { path: string; body: Record<string, unknown> }[];
@@ -72,7 +76,8 @@ async function openCovers(
 }
 
 test('Explore arrives on a cover and opens nothing; it asked for covers', async ({ page }) => {
-  const { commands } = await openCovers(page);
+  // On a document v3 Scroll, whose cover has a picture to draw (a v2 Scroll's has none, the next test).
+  const { commands } = await openCovers(page, { fixture: pictured });
   await expect(coverTitle(page, 1)).toBeVisible();
   await expect(position(page, 1)).toBeVisible();
   await expect(cover(page).getByText('CI cover kicker 1', { exact: true })).toBeVisible();
@@ -91,6 +96,15 @@ test('Explore arrives on a cover and opens nothing; it asked for covers', async 
   expect(opens(commands)[0]?.body.capabilities).toMatchObject({
     documentSchemas: expect.arrayContaining(['offer-cover.v1']),
   });
+});
+
+test('a stored v2 Scroll with a stage has a cover with no picture: the words, Read and the strip', async ({ page }) => {
+  await openCovers(page);
+  await expect(coverTitle(page, 1)).toBeVisible();
+  await expect(page.getByTestId('essay-cover-figure')).toHaveCount(0);
+  await expect(page.getByTestId('essay-cover-read')).toBeVisible();
+  expect(await pressable(page.getByTestId('essay-cover-next'))).toBe(true);
+  expect(await pressable(page.getByTestId('essay-cover-read'))).toBe(true);
 });
 
 test('↓, J and the strip turn to the next cover, ↑ and K back; after the last, one more open deals a new hand', async ({
@@ -295,7 +309,7 @@ for (const [label, viewport] of [
 ] as const) {
   for (const appearance of ['light', 'dark'] as const) {
     test(`the cover feed has no serious accessibility violations in ${appearance} at ${label}`, async ({ page }) => {
-      await openCovers(page, { viewport, preferences: { appearance } });
+      await openCovers(page, { viewport, preferences: { appearance }, fixture: pictured });
       await expect(page.getByTestId('essay-cover-figure')).toBeVisible();
       // The figure draws in as the cover arrives; axe would read it half drawn.
       await page.waitForTimeout(600);
@@ -331,7 +345,7 @@ for (const [label, viewport, text] of [
 test('at 320 by 568 with the largest text the Read button and the strip are reachable and nothing is clipped across', async ({
   page,
 }) => {
-  await openCovers(page, { viewport: small, preferences: { textSize: 'largest' } });
+  await openCovers(page, { viewport: small, preferences: { textSize: 'largest' }, fixture: pictured });
   // The cover settles: its figure is not drawn and dropped again and again as it measures what is left for it.
   const settled = async () => {
     const tops: number[] = [];
