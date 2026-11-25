@@ -21,7 +21,7 @@ import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { climbOneStop, stopOf, type Stop } from './ladder';
+import { stopOf, type Stop } from './ladder';
 import { createVoyageController, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet, VoyageTarget } from './voyage-driver';
 import { labelPoints } from './world-texture';
@@ -166,23 +166,6 @@ export function VoyageStage({
     element.addEventListener('wheel', wheel, { passive: false });
     return () => element.removeEventListener('wheel', wheel);
   }, [controller]);
-  // Escape on the ground climbs one stop, to the planet's globe, as the Back pill does. The Universe's own Escape (close
-  // what is open, else go up a level) listens after this one and handles every other case; its "up" would skip the
-  // globe and go straight to the star.
-  const onGround = view.kind === 'planet' && view.landed && view.selectedRegion === undefined;
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !onGround) return;
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.altKey || event.ctrlKey || event.metaKey) return;
-      const { overlay, selectedId } = session.getState();
-      if (overlay !== null || selectedId !== null || document.querySelector('[aria-modal="true"]') !== null) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      climbOneStop(session, view);
-    };
-    window.addEventListener('keydown', escape, { capture: true });
-    return () => window.removeEventListener('keydown', escape, { capture: true });
-  }, [onGround, session, view]);
   const onKeyDown: NonNullable<ViewProps['onKeyDown']> = (event) => {
     if (event.target !== event.currentTarget || !('key' in event.nativeEvent)) return;
     // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.

@@ -4,7 +4,7 @@
  * (`climbOneStop`). Kept free of three.js, so the controller and the header, which reach the main bundle, may import it.
  */
 import type { UniverseView } from '../universe-layout';
-import type { UniverseMapSession } from '../universe-session';
+import type { UniverseMapSession, UniverseViewSession } from '../universe-session';
 /**
  * The stops of the ladder that today's places fill, outermost first. One camera moves between them: each stop is a
  * distance from what you are in, not a separate screen. A level above a star (a galaxy, a cluster) is one more member
@@ -54,4 +54,20 @@ export function climbOneStop(session: UniverseMapSession, view: UniverseView): v
     return;
   }
   void session.up();
+}
+
+/**
+ * Escape in the new look. The Universe's own Escape closes what is open (the formation story, a sheet, a card, a pick)
+ * and otherwise goes up a level; on the ground with nothing open the new look climbs to the planet's globe instead, as
+ * its Back pill does, where going up would skip that stop. Like the session's own `escape`, it does nothing while the
+ * Universe is not in front, and returns whether the key did something.
+ */
+export function escapeOneStop(
+  session: Pick<UniverseViewSession, 'escape' | 'focus' | 'formation' | 'getState' | 'places'>,
+): boolean {
+  const state = session.getState();
+  const open = Boolean(session.formation.getState().fact) || state.overlay !== null || state.selectedId !== null;
+  const focused = state.focusId === null ? undefined : session.places().find((place) => place.id === state.focusId);
+  if (open || !state.landed || focused?.kind !== 'planet') return session.escape();
+  return session.focus(focused.id);
 }

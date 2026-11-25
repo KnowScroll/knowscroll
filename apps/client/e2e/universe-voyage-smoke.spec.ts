@@ -222,6 +222,9 @@ test('looks the same in Light and in Dark, at every stop and in the region card 
     seen[appearance] = stops;
     await page.close();
   }
+  // Something was read at every stop, so the comparison below compares the screen and not two empty lists.
+  for (const stop of seen['light'] ?? []) expect(stop.length).toBeGreaterThan(5);
+  expect(seen['light']).toHaveLength(3);
   expect(seen['light']).toEqual(seen['dark']);
 });
 
