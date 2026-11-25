@@ -83,12 +83,15 @@ const STATION = {
   placement: { systemId: id(10) },
 } as unknown as RoomStation;
 
-/** The sample places and their looks, as a map session is handed them (the Voyage gallery page). */
-export function sampleScene(): {
+/** The sample places, their looks and the room station, as a map session is handed them. */
+export interface SampleScene {
   readonly descriptors: readonly SceneDescriptor[];
   readonly looks: readonly SceneLook[];
   readonly stations: readonly RoomStation[];
-} {
+}
+
+/** The sample places and their looks, as a map session is handed them (the Voyage gallery page). */
+export function sampleScene(): SampleScene {
   return { descriptors: PLACES.map(descriptorOf), looks: PLACES.flatMap(lookOf), stations: [STATION] };
 }
 

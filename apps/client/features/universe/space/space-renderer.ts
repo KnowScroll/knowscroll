@@ -24,11 +24,15 @@ import type { SpaceAnchor, SpaceProbe, SpaceSurface } from './space-surface';
 export type SpaceCameraSpec = Omit<RigSpec, 'width' | 'height'>;
 
 /**
- * Takes the camera from the rig and adds drawing of its own (the Universe's Round 7.3 look, on trial: one camera along
- * the ladder, the planet as one world, the ship). Without one the renderer is exactly the Universe as it ships.
+ * Takes the camera from the rig and adds drawing of its own (the trial look: one camera along the ladder, the planet as
+ * one world, the ship). Without one the renderer is exactly the Universe as it ships.
  */
 export interface SpaceCameraDriver {
-  /** Adds its own objects to a scene, the first one and each one built again. */
+  /**
+   * Adds its own objects to a scene. Called on creation, before the first `pose`, and again with each scene built after
+   * it: so `pose` always gets a scene it has been attached to. The scene being left is disposed first, which releases the
+   * geometry and materials of the objects the driver added to it; three.js uploads them again from the new scene.
+   */
   attach(space: BuiltSpace): void;
   /** The camera at scene time `t`, once the scene is posed. It may show or hide systems (`showOnly`). */
   pose(t: number, space: BuiltSpace, size: { readonly width: number; readonly height: number }): CameraPose;
@@ -36,6 +40,7 @@ export interface SpaceCameraDriver {
   render(renderer: THREE.WebGLRenderer, size: { readonly width: number; readonly height: number }): void;
   /** Named points of its own, laid over the canvas with the scene's. */
   anchors(space: BuiltSpace, size: { readonly width: number; readonly height: number }): SpaceAnchor[];
+  /** Frees what the driver holds; the renderer calls it once, when it is disposed. */
   dispose(): void;
 }
 
@@ -264,6 +269,8 @@ export function createSpaceRenderer(
         space.scene.updateMatrixWorld(true);
         directed = directFrame({ script, space, from: scriptFrom, wanted: wantedPose(), size, t });
       }
+      // A driver poses the camera itself and draws over the scene after it. No script runs with one (the voyage stage
+      // passes none), so `directed` above is never set.
       if (driver !== undefined) {
         lastPose = driver.pose(t, space, size);
         far = false;

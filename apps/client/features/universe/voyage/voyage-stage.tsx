@@ -1,3 +1,9 @@
+/**
+ * The trial's stage: what the Universe screen draws, instead of the map's own stage, when this device tries the new look.
+ * It lays the universe out as the map does, works out where the person is (`targetOf`) and which planet is drawn as one
+ * world (`usePlanetSurface`), hands both to the controller, and puts the named buttons over the canvas. The camera, the
+ * globe and the ship are the driver's (`voyage-driver.ts`); the gestures are the controller's.
+ */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Platform, StyleSheet, View, type ViewProps } from 'react-native';
 import { chartWorld } from '@knowscroll/scene-core';
@@ -10,6 +16,7 @@ import { BodyTarget, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from 
 import { layOutUniverse, looksById, looksOfState } from '../space/space-model';
 import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
 import { CROWDED_TARGET, separateTargets } from '../space/separate-targets';
+import { Unavailable } from '../space/space-stage';
 import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import type { UniverseView } from '../universe-layout';
@@ -27,6 +34,14 @@ const NAMED_AT: Readonly<Record<Stop, readonly SpaceAnchor['kind'][]>> = {
   ground: ['region'],
 };
 
+/** How far below a region's point its name sits, in points. */
+const REGION_NAME_GAP = 14;
+/** A body's name sits this far below its edge, in points ... */
+const BODY_NAME_GAP = 6;
+/** ... counted from at least this radius, so a tiny body's name still clears its button. */
+const MIN_BODY_RADIUS = 6;
+
+/** Where a view of the map is on the ladder: the stop, and the star, planet and region that make it. */
 const targetOf = (view: UniverseView): VoyageTarget => {
   if (view.kind === 'universe') return { stop: 'universe', systemId: null, planetId: null, regionId: null };
   if (view.kind === 'system') return { stop: 'star', systemId: view.system.objectId, planetId: null, regionId: null };
@@ -39,11 +54,11 @@ const targetOf = (view: UniverseView): VoyageTarget => {
 };
 
 /**
- * The Universe's Round 7.3 look, on trial behind a device switch (#811): one camera that flies along the ladder
- * (ground, planet, star, the whole universe), a planet drawn as one world from orbit to the ground, and a ship the
- * person can drag and let go over a place to go there. It draws the map's own three.js scene through `SpaceView`, with
- * a camera driver of its own (`voyage-driver.ts`), and keeps the map's contract: every place is a named 48 px button
- * over the canvas, and browsing writes nothing.
+ * The Universe's new look, tried behind a device switch: one camera that flies along the ladder (ground, planet, star,
+ * the whole universe), a planet drawn as one world from orbit to the ground, and a ship the person can drag and let go
+ * over a place to go there. It draws the map's own three.js scene through `SpaceView`, with a camera driver of its own
+ * (`voyage-driver.ts`), and keeps the map's contract: every place is a named 48 px button over the canvas, and browsing
+ * writes nothing.
  */
 export function VoyageStage({
   session,
@@ -92,12 +107,14 @@ export function VoyageStage({
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must
   // already see where you are now.
   useLayoutEffect(() => controller.sync(inputs));
+  useEffect(() => () => controller.dispose(), [controller]);
   const recordFrame = useFrameTimeRecorder();
 
   const systemId = inputs.target.systemId;
   const stop = inputs.target.stop;
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
-  // you are, of what you turned or of the planet's world must be one.
+  // you are, of what you turned or of the planet's world must be one. `redraw` only changes the camera's identity when
+  // any of those does; the driver does not read it.
   const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
   const camera = useMemo(
     () => ({
@@ -240,7 +257,8 @@ function VoyageOverlay({
           );
         const kind = anchor.kind === 'station' ? undefined : anchor.kind;
         const width = labelWidth(anchor.name);
-        const below = anchor.kind === 'region' ? 14 : Math.max(anchor.radiusPx, 6) + 6;
+        const below =
+          anchor.kind === 'region' ? REGION_NAME_GAP : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP;
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             <MapLabel
@@ -263,16 +281,4 @@ function VoyageOverlay({
       })}
     </View>
   );
-}
-
-/** 3D cannot be drawn: the screen swaps in the Simple lists. */
-function Unavailable({
-  reason,
-  onUnavailable,
-}: {
-  readonly reason: SpaceFailure;
-  readonly onUnavailable: (reason: SpaceFailure) => void;
-}) {
-  useEffect(() => onUnavailable(reason), [reason, onUnavailable]);
-  return null;
 }

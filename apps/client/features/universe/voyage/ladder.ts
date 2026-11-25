@@ -1,17 +1,21 @@
+/**
+ * The ladder of stops one camera moves along, and the pure rules that read a place on it. The voyage reads the stop
+ * from the stored camera (`stopOf`), names where it is going (`targetKey`) and says which way the Back pill climbs
+ * (`climbOneStop`). Kept free of three.js, so the controller and the header, which reach the main bundle, may import it.
+ */
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-
 /**
- * The stops of the Round 7.3 ladder that today's places fill, outermost first. One camera moves between them: each stop
- * is a distance from what you are in, not a separate screen. A level above a star (a galaxy, a cluster) is one more
- * entry here, between `universe` and `star`, with the kind of place that opens it.
+ * The stops of the ladder that today's places fill, outermost first. One camera moves between them: each stop is a
+ * distance from what you are in, not a separate screen. A level above a star (a galaxy, a cluster) is one more member
+ * here, between `universe` and `star`, with the kind of place that opens it. The prototype's names for `star` and
+ * `ground` are `system` and `surface`.
  */
-export const LADDER = ['universe', 'star', 'planet', 'ground'] as const;
-export type Stop = (typeof LADDER)[number];
+export type Stop = 'universe' | 'star' | 'planet' | 'ground';
 
 /**
- * The stop a view is at. The stored camera is unchanged from the Universe before 7.3: no focus is the whole universe, a
- * system is its star, a planet is the planet, and a landed planet or a chosen region is the ground.
+ * The stop a view is at. The stored camera is the one the Universe had before the voyage: no focus is the whole
+ * universe, a system is its star, a planet is the planet, and a landed planet or a chosen region is the ground.
  */
 export function stopOf(view: UniverseView): Stop {
   if (view.kind === 'universe') return 'universe';
@@ -19,15 +23,36 @@ export function stopOf(view: UniverseView): Stop {
   return view.landed ? 'ground' : 'planet';
 }
 
-/** How deep a stop is: the universe is 0, the ground the deepest. */
-export const depthOf = (stop: Stop): number => LADDER.indexOf(stop);
+/**
+ * A string that is the same for two targets that are the same place and differs for any two that are not. Lets a
+ * caller notice "the target changed" without comparing four fields.
+ */
+export function targetKey(target: {
+  readonly stop: Stop;
+  readonly systemId: string | null;
+  readonly planetId: string | null;
+  readonly regionId: string | null;
+}): string {
+  return `${target.stop}|${target.systemId ?? ''}|${target.planetId ?? ''}|${target.regionId ?? ''}`;
+}
+
+/** A view of a planet, on its globe or landed. */
+type PlanetView = Extract<UniverseView, { readonly kind: 'planet' }>;
 
 /**
- * One stop up the ladder: the ground climbs to its planet's globe, everything else to its parent (the Back pill's
- * `up` goes from a landed planet straight to its system, which skips a stop of the Round 7.3 ladder).
+ * True on the ground of a whole planet, with no region chosen: one step up is that planet's globe, not its star. A
+ * chosen region climbs to the ground first (`selectedRegion`), so this is false for it.
+ */
+export function climbsToGlobe(view: UniverseView): view is PlanetView {
+  return view.kind === 'planet' && view.landed && view.selectedRegion === undefined;
+}
+
+/**
+ * One stop up the ladder: the ground climbs to its planet's globe, everything else to its parent. The Back pill's
+ * `up` goes from a landed planet straight to its system, which would skip the planet stop.
  */
 export function climbOneStop(session: UniverseMapSession, view: UniverseView): void {
-  if (view.kind === 'planet' && view.landed && view.selectedRegion === undefined) {
+  if (climbsToGlobe(view)) {
     void session.focus(view.planet.objectId);
     return;
   }

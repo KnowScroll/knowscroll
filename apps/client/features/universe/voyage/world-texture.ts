@@ -9,31 +9,59 @@ import {
   strokeLoops,
   type DrawOptions,
   type PixelTarget,
+  type RowRange,
   type Rgba,
 } from './fill-loops';
 
-/** The globe's band: 480 units round (a whole turn of longitude) and 360 high (pole to pole). */
-const BAND_WIDTH = 480;
-const BAND_HEIGHT = 360;
-/** Dark ink for the shadow under a cloud. */
+/**
+ * The planet's surface as pixels. The planet you fly to is one sphere that wears this texture, so
+ * from orbit and on the ground it is the same drawing and going down is the camera falling toward
+ * it. The texture is the SVG globe's land recipe (`planet/planet-globe.tsx`: `Land`, `GasBands` and
+ * `Clouds`, with the same colours and alphas) painted into an RGBA array, because a sphere can wear
+ * pixels but not SVG. It differs from the SVG in two ways: land that is not reached is one grey (the
+ * SVG colours its decor), and the region borders are inked after the coast, solid where the SVG's are
+ * dashed. Where a number below copies the SVG globe or the design prototype it says which. The painter
+ * works a few rows at a time so the caller can spread it over frames.
+ *
+ * This file is reached from the main bundle (the stage reads `labelPoints`), so it must not import
+ * `three`; `globe.ts` is what puts the pixels on a sphere.
+ */
+
+/** The globe's band, as the SVG globe's `BAND` and `BAND_HEIGHT` (`planet/planet-globe.tsx`): 480 units round, a whole turn of longitude. */
+export const BAND_WIDTH = 480;
+/** 360 units from the north edge of the band to the south edge. */
+export const BAND_HEIGHT = 360;
+/** Band units for one radian of longitude: the band is `BAND_WIDTH` units for a whole turn. The Mercator scale of the band. */
+export const BAND_UNITS_PER_RADIAN = BAND_WIDTH / (2 * Math.PI);
+/** The ink of the shadow under a cloud: the SVG globe's cloud shadow fill. */
 const CLOUD_SHADOW = '#06182a';
-/** How much of the land's own colour a land that is not reached yet keeps (`mix(land, grey, 0.86)`). */
+/**
+ * How far land that is not reached yet is mixed toward the palette's grey (so it keeps 0.14 of its own
+ * colour): the prototype's `mix(land, lock[0], 0.86)` for a region not reached (`drawGlobe`,
+ * `Universe.dc.html` line 1328), with `lock[0]` being `palette.grey[0]`. Here the first land colour is
+ * mixed for all of it, so no piece shows which site it is.
+ */
 const UNREACHED_GREY_MIX = 0.86;
 /**
  * A line of the SVG globe is one to six units wide on a disc of 360 units. The texture is stretched
  * over a sphere, so a line is thinner here than its unit width in pixels would be.
  */
 const LINE_WEIGHT = 0.6;
-const BAND_ROWS = 9;
+/** The gas giant's bands: nine, the SVG globe's `GasBands` count, each as high as the band is tall over nine (40 units). */
+const GAS_BAND_COUNT = 9;
+const GAS_BAND_HEIGHT = BAND_HEIGHT / GAS_BAND_COUNT;
+/** The wave along the top of a gas band, as the SVG globe's `GasBands`: a quadratic arc every 60 units, swinging 9 up or down. */
+const GAS_WAVE_LENGTH = 60;
+const GAS_WAVE_SWING = 9;
 /** Columns of gas band painted in one task. */
-const STRIP = 64;
+const GAS_COLUMNS_PER_TASK = 64;
 /** Pixel rows a layer is painted in at a time, so that no task is long. */
-const TASK_ROWS = 32;
-/** Band units for one radian of longitude: the band is 480 units for a whole turn. */
-const UNITS_PER_RADIAN = BAND_WIDTH / (2 * Math.PI);
+const ROWS_PER_TASK = 32;
 
+/** The pixels of a finished texture: RGBA, row 0 at the north edge of the band. */
 export type WorldTexture = PixelTarget;
 
+/** What the texture is painted from: the planet's world, its chart (which regions have formed), its palette and the size to paint at. */
 export interface WorldTextureInput {
   readonly world: GlobeWorld;
   readonly chart: Chart;
@@ -42,7 +70,7 @@ export interface WorldTextureInput {
   readonly height: number;
 }
 
-/** What `paintWorldTexture` paints into: the image, how world units map onto it and how thick a line is. */
+/** What the painting tasks draw into: the image, how world units map onto it and how thick a line is. */
 interface Sheet {
   readonly target: PixelTarget;
   readonly draw: DrawOptions & { readonly scale: { readonly x: number; readonly y: number } };
@@ -51,31 +79,21 @@ interface Sheet {
 }
 
 /**
- * The latitude, in radians north of the equator, of band row `y` (0 at the top, 360 at the bottom).
- * The band is a Mercator strip: a unit is the same length north as east at every latitude, so a
- * continent keeps its shape on the sphere. The band's edges lie at about +-79.2 degrees.
+ * The latitude, in radians north of the equator, of band row `y` (0 at the top, `BAND_HEIGHT` at the
+ * bottom). The band is a Mercator strip: a unit is the same length north as east at every latitude, so
+ * a continent keeps its shape on the sphere. The band's edges lie at about +-79.2 degrees.
  */
 export function latitudeOfBandY(y: number): number {
-  return 2 * Math.atan(Math.exp((BAND_HEIGHT / 2 - y) / UNITS_PER_RADIAN)) - Math.PI / 2;
+  return 2 * Math.atan(Math.exp((BAND_HEIGHT / 2 - y) / BAND_UNITS_PER_RADIAN)) - Math.PI / 2;
 }
 
-/** The band row of a latitude in radians, kept within the band: the poles, beyond its edges, give 0 or 360. */
-export function bandYOfLatitude(latitude: number): number {
-  const y = BAND_HEIGHT / 2 - UNITS_PER_RADIAN * Math.log(Math.tan(Math.PI / 4 + latitude / 2));
-  return Math.min(BAND_HEIGHT, Math.max(0, y));
-}
-
-/** A point of the band as the angle round the planet (east) and up from its equator (north), in radians. */
-export function bandToLonLat(x: number, y: number): { readonly lon: number; readonly lat: number } {
-  return { lon: (x / BAND_WIDTH) * 2 * Math.PI, lat: latitudeOfBandY(y) };
-}
-
-/** Where a formed region's name belongs, on the band and on the sphere. */
+/**
+ * Where a formed region's name belongs and where it is tapped: its column on the band, and its latitude
+ * in radians (the sphere has to be told how high up, and a band row is not a latitude).
+ */
 export interface LabelPoint {
   readonly objectId: string;
   readonly x: number;
-  readonly y: number;
-  readonly lon: number;
   readonly lat: number;
 }
 
@@ -87,11 +105,11 @@ export function labelPoints(chart: Chart): readonly LabelPoint[] {
   return chart.charted.map(({ objectId, label }) => ({
     objectId,
     x: label.x,
-    y: label.y,
-    ...bandToLonLat(label.x, label.y),
+    lat: latitudeOfBandY(label.y),
   }));
 }
 
+/** A `#rrggbb` colour as 0..255 channels (not `space/paint`'s `hexToUnit`: 0..1 floats would round the bytes differently). */
 const rgbOf = (hex: string): Rgb => [
   Number.parseInt(hex.slice(1, 3), 16),
   Number.parseInt(hex.slice(3, 5), 16),
@@ -104,7 +122,11 @@ const hexAlpha = (hex: string, alpha: number): Rgba => withAlpha(rgbOf(hex), alp
 const shifted = (loops: readonly Loop[], dx: number, dy: number): Loop[] =>
   loops.map((loop) => loop.map((value, at) => value + (at % 2 === 0 ? dx : dy)));
 
-/** Open water in rows `from` up to `to`, a little deeper towards the poles. The 3D light does the rest of the shading. */
+/**
+ * Open water in rows `from` up to `to`: from the palette's `sea[1]` at the equator, a little deeper
+ * towards the poles (mixed toward `sea[2]`, 0.7 of the way at the edge of the band). The sphere's own
+ * light does the rest of the shading, so none is painted in.
+ */
 function paintSea(target: PixelTarget, palette: PlanetPalette, from: number, to: number): void {
   const equator = rgbOf(palette.sea[1]);
   const pole = rgbOf(palette.sea[2]);
@@ -121,24 +143,33 @@ function paintSea(target: PixelTarget, palette: PlanetPalette, from: number, to:
   }
 }
 
-/** How far the top edge of a gas band swings at world `x`: the SVG globe's wave, a quadratic arc every 60 units. */
-function bandWave(x: number): number {
-  const along = (x + 60) / 60;
+/**
+ * How far the top edge of a gas band swings at world `x`: the SVG globe's wave, a quadratic arc every
+ * `GAS_WAVE_LENGTH` units. A quadratic curve whose control point sits `GAS_WAVE_SWING` off the line
+ * is `2t(1 - t)` of that swing off it at `t` of the way along.
+ */
+function gasWave(x: number): number {
+  const along = (x + GAS_WAVE_LENGTH) / GAS_WAVE_LENGTH;
   const step = Math.floor(along);
   const t = along - step;
-  return 2 * t * (1 - t) * (step % 2 === 1 ? 9 : -9);
+  return 2 * t * (1 - t) * (step % 2 === 1 ? GAS_WAVE_SWING : -GAS_WAVE_SWING);
 }
 
-/** A gas giant's flat wavy bands in columns `from` up to `to`: every 40 units from the top, each running down to the bottom edge. */
+/**
+ * A gas giant's flat wavy bands in columns `from` up to `to`: one every `GAS_BAND_HEIGHT` units from the
+ * top, each running down to the top edge of the next, in the palette's colours in turn. The SVG globe's
+ * `GasBands` instead draws each band 44 units tall, so the next paints over its foot.
+ */
 function paintGasBands(sheet: Sheet, bands: readonly string[], from: number, to: number): void {
   const { target, draw } = sheet;
   const colours = bands.map(rgbOf);
-  const tops = new Array<number>(BAND_ROWS + 1);
+  const tops = new Array<number>(GAS_BAND_COUNT + 1);
   for (let column = from; column < Math.min(to, target.width); column++) {
-    const wave = bandWave((column + 0.5) / draw.scale.x);
-    for (let band = 0; band < BAND_ROWS; band++) tops[band] = Math.ceil((band * 40 + wave) * draw.scale.y - 0.5);
-    tops[BAND_ROWS] = target.height;
-    for (let band = 0; band < BAND_ROWS; band++) {
+    const wave = gasWave((column + 0.5) / draw.scale.x);
+    for (let band = 0; band < GAS_BAND_COUNT; band++)
+      tops[band] = Math.ceil((band * GAS_BAND_HEIGHT + wave) * draw.scale.y - 0.5);
+    tops[GAS_BAND_COUNT] = target.height;
+    for (let band = 0; band < GAS_BAND_COUNT; band++) {
       const [red, green, blue] = colours[band % colours.length]!;
       for (let row = Math.max(0, tops[band]!); row < Math.min(target.height, tops[band + 1]!); row++) {
         const at = (row * target.width + column) * 4;
@@ -151,16 +182,14 @@ function paintGasBands(sheet: Sheet, bands: readonly string[], from: number, to:
   }
 }
 
+/** Every loop of the land not reached, as one list: the edge of it, for the coast's reach. */
 const unreachedLoops = (chart: Chart): Loop[] => chart.unreached.flatMap((land) => land.loops);
 /** One shape for each piece of land, so neighbours that overlap by a sliver do not cancel each other under even-odd. */
 const chartedShapes = (chart: Chart): (readonly Loop[])[] => chart.charted.map((cell) => cell.loops);
 const unreachedShapes = (chart: Chart): (readonly Loop[])[] => chart.unreached.map((land) => land.loops);
 
-/** A piece of work that paints one strip of a layer. */
+/** A piece of work that paints one range of rows of a layer. */
 type Task = () => void;
-
-/** A band of pixel rows, from the first row up to (not including) `to`. */
-type Rows = { readonly from: number; readonly to: number };
 
 /** What the later layers need to know about earlier ones; each is set by the mask tasks. */
 interface Masks {
@@ -176,52 +205,58 @@ interface Masks {
   unreachedLand: Uint8Array;
 }
 
-/** The strips a texture of `count` rows (or columns) is painted in, `size` at a time. */
-const stripsOf = (count: number, size: number): Rows[] =>
+/** The ranges a texture of `count` rows (or columns) is painted in, `size` at a time. */
+const rangesOf = (count: number, size: number): RowRange[] =>
   Array.from({ length: Math.ceil(count / size) }, (_, at) => ({
     from: at * size,
     to: Math.min(count, (at + 1) * size),
   }));
 
-/** One task for each band of rows of the target: the work of a layer, spread so no task is long. */
-const bandTasks = (target: PixelTarget, paint: (rows: Rows) => void): Task[] =>
-  stripsOf(target.height, TASK_ROWS).map((rows) => () => paint(rows));
+/** One task for each range of rows of the target: the work of a layer, spread so no task is long. */
+const rowTasks = (target: PixelTarget, paint: (rows: RowRange) => void): Task[] =>
+  rangesOf(target.height, ROWS_PER_TASK).map((rows) => () => paint(rows));
 
-/** The sea, the bands of a gas giant, the water off the coast, the coast's glow where a planet has one, and the foam line. */
+/**
+ * The sea, the bands of a gas giant, the water off the coast, the coast's glow where a planet has one,
+ * and the foam line: the SVG globe's `Land` up to the coast, in its order, with its alphas and widths
+ * (shallows 0.35 each, glow `#ffb03a` 6 wide at 0.8, foam 3.6 wide at 0.85). The prototype draws the
+ * same three strokes in `drawGlobe`: a shelf, a hot line where the palette glows, then foam.
+ */
 function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
   const { target, draw, line } = sheet;
   const { world, palette } = input;
   const glow = hexAlpha('#ffb03a', 0.8);
   return [
-    ...stripsOf(target.height, TASK_ROWS).map(
+    ...rangesOf(target.height, ROWS_PER_TASK).map(
       ({ from, to }) =>
         () =>
           paintSea(target, palette, from, to),
     ),
     ...(palette.bands
-      ? stripsOf(target.width, STRIP).map(
+      ? rangesOf(target.width, GAS_COLUMNS_PER_TASK).map(
           ({ from, to }) =>
             () =>
               paintGasBands(sheet, palette.bands!, from, to),
         )
       : []),
-    ...bandTasks(target, (rows) =>
+    ...rowTasks(target, (rows) =>
       fillLoops(target, world.shallowWide, hexAlpha(palette.shallow, 0.35), { ...draw, rows }),
     ),
-    ...bandTasks(target, (rows) => fillLoops(target, world.shallow, hexAlpha(palette.foam, 0.35), { ...draw, rows })),
+    ...rowTasks(target, (rows) => fillLoops(target, world.shallow, hexAlpha(palette.foam, 0.35), { ...draw, rows })),
     ...(palette.glowCoast
-      ? bandTasks(target, (rows) => strokeLoops(target, world.land, glow, { ...draw, rows, width: 6 * line }))
+      ? rowTasks(target, (rows) => strokeLoops(target, world.land, glow, { ...draw, rows, width: 6 * line }))
       : []),
-    ...bandTasks(target, (rows) =>
+    ...rowTasks(target, (rows) =>
       strokeLoops(target, world.land, hexAlpha(palette.foam, 0.85), { ...draw, rows, width: 3.6 * line }),
     ),
   ];
 }
 
 /**
- * Every continent in its colour. A formed region wears the colour of its site. Land that is not
- * reached is one flat grey, the same for every piece, unformed or decorative: nothing here tells
- * them apart.
+ * Every continent in its colour. A formed region wears the colour of its site (`site % 4` picks one of
+ * the palette's four, as the SVG globe's `byColour`). Land that is not reached is one flat grey, the
+ * same for every piece, unformed or decorative: nothing here tells them apart, so the pixels give away
+ * no site and no count (D-078, D-109).
  */
 function landTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
   const { target, draw } = sheet;
@@ -233,15 +268,15 @@ function landTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
       const shapes = chart.charted.filter((cell) => cell.site % 4 === colour).map((cell) => cell.loops);
       return shapes.length === 0
         ? []
-        : bandTasks(target, (rows) => fillShapes(target, shapes, hexAlpha(hex, 1), { ...draw, rows }));
+        : rowTasks(target, (rows) => fillShapes(target, shapes, hexAlpha(hex, 1), { ...draw, rows }));
     }),
-    ...bandTasks(target, (rows) => fillShapes(target, unreached, grey, { ...draw, rows })),
+    ...rowTasks(target, (rows) => fillShapes(target, unreached, grey, { ...draw, rows })),
   ];
 }
 
 /**
- * The masks the detail and the cloud are kept to, made a band of rows at a time. Land not reached
- * is grown by a line's width, so its coast is inside the mask and the coast of reached land is not.
+ * The masks the detail and the cloud are kept to, made a range of rows at a time. Land not reached
+ * is grown by a coast line's width, so its coast is inside the mask and the coast of reached land is not.
  */
 function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
   const { target, draw, line } = sheet;
@@ -249,7 +284,7 @@ function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
   const charted = chartedShapes(chart);
   const unreached = unreachedShapes(chart);
   const unreachedEdges = unreachedLoops(chart);
-  return bandTasks(target, (rows) => {
+  return rowTasks(target, (rows) => {
     maskShapes(target, charted, { ...draw, rows, into: masks.charted });
     maskShapes(target, unreached, { ...draw, rows, into: masks.unreachedLand });
     const edge = strokeCover(target, unreachedEdges, { ...draw, rows, width: 1.4 * line });
@@ -267,9 +302,11 @@ function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
 
 /**
  * Lowland and highland patches on reached land, and the lines: the coast in ink, the borders
- * between formed regions, and the coast of land not reached in grey. Land not reached is outlined
- * as one (the coast of the world where it meets the sea), never along the borders between its
- * cells, which would show how it is split (D-109).
+ * between formed regions, and the coast of land not reached in grey. Alphas and widths are the SVG
+ * globe's `Land` (lowland 0.6, highland 0.62, coast ink 0.7 at 1.4 wide, region border ink 0.45 at 1
+ * wide, solid where the SVG's is dashed); the grey coast is the prototype's `lock[2]` outline. Land
+ * not reached is outlined as one (the coast of the world where it meets the sea), never along the
+ * borders between its cells, which would show how it is split (D-109).
  */
 function detailTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
   const { target, draw, line } = sheet;
@@ -277,27 +314,30 @@ function detailTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task
   const ink = hexAlpha(palette.ink, 0.7);
   const grey = hexAlpha(palette.grey[2], 0.6);
   return [
-    ...bandTasks(target, (rows) =>
+    ...rowTasks(target, (rows) =>
       fillLoops(target, world.lowland, hexAlpha(palette.lowland, 0.6), { ...draw, rows, clip: masks.charted }),
     ),
-    ...bandTasks(target, (rows) =>
+    ...rowTasks(target, (rows) =>
       fillLoops(target, world.highland, hexAlpha(palette.highland, 0.62), { ...draw, rows, clip: masks.charted }),
     ),
-    ...bandTasks(target, (rows) =>
+    ...rowTasks(target, (rows) =>
       strokeLoops(target, world.land, ink, { ...draw, rows, clip: masks.awayFromUnreached, width: 1.4 * line }),
     ),
-    ...bandTasks(target, (rows) =>
+    ...rowTasks(target, (rows) =>
       strokeLoops(target, world.land, grey, { ...draw, rows, clip: masks.nearUnreached, width: 1.4 * line }),
     ),
     ...chart.charted.flatMap((cell) =>
-      bandTasks(target, (rows) =>
+      rowTasks(target, (rows) =>
         strokeLoops(target, cell.loops, hexAlpha(palette.ink, 0.45), { ...draw, rows, width: line }),
       ),
     ),
   ];
 }
 
-/** Cumulus laid as the SVG globe stacks it (shadow, cool underside, body, brighter middle, sunlit core), only where the cloud has room. */
+/**
+ * Cumulus laid as the SVG globe's `Clouds` stacks it (shadow, cool underside, body, brighter middle,
+ * sunlit core: the same offsets, alphas and colours), only where the cloud has room.
+ */
 function cloudTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
   const { target, draw } = sheet;
   const { body, middle, core } = input.world.clouds;
@@ -310,14 +350,14 @@ function cloudTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[
     [shifted(core, -1.2, -2), hexAlpha('#ffffff', 1)],
   ];
   return layers.flatMap(([loops, colour]) =>
-    bandTasks(target, (rows) => fillLoops(target, loops, colour, { ...draw, rows, clip: masks.cloudRoom })),
+    rowTasks(target, (rows) => fillLoops(target, loops, colour, { ...draw, rows, clip: masks.cloudRoom })),
   );
 }
 
-/** A texture being painted a little at a time. */
+/** A texture being painted a little at a time, so that painting never holds the frame for long. */
 export interface WorldPainter {
   /**
-   * Paints strips of layers (32 rows of one layer at a time) until `budgetMs` milliseconds on the
+   * Paints ranges of layers (`ROWS_PER_TASK` rows of one layer at a time) until `budgetMs` milliseconds on the
    * painter's clock have passed, at least one strip each call. Returns true when the texture is finished.
    */
   step(budgetMs: number): boolean;
@@ -327,17 +367,17 @@ export interface WorldPainter {
 
 /**
  * Starts painting one planet's continents into an RGBA image a sphere can wear: x is longitude all
- * round (the band's 480 units), y is the band's row from north (row 0) to south, nothing flipped
- * and painted linearly in band units; the sphere's UVs do the Mercator mapping of
+ * round (the band's `BAND_WIDTH` units), y is the band's row from north (row 0) to south, nothing
+ * flipped and painted linearly in band units; the sphere's UVs do the Mercator mapping of
  * `latitudeOfBandY`. Pure: the same world, chart and palette give the same bytes however it is
- * stepped, and the seam is seamless. Nothing runs until `step` is called,
- * so a caller can spread the cost over frames.
+ * stepped, and the seam is seamless. Nothing runs until `step` is called, so a caller can spread the
+ * cost over frames.
  *
  * Formed regions are in colour. Land that is not reached yet is one flat grey, with cloud over it
  * and nowhere else; it is drawn from `chart.unreached` alone, which has no site or id for it, so
- * no site, region id or count goes into the pixels (D-078, D-109). Land is painted like the SVG
- * globe, a gas giant included: its bands lie under the soft land its world has. A globe world
- * carries no veils, so the cloud is the world's own weather (`world.clouds`) kept to unreached land.
+ * no site, region id or count goes into the pixels. Land is painted like the SVG globe, a gas giant
+ * included: its bands lie under the soft land its world has. A globe world carries no veils, so the
+ * cloud is the world's own weather (`world.clouds`) kept to unreached land.
  *
  * @param now the clock `step` measures its budget by, in milliseconds. Default `performance.now`.
  */
@@ -348,8 +388,9 @@ export function createWorldPainter(
   const { world, width, height } = input;
   const target: PixelTarget = { width, height, data: new Uint8Array(width * height * 4) };
   const scale = { x: width / world.width, y: height / world.height };
-  // No wrapping: the loops already run 60 units past each edge, as copies of what lies at the other edge, so the
-  // texture's own bounds cut them. Wrapping them again would draw the edge where they were cut across the land.
+  // Nothing wraps round the seam: the world's loops already run 60 units past each edge, as copies of what lies at
+  // the other edge, so the texture's own bounds cut them. Wrapping them again would draw the edge where they were
+  // cut across the land.
   const sheet: Sheet = {
     target,
     draw: { scale },
@@ -369,7 +410,7 @@ export function createWorldPainter(
     ...maskTasks(sheet, input, masks),
     ...detailTasks(sheet, input, masks),
     ...cloudTasks(sheet, input, masks),
-    // The masks are only for painting: let go of them (about five bytes a pixel) once it is done.
+    // The masks are only for painting: let go of them (five bytes a pixel) once it is done.
     () => {
       for (const name of Object.keys(masks) as (keyof Masks)[]) masks[name] = new Uint8Array(0);
     },
@@ -389,11 +430,4 @@ export function createWorldPainter(
       return target;
     },
   };
-}
-
-/** The whole texture at once: `createWorldPainter` stepped until it is done. */
-export function paintWorldTexture(input: WorldTextureInput): WorldTexture {
-  const painter = createWorldPainter(input);
-  while (!painter.step(Infinity));
-  return painter.result();
 }

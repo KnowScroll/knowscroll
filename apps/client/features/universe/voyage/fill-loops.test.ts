@@ -1,4 +1,4 @@
-import { fillLoops, maskLoops, strokeLoops, type PixelTarget, type Rgba } from './fill-loops';
+import { fillLoops, fillShapes, maskShapes, strokeLoops, type PixelTarget, type Rgba } from './fill-loops';
 
 const RED: Rgba = [255, 0, 0, 1];
 
@@ -43,34 +43,19 @@ describe('filling loops', () => {
     expect(pixel(target, 12, 5)).toEqual([0, 0, 0, 0]);
   });
 
-  it('draws a loop over the seam at both edges', () => {
-    const target = blank(10, 4);
-    fillLoops(target, [square(8, 0, 12, 4)], RED, { wrapWidth: 10 });
-    for (let row = 0; row < 4; row++) {
-      expect(pixel(target, 8, row)[3]).toBe(255);
-      expect(pixel(target, 9, row)[3]).toBe(255);
-      expect(pixel(target, 0, row)[3]).toBe(255);
-      expect(pixel(target, 1, row)[3]).toBe(255);
-      expect(pixel(target, 2, row)[3]).toBe(0);
-      expect(pixel(target, 7, row)[3]).toBe(0);
-    }
-  });
-
-  it('lays a see-through colour once where a loop and its own wrapped copy overlap', () => {
-    const target = blank(10, 2);
-    fillLoops(target, [square(-1, 0, 11, 2)], [0, 0, 255, 0.5], { wrapWidth: 10 });
-    expect(pixel(target, 5, 0)).toEqual([0, 0, 255, 128]);
-  });
-
-  it('adds up solid shapes in a union, where even-odd would cancel their overlap', () => {
+  it('adds up shapes where even-odd over all their loops would cancel the overlap', () => {
     const shapes = [square(1, 1, 6, 6), square(4, 4, 9, 9)];
     const evenOdd = blank(10, 10);
-    const union = blank(10, 10);
+    const added = blank(10, 10);
     fillLoops(evenOdd, shapes, RED);
-    fillLoops(union, shapes, [255, 0, 0, 0.5], { union: true });
+    fillShapes(
+      added,
+      shapes.map((loop) => [loop]),
+      [255, 0, 0, 0.5],
+    );
     expect(pixel(evenOdd, 5, 5)).toEqual([0, 0, 0, 0]);
-    expect(pixel(union, 5, 5)).toEqual([255, 0, 0, 128]);
-    expect(painted(union)).toBe(25 + 25 - 4);
+    expect(pixel(added, 5, 5)).toEqual([255, 0, 0, 128]);
+    expect(painted(added)).toBe(25 + 25 - 4);
   });
 
   it('blends a see-through colour over what is already there', () => {
@@ -82,7 +67,7 @@ describe('filling loops', () => {
 
   it('paints only inside a clip mask', () => {
     const target = blank(10, 10);
-    const mask = maskLoops(target, [square(0, 0, 5, 10)]);
+    const mask = maskShapes(target, [[square(0, 0, 5, 10)]]);
     fillLoops(target, [square(2, 2, 8, 8)], RED, { clip: mask });
     expect(pixel(target, 4, 4)[3]).toBe(255);
     expect(pixel(target, 5, 4)[3]).toBe(0);
@@ -90,7 +75,7 @@ describe('filling loops', () => {
 
   it('makes a mask that is 1 exactly where a fill would paint', () => {
     const target = blank(10, 10);
-    const mask = maskLoops(target, [square(1, 1, 9, 9), square(3, 3, 7, 7)]);
+    const mask = maskShapes(target, [[square(1, 1, 9, 9), square(3, 3, 7, 7)]]);
     expect(mask.reduce((sum, value) => sum + value, 0)).toBe(48);
     expect(mask[5 * 10 + 5]).toBe(0);
     expect(mask[2 * 10 + 2]).toBe(1);
@@ -112,13 +97,5 @@ describe('stroking loops', () => {
     const target = blank(30, 30);
     strokeLoops(target, [square(5, 5, 25, 25)], [0, 0, 255, 0.5], { width: 4 });
     expect(pixel(target, 5, 5)).toEqual([0, 0, 255, 128]);
-  });
-
-  it('carries a line over the seam', () => {
-    const target = blank(20, 20);
-    strokeLoops(target, [square(18, 5, 24, 15)], RED, { width: 2, wrapWidth: 20 });
-    expect(pixel(target, 18, 10)[3]).toBeGreaterThan(0);
-    expect(pixel(target, 4, 10)[3]).toBeGreaterThan(0);
-    expect(pixel(target, 10, 10)[3]).toBe(0);
   });
 });

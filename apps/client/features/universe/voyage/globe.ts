@@ -1,18 +1,22 @@
 import * as THREE from 'three';
+import { pixelTexture } from '../space/scene/context';
+import { BAND_HEIGHT, BAND_UNITS_PER_RADIAN, BAND_WIDTH, type WorldTexture } from './world-texture';
 
 /**
- * The planet you are at, as one sphere: from orbit and on the ground it is the same drawing (Round 7.3), so going
- * down is the camera falling toward it, never a cross-fade. It wears the planet's world texture (`world-texture.ts`),
- * painted from the `worldmap.v1` globe band. The band's height is a Mercator strip (its edges near ±79°), so the shader
- * turns a point's latitude into a band row and continents keep their shape; above the band are the palette's caps.
+ * The planet you are at, as one sphere: from orbit and on the ground it is the same drawing, as the
+ * design prototype's planet is, so going down is the camera falling toward it, never a cross-fade. It
+ * wears the planet's world texture (`world-texture.ts`), painted from the `worldmap.v1` globe band.
+ * The band is a Mercator strip (its edges near +-79 degrees), so the shader turns a point's latitude
+ * into a band row and continents keep their shape; above the band are the palette's caps. A sphere
+ * with a texture, rather than the prototype's canvas drawing of loops re-projected every frame, so
+ * the phone paints the land once and the GPU turns it.
  *
- * The light comes from the planet's real sun. Nearer the ground the night side, the rim of air and the shading fade
- * out, so the land reads as a map.
+ * The light comes from the planet's real sun, as the prototype's does. Nearer the ground the night
+ * side, the rim of air and the shading fade out, so the land reads as a map (the prototype fades the
+ * same three as the globe turns into the map).
  */
 
-/** Band units per radian of longitude: the band is 480 units round. */
-const BAND_UNITS_PER_RADIAN = 480 / (2 * Math.PI);
-
+/** Passes the unit-sphere position (the point's own longitude and latitude), the world normal and the view direction to the fragment shader. */
 const VERTEX = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorldNormal;
@@ -26,6 +30,17 @@ const VERTEX = /* glsl */ `
   }
 `;
 
+/**
+ * Longitude is `atan(x, z)` and texture u is that turn plus a half, so band x 0 is longitude -PI;
+ * `K` and the half and whole band height are the band's own size (`world-texture.ts`), and the band row
+ * is the Mercator row of the latitude, the inverse of `latitudeOfBandY`. Row 0 of the painted band is
+ * its north edge and a `DataTexture`'s row 0 is at v = 0, so v is not flipped.
+ *
+ * The shading numbers are this shader's own, not the prototype's (it has canvas gradients, no shader).
+ * The day side is 1.04 of the colour and the night side 0.38, met over a sun angle of -0.25 to 0.35;
+ * the rim of air is `pow(1 - n.v, 2.6)` at 0.55, which is the prototype's rim alpha at the limb
+ * (`drawGlobe`, `Universe.dc.html` line 1364); the cap is met over 0.02 of v.
+ */
 const FRAGMENT = /* glsl */ `
   uniform sampler2D map;
   uniform float painted;
@@ -43,8 +58,8 @@ const FRAGMENT = /* glsl */ `
   void main() {
     float lon = atan(vLocal.x, vLocal.z);
     float lat = asin(clamp(vLocal.y, -1.0, 1.0));
-    float bandY = 180.0 - K * log(tan(PI * 0.25 + lat * 0.5));
-    float v = bandY / 360.0;
+    float bandY = ${(BAND_HEIGHT / 2).toFixed(1)} - K * log(tan(PI * 0.25 + lat * 0.5));
+    float v = bandY / ${BAND_HEIGHT.toFixed(1)};
     vec2 uv = vec2(fract(lon / (2.0 * PI) + 0.5), clamp(v, 0.0, 1.0));
     // Row 0 of the painted band is its top (north), and a DataTexture's row 0 is at v = 0: no flip.
     vec3 land = mix(sea, texture2D(map, uv).rgb, painted);
@@ -62,11 +77,12 @@ const FRAGMENT = /* glsl */ `
 `;
 
 /**
- * The point of the unit sphere that wears band point (`bandX`, `latitude`): the shader's longitude is
- * `atan(x, z)`, and band x 0 is the shader's −π (texture u 0).
+ * The point of the unit sphere that wears band point (`bandX`, `latitude`), so a name or a tap target
+ * can be put where the land is on the sphere: the shader's longitude is `atan(x, z)`, and band x 0 is
+ * the shader's -PI (texture u 0).
  */
 export function localPointOf(bandX: number, latitude: number): THREE.Vector3 {
-  const longitude = (bandX / 480) * 2 * Math.PI - Math.PI;
+  const longitude = (bandX / BAND_WIDTH) * 2 * Math.PI - Math.PI;
   return new THREE.Vector3(
     Math.cos(latitude) * Math.sin(longitude),
     Math.sin(latitude),
@@ -74,27 +90,44 @@ export function localPointOf(bandX: number, latitude: number): THREE.Vector3 {
   );
 }
 
+/** The three colours the planet's palette gives the globe: the open sea, the polar caps above the band, and the rim of air. */
 export interface GlobeColours {
   readonly sea: string;
   readonly cap: string;
   readonly air: string;
 }
 
+/** The planet sphere and what the voyage changes on it as the camera moves. */
 export interface Globe {
   readonly mesh: THREE.Mesh;
-  /** Wears a painted world (RGBA, equirectangular over the band), or nothing while it is being painted. */
-  setTexture(texture: { readonly width: number; readonly height: number; readonly data: Uint8Array } | null): void;
+  /**
+   * Wears a painted world (RGBA, as `createWorldPainter` paints it: x is longitude, y is the band row),
+   * or nothing while it is being painted: the sea colour shows until the texture is ready. Frees the
+   * texture it wore before.
+   */
+  setTexture(texture: WorldTexture | null): void;
+  /** Sets the sea, cap and air colours of the planet being shown. */
   setColours(colours: GlobeColours): void;
   /**
    * Where the light comes from (world direction toward the sun), how near the ground the camera is (0 in orbit, 1 on
    * the ground) and how visible the globe is (it grows out of the painted planet beneath it).
    */
   setLight(toSun: THREE.Vector3, near: number, opacity: number): void;
+  /** Frees the sphere, its material and the texture it wears. */
   dispose(): void;
 }
 
+/** How finely the sphere is cut, round and from pole to pole. */
+const SPHERE_WIDTH_SEGMENTS = 96;
+const SPHERE_HEIGHT_SEGMENTS = 64;
+
+/**
+ * Makes the planet sphere, hidden until the voyage shows it. It starts with the prototype's lush
+ * palette's flat-sea first stop (`#1d7d97`) and `atmo` (`#83f2ea`), a pale cap, and the prototype's
+ * default light direction `[-0.45, -0.55, 0.7]` with y up; `setColours` and `setLight` replace them.
+ */
 export function createGlobe(): Globe {
-  const geometry = new THREE.SphereGeometry(1, 96, 64);
+  const geometry = new THREE.SphereGeometry(1, SPHERE_WIDTH_SEGMENTS, SPHERE_HEIGHT_SEGMENTS);
   const uniforms = {
     map: { value: null as THREE.DataTexture | null },
     painted: { value: 0 },
@@ -122,14 +155,9 @@ export function createGlobe(): Globe {
       uniforms.painted.value = 0;
       uniforms.map.value = null;
       if (next === null) return;
-      texture = new THREE.DataTexture(next.data, next.width, next.height, THREE.RGBAFormat);
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.ClampToEdgeWrapping;
-      // No mipmaps: the longitude wraps inside the shader, and a mip chosen across the seam would draw a line.
-      texture.generateMipmaps = false;
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.needsUpdate = true;
+      // Repeat across, clamped up and down, linear, and no mipmaps (a `DataTexture` has none): the longitude
+      // wraps inside the shader, and a mip chosen across the seam would draw a line.
+      texture = pixelTexture(next);
       uniforms.map.value = texture;
       uniforms.painted.value = 1;
     },
