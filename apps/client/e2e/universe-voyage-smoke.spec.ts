@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { tapOrbitingTarget } from './orbiting-target';
-import { frameLine, frameStamps, openVoyage, readoutOf, shot, VOYAGE_READS } from './voyage-fixture';
+import { frameLine, frameStamps, openVoyage, programCounts, readoutOf, shot, VOYAGE_READS } from './voyage-fixture';
 
 /** How much of each flight is measured: its first 3 s, about the longest flight between two neighbouring stops. */
 const FLIGHT_MS = 3000;
@@ -24,12 +24,13 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   // Every flight is drawn in software here, at a few frames a second when the runner is busy.
   test.setTimeout(240_000);
   const paths: string[] = [];
-  await openVoyage(page, paths, { stamps: true });
+  await openVoyage(page, paths, { stamps: true, programs: true });
   await expect(page.getByTestId('voyage-stage')).toBeVisible({ timeout: 60_000 });
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('universe-simple')).toHaveCount(0);
   await page.waitForTimeout(2500);
+  const programsAtRest = await programCounts(page);
   const numbers = [`universe: ${await readoutOf(page)}`];
   await shot(page, 'voyage-1-universe');
 
@@ -86,8 +87,13 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
   await expect(system).toBeVisible({ timeout: 30_000 });
 
+  // No flight rebuilds the scene: a rebuild frees every shader program and links it again, a stall mid-flight.
+  const programs = await programCounts(page);
+  expect(programs.deleted - programsAtRest.deleted).toBe(0);
+
   expect(paths.filter((path) => !VOYAGE_READS.has(path))).toEqual([]);
-  const line = `voyage (web, 390x844, software WebGL): stops ${numbers.join(' | ')}; flights ${flights.join(' | ')}`;
+  const linked = programs.linked - programsAtRest.linked;
+  const line = `voyage (web, 390x844, software WebGL): stops ${numbers.join(' | ')}; flights ${flights.join(' | ')}; programs linked in flight ${linked}`;
   // eslint-disable-next-line no-console -- the numbers go in the pull request
   console.log(line);
   await testInfo.attach('voyage-frame-numbers', { body: line, contentType: 'text/plain' });

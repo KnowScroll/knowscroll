@@ -1,17 +1,50 @@
 /**
  * The ladder of stops one camera moves along, and the pure rules that read a place on it. The voyage reads the stop
- * from the stored camera (`stopOf`), names where it is going (`targetKey`) and says which way the Back pill climbs
- * (`climbOneStop`). Kept free of three.js, so the controller and the header, which reach the main bundle, may import it.
+ * from the stored camera (`stopOf`), names where it is going (`targetOf`, `targetKey`), looks up what each stop shows
+ * (`STOPS`) and says which way the Back pill climbs (`climbOneStop`). Kept free of three.js, so the controller and the
+ * header, which reach the main bundle, may import it.
  */
+import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession, UniverseViewSession } from '../universe-session';
 /**
  * The stops of the ladder that today's places fill, outermost first. One camera moves between them: each stop is a
- * distance from what you are in, not a separate screen. A level above a star (a galaxy, a cluster) is one more member
- * here, between `universe` and `star`, with the kind of place that opens it. The prototype's names for `star` and
- * `ground` are `system` and `surface`.
+ * distance from what you are in, not a separate screen. The prototype's names for `star` and `ground` are `system` and
+ * `surface`. A level above a star (a galaxy, a cluster) is one more member here and one more row of {@link STOPS},
+ * between `universe` and `star`; the camera's chain of places (`voyage-chains.ts`) then gains its link after the star's,
+ * and the session the kind of place that opens it.
  */
 export type Stop = 'universe' | 'star' | 'planet' | 'ground';
+
+/** What a stop shows, wherever it is drawn. */
+export interface StopSpec {
+  /**
+   * Where the stop holds what it looks at, as a share of the view's height from the top (the prototype's `anchorY`):
+   * above the middle on a phone, so the chips at the bottom never cover it.
+   */
+  readonly heldAt: number;
+  /** The kinds of place the stop names with a button: the systems from afar, a star's planets, a planet's regions. */
+  readonly names: readonly SpaceAnchor['kind'][];
+}
+
+/** The ladder as data: one row per stop. Stations and dust are named where they are, beside their star. */
+export const STOPS: Readonly<Record<Stop, StopSpec>> = {
+  universe: { heldAt: 0.455, names: ['system', 'station', 'dust'] },
+  star: { heldAt: 0.5, names: ['planet', 'station', 'dust'] },
+  planet: { heldAt: 0.415, names: ['region'] },
+  ground: { heldAt: 0.45, names: ['region'] },
+};
+
+/** Where the person is going: a stop of the ladder and the places that make it. */
+export interface VoyageTarget {
+  readonly stop: Stop;
+  /** The star the place is at or in; null for the whole universe. */
+  readonly systemId: string | null;
+  /** The planet the place is at or in; null at a star or the whole universe. */
+  readonly planetId: string | null;
+  /** A chosen region on the ground: the camera comes down over it. */
+  readonly regionId: string | null;
+}
 
 /**
  * The stop a view is at. The stored camera is the one the Universe had before the voyage: no focus is the whole
@@ -23,16 +56,23 @@ export function stopOf(view: UniverseView): Stop {
   return view.landed ? 'ground' : 'planet';
 }
 
+/** Where a view of the map is on the ladder: the stop, and the star, planet and region that make it. */
+export function targetOf(view: UniverseView): VoyageTarget {
+  if (view.kind === 'universe') return { stop: 'universe', systemId: null, planetId: null, regionId: null };
+  if (view.kind === 'system') return { stop: 'star', systemId: view.system.objectId, planetId: null, regionId: null };
+  return {
+    stop: stopOf(view),
+    systemId: view.planet.parentId,
+    planetId: view.planet.objectId,
+    regionId: view.selectedRegion?.objectId ?? null,
+  };
+}
+
 /**
  * A string that is the same for two targets that are the same place and differs for any two that are not. Lets a
  * caller notice "the target changed" without comparing four fields.
  */
-export function targetKey(target: {
-  readonly stop: Stop;
-  readonly systemId: string | null;
-  readonly planetId: string | null;
-  readonly regionId: string | null;
-}): string {
+export function targetKey(target: VoyageTarget): string {
   return `${target.stop}|${target.systemId ?? ''}|${target.planetId ?? ''}|${target.regionId ?? ''}`;
 }
 

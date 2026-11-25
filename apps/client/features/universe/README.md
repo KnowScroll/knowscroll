@@ -1,0 +1,48 @@
+# The Universe screen
+
+What a person has read, shown as places: regions on planets, planets round stars (systems), and rooms as stations beside their star. This folder is the screen for your own Universe (`universe-screen.tsx`, the route `app/(tabs)/universe.tsx`). A friend's Universe (`features/visit/`) mounts the same surface over a session of its own. The behaviour list, routes and decisions are in `apps/client/README.md`; this file is the map of the folder.
+
+## How a place becomes something drawn
+
+1. **The session** (`universe-session.ts`, made per account by `use-universe-session.ts`) reads the person's scene from the server through `@knowscroll/client-core`: the sky, the manifest, chunks of systems and planets, geography. The server places everything once; nothing here moves a place. The session also holds where you are: `focusId` (nothing, a system, a planet or a region), `landed`, and `frame` (a pan or turn in screen points).
+2. **The layout** (`universe-layout.ts`, `universe-places.ts`) turns the session's state into a view (`UniverseView`: the whole universe, a system, a planet) and an index of places.
+3. **The surface** (`universe-surface.tsx`) is the chrome over the drawing: the header and Back pill, the region card, Lately, the list (`dial/` on a phone, Browse on a desktop), search, sheets. It picks the stage.
+4. **The stage** draws the view:
+   - `universe-stage.tsx`: the map as it ships, the 3D map and system (`space/`, three.js written by hand), a planet's globe and landed map as SVG (`planet/`), and the animated steps between them (`animation/`).
+   - `voyage/`: the Round 7.3 look on trial, behind "Try the new Universe" (`universe-trial.ts`). One camera flies along a ladder of stops over the same three.js scene; a planet is one textured sphere from orbit to the ground; a ship the person can drag. See "The ladder" below.
+   - `simple/`: the plain lists, when 3D is off (Simple drawing), fails, or the device is short of memory. Always kept: it is also how a screen reader reaches every place.
+5. **Taps are buttons, not raycasts.** Every place on screen is a named button of at least 48 points laid over the canvas at the place's projected point; the canvas is hidden from assistive technology. Land not reached yet is drawn grey and is never named, counted, tapped or read out.
+
+## The ladder (the trial look)
+
+`voyage/ladder.ts` holds the stops (`'universe' | 'star' | 'planet' | 'ground'`), what each stop shows (`STOPS`) and how a view maps onto one (`stopOf`, `targetOf`). The stored camera did not change: the stop follows from `focusId` and `landed`.
+
+The camera driver (`voyage-driver.ts`) is loaded on demand with three.js (`voyage-loader.ts`). Its parts:
+
+- `voyage-chains.ts` (pure): for a target, a chain of links, one per place it is in (planet, star, the whole universe), each a point and a distance.
+- `flight.ts` (pure): how a flight moves between two chains.
+- `voyage-view.ts`: which way the camera looks and where it stands.
+- `planet-close-up.ts`: the planet as one world (`globe.ts`, painted by `world-texture.ts`).
+- `ship-motion.ts` (pure) and `ship-layer.ts`: the ship.
+
+The stage (`voyage-stage.tsx`) and its controller (`voyage-controller.ts`, gestures and the ship, outside React) reach the main bundle, so they never import three.js; `voyage-control.ts` is the typed channel between them and the driver.
+
+**Adding a level** (a galaxy between the whole universe and a star): one more member of `Stop` and one row of `STOPS`; one more link in `chainOf`, after the star's and before the universe's (the camera reads a planet's chain as the planet's link, then the star's, whatever follows); `targetOf` and `stopOf` for the view that opens it; and the session's kind of place. A level with no data yet (a universe with no galaxy) is simply absent from a chain.
+
+## What is kept on the device
+
+Per account and privacy epoch, purged with it: `universe.view.v1` (where you were, Lately, Simple drawing, the last place; `universe-memory.ts`), `universe.here.v1` (`universe-here-marker.ts`) and `universe.landmark-seen.v1` (`collection/`). The Back history (32 steps) lives in memory. Returning from a Reel or Scroll uses a `scene-return.v1` locator (`universe-camera.ts`), a wire schema shared with the server: what it holds must fit its bounds. Looking at the map writes no evidence and sends no write.
+
+## Speed
+
+The frame loop (`space/space-view.tsx`, `space/render-loop.ts`) draws at most one frame every 33 ms, at a pixel ratio of at most 1.5 (D-073), and stops when the screen is not in front. With "Show the Universe frame rate" on, `frame-rate/` shows the frame rate over the canvas (developer use, removed when the trial ends). A scene rebuilt from scratch frees every shader program and links it again; the trial avoids that during flights (see `apps/client/README.md`, "No stall from a rebuilt scene").
+
+## Looking at it locally
+
+Build the web export and the developer gallery (`pnpm --filter @knowscroll/client build` and `build:gallery`; a new worktree first needs `pnpm --filter "@knowscroll/client^..." build`). The gallery page `/gallery-space?scene=voyage` draws the trial look over labelled sample places, with no account. The browser specs open `/universe` over authored fixtures (`universe.fixture.ts`, `e2e/voyage-fixture.ts`).
+
+## Tests
+
+- Unit tests sit beside the code (`*.test.ts(x)`, Jest): the session, the layout, the camera maths, the flight, the painter (its pixels are pinned by hash), the driver over a real scene without a GPU.
+- Browser specs (`apps/client/e2e/universe-*.spec.ts`, Playwright, headless Chromium with software WebGL) find places by button name, count frames and read pixels from screenshots. They never wait for a moment inside an animation, and assert no frame rate: software WebGL is not a phone.
+- `space/fake-space-gpu.ts` stands in for WebGL in screen tests.

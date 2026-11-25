@@ -30,8 +30,8 @@ export type SpaceCameraSpec = Omit<RigSpec, 'width' | 'height'>;
 export interface SpaceCameraDriver {
   /**
    * Adds its own objects to a scene. Called on creation, before the first `pose`, and again with each scene built after
-   * it: so `pose` always gets a scene it has been attached to. The scene being left is disposed first, which releases the
-   * geometry and materials of the objects the driver added to it; three.js uploads them again from the new scene.
+   * it: so `pose` always gets a scene it has been attached to. It is called before the scene being left is disposed, so
+   * objects the driver moves into the new scene keep their geometry, materials and textures.
    */
   attach(space: BuiltSpace): void;
   /** The camera at scene time `t`, once the scene is posed. It may show or hide systems (`showOnly`). */
@@ -306,9 +306,16 @@ export function createSpaceRenderer(
       }
       const previous = space;
       space = buildSpace(next, size.width / size.height, surface.pixelRatio, paintCache);
-      previous.dispose();
       space.setViewHeight(size.height);
-      driver?.attach(space);
+      if (driver === undefined) previous.dispose();
+      else {
+        // three.js frees a shader program when the last material using it is disposed, and links it again when the
+        // next scene first draws: hundreds of milliseconds on a slow GPU. So the driver moves its objects into the new
+        // scene and the new scene's programs are taken while the old scene still holds them; only then is it freed.
+        driver.attach(space);
+        renderer.compile(space.scene, space.camera);
+        previous.dispose();
+      }
       space.highlight(highlighted);
       space.setCamera(lastPose);
       // The scene was built again: a script's props are in the new one.
