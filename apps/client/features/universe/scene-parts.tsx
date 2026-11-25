@@ -20,9 +20,9 @@ export interface SceneProps {
   readonly onStation?: (roomId: string) => void;
 }
 
-/** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */
 /** The cream halo round a name on land (the prototype's `#FFFDF2`, stroked 4 wide): it reads on sea and land alike. */
 const LAND_HALO = '#FFFDF2';
+/** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */
 export const labelWidth = (text: string, padding = 8) => Math.ceil(text.length * 7.3) + padding;
 export const LABEL_HEIGHT = 20;
 
