@@ -1,5 +1,4 @@
 import { EARTH_SKY_KIT, EARTH_SKY_KIT_DEFINITION } from '../kit.js';
-import { BLACK_HOLE_KIT, BLACK_HOLE_KIT_DEFINITION } from './black-hole.js';
 import { type KitDefinition } from './definition.js';
 import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
 
@@ -9,7 +8,7 @@ import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
  * test keeps the plan's list and this one the same. Adding a kit is a new id,
  * its own words and physics, and a new decision.
  */
-export const STAGE_KIT_IDS = [EARTH_SKY_KIT, STARLIGHT_KIT, BLACK_HOLE_KIT] as const;
+export const STAGE_KIT_IDS = [EARTH_SKY_KIT, STARLIGHT_KIT] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 /** Whether `id` names a kit the code still defines. A stored stage may name one it no longer does (a legacy stage). */
@@ -20,7 +19,6 @@ export function isStageKitId(id: string): id is StageKitId {
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [EARTH_SKY_KIT]: EARTH_SKY_KIT_DEFINITION,
   [STARLIGHT_KIT]: STARLIGHT_KIT_DEFINITION,
-  [BLACK_HOLE_KIT]: BLACK_HOLE_KIT_DEFINITION,
 };
 
 /**
@@ -44,47 +42,6 @@ export {
   type KitState,
   type WordState,
 } from './definition.js';
-export {
-  BLACK_HOLE_ENUMS,
-  BLACK_HOLE_KIT,
-  blackHoleParts,
-  blackHolePhysics,
-  BlackHoleStateSchema,
-  CORE_COLLAPSE_MASS_IN_SUNS,
-  describeBlackHoleState,
-  DISC_INNER_EDGE_IN_HORIZON_RADII,
-  DISC_INNER_KELVINS,
-  DISC_RINGS,
-  discKelvins,
-  escapeSpeedShare,
-  formationPhysics,
-  HOLE_MASS_IN_SUNS,
-  horizonRadiusKilometres,
-  INITIAL_BLACK_HOLE_STATE,
-  massInsideOrbit,
-  ORBIT_RADII,
-  orbitPeriod,
-  orbitSpeed,
-  PROGENITOR_MASS_IN_SUNS,
-  pullAt,
-  separationAt,
-  settleBlackHoleState,
-  SHADOW_RADIUS_IN_HORIZON_RADII,
-  TIME_TO_MERGER,
-  waveFrequencyAt,
-  waveStrengthAt,
-  type BlackHolePart,
-  type BlackHolePatch,
-  type BlackHolePhysics,
-  type BlackHoleState,
-  type BlackHoleView,
-  type FormationPhysics,
-  type HoleSize,
-  type LifeStage,
-  type MergerStage,
-  type ProgenitorStar,
-  type StarEnding,
-} from './black-hole.js';
 export {
   blackbodyColour,
   colourMatching,

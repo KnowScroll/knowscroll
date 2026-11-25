@@ -3,13 +3,7 @@ import { Framing, Integrity, SeriesRef, THEME_FAMILIES } from '../document.js';
 import { LanguageTag, LocalId, OpaqueId, plainText, Revision } from '../primitives.js';
 import { Guide, Interactive } from './blocks.js';
 import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
-import {
-  BLACK_HOLE_KIT,
-  BlackHoleStateSchema,
-  isStageKitId,
-  STARLIGHT_KIT,
-  StarlightStateSchema,
-} from './kits/index.js';
+import { isStageKitId, STARLIGHT_KIT, StarlightStateSchema } from './kits/index.js';
 import { FIELD_LIMITS_V2 as F, LIMITS_V2 as L, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 
 /**
@@ -198,11 +192,7 @@ const LegacyStageSchema = z.strictObject({ kit: LegacyKit, states: stageStates(L
 export type LegacyStage = z.infer<typeof LegacyStageSchema>;
 
 /** The stages of the kits the code still defines, one arm each. */
-const LIVE_STAGES = [
-  stageOf(EARTH_SKY_KIT, StageStateSchema),
-  stageOf(STARLIGHT_KIT, StarlightStateSchema),
-  stageOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
-] as const;
+const LIVE_STAGES = [stageOf(EARTH_SKY_KIT, StageStateSchema), stageOf(STARLIGHT_KIT, StarlightStateSchema)] as const;
 
 /** A stage of a kit the code still defines: every state holds that kit's words and no others. */
 export const LiveStage = z.discriminatedUnion('kit', LIVE_STAGES);
@@ -228,11 +218,7 @@ function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: S
   return z.strictObject({ kit: z.literal(kit), state, alt: plainText(10, F.stateDescriptionChars) });
 }
 
-const LIVE_FRAMES = [
-  frameOf(EARTH_SKY_KIT, StageStateSchema),
-  frameOf(STARLIGHT_KIT, StarlightStateSchema),
-  frameOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
-] as const;
+const LIVE_FRAMES = [frameOf(EARTH_SKY_KIT, StageStateSchema), frameOf(STARLIGHT_KIT, StarlightStateSchema)] as const;
 
 /** A frame of a kit the code still defines. */
 export const LiveStageFrame = z.discriminatedUnion('kit', LIVE_FRAMES);

@@ -1,5 +1,5 @@
-// Writes documents/<kit>-stage-ci.json for the drawing kits of D-194, D-201 and D-204 that are still defined (starlight,
-// black hole): labelled CI fixtures of `scroll-document.v2` Scrolls, one for each kit, for the stage
+// Writes documents/<kit>-stage-ci.json for the drawing kits of D-194, D-201 and D-204 that are still defined (starlight):
+// labelled CI fixtures of `scroll-document.v2` Scrolls, one for each kit, for the stage
 // reader's tests and screenshots. NOT product content: their titles, kickers and ids say so, and
 // they are never imported into the library. They are shorter than a Scroll may be (the reading
 // time is outside the 3 to 6 minutes), so they are validated without the stored measures and hash
@@ -114,108 +114,6 @@ const fixtures = {
         'The starlight a planet gets goes as the output over the distance squared, so the zone’s distance goes as the square root of the output.',
         'Four is the number in front of you. The square root is what you want.',
         'Four times the output means twice the distance.',
-      ),
-    ],
-  },
-  'black-hole': {
-    kit: 'black-hole.v1',
-    title: 'Black holes: an end, an edge and four clues (a CI fixture)',
-    dek: 'How one forms, what its edge is and how we know, in short steps (a CI fixture).',
-    aside: {
-      after: 'size',
-      title: 'Where this stops',
-      text: 'The picture draws nothing at the centre, because the centre is not understood. The black holes here are illustrative, and no one clue proves a black hole by itself.',
-    },
-    captions: [
-      'Only a massive star’s collapse can leave one.',
-      'The horizon is a boundary that goes with the mass.',
-      'Together, several clues make the case.',
-    ],
-    items: [
-      read(
-        'life',
-        'Only a star many times the Sun’s mass can end as a black hole. In the middle of its life, fusion in the core pushes outward as hard as gravity pulls inward.',
-        'A massive star holds itself up with fusion.',
-        { view: 'formation', star: 'massive', stage: 'fusing', focus: 'none' },
-        { emphasis: 'hook' },
-      ),
-      read(
-        'fuel',
-        'When its core fuel is used up, the pressure that held the core up falls away. Gravity wins, and the core collapses.',
-        'Without fuel, gravity wins.',
-        { stage: 'fuel-out', focus: 'core' },
-      ),
-      call(
-        'call-sun',
-        'Which star can end as a black hole?',
-        ['A star many times the Sun’s mass', 'A star like the Sun'],
-        'Only a star with far more mass than the Sun has a core that collapses this way. A star like the Sun leaves a white dwarf.',
-        'The Sun is the star we know best, which makes it the easy guess. It is too light.',
-        'Only a very massive star.',
-      ),
-      read(
-        'end',
-        'The collapse throws off the star’s outer layers in a supernova, and what is left of the core can be a black hole.',
-        'A supernova can leave a black hole.',
-        { stage: 'end', focus: 'remnant' },
-      ),
-      read(
-        'edge',
-        'The edge of a black hole is its event horizon. It is a boundary in space, not a surface. Inside it nothing can return, not even light.',
-        'The horizon is a boundary, not a surface.',
-        { view: 'horizon', hole: 'small', focus: 'horizon' },
-      ),
-      read(
-        'size',
-        'A black hole four times as massive has a horizon four times as wide.',
-        'Four times the mass, four times the horizon.',
-        { hole: 'large', focus: 'horizon' },
-      ),
-      read(
-        'pull',
-        'Far away a black hole pulls just as a star of its mass would. It does not suck in everything around it.',
-        'Far away the pull is the same.',
-        { view: 'pull', focus: 'hole' },
-      ),
-      call(
-        'call-pull',
-        'If the Sun were swapped for a black hole of the same mass, how would Earth’s orbit change?',
-        ['It would not change', 'Earth would spiral in'],
-        'Gravity far away depends on the mass and the distance only, and both are the same.',
-        'Black holes have a name for swallowing things, which makes spiralling in feel likely. That is only true very close.',
-        'The orbit would not change.',
-      ),
-      read(
-        'orbits',
-        'Stars that circle a point where nothing shines show that a large mass is hidden there. That is one clue.',
-        'Orbits show a hidden mass.',
-        { view: 'orbits', focus: 'centre' },
-      ),
-      read(
-        'disc',
-        'Gas spiralling in heats up, and the hottest gas glows in X-rays. The colours here are false, because X-rays cannot be seen.',
-        'Hot gas glows in X-rays.',
-        { view: 'disc', focus: 'disc' },
-      ),
-      read(
-        'waves',
-        'Two black holes that spiral together send out ripples in space. They grow stronger and quicker until the merger.',
-        'Mergers send ripples through space.',
-        { view: 'waves', merger: 'close', focus: 'signal' },
-      ),
-      read(
-        'shadow',
-        'Images of glowing gas show a dark patch, the black hole’s shadow. It is wider than the horizon, so it is not the horizon itself.',
-        'The shadow is not the horizon.',
-        { view: 'shadow', focus: 'shadow' },
-      ),
-      finalCall(
-        'final-horizon',
-        'Black hole A has twice the mass of black hole B. How do their horizons compare?',
-        ['A’s is twice as wide', 'A’s is four times as wide'],
-        'The horizon’s radius goes as the mass, so twice the mass means twice the radius.',
-        'Four is tempting, because areas go as squares. The radius goes straight with the mass.',
-        'Twice the mass, twice the horizon.',
       ),
     ],
   },

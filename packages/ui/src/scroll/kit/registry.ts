@@ -1,13 +1,5 @@
 import type { ReactElement } from 'react';
-import {
-  AXIAL_TILT_DEGREES,
-  describeStageAtTilt,
-  type BlackHoleState,
-  type StageState,
-  type StarlightState,
-} from '../model';
-import { BlackHolePicture } from './black-hole';
-import { blackHoleSceneOf, canTweenBlackHole, lerpBlackHoleScene, type BlackHoleScene } from './black-hole-scene';
+import { AXIAL_TILT_DEGREES, describeStageAtTilt, type StageState, type StarlightState } from '../model';
 import { EarthSkyPicture } from './earth-sky';
 import { canTween, describeRecap, lerpScene, recapSceneOf, sceneOf, type EarthSkyScene } from './earth-sky-scene';
 import { StarlightPicture } from './starlight';
@@ -81,12 +73,6 @@ export const KIT_PICTURES = {
     canTween: canTweenStarlight,
     lerpScene: lerpStarlightScene,
     Picture: StarlightPicture,
-  }),
-  'black-hole.v1': kitPicture<BlackHoleState, BlackHoleScene>({
-    sceneOf: blackHoleSceneOf,
-    canTween: canTweenBlackHole,
-    lerpScene: lerpBlackHoleScene,
-    Picture: BlackHolePicture,
   }),
 } as const satisfies Record<string, KitPicture>;
 
