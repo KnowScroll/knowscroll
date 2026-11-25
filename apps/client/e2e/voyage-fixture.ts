@@ -33,6 +33,8 @@ export interface VoyageOptions {
   readonly stamps?: boolean;
   /** Count the shader programs WebGL links and frees, for {@link programCounts}. */
   readonly programs?: boolean;
+  /** Keep every line the flight line shows, for {@link flightLines}. */
+  readonly flightLines?: boolean;
 }
 
 /**
@@ -94,6 +96,23 @@ export const programCounts = (page: Page): Promise<{ linked: number; deleted: nu
     ...(window as unknown as { __ksPrograms: { linked: number; deleted: number } }).__ksPrograms,
   }));
 
+/**
+ * Keeps every line the flight line shows, as it appears. A flight lasts a second or two, so a test reads what was said
+ * after landing instead of trying to catch it in the air.
+ */
+function keepFlightLines(): void {
+  const lines: string[] = [];
+  (window as unknown as { __ksFlightLines: string[] }).__ksFlightLines = lines;
+  new MutationObserver(() => {
+    const text = document.querySelector('[data-testid="voyage-flight-line"]')?.textContent ?? '';
+    if (text !== '' && lines[lines.length - 1] !== text) lines.push(text);
+  }).observe(document, { subtree: true, childList: true, characterData: true });
+}
+
+/** The lines the flight line has shown so far (see {@link VoyageOptions.flightLines}). */
+export const flightLines = (page: Page): Promise<string[]> =>
+  page.evaluate(() => [...(window as unknown as { __ksFlightLines: string[] }).__ksFlightLines]);
+
 /** The frame stamps recorded so far (see {@link VoyageOptions.stamps}). */
 export const frameStamps = (page: Page): Promise<number[]> =>
   page.evaluate(() => [...(window as unknown as { __ksFrames: number[] }).__ksFrames]);
@@ -140,6 +159,7 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
   );
   if (options.stamps === true) await page.addInitScript(stampFrames);
   if (options.programs === true) await page.addInitScript(countPrograms);
+  if (options.flightLines === true) await page.addInitScript(keepFlightLines);
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );

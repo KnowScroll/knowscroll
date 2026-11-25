@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { tapOrbitingTarget } from './orbiting-target';
 import {
+  flightLines,
   frameLine,
   frameStamps,
   landed,
@@ -109,15 +110,15 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   await testInfo.attach('voyage-frame-numbers', { body: line, contentType: 'text/plain' });
 });
 
-test('a flight says where it is going, and a tap skips to its end', async ({ page }) => {
+test('a flight says where it is going while it flies, and the line goes when it lands', async ({ page }) => {
   test.setTimeout(180_000);
-  await openVoyage(page, []);
+  await openVoyage(page, [], { flightLines: true });
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
   await system.click();
-  // Read out once, and a test's way of knowing a flight is under way.
-  await expect(page.getByTestId('voyage-flight')).toHaveText('Going to CI system 0 · tap to skip');
-  await page.getByRole('button', { name: 'Going to CI system 0 · tap to skip', exact: true }).click();
+  // What the line said is kept as it appears, so the test never has to catch a moment inside the flight. (Skipping a
+  // flight is the driver's, tested with its unit tests.)
+  await expect.poll(() => flightLines(page), { timeout: 30_000 }).toEqual(['Going to CI system 0 · tap to skip']);
   await landed(page);
   await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible();
 });

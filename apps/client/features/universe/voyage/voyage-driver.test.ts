@@ -154,6 +154,18 @@ describe('the voyage driver camera', () => {
     expect(r.step()).toBeCloseTo(r.stopDistance(target('star', base.id)));
   });
 
+  it('ends the flight under way when the person skips it: the next frame is at rest at the stop', () => {
+    const r = rig(target('universe', null));
+    r.step();
+    r.control.target = target('star', base.id);
+    r.step();
+    r.step();
+    expect(r.last().flying).toBe(true);
+    r.control.skips += 1;
+    expect(r.step()).toBeCloseTo(r.stopDistance(target('star', base.id)));
+    expect(r.last().flying).toBe(false);
+  });
+
   it('cuts at once to a new target under reduced motion', () => {
     const r = rig(target('universe', null));
     r.step();
