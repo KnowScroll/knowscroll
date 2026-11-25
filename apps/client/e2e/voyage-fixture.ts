@@ -29,6 +29,54 @@ export interface VoyageOptions {
   readonly calm?: boolean;
   /** The app's appearance; the Universe must look the same in both (D-400). */
   readonly appearance?: 'light' | 'dark';
+  /** Stamp every frame the scene draws, for {@link frameStamps}. */
+  readonly stamps?: boolean;
+}
+
+/**
+ * Stamps each frame the scene draws with the time the browser gave its animation-frame callback (the stamp the 30 fps
+ * cap is decided on). A frame is seen through WebGL's `clear`; the ship's layer clears depth again in the same frame,
+ * so a frame is counted once per stamp.
+ */
+function stampFrames(): void {
+  const frames: number[] = [];
+  (window as unknown as { __ksFrames: number[] }).__ksFrames = frames;
+  let frameStamp: number | null = null;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
+  const request = window.requestAnimationFrame;
+  window.requestAnimationFrame = (callback) =>
+    request.call(window, (stamp) => {
+      frameStamp = stamp;
+      try {
+        callback(stamp);
+      } finally {
+        frameStamp = null;
+      }
+    });
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
+  const clear = WebGL2RenderingContext.prototype.clear;
+  WebGL2RenderingContext.prototype.clear = function (this: WebGL2RenderingContext, mask: number): void {
+    const stamp = frameStamp ?? performance.now();
+    if (frames[frames.length - 1] !== stamp) frames.push(stamp);
+    clear.call(this, mask);
+  };
+}
+
+/** The frame stamps recorded so far (see {@link VoyageOptions.stamps}). */
+export const frameStamps = (page: Page): Promise<number[]> =>
+  page.evaluate(() => [...(window as unknown as { __ksFrames: number[] }).__ksFrames]);
+
+/**
+ * One line about the frames drawn between two stamps' indices, in the readout's terms: frames a second, the share of
+ * gaps of at most 51 ms (one missed refresh at the 30 fps cap) and the longest gap. Reported, never asserted: this
+ * browser draws in software.
+ */
+export function frameLine(stamps: readonly number[]): string {
+  const gaps = stamps.slice(1).map((stamp, index) => stamp - stamps[index]!);
+  if (gaps.length === 0) return 'no frames';
+  const seconds = (stamps[stamps.length - 1]! - stamps[0]!) / 1000;
+  const onTime = gaps.filter((gap) => gap <= 51).length / gaps.length;
+  return `${(gaps.length / seconds).toFixed(0)} fps · ${(onTime * 100).toFixed(0)}% on time · longest ${Math.max(...gaps).toFixed(0)} ms`;
 }
 
 /** Screenshots are written only when `KS_UNIVERSE_SHOTS` names a folder (outside the repository). */
@@ -58,6 +106,7 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
     (stored) => window.localStorage.setItem('ks.device.preferences', stored),
     JSON.stringify(preferences),
   );
+  if (options.stamps === true) await page.addInitScript(stampFrames);
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );

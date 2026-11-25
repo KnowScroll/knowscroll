@@ -1,6 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { tapOrbitingTarget } from './orbiting-target';
-import { openVoyage, readoutOf, shot, VOYAGE_READS } from './voyage-fixture';
+import { frameLine, frameStamps, openVoyage, readoutOf, shot, VOYAGE_READS } from './voyage-fixture';
+
+/** How much of each flight is measured: its first 3 s, about the longest flight between two neighbouring stops. */
+const FLIGHT_MS = 3000;
+
+/** The frames of the flight that started after stamp number `from`. */
+async function flightFrom(page: Page, from: number): Promise<string> {
+  const stamps = (await frameStamps(page)).slice(from);
+  const start = stamps[0] ?? 0;
+  return frameLine(stamps.filter((stamp) => stamp - start <= FLIGHT_MS));
+}
 
 /**
  * The Universe's Round 7.3 look on trial (#811), in a real browser with a real WebGL 2 context over authored HTTP
@@ -14,7 +24,7 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   // Every flight is drawn in software here, at a few frames a second when the runner is busy.
   test.setTimeout(240_000);
   const paths: string[] = [];
-  await openVoyage(page, paths);
+  await openVoyage(page, paths, { stamps: true });
   await expect(page.getByTestId('voyage-stage')).toBeVisible({ timeout: 60_000 });
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
@@ -23,17 +33,22 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   const numbers = [`universe: ${await readoutOf(page)}`];
   await shot(page, 'voyage-1-universe');
 
+  const flights: string[] = [];
+  let from = (await frameStamps(page)).length;
   await system.click();
   await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
   const planet = page.getByRole('button', { name: 'CI planet 2, a planet', exact: true });
   await expect(planet).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(3500);
+  flights.push(`to the star: ${await flightFrom(page, from)}`);
   numbers.push(`star: ${await readoutOf(page)}`);
   await shot(page, 'voyage-2-star');
 
+  from = (await frameStamps(page)).length;
   await tapOrbitingTarget(planet);
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await page.waitForTimeout(3500);
+  flights.push(`to the planet: ${await flightFrom(page, from)}`);
   await shot(page, 'voyage-3-planet');
   // The globe turns slowly: some of its regions face you, each a named button.
   await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({ timeout: 30_000 });
@@ -41,9 +56,11 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
 
   // One stop in by key: the camera falls to the ground on the same world.
   await page.getByTestId('voyage-stage').focus();
+  from = (await frameStamps(page)).length;
   await page.keyboard.press('+');
   await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
   await page.waitForTimeout(3500);
+  flights.push(`to the ground: ${await flightFrom(page, from)}`);
   numbers.push(`ground: ${await readoutOf(page)}`);
   await shot(page, 'voyage-4-ground');
   // On the ground the camera has come down over the first formed region.
@@ -59,15 +76,18 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   for (const name of regions) expect(name).toMatch(/^CI region [4-7], a region$/);
 
   // The Back pill climbs one stop: the ground to the planet, the planet to the star, the star to the universe.
+  from = (await frameStamps(page)).length;
   await page.getByRole('button', { name: 'Back to CI planet 2', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Back to CI system 0', exact: true })).toBeVisible();
+  await page.waitForTimeout(3500);
+  flights.push(`up to the planet: ${await flightFrom(page, from)}`);
   await page.getByRole('button', { name: 'Back to CI system 0', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
   await expect(system).toBeVisible({ timeout: 30_000 });
 
   expect(paths.filter((path) => !VOYAGE_READS.has(path))).toEqual([]);
-  const line = `voyage (web, 390x844, software WebGL): ${numbers.join(' | ')}`;
+  const line = `voyage (web, 390x844, software WebGL): stops ${numbers.join(' | ')}; flights ${flights.join(' | ')}`;
   // eslint-disable-next-line no-console -- the numbers go in the pull request
   console.log(line);
   await testInfo.attach('voyage-frame-numbers', { body: line, contentType: 'text/plain' });
