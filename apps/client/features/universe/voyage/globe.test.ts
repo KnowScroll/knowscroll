@@ -216,3 +216,79 @@ describe('the globe texture', () => {
     expect(freeLast).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the ground patch on the globe', () => {
+  const patchPixels = { width: 3, height: 5, data: new Uint8Array(3 * 5 * 4) };
+  const patchOf = (globe: Globe) => uniformsOf(globe).patchMap!.value as THREE.DataTexture | null;
+
+  it('blends the patch over the whole-band texture inside its window with a soft edge, in the shader', () => {
+    const shader = (createGlobe().mesh.material as THREE.ShaderMaterial).fragmentShader;
+    expect(shader).toContain('uniform sampler2D patchMap;');
+    expect(shader).toContain('uniform vec4 patchBox;');
+    // The window's column wraps round the seam; its rows are the band's rows (the shader's own `bandY`).
+    expect(shader).toContain('mod(uv.x * 480.0 - patchBox.x, 480.0), bandY - patchBox.y');
+    expect(shader).toContain('smoothstep(0.0, 10.0, fromEdge)');
+    expect(shader).toContain(
+      'mix(land, texture2D(patchMap, clamp(inPatch / patchBox.zw, 0.0, 1.0)), patchShown) * painted',
+    );
+    // The sea still goes under whatever land is there, patch or not.
+    expect(shader).toContain('vec3 colour = land.rgb + sea * (1.0 - land.a);');
+  });
+
+  it('wears none until it is given one', () => {
+    const globe = createGlobe();
+    expect(patchOf(globe)).toBeNull();
+    expect(uniformsOf(globe).patchOn!.value).toBe(0);
+  });
+
+  it('wears a patch as a clamped, linear, mipmap-free RGBA texture over its window, the left edge brought into the band', () => {
+    const globe = createGlobe();
+    globe.setPatch(patchPixels, { x: -20, y: 100, width: 60, height: 90 });
+    const texture = patchOf(globe)!;
+    expect(texture.image).toMatchObject({ width: 3, height: 5 });
+    expect(texture.wrapS).toBe(THREE.ClampToEdgeWrapping);
+    expect(texture.wrapT).toBe(THREE.ClampToEdgeWrapping);
+    expect(texture.minFilter).toBe(THREE.LinearFilter);
+    expect(texture.magFilter).toBe(THREE.LinearFilter);
+    expect(texture.generateMipmaps).toBe(false);
+    expect(texture.flipY).toBe(false);
+    expect(texture.version).toBeGreaterThan(0);
+    expect((uniformsOf(globe).patchBox!.value as THREE.Vector4).toArray()).toEqual([460, 100, 60, 90]);
+    expect(uniformsOf(globe).patchOn!.value).toBe(1);
+    globe.setPatch(patchPixels, { x: 500, y: 10, width: 40, height: 40 });
+    expect((uniformsOf(globe).patchBox!.value as THREE.Vector4).x).toBe(20);
+    globe.dispose();
+  });
+
+  it('keeps the whole-band texture while a patch comes and goes', () => {
+    const globe = createGlobe();
+    globe.setTexture(pixels);
+    const band = textureOf(globe);
+    globe.setPatch(patchPixels, { x: 0, y: 0, width: 10, height: 10 });
+    expect(textureOf(globe)).toBe(band);
+    globe.setPatch(null, null);
+    expect(textureOf(globe)).toBe(band);
+    expect(uniformsOf(globe).painted!.value).toBe(1);
+    globe.dispose();
+  });
+
+  it('frees the patch it wore when the next arrives, when it is cleared and when the globe goes', () => {
+    const globe = createGlobe();
+    globe.setPatch(patchPixels, { x: 0, y: 0, width: 10, height: 10 });
+    const first = patchOf(globe)!;
+    const freeFirst = jest.spyOn(first, 'dispose');
+    globe.setPatch(patchPixels, { x: 5, y: 0, width: 10, height: 10 });
+    expect(freeFirst).toHaveBeenCalledTimes(1);
+    const second = patchOf(globe)!;
+    expect(second).not.toBe(first);
+    const freeSecond = jest.spyOn(second, 'dispose');
+    globe.setPatch(null, null);
+    expect(freeSecond).toHaveBeenCalledTimes(1);
+    expect(patchOf(globe)).toBeNull();
+    expect(uniformsOf(globe).patchOn!.value).toBe(0);
+    globe.setPatch(patchPixels, { x: 0, y: 0, width: 10, height: 10 });
+    const last = jest.spyOn(patchOf(globe)!, 'dispose');
+    globe.dispose();
+    expect(last).toHaveBeenCalledTimes(1);
+  });
+});
