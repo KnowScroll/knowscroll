@@ -31,6 +31,11 @@ export interface RowRange {
 export interface DrawOptions {
   /** Pixels for one world unit, across and down. Default 1 and 1. */
   readonly scale?: { readonly x: number; readonly y: number };
+  /**
+   * The world point that pixel (0, 0)'s top-left corner is at, so a target can show just a window of the world:
+   * a world point `(x, y)` lands at pixel `((x - origin.x) * scale.x, (y - origin.y) * scale.y)`. Default 0 and 0.
+   */
+  readonly origin?: { readonly x: number; readonly y: number };
   /** Paint only where this mask (one byte a pixel, row by row) is not zero. */
   readonly clip?: Uint8Array;
   /**
@@ -50,6 +55,13 @@ export interface MaskOptions extends DrawOptions {
 export interface StrokeOptions extends DrawOptions {
   /** Line width in pixels. */
   readonly width: number;
+  /**
+   * How far apart, in pixels, the discs that make the line are stamped along an edge. Default 0.5, which keeps the
+   * edge of a line smooth to a fraction of a pixel. A wide line may be stamped coarser (a pitch of a twelfth of its
+   * width leaves the edge within about 0.1 pixel of true), which is what makes a wide stroke cheap: its cost is its
+   * width over the pitch, times its width.
+   */
+  readonly pitch?: number;
 }
 
 /** Per pixel row, the covered stretches as `from, to` pairs: `from` is the first pixel, `to` is one past the last. */
@@ -59,6 +71,9 @@ type Spans = number[][];
 type Edge = readonly [fromX: number, fromY: number, toX: number, toY: number];
 
 const UNIT_SCALE = { x: 1, y: 1 } as const;
+const NO_ORIGIN = { x: 0, y: 0 } as const;
+/** The default distance between the discs of a stroke, in pixels. */
+const DEFAULT_PITCH = 0.5;
 
 /** The pixel rows a call draws: all of the target unless `options.rows` narrows them. */
 function rowRangeOf(target: PixelTarget, options: DrawOptions): RowRange {
@@ -69,16 +84,21 @@ function rowRangeOf(target: PixelTarget, options: DrawOptions): RowRange {
 }
 
 /** Where the edges of some loops cross the middle of each pixel row of the range: a flat list of x for every row they touch. */
-function crossingsOf(loops: readonly Loop[], range: RowRange, scale: { x: number; y: number }) {
+function crossingsOf(
+  loops: readonly Loop[],
+  range: RowRange,
+  scale: { x: number; y: number },
+  origin: { x: number; y: number },
+) {
   const crossings: (number[] | undefined)[] = new Array<number[] | undefined>(Math.max(0, range.to - range.from));
   for (const loop of loops) {
     const count = loop.length / 2;
     for (let point = 0; point < count; point++) {
       const next = (point + 1) % count;
-      let fromX = loop[point * 2]! * scale.x;
-      let fromY = loop[point * 2 + 1]! * scale.y;
-      let toX = loop[next * 2]! * scale.x;
-      let toY = loop[next * 2 + 1]! * scale.y;
+      let fromX = (loop[point * 2]! - origin.x) * scale.x;
+      let fromY = (loop[point * 2 + 1]! - origin.y) * scale.y;
+      let toX = (loop[next * 2]! - origin.x) * scale.x;
+      let toY = (loop[next * 2 + 1]! - origin.y) * scale.y;
       if (fromY === toY) continue;
       if (fromY > toY) [fromX, fromY, toX, toY] = [toX, toY, fromX, fromY];
       const slope = (toX - fromX) / (toY - fromY);
@@ -108,7 +128,7 @@ function mergeStretches(pairs: readonly number[]): number[] {
 function addShape(spans: Spans, loops: readonly Loop[], target: PixelTarget, options: DrawOptions): void {
   const scale = options.scale ?? UNIT_SCALE;
   const range = rowRangeOf(target, options);
-  const crossings = crossingsOf(loops, range, scale);
+  const crossings = crossingsOf(loops, range, scale, options.origin ?? NO_ORIGIN);
   for (let row = range.from; row < range.to; row++) {
     const xs = crossings[row - range.from];
     if (xs === undefined) continue;
@@ -209,11 +229,18 @@ function stampDisc(
 }
 
 /** Walks one edge in half-pixel steps, stamping a disc at each; an edge nowhere near the range is skipped. */
-function stampEdge(cover: Uint8Array, target: PixelTarget, range: RowRange, edge: Edge, radius: number): void {
+function stampEdge(
+  cover: Uint8Array,
+  target: PixelTarget,
+  range: RowRange,
+  edge: Edge,
+  radius: number,
+  pitch: number,
+): void {
   const [fromX, fromY, toX, toY] = edge;
   if (Math.max(fromX, toX) < -radius || Math.min(fromX, toX) > target.width + radius) return;
   if (Math.max(fromY, toY) < range.from - radius - 1 || Math.min(fromY, toY) > range.to + radius + 1) return;
-  const steps = Math.max(1, Math.ceil(Math.hypot(toX - fromX, toY - fromY) * 2));
+  const steps = Math.max(1, Math.ceil(Math.hypot(toX - fromX, toY - fromY) / pitch));
   for (let step = 0; step <= steps; step++)
     stampDisc(
       cover,
@@ -233,6 +260,7 @@ function stampEdge(cover: Uint8Array, target: PixelTarget, range: RowRange, edge
  */
 export function strokeCover(target: PixelTarget, loops: readonly Loop[], options: StrokeOptions): Uint8Array {
   const scale = options.scale ?? UNIT_SCALE;
+  const origin = options.origin ?? NO_ORIGIN;
   const range = rowRangeOf(target, options);
   const cover = new Uint8Array(Math.max(0, range.to - range.from) * target.width);
   for (const loop of loops) {
@@ -240,12 +268,12 @@ export function strokeCover(target: PixelTarget, loops: readonly Loop[], options
     for (let point = 0; point < count; point++) {
       const next = (point + 1) % count;
       const edge: Edge = [
-        loop[point * 2]! * scale.x,
-        loop[point * 2 + 1]! * scale.y,
-        loop[next * 2]! * scale.x,
-        loop[next * 2 + 1]! * scale.y,
+        (loop[point * 2]! - origin.x) * scale.x,
+        (loop[point * 2 + 1]! - origin.y) * scale.y,
+        (loop[next * 2]! - origin.x) * scale.x,
+        (loop[next * 2 + 1]! - origin.y) * scale.y,
       ];
-      stampEdge(cover, target, range, edge, options.width / 2);
+      stampEdge(cover, target, range, edge, options.width / 2, options.pitch ?? DEFAULT_PITCH);
     }
   }
   return cover;

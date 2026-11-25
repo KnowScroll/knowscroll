@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { pixelTexture } from '../space/scene/context';
-import { BAND_HEIGHT, BAND_UNITS_PER_RADIAN, BAND_WIDTH, type WorldLook, type WorldTexture } from './world-texture';
+import {
+  BAND_HEIGHT,
+  BAND_UNITS_PER_RADIAN,
+  BAND_WIDTH,
+  type BandWindow,
+  type WorldLook,
+  type WorldTexture,
+} from './world-texture';
 
 /**
  * The planet you are at, as one sphere: from orbit and on the ground it is the same drawing, as the
@@ -24,11 +31,21 @@ import { BAND_HEIGHT, BAND_UNITS_PER_RADIAN, BAND_WIDTH, type WorldLook, type Wo
  * of air (line 1306). Nearer the ground the night side, the rim and the halo fade out, so the land reads
  * as a map (the prototype fades the same ones as the globe turns into the map).
  *
+ * Over the ground the landing faces is the patch, a second texture of just a window of the band (`world-texture.ts`,
+ * `groundPatchOf`): the same drawing, painted dense enough to be crisp through the ground's lens. The shader wears it
+ * where the surface falls inside its window and the whole-band texture elsewhere, and cross-fades the two over
+ * `PATCH_SOFT_EDGE` band units inside the window's edge so no seam shows. Both are premultiplied, so the blend is a
+ * plain `mix`.
+ *
  * Colours reach the shader as the palette's own numbers (hex over 255, in `Vector3`s): the renderer
  * outputs linear sRGB and does no conversion, so a `THREE.Color` (which turns hex into linear) would
  * come out darker than the palette.
  */
 
+/** The patch comes in from this far down (`near`, 0 in orbit, 1 on the ground) and is whole on the ground. */
+const PATCH_FROM_NEAR = 0.5;
+/** The patch gives way to the whole-band texture over this many band units inside its window's edge (about 70 points on the ground). */
+const PATCH_SOFT_EDGE = 10;
 /** The halo of air reaches this many planet radii (the prototype's `R * 1.34`). */
 const HALO_RADIUS = 1.34;
 
@@ -63,6 +80,9 @@ const VERTEX = /* glsl */ `
 const FRAGMENT = /* glsl */ `
   uniform sampler2D map;
   uniform float painted;
+  uniform sampler2D patchMap;
+  uniform vec4 patchBox;
+  uniform float patchOn;
   uniform vec3 seaLit;
   uniform vec3 seaMid;
   uniform vec3 seaDeep;
@@ -103,7 +123,15 @@ const FRAGMENT = /* glsl */ `
     float fromTop = clamp(1.0 - gl_FragCoord.y / max(resolution.y, 1.0), 0.0, 1.0);
     vec3 sea = mix(ball(ballAt), mix(groundTop, groundBottom, fromTop), near);
     // Row 0 of the painted band is its top (north), and a DataTexture's row 0 is at v = 0: no flip.
-    vec4 land = texture2D(map, uv) * painted;
+    vec4 land = texture2D(map, uv);
+    // The ground patch over the whole-band texture: its window is patchBox (left, top, width, height in band units, the
+    // left edge wrapping round the seam), met softly inside its edge. Row 0 of the patch is its top, as the band's.
+    vec2 inPatch = vec2(mod(uv.x * ${BAND_WIDTH.toFixed(1)} - patchBox.x, ${BAND_WIDTH.toFixed(1)}), bandY - patchBox.y);
+    float fromEdge = min(min(inPatch.x, patchBox.z - inPatch.x), min(inPatch.y, patchBox.w - inPatch.y));
+    // Its lines are drawn for the ground's scale: from orbit they would be too fine and would shimmer, so the patch
+    // comes in only as the camera nears the ground.
+    float patchShown = patchOn * smoothstep(0.0, ${PATCH_SOFT_EDGE.toFixed(1)}, fromEdge) * smoothstep(${PATCH_FROM_NEAR.toFixed(1)}, 1.0, near);
+    land = mix(land, texture2D(patchMap, clamp(inPatch / patchBox.zw, 0.0, 1.0)), patchShown) * painted;
     // Above the band's edges: no land, and the palette's cap where it has one, met softly.
     float outside = smoothstep(0.0, 0.02, max(-v, v - 1.0));
     land *= 1.0 - outside;
@@ -198,6 +226,12 @@ export interface Globe {
    * halo and rim take the colours of the texture's `look` when it has one. Frees the texture it wore before.
    */
   setTexture(texture: WorldTexture | null): void;
+  /**
+   * Wears a painted patch (premultiplied RGBA, painted by `createWorldPainter` with a `patch`) over the window of the
+   * band it covers, or nothing. Frees the patch it wore before. It is worn only over the texture: with none worn the
+   * patch shows no land, so a caller sets the texture first.
+   */
+  setPatch(texture: WorldTexture | null, window: BandWindow | null): void;
   /** Sets the sea, cap and air colours of the planet being shown (and, optionally, its whole look). */
   setColours(colours: GlobeColours): void;
   /**
@@ -242,6 +276,9 @@ export function createGlobe(): Globe {
   const uniforms = {
     map: { value: null as THREE.DataTexture | null },
     painted: { value: 0 },
+    patchMap: { value: null as THREE.DataTexture | null },
+    patchBox: { value: new THREE.Vector4(0, 0, 1, 1) },
+    patchOn: { value: 0 },
     seaLit: { value: new THREE.Vector3() },
     seaMid: { value: new THREE.Vector3() },
     seaDeep: { value: new THREE.Vector3() },
@@ -281,6 +318,7 @@ export function createGlobe(): Globe {
   mesh.add(haloMesh);
 
   let texture: THREE.DataTexture | null = null;
+  let patchTexture: THREE.DataTexture | null = null;
   let worn: WorldTexture | null = null;
   let colours: GlobeColours = { sea: '#1d7d97', cap: '#eef6f8', air: '#83f2ea' };
 
@@ -330,6 +368,27 @@ export function createGlobe(): Globe {
       }
       colour();
     },
+    setPatch(next, window) {
+      patchTexture?.dispose();
+      patchTexture = null;
+      uniforms.patchMap.value = null;
+      uniforms.patchOn.value = 0;
+      if (next !== null && window !== null) {
+        // Clamped both ways: the window is a rectangle, and the shader fades out before its edge.
+        patchTexture = pixelTexture(next);
+        patchTexture.wrapS = THREE.ClampToEdgeWrapping;
+        patchTexture.wrapT = THREE.ClampToEdgeWrapping;
+        uniforms.patchMap.value = patchTexture;
+        // Left edge into 0..BAND_WIDTH: the shader's own column wraps the same way.
+        uniforms.patchBox.value.set(
+          ((window.x % BAND_WIDTH) + BAND_WIDTH) % BAND_WIDTH,
+          window.y,
+          window.width,
+          window.height,
+        );
+        uniforms.patchOn.value = 1;
+      }
+    },
     setColours(next) {
       colours = next;
       colour();
@@ -345,6 +404,7 @@ export function createGlobe(): Globe {
     },
     dispose() {
       texture?.dispose();
+      patchTexture?.dispose();
       geometry.dispose();
       material.dispose();
       haloGeometry.dispose();

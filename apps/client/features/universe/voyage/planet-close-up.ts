@@ -13,17 +13,36 @@ import { wrapAngle } from './flight';
 import { createGlobe, localPointOf } from './globe';
 import type { ViewSize } from './voyage-chains';
 import type { GlobeOnScreen, VoyageControl, VoyagePlanet } from './voyage-control';
-import { BAND_WIDTH, createWorldPainter, worldLookOf, type WorldPainter } from './world-texture';
+import {
+  BAND_WIDTH,
+  createWorldPainter,
+  groundPatchOf,
+  worldLookOf,
+  type GroundPatch,
+  type LabelPoint,
+  type WorldPainter,
+} from './world-texture';
 
 /**
  * The textures of a planet's world, painted a few milliseconds per frame: a quick one so the globe has its continents
- * within a second or so, then a sharper one for the ground, swapped in when it is done. On the ground the sphere is
- * about 4,700 device pixels round, so even the second is soft there.
+ * within a second or so, then a sharper one, swapped in when it is done. On the ground the sphere is about 4,700 device
+ * pixels round, so even the second is soft there: the ground's sharpness is the patch's (below).
  */
 const TEXTURES = [
   { width: 1024, height: 512 },
   { width: 2048, height: 1024 },
 ] as const;
+/**
+ * The ground patch (`groundPatchOf`): a third texture, of only the window of the band round the place the camera comes
+ * down over, painted by the same painter after the quick texture and before the sharper globe one (so the ground is
+ * sharp soonest). It is wanted from the planet's stop on, so it is ready when a fall reaches the ground.
+ */
+interface PatchJob {
+  /** The world it is painted from and the landing and screen it is for: it is painted again when any of them changes. */
+  readonly key: string;
+  readonly patch: GroundPatch;
+  readonly painter: WorldPainter;
+}
 /** How long one frame may spend painting the world's texture (milliseconds): the rest of the frame is for drawing. */
 const PAINT_BUDGET_MS = 4;
 /** One turn of the globe in 70 s when nothing else turns it (the prototype's idle spin, `pl.lon += dt * TAU / 70`). */
@@ -59,6 +78,8 @@ const NO_MOVE = new THREE.Vector3();
 /** Where the light comes from when the planet's star is not in the scene. */
 const DEFAULT_TO_SUN = new THREE.Vector3(-0.45, 0.55, 0.7);
 
+/** The stops the patch is wanted at: the planet (a fall is next) and the ground. */
+const inFall = (stop: string): boolean => stop === 'planet' || stop === 'ground';
 /** The longitude a point of the globe's band faces, in radians: the band is a whole turn, with its middle at 0. */
 const lonOfBandX = (x: number): number => (x / BAND_WIDTH) * 2 * Math.PI - Math.PI;
 
@@ -106,6 +127,9 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
   let painting: { key: string; size: number; painter: WorldPainter } | null = null;
   /** The planet whose texture is on the globe, and which of {@link TEXTURES} it is. */
   let painted: { key: string; size: number } | null = null;
+  /** The patch being painted, and the key of the one the globe wears. */
+  let patching: PatchJob | null = null;
+  let patchWorn: string | null = null;
   /** Where the globe faces now (radians), which eases toward {@link wantedOrientation}. */
   const orientation = { lon: 0, lat: 0 };
   let onScreen: GlobeOnScreen | null = null;
@@ -161,30 +185,76 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
     }
   };
 
-  /** Paints the world's texture a few milliseconds more: the quick one first, then the sharp one. */
-  const paintStep = (world: VoyagePlanet) => {
+  /** The region the ground faces: the chosen one, else the world's first (as {@link wantedOrientation} reads it). */
+  const landingOf = (world: VoyagePlanet): LabelPoint | null =>
+    world.labels.find((label) => label.objectId === control.target.regionId) ?? world.labels[0] ?? null;
+
+  /** Wears the texture just painted. */
+  const finish = () => {
+    if (painting === null) return;
+    globe.setTexture(painting.painter.result());
+    painted = { key: painting.key, size: painting.size };
+    painting = null;
+  };
+
+  /**
+   * Paints one painter a few milliseconds more, and one only: the quick texture first, then the ground patch (when the
+   * camera is at the planet or its ground, for the region the ground faces), then the sharper globe texture. A painter
+   * left half done keeps its place while another goes first.
+   */
+  const paintStep = (world: VoyagePlanet, size: ViewSize) => {
+    const budget = control.reducedMotion ? Infinity : PAINT_BUDGET_MS;
     if (painting !== null && painting.key !== world.key) painting = null;
+    if (painted !== null && painted.key !== world.key) painted = null;
+    // A patch is part of one world's drawing: another world's is dropped at once, never worn.
+    if (patching !== null && !patching.key.startsWith(`${world.key}|`)) patching = null;
+    if (patchWorn !== null && !patchWorn.startsWith(`${world.key}|`)) {
+      patchWorn = null;
+      globe.setPatch(null, null);
+    }
     if (painted?.key !== world.key && painting === null) {
       painting = { key: world.key, size: 0, painter: createWorldPainter({ ...world, ...TEXTURES[0] }) };
       painted = null;
       globe.setTexture(null);
+      patching = null;
       globe.setColours({
         sea: world.palette.sea[0],
         cap: world.palette.cloud[0],
         air: world.palette.atmosphere,
         look: worldLookOf(world.palette),
       });
-    } else if (painting === null && painted !== null && painted.size + 1 < TEXTURES.length) {
-      const size = painted.size + 1;
-      painting = { key: world.key, size, painter: createWorldPainter({ ...world, ...TEXTURES[size]! }) };
     }
-    if (painting !== null && painting.painter.step(control.reducedMotion ? Infinity : PAINT_BUDGET_MS)) {
-      globe.setTexture(painting.painter.result());
-      painted = { key: painting.key, size: painting.size };
-      painting = null;
+    // Under reduced motion every texture is painted in the one frame drawn, so a patch would hold that frame for a
+    // second on a phone, again at every region: the ground keeps the sharper whole-band texture there instead.
+    const landing =
+      !control.reducedMotion && painted?.key === world.key && inFall(control.target.stop) ? landingOf(world) : null;
+    const patchKey = landing === null ? null : `${world.key}|${landing.x}|${landing.lat}|${size.width}x${size.height}`;
+    if (patching !== null && patching.key !== patchKey) patching = null;
+    if (patchKey !== null && landing !== null && patchWorn !== patchKey && patching === null) {
+      const patch = groundPatchOf(landing, size);
+      patching = {
+        key: patchKey,
+        patch,
+        painter: createWorldPainter({ ...world, width: patch.width, height: patch.height, patch }),
+      };
+    }
+    if (patching === null && painting === null && painted !== null && painted.size + 1 < TEXTURES.length) {
+      const next = painted.size + 1;
+      painting = { key: world.key, size: next, painter: createWorldPainter({ ...world, ...TEXTURES[next]! }) };
+    }
+    // One painter a frame: the quick texture, else the patch, else the sharper texture.
+    if (painting !== null && painting.size === 0) {
+      if (painting.painter.step(budget)) finish();
+    } else if (patching !== null) {
+      if (patching.painter.step(budget)) {
+        globe.setPatch(patching.painter.result(), patching.patch.window);
+        patchWorn = patching.key;
+        patching = null;
+      }
+    } else if (painting !== null) {
+      if (painting.painter.step(budget)) finish();
     }
   };
-
   /** Where the globe should face: on the ground the chosen region (or the first); from orbit a slow spin from the first. */
   const wantedOrientation = (world: VoyagePlanet, t: number, radiusPx: number) => {
     const turnLon = control.turn.x / Math.max(radiusPx, 1);
@@ -225,7 +295,7 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
     },
     show(space, frame) {
       const { planet, cameraPosition } = frame;
-      paintStep(frame.world);
+      paintStep(frame.world, frame.size);
       const radiusPx = (frame.focal * planet.radius) / Math.max(planet.position.distanceTo(cameraPosition), 1e-6);
       const opacity = smooth(GLOBE_FADE_FROM_PX, GLOBE_FADE_TO_PX, radiusPx);
       globe.mesh.visible = opacity > 0.01;

@@ -22,7 +22,7 @@ The camera driver (`voyage-driver.ts`) is loaded on demand with three.js (`voyag
 - `voyage-chains.ts` (pure): for a target, a chain of links, one per place it is in (planet, star, the whole universe), each a point and a distance.
 - `flight.ts` (pure): how a flight moves between two chains.
 - `voyage-view.ts`: which way the camera looks and where it stands.
-- `planet-close-up.ts`: the planet as one world (`globe.ts`, painted by `world-texture.ts`).
+- `planet-close-up.ts`: the planet as one world (`globe.ts`, painted by `world-texture.ts`), with a sharp patch of the map round the place you land.
 - `ship-motion.ts` (pure) and `ship-layer.ts`: the ship.
 
 The stage (`voyage-stage.tsx`) and its controller (`voyage-controller.ts`, gestures and the ship, outside React) reach the main bundle, so they never import three.js; `voyage-control.ts` is the typed channel between them and the driver. The controller's pure parts: `pinch-gesture.ts` (a pinch that follows the fingers and moves one stop) and `flight-legs.ts` (each flight timed for the frame-rate readout).

@@ -518,7 +518,10 @@ float over it.
     over the sea, never over formed land. The ground is the same sphere from nearer, through a longer lens (24°, eased
     in as the camera falls) so the land is seen nearly from above: no cross-fade. Near a planet its sun and the haze
     under it fade away, and a ringed planet's rings and moon come back gradually as the camera leaves. A friend's
-    planets wear every continent in colour and name nothing: a visit shares no regions.
+    planets wear every continent in colour and name nothing: a visit shares no regions. On the ground a third texture,
+    a patch of the band round the place you land, is painted from the same loops at about 1.5 texels per point with
+    the prototype's coast widths in points (shelf 22, foam 7, ink 2, borders 1.8); it comes in as the camera nears the
+    ground and is not painted under reduced motion, where the ground keeps the whole-band texture.
   - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky (hovering gently, still under reduced
     motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans; let
     it go within 70 pt of a place to go there, or of a station to open its room; while held, the place it would go to
