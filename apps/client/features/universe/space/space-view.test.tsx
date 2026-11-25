@@ -31,6 +31,7 @@ jest.mock('./space-canvas', () => {
 interface MockRenderer {
   draw: jest.Mock<void, [number]>;
   dispose: jest.Mock;
+  probe: jest.Mock;
 }
 let mockRenderers: MockRenderer[] = [];
 /** The options each renderer was created with, newest last. */
@@ -48,6 +49,7 @@ jest.mock('./load-space-renderer', () => ({
             if (mockDrawFails) throw new Error('GL error');
           }),
           dispose: jest.fn(),
+          probe: jest.fn(() => ({ litPixels: 1, sampledPixels: 2, signature: 3 })),
         };
         mockRenderers.push(created);
         return {
@@ -70,7 +72,6 @@ jest.mock('./load-space-renderer', () => ({
               visible: true,
             },
           ],
-          probe: () => ({ litPixels: 1, sampledPixels: 2, signature: 3 }),
         };
       },
     }),
@@ -105,7 +106,12 @@ async function runFrame(nowMs: number): Promise<void> {
 }
 
 async function mount(
-  options: { reducedMotion?: boolean; strict?: boolean; onDetail?: (systemIds: readonly string[]) => void } = {},
+  options: {
+    reducedMotion?: boolean;
+    strict?: boolean;
+    onDetail?: (systemIds: readonly string[]) => void;
+    diagnostics?: boolean;
+  } = {},
 ) {
   const failures: SpaceFailure[] = [];
   const view = (
@@ -114,7 +120,9 @@ async function mount(
         definition={SAMPLE_SPACE}
         fallback={() => <SpaceSimpleLists definition={SAMPLE_SPACE} />}
         {...(options.onDetail === undefined ? {} : { onDetail: options.onDetail })}
-        diagnostics={{ onFrame: () => undefined, onFailure: (reason) => failures.push(reason) }}
+        {...(options.diagnostics === false
+          ? {}
+          : { diagnostics: { onFrame: () => undefined, onFailure: (reason: SpaceFailure) => failures.push(reason) } })}
       />
     </DisplayProvider>
   );
@@ -141,6 +149,21 @@ describe('the space view', () => {
     await runFrame(1016);
     await runFrame(1033);
     expect(draws()).toBe(2);
+  });
+
+  it('reads pixels back only for a view that asked for diagnostics', async () => {
+    await mount({ diagnostics: false });
+    for (let frame = 0; frame < 40; frame += 1) await runFrame(1000 + frame * 34);
+    expect(draws()).toBeGreaterThan(30);
+    expect(mockRenderers.every((renderer) => renderer.probe.mock.calls.length === 0)).toBe(true);
+  });
+
+  it('samples pixels now and then when diagnostics are asked for', async () => {
+    await mount();
+    for (let frame = 0; frame < 40; frame += 1) await runFrame(1000 + frame * 34);
+    const probes = mockRenderers.reduce((sum, renderer) => sum + renderer.probe.mock.calls.length, 0);
+    expect(probes).toBeGreaterThan(0);
+    expect(probes).toBeLessThan(draws());
   });
 
   it('draws nothing while the route is not focused', async () => {
