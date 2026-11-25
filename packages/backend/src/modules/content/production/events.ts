@@ -36,7 +36,10 @@ const TAKE_MARGIN_SECONDS = 180;
 export const claimSecondsFor = (requests: number): number =>
   requests * (MINIMAX_REQUEST_TIMEOUT_MAX_MS / 1000 + REQUEST_OVERHEAD_SECONDS) + TAKE_MARGIN_SECONDS;
 
-/** A library recipe's worst case is six requests: 6 x 320 s + 180 s = 2,100 s. */
+/**
+ * A library recipe's worst case is six requests: 6 x 320 s + 180 s = 2,100 s. The document v3 writer sends at most three of them (the
+ * writer and its two repairs, `REQUEST_BOUND_V3_WRITER`, D-445: 3 x 320 s + 180 s = 1,140 s), so the second repair needed no longer claim.
+ */
 export const PRODUCE_SCROLL_CLAIM_SECONDS = claimSecondsFor(REQUEST_BOUND_V2_PER_TOPIC);
 
 /** The answer to a question sends up to fourteen requests, its support check in batches (D-267, D-297): 14 x 320 s + 180 s = 4,660 s. */
@@ -54,8 +57,8 @@ export const productionPolicy = (expireInSeconds: number) =>
   }) as const;
 
 /**
- * Shared, nonpersonal work. A take of a library recipe or of a what-if or another perspective chains up to six model requests
- * (a writer, its repair and the answer check, D-198) and also fetches research, so a claim runs as long as the worst case
+ * Shared, nonpersonal work. A take of a library recipe is claimed for six model requests (the document v3 writer sends three at most: the
+ * writer and its two repairs, D-445) and also fetches research, so a claim runs as long as the worst case
  * before pg-boss treats it as lost. Retries cover an unavailable database or a lost claim; every delivery resumes the
  * same business run, and an attempt whose outcome is unknown is never resent.
  */

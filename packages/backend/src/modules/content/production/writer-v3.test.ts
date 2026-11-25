@@ -109,9 +109,9 @@ describe('the three roles', () => {
     const one = writerRoleV3One(context());
     const prose = writerRoleV3Prose(context());
     const stager = stagerRoleV3(context(), fixtureProseV3());
-    expect([one.id, one.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v3']);
-    expect([prose.id, prose.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3b.v3']);
-    expect([stager.id, stager.version]).toEqual(['content.scroll-stager', 'scroll-stager-v3.v3']);
+    expect([one.id, one.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3a.v4']);
+    expect([prose.id, prose.version]).toEqual(['content.scroll-writer', 'scroll-writer-v3b.v4']);
+    expect([stager.id, stager.version]).toEqual(['content.scroll-stager', 'scroll-stager-v3.v4']);
     expect([WRITER_V3A_VERSION, WRITER_V3B_VERSION, STAGER_V3_VERSION]).toEqual([
       one.version,
       prose.version,
@@ -122,6 +122,32 @@ describe('the three roles', () => {
       expect(role.effort).toBe('medium');
       expect(role.repairWithPreviousAnswer).toBe(true);
       expect(role.version).toMatch(/^[A-Za-z0-9._-]{1,32}$/u);
+    }
+  });
+
+  it('all opt into a second repair, for copies and for nothing else, and carry the refused answer for it to revise (D-445)', () => {
+    for (const role of [
+      writerRoleV3One(context()),
+      writerRoleV3Prose(context()),
+      stagerRoleV3(context(), fixtureProseV3()),
+    ]) {
+      expect(role.secondRepairOnlyFor, role.version).toEqual(['copied_passage']);
+      expect(role.repairWithPreviousAnswer).toBe(true);
+      // The code is one of the role's own fixed hints, which is what the harness matches a finding's code against.
+      expect(Object.keys(role.safeCustomIssues ?? {})).toContain('copied_passage');
+    }
+  });
+
+  it('tell the writer, in every step, that a repair changes only the parts the notes name and returns the rest as it was (D-445)', () => {
+    for (const role of [
+      writerRoleV3One(context()),
+      writerRoleV3Prose(context()),
+      stagerRoleV3(context(), fixtureProseV3()),
+    ]) {
+      expect(role.instructions, role.version).toContain(
+        'REPAIRS. When the message repeats your previous answer for you to fix: change only the parts the findings and the repair notes name, and return every other item and every picture exactly as it was, word for word.',
+      );
+      expect(role.instructions.length).toBeLessThanOrEqual(MAX_INSTRUCTION_CHARS);
     }
   });
 
@@ -296,6 +322,32 @@ describe('arm a: the whole Scroll in one reply', () => {
     );
     // Only the research's words and the place are named; nothing of what the model wrote besides.
     expect(notes).not.toContain('Say it twice');
+  });
+
+  it('says in the notes’ header, for a repair of either kind, to change only the parts the notes name and keep the rest as it was (D-445)', () => {
+    const copied = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, EQUATOR_ITEM, { text: COPIED_SENTENCE });
+    });
+    const notes = role.repairNotes?.(JSON.stringify(copied)) ?? '';
+    expect(notes).toContain('Change only these parts; return all else exactly as it was.');
+    expect(notes.length).toBeLessThanOrEqual(MAX_REPAIR_NOTES_CHARS);
+  });
+
+  it('builds the notes of a second repair from the answer the first repair gave: the places that answer copies at, not the first write’s (D-445)', () => {
+    const firstWrite = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, EQUATOR_ITEM, { text: COPIED_SENTENCE });
+    });
+    // The first repair rewrote that paragraph and copied the research somewhere else instead.
+    const elsewhere = fixtureReplyV3().items.findIndex((item, index) => item.type === 'para' && index !== EQUATOR_ITEM);
+    const firstRepair = edited(fixtureReplyV3(), (draft) => {
+      patch(draft.items, elsewhere, { text: COPIED_SENTENCE });
+    });
+    const notesOfFirstWrite = role.repairNotes?.(JSON.stringify(firstWrite)) ?? '';
+    const notesOfFirstRepair = role.repairNotes?.(JSON.stringify(firstRepair)) ?? '';
+    expect(notesOfFirstWrite).toContain(`items[${String(EQUATOR_ITEM)}]:`);
+    expect(notesOfFirstRepair).toContain(`items[${String(elsewhere)}]:`);
+    expect(notesOfFirstRepair).not.toContain(`items[${String(EQUATOR_ITEM)}]:`);
+    expect(notesOfFirstRepair).toContain('Change only these parts;');
   });
 
   /** The index of the paragraph of the fixture that states "31 degrees" (it cites the passage that holds the figure). */

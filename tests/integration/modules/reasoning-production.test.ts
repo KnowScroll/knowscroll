@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import {
@@ -502,6 +503,185 @@ describe('nonpersonal production execution and shared failure brake', () => {
     expect(await propose(q, qr, quotaRole)).toMatchObject({ kind: 'proposed' });
     expect(await slots(quotaRole.id)).toBe(0);
     expect((await productionRows(qr.id)).map((row) => row.state)).toEqual(['not_sent', 'succeeded']);
+  });
+
+  describe('a second repair, for a role that opts into it (D-445)', () => {
+    const answer = (echo: string, ok = false): FixtureScenario => ({
+      kind: 'success',
+      text: JSON.stringify({ ok, echo }),
+    });
+    /** `{ok:false}` is refused with the role's own code `copied_passage`; `ok` as a string with the schema's type finding. */
+    const copying = (name: string, overrides: Partial<ReasoningRole<unknown>> = {}): ReasoningRole<unknown> => ({
+      ...echoRole,
+      id: `fixture.${name}`,
+      outputSchema: z.object({ ok: z.unknown(), echo: z.string() }).superRefine((value, context) => {
+        if (typeof value.ok !== 'boolean') context.addIssue({ code: 'custom', path: ['ok'], message: 'x' });
+        else if (!value.ok)
+          context.addIssue({ code: 'custom', path: ['echo'], message: 'x', params: { safeCode: 'copied_passage' } });
+      }),
+      safeCustomIssues: { copied_passage: 'Fixed hint for copies.' },
+      repairWithPreviousAnswer: true,
+      repairNotes: (previousAnswer) => `NOTES-OF[${previousAnswer}]`,
+      secondRepairOnlyFor: ['copied_passage'],
+      ...overrides,
+    });
+    const withoutField = (name: string): ReasoningRole<unknown> => {
+      const { secondRepairOnlyFor: _unused, ...rest } = copying(name);
+      return rest;
+    };
+    const stepsOf = async (runId: string) => (await productionRows(runId)).map((row) => row.step);
+
+    it('runs a new admitted attempt for the second repair: its own step, reservation, receipt and causation, carrying the first repair’s answer', async () => {
+      await root();
+      const selected = copying('second-repair');
+      const p = production(
+        fixtureModel((sequence) =>
+          sequence === 1
+            ? answer('first-write')
+            : sequence === 2
+              ? answer('first-repair')
+              : answer('second-repair', true),
+        ),
+      );
+      const r = run();
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'proposed', repaired: true });
+      const rows = await productionRows(r.id);
+      expect(rows.map((row) => [row.step, row.state])).toEqual([
+        ['primary', 'succeeded'],
+        ['repair', 'succeeded'],
+        ['repair2', 'succeeded'],
+      ]);
+      expect(rows.map((row) => row.causation_attempt_id)).toEqual([null, rows[0]?.id, rows[1]?.id]);
+      const receipts = await db()
+        .selectFrom('reasoning.usage_receipts')
+        .select(['attempt_id', 'reserved_tokens', 'state'])
+        .where(
+          'attempt_id',
+          'in',
+          rows.map((row) => row.id),
+        )
+        .execute();
+      expect(receipts).toHaveLength(3);
+      for (const row of rows) expect(row.reserved_tokens).toBeGreaterThan(0);
+      // The first repair carries the first write; the second carries the first repair, with the notes built from it.
+      const [, firstRepair, secondRepair] = p.model.calls.map((call) => call.request);
+      expect(firstRepair?.user).toContain('first-write');
+      expect(firstRepair?.user).toContain('NOTES-OF[{"ok":false,"echo":"first-write"}]');
+      expect(secondRepair?.user).toContain('first-repair');
+      expect(secondRepair?.user).toContain('NOTES-OF[{"ok":false,"echo":"first-repair"}]');
+      expect(secondRepair?.user).not.toContain('first-write');
+      expect(secondRepair?.system).toContain('Fixed hint for copies.');
+      // The ledger keeps the refused answers of the two attempts that were refused, and the accounting names all three.
+      expect(
+        await db()
+          .selectFrom('reasoning.production_rejected_answers')
+          .select('attempt_id')
+          .where(
+            'attempt_id',
+            'in',
+            rows.map((row) => row.id),
+          )
+          .execute(),
+      ).toHaveLength(2);
+      const accounted = await scope()(authority, (tx) => p.harness.readProductionRunAccounting(tx, r.id));
+      if (accounted.kind !== 'entered' || accounted.value.kind !== 'accounted') throw new Error('accounting missing');
+      expect(accounted.value.attempts.map((attempt) => attempt.step)).toEqual(['primary', 'repair', 'repair2']);
+      // A redelivery answers from the ledger: nothing is sent again.
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'proposed', repaired: true });
+      expect(p.model.calls).toHaveLength(3);
+      expect(await slots(selected.id)).toBe(0);
+    });
+
+    it('sends no third repair: three attempts at most, and a redelivery of the refusal sends nothing', async () => {
+      await root();
+      const selected = copying('no-third-repair');
+      const p = production(fixtureModel(() => answer('still-a-copy')));
+      const r = run();
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'invalid_output', reason: 'OUTPUT_SCHEMA_MISMATCH' });
+      expect(await stepsOf(r.id)).toEqual(['primary', 'repair', 'repair2']);
+      expect(p.model.calls).toHaveLength(3);
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'invalid_output' });
+      expect(p.model.calls).toHaveLength(3);
+      expect(await stepsOf(r.id)).toEqual(['primary', 'repair', 'repair2']);
+    });
+
+    it('replaces a second repair that sent nothing within its own step (repair2.2), after the quota stopped it, and sends one request for it', async () => {
+      await root();
+      const selected = copying('resumed-second-repair');
+      let observations = 0;
+      const p = production(
+        fixtureModel((sequence) => (sequence === 3 ? answer('second-repair', true) : answer('a-copy')), {
+          // The quota preflight of the second repair says unavailable: that attempt becomes not_sent and the next delivery replaces it.
+          quota: () => ({
+            verdict: ++observations === 3 ? 'unavailable' : 'not_applicable',
+            intervalRemainingPercent: null,
+            weeklyRemainingPercent: null,
+          }),
+        }),
+      );
+      const r = run();
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'quota_unavailable' });
+      expect(p.model.calls).toHaveLength(2);
+      expect((await productionRows(r.id)).map((row) => [row.step, row.state])).toEqual([
+        ['primary', 'succeeded'],
+        ['repair', 'succeeded'],
+        ['repair2', 'not_sent'],
+      ]);
+      // The next delivery replaces the attempt that sent nothing, within the same logical step.
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'proposed', repaired: true });
+      expect(await stepsOf(r.id)).toEqual(['primary', 'repair', 'repair2', 'repair2.2']);
+      expect(p.model.calls).toHaveLength(3);
+    });
+
+    it('sends none after a first repair that is refused for another finding, whose outcome is unknown or that failed', async () => {
+      await root();
+      const mixed = production(
+        fixtureModel((sequence) =>
+          sequence === 1 ? answer('a-copy') : { kind: 'success', text: '{"ok":"no","echo":"x"}' },
+        ),
+      );
+      const m = run();
+      expect(await propose(mixed, m, copying('after-mixed'))).toMatchObject({ kind: 'invalid_output' });
+      expect(await stepsOf(m.id)).toEqual(['primary', 'repair']);
+      for (const [name, scenario, kind] of [
+        ['after-unknown', { kind: 'timeout_after_dispatch' }, 'unknown'],
+        ['after-failed', { kind: 'server_error', status: 500 }, 'failed'],
+      ] as const) {
+        const p = production(fixtureModel((sequence) => (sequence === 1 ? answer('a-copy') : scenario)));
+        const r = run();
+        expect(await propose(p, r, copying(name))).toMatchObject({ kind });
+        expect(await stepsOf(r.id)).toEqual(['primary', 'repair']);
+        expect(p.model.calls).toHaveLength(2);
+      }
+    });
+
+    it('charges the second repair to the role’s budget as an attempt of its own, and stops at the cap before sending it', async () => {
+      await root();
+      const selected = copying('second-repair-budget', { budget: { requestsPerDay: 2, tokensPerDay: 1e9 } });
+      const p = production(fixtureModel(() => answer('a-copy')));
+      const r = run();
+      expect(await propose(p, r, selected)).toEqual({
+        kind: 'budget_exhausted',
+        dimension: 'role',
+        limit: 'requests',
+      });
+      expect(await stepsOf(r.id)).toEqual(['primary', 'repair']);
+      expect(p.model.calls).toHaveLength(2);
+    });
+
+    it('leaves a role without the field as it was: one repair, two attempts, the same rows', async () => {
+      await root();
+      const selected = withoutField('without-the-field');
+      const p = production(fixtureModel(() => answer('a-copy')));
+      const r = run();
+      expect(await propose(p, r, selected)).toMatchObject({ kind: 'invalid_output', reason: 'OUTPUT_SCHEMA_MISMATCH' });
+      const rows = await productionRows(r.id);
+      expect(rows.map((row) => [row.step, row.state, row.causation_attempt_id])).toEqual([
+        ['primary', 'succeeded', null],
+        ['repair', 'succeeded', rows[0]?.id],
+      ]);
+      expect(p.model.calls).toHaveLength(2);
+    });
   });
 
   it('returns primary plus repair accounting without payloads and fences expired/foreign generations', async () => {

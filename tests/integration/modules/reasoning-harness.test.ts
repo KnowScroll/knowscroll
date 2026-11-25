@@ -454,6 +454,27 @@ describe('the reasoning harness (real database, fixture model)', () => {
       ]);
     });
 
+    it('gives a role that opts into a second repair none on the personal harness: it keeps no refused answer for a second repair to revise (D-445)', async () => {
+      const person = await seedPerson(db());
+      // Both answers lack `echo`, so both are refused with the same code, `missing`: the finding the role names for a second repair.
+      const model = repairing({ kind: 'success', text: '{"ok": true}' }, { kind: 'success', text: '{"ok": true}' });
+      const role: ReasoningRole<unknown> = {
+        ...echoRole,
+        repairWithPreviousAnswer: true,
+        secondRepairOnlyFor: ['missing'],
+      };
+      const { harness } = fixtureHarness(db(), { model });
+      expect(await propose(harness, person, { role })).toMatchObject({
+        kind: 'invalid_output',
+        reason: 'OUTPUT_SCHEMA_MISMATCH',
+      });
+      expect(model.calls).toHaveLength(2);
+      expect(await steps(person.universeId)).toEqual([
+        'primary:succeeded:OUTPUT_SCHEMA_MISMATCH',
+        'repair:succeeded:OUTPUT_SCHEMA_MISMATCH',
+      ]);
+    });
+
     it('treats a cut-off answer as invalid even when it parses, and repairs it', async () => {
       const person = await seedPerson(db());
       const model = repairing(

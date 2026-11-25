@@ -18,15 +18,19 @@ interface Kind {
   readonly also: string;
 }
 
+/**
+ * What both headers end on, for the first repair and the second (D-445): a repair rewrites only the places its notes name, because a
+ * part it rewrites that nobody named can copy the research anew. Short on purpose: both blocks share `MAX_REPAIR_NOTES_CHARS`.
+ */
+const CHANGE_ONLY_NAMED = 'Change only these parts; return all else exactly as it was.';
+
 const COPY: Kind = {
-  header:
-    'Each line names an item of your answer, the part of it that repeats the research, and the words that match (lower case, no punctuation). Rebuild each sentence that holds them in your own words: keep its key terms, but change the order of the ideas and the shape of the sentence, not only a word or two. Keep a figure, but put it in a sentence of your own: a figure with the research’s phrase around it is still a copy. Keep every other sentence as it is.',
+  header: `Each line names an item of your answer, the part of it that repeats the research, and the words that match (lower case, no punctuation). Rebuild each sentence that holds them in your own words: keep its key terms, but change the order of the ideas and the shape of the sentence, not only a word or two. Keep a figure, but put it in a sentence of your own: a figure with the research’s phrase around it is still a copy. ${CHANGE_ONLY_NAMED}`,
   also: 'Also copying',
 };
 
 const NUMBER: Kind = {
-  header:
-    'Each line names a part of your answer, the figures in it that no passage it cites states the way you wrote them, and where the research has them. Fix each as its line says: cite the passage it names, write the figure as that passage does, or say it in words. Keep every other sentence as it is.',
+  header: `Each line names a part of your answer, the figures in it that no passage it cites states the way you wrote them, and where the research has them. Fix each as its line says: cite the passage it names, write the figure as that passage does, or say it in words. ${CHANGE_ONLY_NAMED}`,
   also: 'Also with figures to check',
 };
 
@@ -64,7 +68,7 @@ const joined = (copies: string, numbers: string): string =>
   [copies, numbers].filter((text) => text !== '').join('\n\n');
 
 /**
- * What the writer's one repair is told about a draft refused for `copied_passage` or `authoring_number_not_in_evidence` (the
+ * What the writer's repairs are told about a draft refused for `copied_passage` or `authoring_number_not_in_evidence` (the
  * harness's catalogue is static and holds one fixed hint per code, so the part, the words and the figures go here, in the repair
  * notes, D-441 and D-444). One block for the copies and one for the figures, each a header and a line `items[11]: <detail>`
  * for each place. The notes always fit {@link MAX_REPAIR_NOTES_CHARS}, so the harness never cuts them: lines are dropped whole,

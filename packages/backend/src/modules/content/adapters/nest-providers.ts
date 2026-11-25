@@ -345,6 +345,8 @@ export { MAX_PROPOSAL_RETRY } from '../production/recipe-brief.js';
 export { listStoredRecipes } from './recipe-proposals.js';
 /** What the operator's writer spike shares: the one model it accepts, the most jobs that run at once and the batch that runs them (#771). */
 export { runSpikeJobs, SPIKE_MAX_CONCURRENCY, SPIKE_MODEL } from '../production/spike-run.js';
+/** The most paid requests the document v3 writer sends for one run: the writer and its two repairs (D-445). */
+export { REQUEST_BOUND_V3_WRITER } from '../production/topics.js';
 /**
  * The operator's writer spike for the document v3 writer (#771): the ten recipes' plans, the two arms, the spike that
  * writes one recipe in one arm, and what the blind-read page needs of a stored document. Nothing is admitted or published.

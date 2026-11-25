@@ -96,14 +96,14 @@ export type CheckRecord = z.infer<typeof CheckRecord>;
 
 /**
  * How the revision came to be. `model`: a writer run through the harness (one attempt, or one
- * attempt and one repair). `authored-editorial`: written by the editorial team (D-005).
+ * attempt and one repair, or, for the document v3 writer, one attempt and two repairs). `authored-editorial`: written by the editorial team (D-005).
  * `fixture`: test and CI data only, never product content.
  */
 export const ProductionRecord = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('model'),
     runId: OpaqueId,
-    attemptIds: z.array(OpaqueId).min(1).max(2),
+    attemptIds: z.array(OpaqueId).min(1).max(3),
     model: z.string().min(1).max(80),
     promptVersion: z.string().min(1).max(60),
   }),

@@ -169,7 +169,7 @@ describe('the worker operator command (reasoning) from the built release', () =>
     ]) {
       const result = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
       expect(result.code).toBe(0);
-      // A document v3 take sends at most two writer requests, and its bound stays at a v2 take's six (`REQUEST_BOUND_V3_PER_TOPIC`).
+      // A document v3 take sends at most three writer requests (the writer and two repairs, D-445), and its bound stays at a v2 take's six (`REQUEST_BOUND_V3_PER_TOPIC`).
       // Since #790 the plan marks every recipe document v3, `exoplanet-kinds` included, so no library recipe keeps a v1 bound of two.
       expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: 6 });
     }

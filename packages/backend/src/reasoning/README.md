@@ -113,11 +113,13 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   one delivery can do: per attempt the quota preflight (10 s) plus the request deadline
   (`KS_MINIMAX_REQUEST_TIMEOUT_MS`, default 240 s, at most 300 s) plus the database waits (each
   personal-scope lock wait is at most `KS_SCOPE_LOCK_TIMEOUT_MS`, 5 s, and there are two), and a
-  repair doubles it. Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
-  (550 s with the defaults, 670 s at the 300 s maximum). A job that makes several proposals counts
+  repair doubles it (a role that opts into a second repair, `secondRepairOnlyFor`, D-445, triples it: the
+  Scroll writer's roles do). Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
+  (550 s with the defaults, 670 s at the 300 s maximum), and `3 × (…) + 30` for a role with a second repair
+  (790 s with the defaults, 990 s at the maximum). A job that makes several proposals counts
   every request it may send at `10 + 300 + 10` s each: the Scroll production job fourteen for the answer
   to a question plus 180 s for research and database steps (`content.produce-answer`,
-  `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s, D-267, D-297), a library recipe its six (`content.produce-scroll`, 2,100 s), the support check of a held library Scroll its eleven, ten batches and the harness's one repair (`content.check-library-support`, 3,700 s, D-415), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
+  `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s, D-267, D-297), a library recipe its six (`content.produce-scroll`, 2,100 s; a take of the document v3 writer sends three of them at most, the writer and its two repairs, D-445, 3 × 320 + 180 = 1,140 s, so the claim did not change), the support check of a held library Scroll its eleven, ten batches and the harness's one repair (`content.check-library-support`, 3,700 s, D-415), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
   delivery that is still waiting on the provider; the next delivery finds the attempt `dispatched`, marks it
   `unknown` (never resent) and the operator has to write it off.
 - **Aborts.** A graceful stop (the delivery's signal) before the request leaves records a failure
@@ -363,6 +365,22 @@ values explicitly; no step keeps state in a closure flag.
    the listed codes (its one user was the ask order's revision, for a copied passage, D-297, which is deleted with the v1 writer, #818). It reads the kept refused answer when the role asks for it, builds the
    richest request that fits (answer and notes, then the answer alone, then the findings alone) and
    runs a second attempt caused by the first.
+5. **A second repair, for a role that opts in** (`ReasoningRole.secondRepairOnlyFor`, D-445; `runRepairAttempt` with step
+   `repair2`). The one exception to the one-repair rule. After the first repair's answer is conclusively invalid, and
+   only when every finding of it carries one of the codes the role named, the harness runs exactly one more repair: a new
+   admitted attempt with its own reservation, budget check and usage receipt (each attempt is checked against the caps on its own),
+   `causation_attempt_id` = the first repair, carrying the first repair's answer (read from the ledger by that attempt) and the
+   notes the role's `repairNotes` builds from it. The first repair's request is unchanged for every role, and a role without
+   the field is byte for byte as before (`propose.test.ts` pins the digest of its requests as the harness sent them before D-445).
+   Never a third: a proposal is three attempts at most. Never after `unknown`, `failed` or a quota stop of the first repair,
+   after a first repair refused for any other finding too, or when the caller set `allowRepair: false` (`repairOnlyFor` keeps its
+   meaning for the first repair only). A refusal cut at `MAX_ISSUES` findings ends in a `more` entry that is not one of the role's
+   codes, so it counts as mixed and gets none. It needs `repairWithPreviousAnswer` (a role that names codes without it is refused
+   `role_invalid`) and a request that carries the first repair's kept answer (the findings alone are not a second repair), so it
+   exists only for nonpersonal production: a personal ledger keeps no refused answer and sends none (`reasoning-harness.test.ts`). Its step is `repair2` (`repair2.2`, … when an attempt of it sent nothing and is replaced, as
+   for `primary` and `repair`); `production_attempts.step` is free text under the unique `(scope_id, run_id, step)`, so it
+   needed no migration. The Scroll writer's three roles are the only users (`content.scroll-writer`, `content.scroll-stager`, for
+   `copied_passage`).
 
 **Purge.** Before the first attempt a proposal may delete expired protected request bytes, so
 expiry does not depend on the scheduled job being on time. It is ledger-owned bookkeeping in its own
@@ -407,7 +425,7 @@ attempt was already settled.
 7. **Eligibility** (personal private reads use a fresh gated root, with the existing authority check): an answer for an authority that no longer holds (for example a
    privacy reset while the call ran) is recorded but never handed over (`output_ineligible`).
 
-**Repair**: after a conclusively invalid answer, exactly one repair attempt: a new admitted attempt
+**Repair**: after a conclusively invalid answer, exactly one repair attempt (and for a role that opts into `secondRepairOnlyFor`, one more when only its codes are left, D-445; see "Repair" in the proposal's steps above): a new admitted attempt
 with its own reservation, `causation_attempt_id` = the first attempt, sending the validator's
 structural findings. The findings are built from the role's schema only: names the schema declares,
 array positions, the placeholder `[key]` for the keys of a record or map, `?` for anything else,

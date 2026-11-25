@@ -171,7 +171,7 @@ describe('the v3 writer spike: one recipe in one arm', () => {
     expect(line.steps).toHaveLength(1);
     expect(line.steps[0]).toMatchObject({
       step: 'one',
-      roleVersion: 'scroll-writer-v3a.v3',
+      roleVersion: 'scroll-writer-v3a.v4',
       outcome: 'accepted_first_take',
       requests: 1,
       findings: [],
@@ -194,7 +194,7 @@ describe('the v3 writer spike: one recipe in one arm', () => {
     expect(document?.document.schemaVersion).toBe('scroll-document.v3');
     expect(Object.keys(document?.citations ?? {})).toContain('takeaway');
     expect(calls.proposed).toHaveLength(1);
-    expect(calls.proposed[0]).toMatchObject({ role: 'content.scroll-writer', version: 'scroll-writer-v3a.v3' });
+    expect(calls.proposed[0]).toMatchObject({ role: 'content.scroll-writer', version: 'scroll-writer-v3a.v4' });
     expect(calls.proposed[0]?.items.map((item) => item.kind)).toEqual(['production_brief', 'public_research_passages']);
     expect(calls.closed).toEqual([{ runId: line.steps[0]?.runId, state: 'completed' }]);
     expect(JSON.stringify(line)).not.toContain('Orrin');
@@ -227,16 +227,16 @@ describe('the v3 writer spike: one recipe in one arm', () => {
     const { line, document } = await spike.writeOne('seasons', 'b', never);
     expect(line).toMatchObject({ arm: 'b', outcome: 'accepted_first_take', requests: 2 });
     expect(line.steps.map((step) => [step.step, step.roleVersion, step.outcome])).toEqual([
-      ['prose', 'scroll-writer-v3b.v3', 'accepted_first_take'],
-      ['staging', 'scroll-stager-v3.v3', 'accepted_first_take'],
+      ['prose', 'scroll-writer-v3b.v4', 'accepted_first_take'],
+      ['staging', 'scroll-stager-v3.v4', 'accepted_first_take'],
     ]);
     expect(new Set(line.steps.map((step) => step.runId)).size).toBe(2);
     expect(line.tokens).toEqual({ input: 8000, output: 18_000, thinking: 12_000, complete: true });
     expect(line.document).toMatchObject({ sections: 3, beats: 11, writtenKinds: ['statement', 'grid'] });
     expect(document?.document.pictures).toHaveLength(2);
     expect(calls.proposed.map((call) => [call.role, call.version])).toEqual([
-      ['content.scroll-writer', 'scroll-writer-v3b.v3'],
-      ['content.scroll-stager', 'scroll-stager-v3.v3'],
+      ['content.scroll-writer', 'scroll-writer-v3b.v4'],
+      ['content.scroll-stager', 'scroll-stager-v3.v4'],
     ]);
     // The staging request carries the numbered prose, the passages and the plan, and no brief.
     expect(calls.proposed[1]?.items.map((item) => item.kind)).toEqual([

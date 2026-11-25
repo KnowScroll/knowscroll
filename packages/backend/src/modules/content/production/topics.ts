@@ -24,8 +24,10 @@ export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v22';
  * v3 (D-441): a copy finding names the part and quotes the words, and the instructions say a chart always has its marks
  * (`scroll-writer-v3.v3`): three new takes again for a recipe whose Scroll is not yet a document v3. v4 (D-444): a figure finding says where
  * the figure is, a copy note lists more runs, and a picture's short texts are the writer's own words (`scroll-writer-v3.v4`): three new takes again.
+ * v5 (D-445): the writer's roles get a second repair when copies are the only findings left, and a repair is told to change only the
+ * parts its notes name (`scroll-writer-v3.v5`): three new takes again.
  */
-export const SCROLL_PRODUCTION_V3_VERSION = 'scroll-production-v3.v4';
+export const SCROLL_PRODUCTION_V3_VERSION = 'scroll-production-v3.v5';
 /**
  * The document v3 production version before D-438. No new job is made at it; its revisions stay stored, released and served, and the
  * publication lineage keeps accepting the pair it wrote (`lineagePairsOf`, `publication-topic.ts`).
@@ -35,6 +37,8 @@ export const SCROLL_PRODUCTION_V3_FIRST_VERSION = 'scroll-production-v3.v1';
 export const SCROLL_PRODUCTION_V3_SECOND_VERSION = 'scroll-production-v3.v2';
 /** The document v3 production version of D-441, before D-444: kept like {@link SCROLL_PRODUCTION_V3_FIRST_VERSION}. */
 export const SCROLL_PRODUCTION_V3_THIRD_VERSION = 'scroll-production-v3.v3';
+/** The document v3 production version of D-444, before D-445: kept like {@link SCROLL_PRODUCTION_V3_FIRST_VERSION}. */
+export const SCROLL_PRODUCTION_V3_FOURTH_VERSION = 'scroll-production-v3.v4';
 /** One writer call and at most one repair, per take. */
 export const REQUEST_BOUND_PER_TOPIC = 2;
 /**
@@ -45,10 +49,17 @@ export const REQUEST_BOUND_PER_TOPIC = 2;
  */
 export const REQUEST_BOUND_V2_PER_TOPIC = 6;
 /**
+ * The most paid requests the document v3 writer sends for one take: the writer once, the harness's first repair and the second repair
+ * its roles opt into when copies are all that is left (D-445). The writer's roles name `secondRepairOnlyFor`, and `writer-stage.ts`
+ * refuses a take whose run was charged more.
+ */
+export const REQUEST_BOUND_V3_WRITER = 3;
+/**
  * The most paid requests a document v3 library recipe's take may send. The v3 writer is one reply (arm (a)): the writer once and the
- * harness's one repair, so two in practice, and the answer check of a v3 has no calls and sends none. The bound is kept at a v2
- * take's, an upper bound that the queue's claim (`PRODUCE_SCROLL_CLAIM_SECONDS`) already covers, so a writer that grows a step (the
- * two-step arm (b), say) needs no new claim; `versions.test.ts` holds it there.
+ * harness's repairs, so three at most ({@link REQUEST_BOUND_V3_WRITER}: one more than before D-445), and the answer check of a v3 has no
+ * calls and sends none. The bound is kept at a v2 take's, an upper bound that the queue's claim (`PRODUCE_SCROLL_CLAIM_SECONDS`, which
+ * is sized by it) already covers, so a writer that grows a step (the two-step arm (b), say) or a repair needs no new claim;
+ * `versions.test.ts` holds both the bound and the claim for the writer's three requests.
  */
 export const REQUEST_BOUND_V3_PER_TOPIC = 6;
 /**

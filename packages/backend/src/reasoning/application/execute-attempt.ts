@@ -36,12 +36,18 @@ export const outcomeCodes = {
 /** At most this many attempts per logical step, and only while every earlier one was `not_sent`. */
 export const MAX_STEP_SEQUENCE = 4;
 
+/**
+ * The logical step of an attempt: `primary`, `repair`, and for a role that opts in (`ReasoningRole.secondRepairOnlyFor`, D-445)
+ * `repair2`, the second repair. A step with a number after it is a replacement of an attempt that sent nothing (`repair2.2`).
+ */
+export type AttemptStep = 'primary' | 'repair' | 'repair2';
+
 /** One planned external attempt: everything the ledger records and the exact bytes to send. */
 export interface AttemptPlan<A> {
   readonly authority: A;
   readonly run: RunDescriptor;
-  /** Logical step: `primary`, or `repair` (a repair is a new attempt, never a silent retry). */
-  readonly step: 'primary' | 'repair';
+  /** Logical step: `primary`, `repair` or `repair2` (a repair is a new attempt, never a silent retry). */
+  readonly step: AttemptStep;
   readonly roleId: string;
   readonly roleVersion: string;
   readonly promptVersion: string;
