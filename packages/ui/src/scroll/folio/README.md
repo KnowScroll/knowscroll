@@ -63,7 +63,7 @@ Measured on 18 Nov in Chromium at 390 × 844 over the Seasons CI fixture and jud
 
 ## Looking at it locally
 
-The gallery build has `/gallery-folio`, which draws the v2 CI fixtures with no backend: `?doc=` one of `seasons`, `starlight`, `blackHole`, `scaleChart`, `sortFork` (and the document v3 fixtures `fenceV3`, `seasonsV3`, `broadStreetV3`); `stop=` to open at a stop; `motion=reduce`; `scale=2`. It records what the reader reports in `window.__ksFolioGallery`.
+The gallery build has `/gallery-folio`, which draws the v2 CI fixtures with no backend: `?doc=` one of `seasons`, `starlight`, `scaleChart`, `sortFork` (and the document v3 fixtures `fenceV3`, `seasonsV3`, `broadStreetV3`); `stop=` to open at a stop; `motion=reduce`; `scale=2`. It records what the reader reports in `window.__ksFolioGallery`.
 
 ```
 pnpm --filter @knowscroll/client build:gallery

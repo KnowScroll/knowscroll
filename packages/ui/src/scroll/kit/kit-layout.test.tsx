@@ -87,7 +87,7 @@ function settledStates(kit: StageKitId): WordState[] {
     .filter((state) => !seen.has(JSON.stringify(state)) && seen.add(JSON.stringify(state)));
 }
 
-describe.each(['starlight.v1', 'black-hole.v1'] as const)('the labels of the picture of %s', (kit) => {
+describe.each(['starlight.v1'] as const)('the labels of the picture of %s', (kit) => {
   it('stay inside the frame and clear of the phone’s TEXT pill, in every state', async () => {
     const picture = KIT_PICTURES[kit];
     const problems: string[] = [];

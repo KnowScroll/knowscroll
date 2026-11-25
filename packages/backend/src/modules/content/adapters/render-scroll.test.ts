@@ -46,8 +46,17 @@ describe('whether a client can be given a stored Scroll document', () => {
   it('serves a stored v2 whose stage is of a kit the code no longer defines, and still refuses a live kit’s wrong state', () => {
     const stored = v2 as { stage: { kit: string; states: { state: unknown }[] } };
     const states = stored.stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } }));
-    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802) and nerve.v1 (#809) were deleted from the code; stage and main still store Scrolls that name them.
-    for (const kit of ['gone.v1', 'transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1', 'nerve.v1'])
+    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809) and black-hole.v1 (#832) were deleted from the code; stage and main still store Scrolls that name them.
+    for (const kit of [
+      'gone.v1',
+      'transit.v1',
+      'tides.v1',
+      'star.v1',
+      'greenhouse.v1',
+      'circulation.v1',
+      'nerve.v1',
+      'black-hole.v1',
+    ])
       expect(canRenderScroll({ ...stored, stage: { kit, states } }, declaring('scroll-document.v2')), kit).toBe(true);
     expect(
       canRenderScroll({ ...stored, stage: { kit: 'earth-sky.v1', states } }, declaring('scroll-document.v2')),

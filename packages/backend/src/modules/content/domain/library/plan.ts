@@ -69,7 +69,7 @@ export interface LibrarySystem extends SameMeaning {
  * was about (D-125, D-194, D-201, D-204); none does since #787, and the plan field is deleted (#815). `scroll-model` owns the kits
  * themselves and derives the legacy stage of a deleted kit from this list; a test keeps the two in step.
  */
-export const STAGE_KIT_IDS = ['earth-sky.v1', 'starlight.v1', 'black-hole.v1'] as const;
+export const STAGE_KIT_IDS = ['earth-sky.v1', 'starlight.v1'] as const;
 
 type Interactivity =
   | { readonly interactive: true; readonly interactiveKind: InteractiveKind }

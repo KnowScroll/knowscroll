@@ -119,16 +119,22 @@ describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
 });
 
 describe('a stored stage of a kit this build does not draw', () => {
-  // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802) and nerve.v1 (#809) were deleted from the code; stage and main still store Scrolls that name them.
-  it.each(['gone.v1', 'transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1', 'nerve.v1'])(
-    'draws nothing for %s, and does not throw looking the kit up',
-    async (kit) => {
-      const gone = {
-        kit,
-        states: [{ stop: 'the-lean', state: { old: 'word' }, alt: 'What the removed kit drew.' }],
-      } as unknown as StageProps['document']['stage'];
-      await render(<Stage {...props} document={{ stops: document.stops, stage: gone }} />);
-      expect(screen.queryByTestId('stage')).toBeNull();
-    },
-  );
+  // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809) and black-hole.v1 (#832) were deleted from the code; stage and main still store Scrolls that name them.
+  it.each([
+    'gone.v1',
+    'transit.v1',
+    'tides.v1',
+    'star.v1',
+    'greenhouse.v1',
+    'circulation.v1',
+    'nerve.v1',
+    'black-hole.v1',
+  ])('draws nothing for %s, and does not throw looking the kit up', async (kit) => {
+    const gone = {
+      kit,
+      states: [{ stop: 'the-lean', state: { old: 'word' }, alt: 'What the removed kit drew.' }],
+    } as unknown as StageProps['document']['stage'];
+    await render(<Stage {...props} document={{ stops: document.stops, stage: gone }} />);
+    expect(screen.queryByTestId('stage')).toBeNull();
+  });
 });

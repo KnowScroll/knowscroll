@@ -4,7 +4,6 @@ import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import broadStreetV3 from '@knowscroll/scroll-model/fixtures/broad-street-v3-ci.json';
 import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
@@ -52,7 +51,6 @@ const folioGalleryMarker = 'ks-folio-gallery';
 const documents = {
   seasons,
   starlight,
-  blackHole,
   scaleChart,
   sortFork,
   fenceV3,

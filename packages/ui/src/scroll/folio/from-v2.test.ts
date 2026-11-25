@@ -1,4 +1,3 @@
-import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
@@ -14,7 +13,6 @@ import { beatsOf, type ReadingBlock } from './reading-model';
 const FIXTURES = Object.entries({
   seasons,
   starlight,
-  blackHole,
   scaleChart,
   sortFork,
 }).map(([name, json]) => [name, json as unknown as ScrollDocumentV2] as const);

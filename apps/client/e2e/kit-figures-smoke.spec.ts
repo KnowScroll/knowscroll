@@ -1,6 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { encounterFixture, readCover } from './encounter-fixture';
@@ -14,10 +13,7 @@ import { encounterFixture, readCover } from './encounter-fixture';
  * it also saves a screenshot of each state, to be read beside the kit page of the V3 design.
  */
 
-const KITS = [
-  ['starlight', starlight],
-  ['black-hole', blackHole],
-] as const;
+const KITS = [['starlight', starlight]] as const;
 const sizes = [
   ['phone', { width: 390, height: 844 }],
   ['desktop', { width: 1440, height: 900 }],

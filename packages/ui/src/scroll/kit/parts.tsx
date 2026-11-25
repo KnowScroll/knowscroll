@@ -1,11 +1,10 @@
 import type { ReactElement } from 'react';
-import { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
+import { Circle, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { content, fontFamily, printed, scrollPage, status } from '@knowscroll/design-tokens';
 import type { Point } from './earth-sky-scene';
 
 /**
- * The parts every drawing kit shares in the V3 style (D-194): the palette, an arrow whose width means
- * something, the focus ring and the small mono label. Kits arrange these; they never decide a number.
+ * The parts every drawing kit shares in the V3 style (D-194): the palette, the focus ring and the small mono label. Kits arrange these; they never decide a number.
  *
  * The palette by job. On a Scroll's page on the web the adaptive roles follow the page's appearance (D-424): INK is the
  * line and the label, PAPER and PAPER_DEEP are the plate's own colours. A body that must stay dark in both appearances
@@ -95,74 +94,6 @@ export function FocusOutline({ points }: { readonly points: readonly Point[] }):
       strokeDasharray="5 4"
       strokeLinejoin="round"
     />
-  );
-}
-
-export interface ArrowProps {
-  readonly from: Point;
-  readonly to: Point;
-  /** Line width in pixels: in the kits it is proportional to the quantity the arrow stands for. */
-  readonly width: number;
-  readonly colour: string;
-  readonly opacity?: number;
-  /** An ink edge, for a pale arrow on the paper. */
-  readonly outlined?: boolean;
-  /**
-   * A thin edge in the page's ground, outside everything else, for an arrow that crosses something light in both
-   * appearances (a glow, a wash, a pale band): in Dark its cream ink would vanish there without it.
-   */
-  readonly edged?: boolean;
-}
-
-/** An arrow from one point to another with a head at the end, its head sized by its width. */
-export function Arrow({
-  from,
-  to,
-  width,
-  colour,
-  opacity = 1,
-  outlined = false,
-  edged = false,
-}: ArrowProps): ReactElement {
-  if (edged)
-    return (
-      <>
-        <Arrow from={from} to={to} width={width + (outlined ? 3.5 : 0) + 3} colour={PAPER} opacity={opacity} />
-        <Arrow from={from} to={to} width={width} colour={colour} opacity={opacity} outlined={outlined} />
-      </>
-    );
-  if (outlined)
-    return (
-      <>
-        <Arrow from={from} to={to} width={width + 3.5} colour={INK} opacity={opacity} />
-        <Arrow from={from} to={to} width={width} colour={colour} opacity={opacity} />
-      </>
-    );
-  const length = Math.hypot(to.x - from.x, to.y - from.y);
-  if (length < 0.5) return <Line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={colour} strokeWidth={0} />;
-  const direction = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
-  const side = { x: -direction.y, y: direction.x };
-  const headLength = Math.min(length * 0.6, 5 + width * 0.9);
-  const headWidth = 3 + width * 0.95;
-  const base = { x: to.x - direction.x * headLength, y: to.y - direction.y * headLength };
-  return (
-    <>
-      <Line
-        x1={from.x}
-        y1={from.y}
-        x2={base.x}
-        y2={base.y}
-        stroke={colour}
-        strokeWidth={width}
-        strokeLinecap="butt"
-        opacity={opacity}
-      />
-      <Polygon
-        points={`${to.x},${to.y} ${base.x + side.x * headWidth},${base.y + side.y * headWidth} ${base.x - side.x * headWidth},${base.y - side.y * headWidth}`}
-        fill={colour}
-        opacity={opacity}
-      />
-    </>
   );
 }
 
