@@ -125,6 +125,48 @@ test('Escape on the ground climbs one stop, to the planet’s globe, as the Back
   await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toBeVisible();
 });
 
+/** Ways the new look cannot draw, each prepared before the page loads; every one must end in the plain lists (D-111). */
+const NO_3D: readonly (readonly [string, () => void])[] = [
+  [
+    'the browser has no WebGL',
+    () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, kind: string, ...rest: unknown[]) {
+        return kind === 'webgl2' || kind === 'webgl'
+          ? null
+          : (getContext as (...args: unknown[]) => unknown).call(this, kind, ...rest);
+      } as never;
+    },
+  ],
+  ['the device is short of memory', () => Object.defineProperty(navigator, 'deviceMemory', { value: 0.5 })],
+];
+
+for (const [why, prepare] of NO_3D)
+  test(`with the trial on, opens as the plain lists when ${why}`, async ({ page }) => {
+    await page.addInitScript(prepare);
+    await openVoyage(page, []);
+    await expect(page.getByTestId('universe-simple')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('button', { name: /^CI system 0\b/ }).first()).toBeVisible();
+  });
+
+test('with the trial on, a lost WebGL context at a star swaps in the plain lists of that star', async ({ page }) => {
+  test.setTimeout(120_000);
+  await openVoyage(page, [], { calm: true });
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+    const extension = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
+    if (!extension) throw new Error('Context loss extension must be available for this browser check');
+    extension.loseContext();
+  });
+  await expect(page.getByTestId('universe-simple')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true })).toBeVisible();
+});
+
 /**
  * What the Universe screen paints, in page order: the colour of each visible piece of text, each background that is not
  * transparent, each border that has a width, and each SVG shape's fill and stroke. The tab bar and the rest of the app
