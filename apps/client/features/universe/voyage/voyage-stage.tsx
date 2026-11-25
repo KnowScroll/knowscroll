@@ -206,14 +206,14 @@ export function VoyageStage({
         fallback={(reason) => <Unavailable reason={reason} onUnavailable={onUnavailable} />}
         {...(recordFrame ? { onFrameTime: recordFrame } : {})}
       />
-      {flying ? <FlightLine to={destinationOf(view)} size={size} onSkip={controller.skip} /> : null}
+      <FlightLine to={flying ? destinationOf(view, visitor) : null} size={size} onSkip={controller.skip} />
     </View>
   );
 }
 
-/** Where a flight to `view` goes, as the flight line says it. */
-const destinationOf = (view: UniverseView): string => {
-  if (view.kind === 'universe') return 'your universe';
+/** Where a flight to `view` goes, as the flight line says it. A visitor's whole universe is their friend's, not theirs. */
+const destinationOf = (view: UniverseView, visitor: boolean): string => {
+  if (view.kind === 'universe') return visitor ? 'the whole universe' : 'your universe';
   if (view.kind === 'system') return view.system.label;
   return view.selectedRegion?.label ?? view.planet.label;
 };
@@ -222,38 +222,48 @@ const destinationOf = (view: UniverseView): string => {
 const FLIGHT_LINE_TOP = { phone: 226, desktopShare: 0.2 } as const;
 
 /**
- * While the camera flies: one line saying where it is going, read out once, and a tap anywhere skips to the end of the
- * flight (the prototype's `skip`). The places are moving under the finger then, so a tap is never taken for one of them.
+ * While the camera flies (`to` is where; null between flights): one line saying where it is going, read out once, and a
+ * tap anywhere skips to the end of the flight (the prototype's `skip`). The places are moving under the finger then, so
+ * a tap is never taken for one of them. The tap target is named by the line itself, which is all a person sees of it.
  */
 function FlightLine({
   to,
   size,
   onSkip,
 }: {
-  readonly to: string;
+  readonly to: string | null;
   readonly size: { readonly width: number; readonly height: number };
   readonly onSkip: () => void;
 }) {
   const top = size.width >= DESKTOP_WIDTH ? size.height * FLIGHT_LINE_TOP.desktopShare : FLIGHT_LINE_TOP.phone;
+  const line = to === null ? null : `Going to ${to} · tap to skip`;
   return (
-    <Pressable
-      style={StyleSheet.absoluteFill}
-      accessibilityRole="button"
-      accessibilityLabel={`Skip the flight to ${to}`}
-      onPress={onSkip}
-      testID="voyage-skip"
-    >
+    <>
+      {line === null ? null : (
+        // Not in the keyboard's tab order: it goes away on landing, and focus on it would fall to the page.
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel={line}
+          focusable={false}
+          onPress={onSkip}
+          testID="voyage-skip"
+        />
+      )}
+      {/* Always there, so a screen reader hears the line when it appears, once; empty between flights. */}
       <View
         pointerEvents="none"
         style={[styles.flightLine, { top }]}
         accessibilityLiveRegion="polite"
-        testID="voyage-flight"
+        testID="voyage-flight-line"
       >
-        <Text variant="label" color={space.label} align="center">
-          {`Going to ${to} · tap to skip`}
-        </Text>
+        {line === null ? null : (
+          <Text variant="label" color={space.label} align="center" testID="voyage-flight">
+            {line}
+          </Text>
+        )}
       </View>
-    </Pressable>
+    </>
   );
 }
 

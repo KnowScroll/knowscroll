@@ -117,7 +117,7 @@ test('a flight says where it is going, and a tap skips to its end', async ({ pag
   await system.click();
   // Read out once, and a test's way of knowing a flight is under way.
   await expect(page.getByTestId('voyage-flight')).toHaveText('Going to CI system 0 · tap to skip');
-  await page.getByRole('button', { name: 'Skip the flight to CI system 0', exact: true }).click();
+  await page.getByRole('button', { name: 'Going to CI system 0 · tap to skip', exact: true }).click();
   await landed(page);
   await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible();
 });
