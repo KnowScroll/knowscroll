@@ -13,7 +13,7 @@ import { wrapAngle } from './flight';
 import { createGlobe, localPointOf } from './globe';
 import type { ViewSize } from './voyage-chains';
 import type { GlobeOnScreen, VoyageControl, VoyagePlanet } from './voyage-control';
-import { BAND_WIDTH, createWorldPainter, type WorldPainter } from './world-texture';
+import { BAND_WIDTH, createWorldPainter, worldLookOf, type WorldPainter } from './world-texture';
 
 /**
  * The textures of a planet's world, painted a few milliseconds per frame: a quick one so the globe has its continents
@@ -50,6 +50,12 @@ const LIGHT_TO_PX = 430;
 const NAMED_FROM_PX = 90;
 /** A region's name point is shown while its surface faces the camera at least this much (cosine of the angle). */
 const FACING_LEAST = 0.25;
+/** The sun starts to shrink away once the globe shows this much (its opacity), and is gone when it is whole. */
+const SUN_GONE_FROM = 0.3;
+/** A painted planet's ring at rest, in planet radii (`scene/planet.ts`), and the hand-over values that leave it and its moon where they are. */
+const RING_AT_REST = { inner: 1.4, outer: 2.4 } as const;
+const NO_TURN = new THREE.Quaternion();
+const NO_MOVE = new THREE.Vector3();
 /** Where the light comes from when the planet's star is not in the scene. */
 const DEFAULT_TO_SUN = new THREE.Vector3(-0.45, 0.55, 0.7);
 
@@ -123,6 +129,7 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
   const giveBack = (space: BuiltSpace) => {
     if (closeUpOf === null) return;
     space.script.closeUp(closeUpOf.id, undefined);
+    space.script.handOver(closeUpOf.id, null);
     for (const id of [closeUpOf.id, ...closeUpOf.siblings]) {
       const body = space.script.planet(id);
       if (body) body.object.visible = true;
@@ -136,9 +143,18 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
       atmosphere: 1.15 * (1 - opacity),
       sunBloom: 1 - 0.85 * opacity,
       sunGlow: 1 - 0.85 * opacity,
+      // The prototype's planet stop shows no sun, and a sun cut off by the screen's edge reads as a flat shape: it
+      // shrinks away, glow and all, as the globe takes over, and the sky behind the planet goes dark.
+      sun: 1 - smooth(SUN_GONE_FROM, 1, opacity),
     });
     const body = space.script.planet(planetId);
     if (body) body.object.visible = opacity < 0.98;
+    // The globe has no ring or moon: the painted planet's come in as the globe goes, instead of all at once.
+    const fade = 1 - opacity;
+    space.script.handOver(planetId, {
+      ring: { inner: RING_AT_REST.inner, outer: RING_AT_REST.outer, weight: 0, fade, turnTo: NO_TURN },
+      moon: { weight: 0, fade, target: NO_MOVE, shrinkTo: 1 },
+    });
     for (const id of closeUpOf.siblings) {
       const sibling = space.script.planet(id);
       if (sibling) sibling.object.visible = opacity < 0.5;
@@ -152,7 +168,12 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
       painting = { key: world.key, size: 0, painter: createWorldPainter({ ...world, ...TEXTURES[0] }) };
       painted = null;
       globe.setTexture(null);
-      globe.setColours({ sea: world.palette.sea[0], cap: world.palette.cloud[0], air: world.palette.atmosphere });
+      globe.setColours({
+        sea: world.palette.sea[0],
+        cap: world.palette.cloud[0],
+        air: world.palette.atmosphere,
+        look: worldLookOf(world.palette),
+      });
     } else if (painting === null && painted !== null && painted.size + 1 < TEXTURES.length) {
       const size = painted.size + 1;
       painting = { key: world.key, size, painter: createWorldPainter({ ...world, ...TEXTURES[size]! }) };

@@ -101,11 +101,15 @@ export interface SceneScripting {
   /** Eases the atmosphere of a planet and the glow of its sun down as the camera comes close; `undefined` restores them. */
   readonly closeUp: (
     planetId: string,
-    state: { atmosphere: number; sunBloom: number; sunGlow: number } | undefined,
+    /** `sun`: how much of the star itself shows, its disc, glows and the haze under it; 1 when absent. */
+    state: { atmosphere: number; sunBloom: number; sunGlow: number; sun?: number } | undefined,
   ) => void;
   /** Turns a planet's ring and moon into the planet view's, or back with `null`. */
   readonly handOver: (planetId: string, handover: PlanetHandover | null) => void;
 }
+
+/** How bright the flat haze under a system's sun is. */
+const HALO_STRENGTH = 0.6;
 
 /** Angular speed of a planet: inner planets turn faster. */
 function orbitSpeed(system: SpaceSystemDefinition, orbitRadius: number): number {
@@ -121,6 +125,8 @@ export interface SystemBuild {
   readonly anchors: WorldAnchor[];
   /** The warm glows a pick turns on: the system's own, and one around each planet (D02 picks a planet). */
   readonly picks: ReadonlyMap<string, THREE.Sprite>;
+  /** Shares how much of the flat haze under the sun shows: 1 at rest (see `closeUp`'s `sun`). */
+  readonly setHaze: (share: number) => void;
 }
 
 /** The ship rides on its planet, a little above and beside it, sized to the planet it parks at. */
@@ -158,7 +164,8 @@ export function buildSystem(
   group.position.set(system.position.x, 0, system.position.z);
   const sunPosition = group.position.clone();
   const outer = Math.max(1, ...system.planets.map((planet) => planet.orbitRadius));
-  group.add(makeHalo(outer * 2.2, system.family, scoped, 0.6));
+  const halo = makeHalo(outer * 2.2, system.family, scoped, HALO_STRENGTH);
+  group.add(halo);
   const sun = makeSun(system.sunRadius, scoped);
   group.add(sun.object);
   const pick = makeGlow(context);
@@ -229,7 +236,11 @@ export function buildSystem(
     }
   };
   tick(0);
-  return { built: { object: group, tick }, sun, bodies, ships, anchors, picks };
+  const haloStrength = (halo.material as THREE.ShaderMaterial).uniforms['strength']!;
+  const setHaze = (share: number) => {
+    haloStrength.value = HALO_STRENGTH * share;
+  };
+  return { built: { object: group, tick }, sun, bodies, ships, anchors, picks, setHaze };
 }
 
 function buildStation(
@@ -536,7 +547,9 @@ export function buildSpace(
       const body = bodyOf(planetId);
       if (body === undefined) return;
       body.planet.setAtmosphere(state?.atmosphere ?? 1.15);
-      live.get(body.systemId)?.build.sun.setCloseUp(state?.sunBloom ?? 1, state?.sunGlow ?? 1);
+      const build = live.get(body.systemId)?.build;
+      build?.sun.setCloseUp(state?.sunBloom ?? 1, state?.sunGlow ?? 1, state?.sun ?? 1);
+      build?.setHaze(state?.sun ?? 1);
     },
     handOver: (planetId, handover) => bodyOf(planetId)?.planet.handOver(handover),
   };

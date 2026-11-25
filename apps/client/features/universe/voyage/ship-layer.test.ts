@@ -97,7 +97,7 @@ describe('the ship layer', () => {
     layer.dispose();
   });
 
-  it('makes no trail and no lines: only filled shapes and one glow', () => {
+  it('makes no trail and no lines: only filled shapes, the flame glow and the catch glow', () => {
     const layer = createShipLayer();
     let lines = 0;
     layer.scene.traverse((node) => {
@@ -105,7 +105,23 @@ describe('the ship layer', () => {
     });
     expect(lines).toBe(0);
     expect(meshes(layer.scene)).toHaveLength(9);
-    expect(sprites(layer.scene)).toHaveLength(1);
+    expect(sprites(layer.scene)).toHaveLength(2);
+    layer.dispose();
+  });
+
+  it('lights the place a held ship would go to, under the ship, and nothing when there is none', () => {
+    const layer = createShipLayer();
+    const catchGlow = layer.scene.children[1] as THREE.Sprite;
+    layer.draw({ ...SHIP, catchAt: { x: 140, y: 260 } });
+    expect(catchGlow.visible).toBe(true);
+    expect(catchGlow.position.x).toBe(140);
+    expect(catchGlow.position.y).toBe(260);
+    expect(catchGlow.scale.x).toBe(88);
+    expect(catchGlow.renderOrder).toBeLessThan(Math.min(...meshes(layer.scene).map((mesh) => mesh.renderOrder)));
+    layer.draw({ ...SHIP, catchAt: null });
+    expect(catchGlow.visible).toBe(false);
+    layer.draw({ ...SHIP, alpha: 0, catchAt: { x: 140, y: 260 } });
+    expect(catchGlow.visible).toBe(false);
     layer.dispose();
   });
 

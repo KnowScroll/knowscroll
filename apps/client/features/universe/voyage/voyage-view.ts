@@ -9,6 +9,7 @@ import { FIELD_OF_VIEW, type CameraPose, type Vec3 } from '../space/camera-rig';
 import { smooth } from '../space/paint';
 import type { Chain } from './flight';
 import { STOPS, type Stop } from './ladder';
+import { GROUND_FIELD_OF_VIEW } from './voyage-chains';
 
 /** How the turn a finger gives (points) becomes an angle round a star or the whole universe. */
 const TURN_RADIANS_PER_POINT = 0.004;
@@ -92,6 +93,17 @@ export function heldOffset(leaving: Stop | null, going: Stop, q: number, height:
   return (0.5 - heldAt) * height;
 }
 
+/**
+ * The camera's field of view at `distance` from a planet whose chain is `planetChain`: the sky's above the planet's
+ * stop, the ground's (`groundDistance` away) below it, and in between by the distance's logarithm, as a flight moves.
+ */
+export function fieldOfView(planetChain: Chain | null, groundDistance: number | null, distance: number): number {
+  if (planetChain === null || groundDistance === null) return FIELD_OF_VIEW;
+  const orbit = planetChain[0]!.distance;
+  const down = smooth(0, 1, (Math.log(orbit) - Math.log(distance)) / (Math.log(orbit) - Math.log(groundDistance)));
+  return THREE.MathUtils.lerp(FIELD_OF_VIEW, GROUND_FIELD_OF_VIEW, down);
+}
+
 /** Where the camera stands and what it aims at. */
 export interface Placement {
   /** What the camera looks at (a point of the flight's chain), and from how far along `direction`. */
@@ -101,7 +113,8 @@ export interface Placement {
   /** How far the view leans with the ship, and how far below the middle it aims ({@link heldOffset}), in points. */
   readonly lean: { readonly x: number; readonly y: number };
   readonly held: number;
-  /** The camera's focal length in layout points. */
+  /** The camera's field of view (degrees) and its focal length in layout points. */
+  readonly fov: number;
   readonly focal: number;
 }
 
@@ -122,5 +135,5 @@ export function placeCamera(placement: Placement, position: THREE.Vector3): Came
     .addScaledVector(right, placement.lean.x * leanUnits)
     .addScaledVector(up, -(placement.lean.y + placement.held) * leanUnits);
   position.copy(aim).addScaledVector(direction, distance);
-  return { position: vec(position), target: vec(aim), fov: FIELD_OF_VIEW };
+  return { position: vec(position), target: vec(aim), fov: placement.fov };
 }

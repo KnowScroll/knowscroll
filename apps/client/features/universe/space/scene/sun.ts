@@ -8,8 +8,11 @@ import { SUN_FRAGMENT, WORLD_VERTEX } from './shaders';
  */
 /** A sun and the one thing a camera move may change about it: how much of its glow shows up close. */
 export interface BuiltSun extends Built {
-  /** Shares of the bloom and the inner glow that show; 1 and 1 at rest. */
-  readonly setCloseUp: (bloom: number, glow: number) => void;
+  /**
+   * Shares of the bloom and the inner glow that show, and of the sun itself (its disc and both glows); 1, 1 and 1 at
+   * rest. The trial look shrinks the whole sun away near a planet, whose stop shows no sun.
+   */
+  readonly setCloseUp: (bloom: number, glow: number, body?: number) => void;
 }
 
 export function makeSun(radius: number, context: SceneContext): BuiltSun {
@@ -42,18 +45,21 @@ export function makeSun(radius: number, context: SceneContext): BuiltSun {
   group.add(bloom, inner, core);
   let bloomShare = 1;
   let glowShare = 1;
+  let bodyShare = 1;
   const tick = (t: number): void => {
     const pulse = 1 + 0.05 * Math.sin(t * 1.3);
-    inner.scale.setScalar(radius * 4.2 * pulse * glowShare);
-    bloom.scale.setScalar(radius * 22 * (2 - pulse) * bloomShare);
+    inner.scale.setScalar(radius * 4.2 * pulse * glowShare * bodyShare);
+    bloom.scale.setScalar(radius * 22 * (2 - pulse) * bloomShare * bodyShare);
   };
   tick(0);
   return {
     object: group,
     tick,
-    setCloseUp(bloom, glow) {
+    setCloseUp(bloom, glow, body = 1) {
       bloomShare = Math.max(bloom, 1e-3);
       glowShare = Math.max(glow, 1e-3);
+      bodyShare = Math.max(body, 1e-3);
+      core.scale.setScalar(bodyShare);
     },
   };
 }

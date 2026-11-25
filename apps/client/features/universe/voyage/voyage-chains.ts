@@ -35,20 +35,29 @@ const GROUND_DIAGONALS = 0.54;
 /** Each link of a chain is at least this much farther than the one before it. */
 const LINK_GROWTH = 1.25;
 
-const TAN_HALF_FOV = Math.tan(((FIELD_OF_VIEW / 2) * Math.PI) / 180);
+/**
+ * The field of view on the ground, degrees: a longer lens than the sky's, so the land is seen nearly from above, at
+ * close to the prototype's flat map's scale, and still curves away at the edges. The camera narrows to it as it falls
+ * from the planet to the ground (`voyage-view.ts`, `fieldOfView`).
+ */
+export const GROUND_FIELD_OF_VIEW = 24;
 
 /** Pixels on screen for one scene unit at one unit of distance: the camera's focal length in layout points. */
-export const focalOf = (size: { readonly height: number }): number => size.height / 2 / TAN_HALF_FOV;
+export const focalOf = (size: { readonly height: number }, fieldOfView = FIELD_OF_VIEW): number =>
+  size.height / 2 / Math.tan(((fieldOfView / 2) * Math.PI) / 180);
 
 /**
  * The camera distances of a planet and of the ground for a planet of `radius`, after the prototype: from orbit the
- * globe is {@link ORBIT_RADIUS_SHARE} of the short side across in radius; on the ground it is larger than the screen.
+ * globe is {@link ORBIT_RADIUS_SHARE} of the short side across in radius; on the ground, seen through the ground's
+ * longer lens, it is larger than the screen.
  */
 export function planetDistances(radius: number, size: ViewSize): { readonly planet: number; readonly ground: number } {
-  const focal = focalOf(size);
   const short = Math.min(size.width, SHORT_SIDE_OF_HEIGHT * size.height);
   const ground = Math.max(GROUND_SHORT_SIDES * short, GROUND_DIAGONALS * Math.hypot(size.width, size.height));
-  return { planet: (focal * radius) / (ORBIT_RADIUS_SHARE * short), ground: (focal * radius) / ground };
+  return {
+    planet: (focalOf(size) * radius) / (ORBIT_RADIUS_SHARE * short),
+    ground: (focalOf(size, GROUND_FIELD_OF_VIEW) * radius) / ground,
+  };
 }
 
 /** The id of the whole universe in a chain's `ids`: the last place of every chain. */

@@ -7,7 +7,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { StyleSheet, View } from 'react-native';
 import { radius, space, spacing } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
-import { createFrameMeter, describeFrames, type FrameMeter, type FrameTime } from './frame-meter';
+import {
+  createFrameMeter,
+  describeFrames,
+  describeLegs,
+  type FlightLeg,
+  type FrameMeter,
+  type FrameTime,
+} from './frame-meter';
 
 /** Carries the meter from the readout to the drawing loop below it; null when nobody is reading. */
 const MeterContext = createContext<FrameMeter | null>(null);
@@ -34,11 +41,20 @@ export function useFrameTimeRecorder(): ((frame: FrameTime) => void) | undefined
   return useContext(MeterContext)?.record;
 }
 
-/** The two lines of figures, refreshed every {@link REFRESH_MS}. */
+/** Where a camera reports a flight that has landed, or undefined when nobody is reading. */
+export function useFlightRecorder(): ((leg: FlightLeg) => void) | undefined {
+  return useContext(MeterContext)?.recordLeg;
+}
+
+/** What the figure says now: the last two seconds, then a line for each of the last flights. */
+const describe = (meter: FrameMeter): string =>
+  [describeFrames(meter.summary(performance.now())), describeLegs(meter.legs())].filter(Boolean).join('\n');
+
+/** The figures, refreshed every {@link REFRESH_MS}. */
 function Figure({ meter }: { readonly meter: FrameMeter }) {
-  const [line, setLine] = useState(() => describeFrames(meter.summary(performance.now())));
+  const [line, setLine] = useState(() => describe(meter));
   useEffect(() => {
-    const timer = setInterval(() => setLine(describeFrames(meter.summary(performance.now()))), REFRESH_MS);
+    const timer = setInterval(() => setLine(describe(meter)), REFRESH_MS);
     return () => clearInterval(timer);
   }, [meter]);
   return (

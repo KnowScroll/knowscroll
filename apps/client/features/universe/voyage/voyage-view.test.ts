@@ -78,6 +78,7 @@ describe('placing the camera', () => {
     distance,
     lean,
     held: 0,
+    fov: FIELD_OF_VIEW,
     focal: 500,
   });
 

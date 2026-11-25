@@ -9,6 +9,7 @@ import {
   createWorldPainter,
   labelPoints,
   latitudeOfBandY,
+  worldLookOf,
   type WorldTexture,
   type WorldTextureInput,
 } from './world-texture';
@@ -97,13 +98,41 @@ const greyOfUnreached = (): string => {
 };
 
 describe('painting a world into a texture', () => {
-  it('gives the size asked for, opaque all over', () => {
+  it('gives the size asked for', () => {
     const texture = standard();
     expect(texture.width).toBe(WIDTH);
     expect(texture.height).toBe(HEIGHT);
     expect(texture.data).toBeInstanceOf(Uint8Array);
     expect(texture.data.length).toBe(WIDTH * HEIGHT * 4);
-    for (let at = 3; at < texture.data.length; at += 4) if (texture.data[at] !== 255) throw new Error('not opaque');
+  });
+
+  it('leaves open sea transparent and all land opaque, premultiplied', () => {
+    const texture = standard();
+    let clear = 0;
+    for (let at = 0; at < WIDTH * HEIGHT; at++) {
+      const [red, green, blue, alpha] = texture.data.slice(at * 4, at * 4 + 4) as unknown as number[];
+      // Premultiplied: no channel is more than the alpha, and a clear pixel is nothing at all (no sea colour to fringe a coast).
+      expect(Math.max(red!, green!, blue!)).toBeLessThanOrEqual(alpha!);
+      if (alpha === 0) {
+        clear += 1;
+        expect(red! + green! + blue!).toBe(0);
+      }
+      if (UNREACHED[at] || CHARTED[at]) expect(alpha).toBe(255);
+    }
+    expect(clear / (WIDTH * HEIGHT)).toBeGreaterThan(0.3);
+  });
+
+  it('carries the palette look the globe composes its sea and light from, with caps only where the palette has them', () => {
+    const lush = standard().look!;
+    expect(lush).toEqual(worldLookOf(palette));
+    expect(lush.ball).toEqual(palette.sea);
+    expect(lush.flatSea).toEqual(palette.flatSea);
+    expect(lush.atmosphere).toBe(palette.atmosphere);
+    expect(lush.rim).toBe(palette.rim);
+    expect(lush.cap).toBeNull();
+    const frozen = paletteOf('frozen', 0);
+    expect(worldLookOf(frozen).cap).toBe(frozen.cloud[0]);
+    expect(worldLookOf(paletteOf('ocean', 40)).flatSea).toEqual(paletteOf('ocean', 40).flatSea);
   });
 
   it('is the same bytes every time', () => {
@@ -130,18 +159,19 @@ describe('painting a world into a texture', () => {
     expect(greyOfUnreached()).not.toBe(hex(palette.land[0]));
   });
 
-  it('keeps cloud to land not reached: nothing else changes when the clouds are taken away', () => {
+  it('lays cloud over the sea and land not reached, and never over formed land: nothing there changes when the clouds are taken away', () => {
     const clear = cloudless();
     const cloudy = standard();
-    const unreached = UNREACHED;
-    const charted = CHARTED;
-    let cloudPixels = 0;
+    let overSea = 0;
+    let overUnreached = 0;
     for (let at = 0; at < WIDTH * HEIGHT; at++) {
-      const same = rgbAt(clear, at) === rgbAt(cloudy, at);
-      if (!same) cloudPixels += 1;
-      if (!unreached[at] || charted[at]) expect(same).toBe(true);
+      const same = rgbAt(clear, at) === rgbAt(cloudy, at) && clear.data[at * 4 + 3] === cloudy.data[at * 4 + 3];
+      if (CHARTED[at]) expect(same).toBe(true);
+      else if (!same && UNREACHED[at]) overUnreached += 1;
+      else if (!same) overSea += 1;
     }
-    expect(cloudPixels).toBeGreaterThan(200);
+    expect(overSea).toBeGreaterThan(200);
+    expect(overUnreached).toBeGreaterThan(200);
   });
 
   it('puts no cloud over the point a formed region is named at', () => {
@@ -153,19 +183,28 @@ describe('painting a world into a texture', () => {
     }
   });
 
-  it('carries land across the seam: the two edges of the texture meet', () => {
-    const texture = standard();
+  /** The share of rows whose two edge pixels differ by more than 90 over three channels, as they look laid over mid grey. */
+  const rowsApartAtSeam = (texture: WorldTexture): number => {
+    const seen = (at: number, channel: number) =>
+      texture.data[at * 4 + channel]! + 120 * (1 - texture.data[at * 4 + 3]! / 255);
     let apart = 0;
     for (let row = 0; row < HEIGHT; row++) {
       const left = row * WIDTH;
       const right = left + WIDTH - 1;
-      const gap = [0, 1, 2].reduce(
-        (sum, channel) => sum + Math.abs(texture.data[left * 4 + channel]! - texture.data[right * 4 + channel]!),
-        0,
-      );
+      const gap = [0, 1, 2].reduce((sum, channel) => sum + Math.abs(seen(left, channel) - seen(right, channel)), 0);
       if (gap > 90) apart += 1;
     }
-    expect(apart / HEIGHT).toBeLessThan(0.05);
+    return apart / HEIGHT;
+  };
+
+  it('carries land across the seam: the two edges of the texture meet', () => {
+    expect(rowsApartAtSeam(cloudless())).toBeLessThan(0.05);
+  });
+
+  it('keeps the weather over the sea nearly seamless too: the world draws a cloud a step off at the seam in a few rows', () => {
+    // The world's own cloud loops are not exact copies either side of the seam (a body edge a unit off over about
+    // six rows of 256), which showed only on the rare cloud over grey land before it lay over the sea.
+    expect(rowsApartAtSeam(standard())).toBeLessThan(0.08);
   });
 
   it('draws no border between two pieces of land not reached, and leaves their grey alone', () => {
@@ -259,6 +298,8 @@ describe('painting a world into a texture', () => {
   it('draws only the bands of a gas giant, and only on a gas giant', () => {
     const gasPalette = paletteOf('gas', 0);
     const gas = paint({ palette: gasPalette });
+    for (let at = 3; at < gas.data.length; at += 4)
+      if (gas.data[at] !== 255) throw new Error('a gas giant has no sea to show');
     const seen = new Set(histogram(gas, new Uint8Array(WIDTH * HEIGHT).fill(1)).keys());
     for (const band of gasPalette.bands!) expect(seen.has(hex(band))).toBe(true);
     const plain = new Set(histogram(standard(), new Uint8Array(WIDTH * HEIGHT).fill(1)).keys());
@@ -312,12 +353,19 @@ describe('where a name goes', () => {
  * One world with each of three palettes (lush, gas, scorched: the gas bands and the scorched coast
  * glow are layers the lush one lacks), SHA-1 of the whole RGBA array at 1024 by 512. A deliberate
  * change of look updates the hashes. 2048 by 1024 is not pinned: it costs about 13 s for the three.
+ *
+ * Re-pinned for the globe's new look (the pale-globe fix, #811). The pictures are now: open sea is not
+ * painted but left transparent (0,0,0,0) for the globe's shader to fill with the prototype's ball and flat
+ * sea (about 56% of a lush texture, 72% of an ocean one; a gas giant has none: its first band now runs up to
+ * the top edge); everything is premultiplied (colour times alpha, so a coast filters without a dark
+ * fringe); the world's own cloud lies over the sea as well as over land not reached, though never over formed
+ * land, a coast line's width of it, or the places the names go. Land, lines and the shelf are as before.
  */
 describe('the painter output, pinned', () => {
   const PINNED = {
-    lush: '562d891f292ba8bb5779542cc086431b92cc38cb',
-    gas: '6ac8a2fce69c8b8a046dbd9ec4b365b9f2f25da5',
-    scorched: 'a3b21a44ca288001af1f067aee82a8d0ec282156',
+    lush: 'a0e445748179753b487832a38e57ceea9f018cb7',
+    gas: 'fb60830f0949440b6c64512e44a753bec7b0614c',
+    scorched: '53f3c989662652f1e10f048fef4b45406628314c',
   } as const;
   it.each(Object.keys(PINNED) as (keyof typeof PINNED)[])('paints %s at 1024 by 512 to the pinned bytes', (type) => {
     const texture = paint({ palette: paletteOf(type, 0), width: 1024, height: 512 });

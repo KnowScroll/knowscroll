@@ -67,6 +67,7 @@ function rig(initial: VoyageTarget) {
       return system && { kind: 'system', systemId: id, center: system.position, radius: 7.5 };
     },
     lean: { x: 0, y: 0 },
+    zoom: null,
     afterFrame: (frame) => {
       frames.push(frame);
       return null;
@@ -80,7 +81,13 @@ function rig(initial: VoyageTarget) {
     },
   };
   const compileAsync = jest.fn(() => Promise.resolve());
-  const renderer = { autoClear: true, clearDepth() {}, render() {}, compileAsync } as unknown as THREE.WebGLRenderer;
+  const renderer = {
+    autoClear: true,
+    info: { programs: [] },
+    clearDepth() {},
+    render() {},
+    compileAsync,
+  } as unknown as THREE.WebGLRenderer;
   const driver = createVoyageDriver(control);
   driver.attach(space);
   let t = 0;
@@ -162,6 +169,69 @@ describe('the voyage driver camera', () => {
     const distances = [r.step(), ...r.settle()];
     expect(Math.max(...distances)).toBeGreaterThan(r.stopDistance(target('star', base.id)));
     expect(Math.max(...distances)).toBeGreaterThan(r.stopDistance(target('star', second.id)));
+  });
+});
+
+describe('a pinch', () => {
+  it('moves the camera with the fingers, toward the place under them, and eases back when let go short of a stop', () => {
+    const r = rig(target('universe', null));
+    r.step();
+    const atRest = r.step();
+    const restAim = r.driver.pose(0, r.space, size).target;
+    r.control.zoom = { scale: 0.6, toward: second.id };
+    const pinched = r.step();
+    expect(pinched).toBeCloseTo(atRest * 0.6);
+    // Pinched past the step (1 / 1.4), the camera aims at the second star, not at the middle of the universe.
+    const starAim = chainOf(target('star', second.id), { ...r.control, planetAt: () => undefined }, size).chain[0]!
+      .point;
+    const aim = r.driver.pose(0, r.space, size).target;
+    expect(Math.hypot(aim[0] - starAim[0], aim[2] - starAim[2])).toBeLessThan(
+      Math.hypot(restAim[0] - starAim[0], restAim[2] - starAim[2]) / 4,
+    );
+    r.control.zoom = null;
+    const first = r.step();
+    r.step();
+    const third = r.step();
+    expect(first).toBeGreaterThan(pinched);
+    expect(third).toBeGreaterThan(first);
+    for (let i = 0; i < 90; i += 1) r.step();
+    expect(r.step()).toBeCloseTo(atRest, 1);
+    expect(r.last().flying).toBe(false);
+  });
+
+  it('hands the flight it asks for the distance it left the camera at, and that flight is quicker', () => {
+    // The screen lets go of the pinch in the same moment it changes place, as the controller does.
+    const pinchedRig = rig(target('universe', null));
+    pinchedRig.step();
+    pinchedRig.control.zoom = { scale: 0.6, toward: second.id };
+    const pinched = pinchedRig.step();
+    pinchedRig.control.target = target('star', second.id);
+    pinchedRig.control.zoom = null;
+    const first = pinchedRig.step();
+    expect(Math.abs(first - pinched) / pinched).toBeLessThan(0.1);
+    const quick = pinchedRig.settle().length;
+
+    // The same flight from about the same place, asked for a moment after the pinch let go: an ordinary one.
+    const plainRig = rig(target('universe', null));
+    plainRig.step();
+    plainRig.control.zoom = { scale: 0.6, toward: second.id };
+    plainRig.step();
+    plainRig.control.zoom = null;
+    plainRig.step();
+    plainRig.step();
+    plainRig.control.target = target('star', second.id);
+    const ordinary = plainRig.settle().length;
+    expect(quick).toBeLessThan(ordinary * 0.8);
+  });
+
+  it('never takes the camera inside a planet', () => {
+    const r = rig(target('ground', base.id, PLANET));
+    r.control.zoom = { scale: 0.05, toward: null };
+    r.step();
+    const body = r.built.script.planet(PLANET)!;
+    const centre = body.object.getWorldPosition(new THREE.Vector3());
+    const pose = r.driver.pose(r.frames.length / 30 + 1 / 30, r.space, size);
+    expect(new THREE.Vector3(...pose.position).distanceTo(centre)).toBeGreaterThan(body.radius);
   });
 });
 

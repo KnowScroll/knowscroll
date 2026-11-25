@@ -4,12 +4,19 @@ import { turnHue } from './hue';
 /** The four flat colours the land cycles through, and the sea, as the planet views paint them. */
 type Four = readonly [string, string, string, string];
 type Three = readonly [string, string, string];
+type Two = readonly [string, string];
 
 /** What a planet of one type looks like from orbit and on its map (the design's Planet views). */
 export interface PlanetPalette {
   readonly type: PlanetType;
-  /** The globe's body, light to dark: also the sea of the landed map. */
+  /** The globe's body, light to dark: the four stops of the ball's radial gradient seen from orbit, and the sea of the SVG landed map. */
   readonly sea: Four;
+  /**
+   * The sea of the ground seen on the voyage's globe, top to bottom of the screen: the prototype's flat `sea` pair
+   * (`WV.<type>.sea`, `Universe.dc.html` line 1213), deeper than the globe's stops so land stands out of it. The
+   * globe's shader mixes it in over the ball as the camera comes down.
+   */
+  readonly flatSea: Two;
   readonly land: Four;
   readonly lowland: string;
   readonly highland: string;
@@ -40,6 +47,7 @@ export interface PlanetPalette {
 
 interface Source {
   readonly sea: Four;
+  readonly flatSea: Two;
   readonly land: Four;
   readonly lowland: string;
   readonly highland: string;
@@ -63,6 +71,7 @@ interface Source {
 const SOURCES: Readonly<Record<PlanetType, Source>> = {
   lush: {
     sea: ['#a4f5ee', '#43c9d6', '#178cba', '#0a4f7e'],
+    flatSea: ['#1d7d97', '#0f5670'],
     land: ['#5fd36f', '#8ee25c', '#3fbf6a', '#b5ea6a'],
     lowland: '#2a9a55',
     highland: '#f2d57e',
@@ -81,6 +90,7 @@ const SOURCES: Readonly<Record<PlanetType, Source>> = {
   },
   ocean: {
     sea: ['#b8f4ff', '#3fb4f0', '#1670cc', '#0a3a80'],
+    flatSea: ['#33a7ea', '#1667b6'],
     land: ['#7ee06a', '#5fd07a', '#a6ec6a', '#4fc36e'],
     lowland: '#2f9e55',
     highland: '#ffe08a',
@@ -99,6 +109,7 @@ const SOURCES: Readonly<Record<PlanetType, Source>> = {
   },
   frozen: {
     sea: ['#e6f8ff', '#8fcaf5', '#3c86d0', '#163f80'],
+    flatSea: ['#4f8fcf', '#24599a'],
     land: ['#f6fcff', '#d8efff', '#c2e6ff', '#e9f8ff'],
     lowland: '#9fd2f5',
     highland: '#ffffff',
@@ -118,6 +129,7 @@ const SOURCES: Readonly<Record<PlanetType, Source>> = {
   },
   scorched: {
     sea: ['#ff9a6a', '#e0483e', '#8e1a36', '#3e0716'],
+    flatSea: ['#5c1a2a', '#360b1a'],
     land: ['#ff7a45', '#ff5a3c', '#ffa04a', '#f06a3a'],
     lowland: '#8a2030',
     highland: '#ffd25a',
@@ -137,6 +149,7 @@ const SOURCES: Readonly<Record<PlanetType, Source>> = {
   },
   barren: {
     sea: ['#dcc6f2', '#9d82c4', '#60488a', '#2c1f48'],
+    flatSea: ['#8a7a9c', '#5a4c6c'],
     land: ['#f7cf86', '#eeb062', '#e39a52', '#f9dca0'],
     lowland: '#c06a3a',
     highland: '#fff2cc',
@@ -155,6 +168,7 @@ const SOURCES: Readonly<Record<PlanetType, Source>> = {
   },
   gas: {
     sea: ['#ffe2c0', '#ff9ab8', '#b07ae0', '#4e2a86'],
+    flatSea: ['#f592b0', '#c294e0'],
     land: ['#fff1e0', '#ffd6c0', '#ffc6da', '#ecd2ff'],
     lowland: '#ff8fb6',
     highland: '#ffffff',
@@ -176,6 +190,7 @@ const SOURCES: Readonly<Record<PlanetType, Source>> = {
 
 const turn = (hue: number) => (colour: string) => turnHue(colour, hue);
 const turnFour = (colours: Four, hue: number): Four => colours.map(turn(hue)) as unknown as Four;
+const turnTwo = (colours: Two, hue: number): Two => colours.map(turn(hue)) as unknown as Two;
 const turnThree = (colours: Three, hue: number): Three => colours.map(turn(hue)) as unknown as Three;
 
 /**
@@ -188,6 +203,7 @@ export function paletteOf(type: PlanetType, hueShift: number): PlanetPalette {
   return {
     type,
     sea: turnFour(source.sea, hueShift),
+    flatSea: turnTwo(source.flatSea, hueShift),
     land: turnFour(source.land, hueShift),
     lowland: turned(source.lowland),
     highland: turned(source.highland),
