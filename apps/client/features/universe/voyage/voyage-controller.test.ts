@@ -97,6 +97,14 @@ describe('where the ship parks', () => {
     const crowded = homeOf({ size, globe: null }, [anchor('s', 'system', 195, 844 * 0.675)], null, 0);
     expect(crowded.x).not.toBe(195);
   });
+
+  it('hovers gently while parked in the sky, and holds still with reduced motion', () => {
+    const heights = [0, 0.4, 0.8, 1.2, 1.6, 2.0].map((seconds) => homeOf({ size, globe: null }, [], null, seconds).y);
+    const park = 844 * 0.675;
+    expect(Math.max(...heights) - park).toBeCloseTo(2.5, 0);
+    expect(Math.max(...heights.map((y) => Math.abs(y - park)))).toBeLessThanOrEqual(2.5);
+    for (const seconds of [0.4, 1.2, 2.0]) expect(homeOf({ size, globe: null }, [], null, seconds, true).y).toBe(park);
+  });
 });
 
 describe('keys', () => {

@@ -62,6 +62,10 @@ const PARK_CLEARANCE = 24;
 const LEAN_CENTRE = 0.56;
 /** The view leans by at most this share of its short side (the prototype's `LM = min(W, H) * 0.3`). */
 const LEAN_LIMIT = 0.3;
+/** A parked ship hovers up and down by this much (points), at {@link BOB_RATE} (the prototype's `sin(1.3 T) * 2.5`). */
+const BOB_HEIGHT = 2.5;
+/** How fast a parked ship hovers (radians a second). */
+const BOB_RATE = 1.3;
 
 /** A width and a height, in layout points. */
 type Size = { readonly width: number; readonly height: number };
@@ -78,6 +82,8 @@ export interface VoyageInputs {
   readonly reducedMotion: boolean;
   readonly universeFocus: Extract<RigFocus, { kind: 'universe' }>;
   readonly systemFocus: (systemId: string) => Extract<RigFocus, { kind: 'system' }> | undefined;
+  /** Opens a room: what a tap on its station does, and what letting the ship go over it does. */
+  readonly onStation?: (id: string) => void;
 }
 
 /** The nearest visible anchor of one of `kinds` to a point on screen. */
@@ -124,6 +130,7 @@ export function homeOf(
   anchors: readonly SpaceAnchor[],
   regionId: string | null,
   seconds: number,
+  reducedMotion = false,
 ): ShipHome {
   const { width, height } = frame.size;
   const globe = frame.globe;
@@ -141,7 +148,10 @@ export function homeOf(
   const avoid = anchors
     .filter((anchor) => anchor.visible)
     .map((anchor) => ({ x: anchor.x, y: anchor.y, r: Math.max(PARK_CLEARANCE, anchor.radiusPx) }));
-  return { ...parkingSpot({ anchor: { x: width / 2, y: height * PARK_AT }, avoid }), size: PARKED_SIZE, heading: 0 };
+  // Low in the sky the ship hovers gently, as the prototype's does; with reduced motion it holds still.
+  const bob = reducedMotion ? 0 : Math.sin(seconds * BOB_RATE) * BOB_HEIGHT;
+  const spot = parkingSpot({ anchor: { x: width / 2, y: height * PARK_AT }, avoid });
+  return { ...spot, y: spot.y + bob, size: PARKED_SIZE, heading: 0 };
 }
 
 /** What the stage holds to run the trial look: its renderer, its gestures and what it is told. */
@@ -196,7 +206,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       ship = stepShip(
         ship,
         {
-          home: homeOf(frame, anchors, inputs.target.regionId, seconds),
+          home: homeOf(frame, anchors, inputs.target.regionId, seconds, inputs.reducedMotion),
           drag: held,
           targets: shipTargets(anchors),
           away: frame.flying,
@@ -279,7 +289,11 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
           ? releaseShip(ship, shipTargets(anchors))
           : { state: recentreShip(ship), goTo: null };
         ship = released.state;
-        if (released.goTo !== null) void inputs.session.focus(released.goTo);
+        // A station is a room, not a place on the map: letting the ship go over it opens the room, as a tap does.
+        const goTo = released.goTo;
+        if (goTo !== null && anchors.some((anchor) => anchor.id === goTo && anchor.kind === 'station'))
+          inputs.onStation?.(goTo);
+        else if (goTo !== null) void inputs.session.focus(goTo);
       } else if (mode === 'pinch' && startSpread > 0) {
         const ratio = lastSpread / startSpread;
         if (ratio > PINCH_STEP) descend(inputs.session, inputs.view, anchors, pinchAt.x, pinchAt.y);

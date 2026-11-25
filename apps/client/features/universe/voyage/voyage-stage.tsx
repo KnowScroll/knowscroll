@@ -109,6 +109,7 @@ export function VoyageStage({
     reducedMotion: state.reducedMotion,
     universeFocus: space.universeFocus,
     systemFocus: space.systemFocus,
+    ...(onStation ? { onStation } : {}),
   };
   const [controller] = useState(() => createVoyageController(inputs));
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must
@@ -251,6 +252,10 @@ function usePlanetSurface(
 }
 
 /** Every place on screen is a named 48 px button over the canvas, with its name beside it. */
+/** A place's name, with what its station says on the map ("6 of 7 · Reel live"), as the old map shows it. */
+const captioned = (anchor: SpaceAnchor): string =>
+  anchor.mapCaption === undefined ? anchor.name : `${anchor.name} · ${anchor.mapCaption}`;
+
 /**
  * Where names may not sit, as the prototype keeps them (its label pass, `top` and `bot`): clear of the header and of the
  * chips and caption at the bottom. On a desktop (the prototype's `W >= 900`) the bands are narrower.
@@ -280,7 +285,7 @@ function placeNames(
       anchor: { x: anchor.x, y: anchor.y },
       clearance:
         anchor.kind === 'region' ? REGION_NAME_GAP : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
-      width: labelWidth(anchor.name),
+      width: labelWidth(captioned(anchor)),
       height: LABEL_HEIGHT,
       priority: (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
     }));
@@ -337,7 +342,7 @@ function VoyageOverlay({
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             {name === undefined ? null : (
-              <MapLabel label={name} text={anchor.name} variant={anchor.kind === 'region' ? 'pill' : 'plain'} />
+              <MapLabel label={name} text={captioned(anchor)} variant={anchor.kind === 'region' ? 'pill' : 'plain'} />
             )}
             <BodyTarget
               x={box.x}
