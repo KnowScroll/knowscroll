@@ -161,8 +161,8 @@ export interface VoyageController {
   readonly responder: PanResponderInstance;
   /** Takes what the screen shows now. Call it after every render. */
   sync(inputs: VoyageInputs): void;
-  /** The named points the last frame put on screen. */
-  setAnchors(anchors: readonly SpaceAnchor[]): void;
+  /** The named points the last frame put on screen. A property, so the stage can hand it on as it is. */
+  readonly setAnchors: (anchors: readonly SpaceAnchor[]) => void;
   /** Where the stage is in the window, so a touch can be turned into a point of the stage. */
   setOrigin(x: number, y: number): void;
   /** The web's wheel: one notch is one stop. */
