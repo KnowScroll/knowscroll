@@ -1,23 +1,29 @@
-import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
-import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import { KIT_PICTURES } from '../kit';
-import { drawableStage } from '../stage/stage-figure';
-import { HOLD_LIMIT } from './holds';
 import { readingModelOfV2 } from './from-v2';
 import { beatsOf, type ReadingBlock } from './reading-model';
 
-/** The labelled CI fixtures of `scroll-model` (not product content): every kit, and the two without a picture. */
+/** The labelled CI fixtures of `scroll-model` (not product content): a stored v2 with a stage (Earth & sky), and two without one. */
 const FIXTURES = Object.entries({
   seasons,
-  starlight,
-  blackHole,
   scaleChart,
   sortFork,
 }).map(([name, json]) => [name, json as unknown as ScrollDocumentV2] as const);
+
+/** The nine drawing kits a stored stage may name; none is defined by any code any more (#799, #802, #809, #832, #834, #835). */
+const RETIRED_KITS = [
+  'transit.v1',
+  'tides.v1',
+  'star.v1',
+  'greenhouse.v1',
+  'circulation.v1',
+  'nerve.v1',
+  'black-hole.v1',
+  'starlight.v1',
+  'earth-sky.v1',
+];
 
 const blocksOf = (document: ScrollDocumentV2): readonly ReadingBlock[] =>
   readingModelOfV2(document).sections.flatMap((section) => section.blocks);
@@ -27,38 +33,9 @@ describe('a v2 Scroll as an essay (folio README 5.5)', () => {
     expect(beatsOf(readingModelOfV2(document)).map((beat) => beat.id)).toEqual(document.stops.map((stop) => stop.id));
   });
 
-  it.each(FIXTURES)(
-    '%s: a hold has two or three beats, two of them changing one picture that moves',
-    (_name, document) => {
-      for (const block of blocksOf(document)) {
-        if (block.kind !== 'hold') continue;
-        expect(block.beats.length).toBeGreaterThanOrEqual(2);
-        expect(block.beats.length).toBeLessThanOrEqual(HOLD_LIMIT);
-        expect(new Set(block.beats.map((held) => held.figure.key)).size).toBeGreaterThanOrEqual(2);
-        for (const [index, held] of block.beats.entries()) {
-          const before = block.beats[index - 1];
-          if (before === undefined || before.figure.kind !== 'state' || held.figure.kind !== 'state') continue;
-          if (before.figure.key === held.figure.key) continue;
-          const kit = KIT_PICTURES[held.figure.kit];
-          expect(kit.canTween(kit.sceneOf(before.figure.state), kit.sceneOf(held.figure.state))).toBe(true);
-        }
-      }
-    },
-  );
-
-  it.each(FIXTURES)('%s: a picture appears where a stop changes it, and nowhere else', (_name, document) => {
-    const changes = new Set(document.stage?.states.map((entry) => entry.stop));
-    const blocks = blocksOf(document);
-    const pictured = blocks.flatMap((block, index) => {
-      if (block.kind === 'hold') {
-        return block.beats
-          .filter((held, at) => held.figure.key !== block.beats[at - 1]?.figure.key)
-          .map((held) => held.beat.id);
-      }
-      const before = blocks[index - 1];
-      return block.kind === 'figure' && before?.kind === 'beat' && block.control === undefined ? [before.beat.id] : [];
-    });
-    expect(new Set(pictured)).toEqual(changes);
+  it.each(FIXTURES)('%s: is beats alone, with no figure, no hold and no figure at the end', (_name, document) => {
+    expect(blocksOf(document).every((block) => block.kind === 'beat')).toBe(true);
+    expect(readingModelOfV2(document).end.figure).toBeUndefined();
   });
 
   it('draws a call as its question and its explanation, with no options', () => {
@@ -75,30 +52,18 @@ describe('a v2 Scroll as an essay (folio README 5.5)', () => {
     });
   });
 
-  it('puts Earth with its tilt slider after a Final call that hands the tilt over (D-187)', () => {
+  it('draws no slider after a Final call that stored the tilt control (D-187): the binding parses and is not acted on', () => {
     const document = seasons as unknown as ScrollDocumentV2;
     const final = document.stops.find((stop) => stop.kind === 'final_call');
+    expect(final).toMatchObject({ binding: { kind: 'tilt' } });
     const blocks = blocksOf(document);
     const at = blocks.findIndex((block) => block.kind === 'beat' && block.beat.id === final?.id);
-    expect(blocks[at + 1]).toMatchObject({ kind: 'figure', control: { kind: 'tilt' } });
+    expect(blocks.slice(at + 1).every((block) => block.kind === 'beat')).toBe(true);
+    expect(blocks.some((block) => block.kind === 'figure')).toBe(false);
   });
 
-  it('draws a Scroll with no picture as beats alone, with no figure at the end', () => {
-    const model = readingModelOfV2(sortFork as unknown as ScrollDocumentV2);
-    expect(model.sections.flatMap((section) => section.blocks).every((block) => block.kind === 'beat')).toBe(true);
-    expect(model.end.figure).toBeUndefined();
-  });
-
-  it('ends on the picture of the whole journey only where the kit draws one', () => {
-    for (const [, document] of FIXTURES) {
-      const stage = drawableStage(document.stage);
-      const kit = stage === undefined ? undefined : KIT_PICTURES[stage.kit];
-      expect(readingModelOfV2(document).end.figure?.kind).toBe(kit?.recap === undefined ? undefined : 'recap');
-    }
-  });
-
-  describe('a stored Scroll whose stage is of a kit this build does not draw', () => {
-    /** The seasons fixture as the library may still hold it after a kit is removed: the same stops, a stage of a kit that is gone. */
+  describe('a stored Scroll whose stage names a kit no code draws', () => {
+    /** The seasons fixture with its stage rewritten: the same stops, a stage of the named kit whose states hold whatever. */
     const stored = (kit: string): ScrollDocumentV2 => {
       const original = seasons as unknown as ScrollDocumentV2;
       const states = (original.stage?.states ?? []).map((entry, index) => ({
@@ -109,8 +74,8 @@ describe('a v2 Scroll as an essay (folio README 5.5)', () => {
       return { ...original, stage: { kit, states } };
     };
 
-    it.each(['gone.v1', 'constructor', '__proto__', 'toString'])(
-      'reads as text, with no figure anywhere and none at the end, as a Scroll with no stage does (%s)',
+    it.each([...RETIRED_KITS, 'gone.v1', 'constructor', '__proto__', 'toString'])(
+      'reads as text, with no figure anywhere and none at the end, and never throws (%s)',
       (kit) => {
         const model = readingModelOfV2(stored(kit));
         const blocks = model.sections.flatMap((section) => section.blocks);
@@ -123,7 +88,9 @@ describe('a v2 Scroll as an essay (folio README 5.5)', () => {
     it('gives the same essay a Scroll without a stage gives, even with a Final call that asks for the tilt', () => {
       const withoutStage = { ...(seasons as unknown as ScrollDocumentV2) };
       delete withoutStage.stage;
-      expect(readingModelOfV2(stored('gone.v1'))).toEqual(readingModelOfV2(withoutStage));
+      for (const kit of RETIRED_KITS) expect(readingModelOfV2(stored(kit))).toEqual(readingModelOfV2(withoutStage));
+      // The fixture as it is stored, with Earth & sky's own words, reads the same.
+      expect(readingModelOfV2(seasons as unknown as ScrollDocumentV2)).toEqual(readingModelOfV2(withoutStage));
     });
   });
 });

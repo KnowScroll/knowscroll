@@ -11,10 +11,9 @@ import { Icon } from '../../icons/icon';
 import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
 import { PictureDrawing } from '../picture';
-import { FigureDrawing, useKitFigure, type FigureState } from '../stage/kit-figure';
 import { isWide } from './essay-layout';
 import { EssayOpening } from './essay-opening';
-import type { Figure, PictureFigure } from './reading-model';
+import type { Figure } from './reading-model';
 
 export interface EssayCoverProps {
   readonly kicker: string;
@@ -23,8 +22,7 @@ export interface EssayCoverProps {
   /** Reading time in minutes as the document states it; shown as max(1, round(minutes)) "MIN". */
   readonly minutes: number;
   /**
-   * The first figure of the Scroll: a v2 Scroll's kit picture (kind 'state') or a document v3's general picture (kind
-   * 'picture'); absent for a text-only cover.
+   * The first figure of the Scroll: a document v3's picture; absent for a text-only cover (a v2 Scroll has none, #835).
    */
   readonly figure?: Figure | undefined;
   /** 'continue' when the person has read part of it before (the button says "Continue"), else 'read' ("Read"). */
@@ -189,7 +187,10 @@ export function EssayCover({
   );
 }
 
-/** The first picture of the Scroll on its plate, drawn as the essay draws a figure but with nothing to operate. */
+/**
+ * The first picture of the Scroll on its plate, drawn as the essay draws a figure but with nothing to operate: the general
+ * renderer, which names the image for assistive tech and moves only as `reducedMotion` allows.
+ */
 function CoverFigure({
   figure,
   drawing,
@@ -197,25 +198,6 @@ function CoverFigure({
   onPlate,
 }: {
   readonly figure: Figure;
-  readonly drawing: number;
-  readonly reducedMotion: boolean;
-  readonly onPlate: (event: LayoutChangeEvent) => void;
-}) {
-  return figure.kind === 'picture' ? (
-    <CoverPicture figure={figure} drawing={drawing} reducedMotion={reducedMotion} onPlate={onPlate} />
-  ) : (
-    <CoverKitFigure figure={figure} drawing={drawing} reducedMotion={reducedMotion} onPlate={onPlate} />
-  );
-}
-
-/** A document v3's picture: the general renderer, which names the image for assistive tech and moves only as `reducedMotion` allows. */
-function CoverPicture({
-  figure,
-  drawing,
-  reducedMotion,
-  onPlate,
-}: {
-  readonly figure: PictureFigure;
   readonly drawing: number;
   readonly reducedMotion: boolean;
   readonly onPlate: (event: LayoutChangeEvent) => void;
@@ -230,34 +212,6 @@ function CoverPicture({
     >
       <View style={{ height: drawing }}>
         <PictureDrawing picture={figure.picture} state={figure.state} reducedMotion={reducedMotion} />
-      </View>
-    </View>
-  );
-}
-
-/** A v2 Scroll's picture, drawn by its kit. */
-function CoverKitFigure({
-  figure,
-  drawing,
-  reducedMotion,
-  onPlate,
-}: {
-  readonly figure: FigureState;
-  readonly drawing: number;
-  readonly reducedMotion: boolean;
-  readonly onPlate: (event: LayoutChangeEvent) => void;
-}) {
-  const page = usePagePalette();
-  const drawn = useKitFigure(figure, reducedMotion);
-  return (
-    <View
-      style={[styles.plate, { backgroundColor: page.raised, borderColor: page.ink }]}
-      onLayout={onPlate}
-      testID="essay-cover-figure"
-      {...dataSet({ ksFigure: figure.key, ksFigureTransition: drawn.transition })}
-    >
-      <View style={{ height: drawing }}>
-        <FigureDrawing drawn={drawn} />
       </View>
     </View>
   );

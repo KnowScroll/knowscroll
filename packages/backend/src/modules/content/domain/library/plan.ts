@@ -64,13 +64,6 @@ export interface LibrarySystem extends SameMeaning {
   readonly topics: readonly LibraryTopic[];
 }
 
-/**
- * The drawing kits a stored v2 Scroll's pinned picture can be made from. A recipe named a kit only where that kit drew what the recipe
- * was about (D-125, D-194, D-201, D-204); none does since #787, and the plan field is deleted (#815). `scroll-model` owns the kits
- * themselves and derives the legacy stage of a deleted kit from this list; a test keeps the two in step.
- */
-export const STAGE_KIT_IDS = ['earth-sky.v1', 'starlight.v1', 'black-hole.v1'] as const;
-
 type Interactivity =
   | { readonly interactive: true; readonly interactiveKind: InteractiveKind }
   | { readonly interactive: false; readonly interactiveKind: null };

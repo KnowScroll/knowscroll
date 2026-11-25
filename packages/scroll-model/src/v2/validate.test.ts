@@ -1,18 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { INTEGRITY_METHOD } from '../document.js';
-import { filler, liveStageOf, orrinDocumentV2 } from '../test-support/v2-fixtures.js';
+import { filler, orrinDocumentV2 } from '../test-support/v2-fixtures.js';
 import {
   callsOf,
   type CallItStop,
   type FinalCallStop,
-  isLiveStage,
-  type LiveStage,
+  type Stage,
   type ReadStop,
   type ScrollDocumentV2,
 } from './document.js';
 import { parseDocumentV2 } from './delivery.js';
-import { describeStageState } from './kit.js';
-import { isStageKitId } from './kits/index.js';
 import { computeMeasuresV2 } from './measures.js';
 import { computeIntegrityV2, validateDocumentV2 } from './validate.js';
 
@@ -54,8 +51,9 @@ function callIt(document: ScrollDocumentV2, index: number): CallItStop {
   if (stop.kind !== 'call_it') throw new Error(`stop ${index} is not a Call it`);
   return stop;
 }
-function stageOf(document: ScrollDocumentV2): LiveStage {
-  return liveStageOf(document);
+function stageOf(document: ScrollDocumentV2): Stage {
+  if (document.stage === undefined) throw new Error('the document has no stage');
+  return document.stage;
 }
 function stateAt(document: ScrollDocumentV2, index: number) {
   const state = stageOf(document).states[index];
@@ -250,7 +248,7 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     expect(broken((document) => (asideAt(document, 0).id = 's2'))).toContain('id_duplicate@asides.0.id');
   });
 
-  it('checks the stage: first stop, order, known stops, self-described states and enough change', () => {
+  it('checks the stage: first stop, order, known stops and enough change', () => {
     expect(broken((document) => (stateAt(document, 0).stop = 's2'))).toContain(
       'stage_first_state_missing@stage.states',
     );
@@ -259,9 +257,6 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     );
     expect(broken((document) => (stateAt(document, 2).stop = stateAt(document, 1).stop))).toContain(
       'stage_states_unordered@stage.states.2.stop',
-    );
-    expect(broken((document) => (stateAt(document, 1).alt = 'A picture that does not match.'))).toContain(
-      'stage_alt_mismatch@stage.states.1.alt',
     );
     expect(
       broken((document) => {
@@ -285,25 +280,6 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     );
   });
 
-  it('refuses a stored state that holds what its view does not draw, so a picture cannot contradict itself', () => {
-    const unsettled = { view: 'earth-close', earthAt: 'jun', moonAt: 'full', focus: 'moon' } as const;
-    expect(
-      broken((document) => {
-        stateAt(document, 1).state = unsettled;
-        stateAt(document, 1).alt = describeStageState(unsettled);
-      }),
-    ).toEqual(['stage_state_unsettled@stage.states.1.state']);
-  });
-
-  it('refuses a stored state with a field the kit no longer has: Earth’s tilt, the pins and Ray are not stored', () => {
-    for (const extra of [{ axis: 'sideways' }, { northPin: 'warm' }, { ray: 'low' }])
-      expect(
-        broken((document) => {
-          Object.assign(stateAt(document, 1).state, extra);
-        }),
-      ).toContain('schema_unrecognized_keys@stage.states.1.state');
-  });
-
   it('holds the reading time to three to six minutes at 230 words a minute plus ten seconds a call', () => {
     expect(
       broken((document) => {
@@ -320,55 +296,15 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
       final.binding = { kind: 'tilt' };
       document.landmark = { key: 'ci-fixture-axis', name: 'The CI Fixture Axis' };
     };
-    /**
-     * What the binding rule says of the bound Scroll with its last stage state replaced, so the picture held at
-     * the Final call is the one given. Other findings (a state that repeats the one before it) are not this rule's.
-     */
-    const endingOn = (state: Parameters<typeof describeStageState>[0]) =>
-      broken((document) => {
-        bound(document);
-        const last = stageOf(document).states.at(-1);
-        if (last === undefined) throw new Error('the fixture has a stage');
-        last.state = state;
-        last.alt = describeStageState(state);
-      }).filter((issue) => issue.startsWith('final_call_binding_invalid'));
-    const finalIndex = fixture().stops.length - 1;
-    const refused = [`final_call_binding_invalid@stops.${String(finalIndex)}.binding`];
 
-    it('takes a picture where the tilt shows: a June or December picture in a view that draws the axis and the season, and a landmark with it', () => {
-      for (const view of ['sun-earth', 'earth-close', 'orbit', 'orbit-stretched'] as const)
-        for (const earthAt of ['jun', 'dec', 'jan', 'may'] as const)
-          expect(endingOn({ view, earthAt, moonAt: 'off', focus: 'none' }), `${view} ${earthAt}`).toEqual([]);
+    it('is still taken with a stage: the stored binding parses, and no kit physics is left to judge it', () => {
+      expect(broken(bound)).toEqual([]);
     });
 
-    it('refuses a Scroll with no stage: there is no axis to turn', () => {
+    it('refuses a Scroll with no stage: there is no picture to hand a control on', () => {
       expect(broken(bound, 'plain')).toEqual([
         `final_call_binding_invalid@stops.${String(fixture('plain').stops.length - 1)}.binding`,
       ]);
-    });
-
-    it('refuses a stage that ends on the Moon view, which draws no axis', () => {
-      expect(endingOn({ view: 'moon-orbit', earthAt: 'mar', moonAt: 'full', focus: 'none' })).toEqual(refused);
-    });
-
-    it('refuses a stage that ends at an equinox, where the picture is the same at every tilt', () => {
-      for (const view of ['sun-earth', 'earth-close', 'orbit', 'orbit-stretched'] as const)
-        for (const earthAt of ['mar', 'sep'] as const)
-          expect(endingOn({ view, earthAt, moonAt: 'off', focus: 'none' }), `${view} ${earthAt}`).toEqual(refused);
-    });
-
-    it('judges the picture held at the Final call, not an earlier one: an equinox before it is no matter', () => {
-      expect(
-        broken((document) => {
-          bound(document);
-          const [last, early] = [...stageOf(document).states].reverse();
-          if (last === undefined || early === undefined) throw new Error('the fixture has several states');
-          last.state = { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'none' };
-          last.alt = describeStageState(last.state);
-          early.state = { view: 'orbit', earthAt: 'mar', moonAt: 'off', focus: 'none' };
-          early.alt = describeStageState(early.state);
-        }),
-      ).toEqual([]);
     });
   });
 
@@ -458,7 +394,7 @@ describe('a call that turns the picture when the guess is wrong (D-383)', () => 
   });
 });
 
-describe('a stored stage of a kit the code no longer defines (a legacy stage)', () => {
+describe('a stored stage: no kit is defined any more, so every stored stage is passed through (#835, D-442)', () => {
   /**
    * The fixture with its stage rewritten as one a deleted kit stored: another kit id, and states that hold words no kit
    * of today has. The structure is the stored one's (the same stops), so only the kit-specific part differs.
@@ -484,14 +420,22 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     const outcome = validateDocumentV2(stored);
     if (outcome.kind !== 'valid') throw new Error(JSON.stringify(outcome.issues));
     expect(outcome.document.stage).toEqual(stored.stage);
-    expect(isLiveStage(outcome.document.stage ?? stageOf(fixture()))).toBe(false);
   });
 
-  it.each(['transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1', 'nerve.v1'])(
-    'takes the stored stage of %s, a kit deleted from the code (#799, #802, #809), on the client path and the server path',
+  it.each([
+    'transit.v1',
+    'tides.v1',
+    'star.v1',
+    'greenhouse.v1',
+    'circulation.v1',
+    'nerve.v1',
+    'black-hole.v1',
+    'starlight.v1',
+    'earth-sky.v1',
+  ])(
+    'takes the stored stage of %s, a kit deleted from the code (#799, #802, #809, #832, #834, #835), on the client path and the server path',
     (kit) => {
       const stored = JSON.parse(JSON.stringify(legacyOf(kit))) as ScrollDocumentV2;
-      expect(isStageKitId(kit)).toBe(false);
       expect(parseDocumentV2(stored).kind).toBe('valid');
       expect(codes(stored)).toEqual([]);
       expect(codes(stored, { verify: false })).toEqual([]);
@@ -513,7 +457,7 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     const document = legacyOf();
     const first = stageOf(fixture()).states[0];
     if (first === undefined) throw new Error('the fixture has a stage');
-    // A live kit would refuse each of these (an unsettled state, a description it did not write); a legacy stage has no such kit.
+    // The kit these words belonged to refused such a state (an unsettled one, a description it did not write) when it still existed.
     expect(
       codes(
         signed({
@@ -563,54 +507,12 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(codes(signed(document))).toEqual([]);
   });
 
-  it('is not taken for a stage of a kit the code still defines: its words are still checked, so a typo is refused', () => {
-    const document = fixture();
-    const stage = stageOf(document);
-    const typo = (state: Record<string, string>): string[] =>
-      codes(
-        signed({ ...document, stage: { kit: stage.kit, states: stage.states.map((entry) => ({ ...entry, state })) } }),
-      );
-    expect(typo({ view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'earh' })).not.toEqual([]);
-    // The finding names the wrong word where it stands, as before legacy stages existed, never the kit id.
-    const misspelt = validateDocumentV2(
-      signed({
-        ...document,
-        stage: {
-          kit: stage.kit,
-          states: stage.states.map((entry) => ({
-            ...entry,
-            state: { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'earh' },
-          })),
-        },
-      }),
-    );
-    expect(misspelt.kind).toBe('invalid');
-    const found = misspelt.kind === 'invalid' ? misspelt.issues : [];
-    expect(found).toContainEqual({ code: 'schema_invalid_value', path: 'stage.states.0.state.focus' });
-    expect(found.map((issue) => issue.path)).not.toContain('stage.kit');
-    // The words of one kit under the name of another.
-    expect(
-      typo({
-        view: 'spike',
-        phase: 'rest',
-        along: 'start',
-        synapseAt: 'arrives',
-        effect: 'excite',
-        arcAt: 'sensor',
-        focus: 'none',
-      }),
-    ).not.toEqual([]);
-    expect(
-      codes(
-        signed({
-          ...document,
-          stage: {
-            kit: 'earth-sky.v1',
-            states: stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } })),
-          },
-        }),
-      ),
-    ).not.toEqual([]);
+  it('takes the stored Earth & sky stage with its own words, as the committed snapshot holds it, on both paths', () => {
+    const stored = fixture();
+    expect(stageOf(stored).kit).toBe('earth-sky.v1');
+    expect(parseDocumentV2(JSON.parse(JSON.stringify(stored))).kind).toBe('valid');
+    expect(codes(stored)).toEqual([]);
+    expect(codes(stored, { verify: false })).toEqual([]);
   });
 
   it('takes only a well-formed kit id, so no name of an object’s own property is a kit', () => {

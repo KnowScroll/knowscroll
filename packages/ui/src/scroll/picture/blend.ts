@@ -1,6 +1,6 @@
 import type { PictureScene, PictureShape } from './scene';
 
-/** `progress` of the way (0..1) from one number to another. The picture's own, so the renderer reaches into no kit code; the kits' blend imports it from here. */
+/** `progress` of the way (0..1) from one number to another. */
 export const lerp = (from: number, to: number, progress: number): number => from + (to - from) * progress;
 
 /**

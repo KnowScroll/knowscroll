@@ -11,7 +11,7 @@ import { encounterFixture, id, type EncounterFixtureOptions, readCover } from '.
 
 const phone = { width: 390, height: 844 };
 
-/** The Scroll with its stage taken away: a plain v2 Scroll, with no picture for the end plate to draw. */
+/** The Scroll with its stage taken away: a plain v2 Scroll, with no stage at all. */
 const plain = (() => {
   const { stage: _stage, ...rest } = seasons as unknown as Record<string, unknown>;
   // With no picture there is nothing for the Final call to turn, so it is no longer bound to one (D-187).
@@ -220,13 +220,14 @@ for (const [name, viewport] of [
 }
 
 test.describe('the end card', () => {
-  test('a Scroll with a picture of the journey draws it on the end plate; a plain Scroll has none, and both sum up', async ({
+  test('a Scroll with a stored stage and a plain Scroll both sum up, and neither draws a picture of the journey (no kit is left, #835)', async ({
     page,
   }) => {
     await openByAddress(page, { parts: 1 });
     await toTheEnd(page);
     await expect(plate(page).getByRole('heading', { name: 'To sum up' })).toBeVisible();
-    await expect(plate(page).getByTestId('end-figure').getByRole('img')).toHaveAccessibleName(/^The picture you built/);
+    await expect(page.getByTestId('end-figure')).toHaveCount(0);
+    await expect(page.getByText('The picture you built')).toHaveCount(0);
 
     await openByAddress(page, { parts: 1 }, { document: plain });
     await toTheEnd(page);

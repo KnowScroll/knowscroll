@@ -10,12 +10,9 @@ import { Text } from '../../text/text';
 import { usePagePalette } from '../page/page-palette';
 import type { FigureControl } from './reading-model';
 
-/** The controls of a document v3 picture; the tilt of a v2 kit picture is drawn by `KitFigureView`. */
-export type PictureFigureControl = Exclude<FigureControl, { readonly kind: 'tilt' }>;
-
 export interface PictureControlProps {
   readonly picture: Picture;
-  readonly control: PictureFigureControl;
+  readonly control: FigureControl;
   /** The state the beat shows: where a control starts and what a switch flips back to. */
   readonly base: PictureState;
   /** The state the picture is in now. */
@@ -74,7 +71,7 @@ function ScrubControl({
   control,
   state,
   onState,
-}: PictureControlProps & { readonly control: Extract<PictureFigureControl, { readonly kind: 'scrub' }> }) {
+}: PictureControlProps & { readonly control: Extract<FigureControl, { readonly kind: 'scrub' }> }) {
   const { positions } = control;
   const page = usePagePalette();
   const at = positions.findIndex((position) => sameState(position.state, state));
@@ -109,7 +106,7 @@ function SwitchControl({
   base,
   state,
   onState,
-}: PictureControlProps & { readonly control: Extract<PictureFigureControl, { readonly kind: 'switch' }> }) {
+}: PictureControlProps & { readonly control: Extract<FigureControl, { readonly kind: 'switch' }> }) {
   const flipped = sameState(state, control.to);
   return (
     <View style={styles.control} testID="picture-control-switch">
@@ -131,7 +128,7 @@ function PickControl({
   control,
   base,
   onState,
-}: PictureControlProps & { readonly control: Extract<PictureFigureControl, { readonly kind: 'pick' }> }) {
+}: PictureControlProps & { readonly control: Extract<FigureControl, { readonly kind: 'pick' }> }) {
   const page = usePagePalette();
   const [chosen, setChosen] = useState<number | undefined>(undefined);
   const choose = (index: number) => {

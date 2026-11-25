@@ -350,27 +350,21 @@ What to read for in a held v3 Scroll, besides what a v2 asks: the first paragrap
 The 22 recipes a drawing kit used to draw carry `scrollV3` and no kit. Marking them changes nothing a reader is served: each keeps serving its
 current v1 or v2 Scroll until a v3 Scroll is produced, read and released. Until then `production-status` shows the recipe `not_started` (its served
 Scroll is not a document v3), and `produce-library` queues its first take at `scroll-production-v3.v1`. Nothing was produced by the change; **an operator
-does it on dev, one kit at a time**, in this order, and reads each kit's rewrites before anyone deletes that kit's code:
-
-| # | Kit | Recipes | `--only` |
-|---|---|---|---|
-| 1 | black hole (`black-hole.v1`) | `black-hole-formation`, `black-hole-horizon`, `black-hole-evidence` | `black-hole-formation,black-hole-horizon,black-hole-evidence` |
-| 2 | starlight (`starlight.v1`) | `stars-colour-brightness`, `exoplanet-habitable-zone` | `stars-colour-brightness,exoplanet-habitable-zone` |
-| 3 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
-
-One recipe, the exact command (the first row's `black-hole-formation`; nothing is sent by the dry run):
+did it on dev, one kit at a time, and read each kit's rewrites before anyone deleted that kit's code. All nine kits are deleted now (the last, Earth & sky
+(`earth-sky.v1`), whose recipes were `seasons`, `seasons-hemispheres` and `seasons-limits`, with #835), so the table that listed them is gone. One recipe, the exact
+command (`seasons`; nothing is sent by the dry run):
 
 ```sh
 # worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash
-node dist/operator.js content produce-library --dry-run --only black-hole-formation   # wouldQueue, take 1 at scroll-production-v3.v1
-node dist/operator.js content produce-library --only black-hole-formation             # queues the job; the dev worker writes it and it ends held
-node dist/operator.js content production-status --only black-hole-formation           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
+node dist/operator.js content produce-library --dry-run --only seasons   # wouldQueue, take 1 at scroll-production-v3.v1
+node dist/operator.js content produce-library --only seasons             # queues the job; the dev worker writes it and it ends held
+node dist/operator.js content production-status --only seasons           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
 node dist/operator.js content review-list
 node dist/operator.js content review-show --asset <asset id from review-list> --sources
 node dist/operator.js content release --asset <asset id> --revision <n>             # or reject with a reason; or leave it to the release policy
 ```
 
-For a kit with several recipes, name them all in `--only`, as in the table. A v3 that replaces a served v1 or v2 is released by the release policy when every
+For a series with several recipes, name them all in `--only` (`seasons,seasons-hemispheres,seasons-limits`). A v3 that replaces a served v1 or v2 is released by the release policy when every
 check passes; one that replaces a served v3 waits for a person (above). When the parts of a series are released, run `content admit-continuity` and
 `content readmit-coverage` (steps 6 of "Running a library wave"): the Seasons series also holds `seasons-elsewhere`, the tides series
 `tides-coasts` and the greenhouse series `greenhouse-limits` (document v3 recipes since #790, produced by "The other 33 recipes as document v3 Scrolls, by system" below), so admit those series after every part is released.
@@ -379,7 +373,7 @@ What to read for, besides the list under the previous section: the briefs of the
 how), so a Scroll that states more than its page is a finding; every figure in a picture is in a passage the writer was offered. A recipe has three takes
 at the production version; if all are rejected, the plan or the brief needs a change (a code change), so stop and say so on #787.
 
-The deletion of a kit is a later change, one kit at a time, after the owner has read that kit's rewrites. The v2 plans these recipes had were kept for the v2 spike until the v2 writer was deleted (#815); the kit's own code and the table left together.
+The deletion of a kit was a later change, one kit at a time, after the owner had read that kit's rewrites. The v2 plans these recipes had were kept for the v2 spike until the v2 writer was deleted (#815); the kits' own code left with the last kit (#835).
 
 ## The other 33 recipes as document v3 Scrolls, by system (#790)
 
@@ -389,7 +383,7 @@ until then `production-status` shows it `not_started`. Supply never commissions 
 them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
 a reader's ask or the Planner's demand for a Scroll the library has not made yet starts production only for a stored (`gen-`) recipe, within
 the growth cap; with none, the ask closes as `no_recipe_left` and is counted as a gap. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
-is inside one batch, except the three Earth & sky parts, which wait for their kit batch above: Earth & sky; the tides batch is done, #799, and the greenhouse batch, #802, and the nerve batch, #809):
+is inside one batch; the kit batches are all done, the last (Earth & sky) with the deletion of its kit, #835):
 
 | # | Batch | Recipes | `--only` |
 |---|---|---|---|
@@ -399,7 +393,7 @@ is inside one batch, except the three Earth & sky parts, which wait for their ki
 | 4 | Computing | `dns-lookup`, `https-handshake`, `web-caching`, `rendering-pipeline`, `event-loop`, `same-origin-policy`, `big-o-growth`, `hybrid-sorting`, `hash-tables` | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
 | 5 | Machine learning, attention and its neighbours | `attention-mechanism`, `attention-example`, `attention-limits`, `transformer-architecture`, `token-embeddings`, `next-token-generation` | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation` |
 | 6 | Machine learning, training and cost | `training-by-example`, `gradient-descent`, `overfitting`, `long-input-cost`, `mixture-of-experts`, `subword-tokens` | `training-by-example,gradient-descent,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
-| 7 | Earth & sky, after the Earth & sky kit batch (3) | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
+| 7 | Earth & sky, after the kit batches | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
 
 One batch, the exact command (the first batch of three recipes, number 2; nothing is sent by the dry run):
 

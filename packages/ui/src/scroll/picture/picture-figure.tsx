@@ -50,7 +50,6 @@ export function PictureDrawing({
     const scene = layoutPicture(picture, state, { ...box, textScale });
     return {
       key: `${picture.id}/${canonicalJson(state)}/${box.width}x${box.height}/${textScale}`,
-      kit: 'picture',
       scene,
     };
   }, [picture, state, box, textScale]);

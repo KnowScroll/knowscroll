@@ -21,6 +21,7 @@ import { descriptorsOf, routesOf, skyOf } from './universe-places';
 import { FrameRateReadout } from './frame-rate/frame-rate-readout';
 import { UniverseSurface } from './universe-surface';
 import { useUniverseTrial } from './universe-trial';
+import { escapeOneStop } from './voyage/ladder';
 import { useUniverseBack } from './use-universe-back';
 import { useUniverseSession } from './use-universe-session';
 
@@ -58,7 +59,12 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
       };
     }, [session]),
   );
-  useUniverseBack(session, foreground);
+  // The new look's Escape climbs from the ground to the globe, as its Back pill does; with the switch off it is as ever.
+  const backSession = useMemo(
+    () => (trial.on ? { ...session, escape: () => escapeOneStop(session) } : session),
+    [session, trial.on],
+  );
+  useUniverseBack(backSession, foreground);
   const { read } = state;
   const { snapshot, sky, loadedSystemIds } = read;
   // The map is its sky (every system) and the loaded systems' places (D-417); it is rebuilt only when one of them changes,

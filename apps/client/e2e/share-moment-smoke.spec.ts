@@ -9,8 +9,8 @@ import { openParty, partyWorld } from './thread-party-fixture';
 
 /**
  * Share a moment (V3 G5, D-292, D-293) in the production export over labelled HTTP fixtures (no backend): the dock's Share of a
- * v2 Scroll offers "This stop, with its picture"; read in a thread it sends the stop into that thread, and read in Explore
- * it asks which thread. The message carries the exact revision and an anchor with a hash of the stop's words, never the
+ * v2 Scroll offers "This stop" (its words alone, since a v2 stage is not drawn any more, #835); read in a thread it sends
+ * the stop into that thread, and read in Explore it asks which thread. The message carries the exact revision and an anchor with a hash of the stop's words, never the
  * words. The Scroll is the labelled v2 fixture `seasons-stage-ci`. Screenshots are written only when `KS_MOMENT_SHOTS`
  * names a folder.
  */

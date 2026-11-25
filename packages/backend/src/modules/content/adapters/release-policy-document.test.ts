@@ -197,6 +197,27 @@ describe('what the release policy reads of a document v2 is as it was (D-418, D-
     expect(read.prose).toContain(document.title);
     expect(read.prose).toBe(proseBefore(document));
   });
+
+  it.each([
+    'transit.v1',
+    'tides.v1',
+    'star.v1',
+    'greenhouse.v1',
+    'circulation.v1',
+    'nerve.v1',
+    'black-hole.v1',
+    'starlight.v1',
+    'earth-sky.v1',
+  ])(
+    'judges a stored v2 whose stage names %s, a kit no code defines any more, readable, with the words it holds',
+    (kit) => {
+      const document = fixture('seasons-stage-ci') as { stage: { kit: string } };
+      const stored = { ...document, stage: { ...document.stage, kit } };
+      const read = policyDocumentOf(stored);
+      expect(read.readable).toBe(true);
+      expect(read.prose).toBe(proseBefore(stored));
+    },
+  );
 });
 
 describe('the policy’s decision for a document v3 (D-435)', () => {

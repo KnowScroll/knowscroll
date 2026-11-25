@@ -1,4 +1,4 @@
-import { climbsToGlobe, stopOf, targetKey } from './ladder';
+import { climbsToGlobe, escapeOneStop, stopOf, targetKey } from './ladder';
 
 const descriptor = { objectId: 'p' } as never;
 
@@ -37,5 +37,62 @@ describe('climbing from the ground', () => {
     expect(climbsToGlobe({ kind: 'planet', planet: descriptor, landed: true, selectedRegion: descriptor })).toBe(false);
     expect(climbsToGlobe({ kind: 'system', system: descriptor })).toBe(false);
     expect(climbsToGlobe({ kind: 'universe' })).toBe(false);
+  });
+});
+
+describe('Escape', () => {
+  /** A session on a planet's ground (or as `over` says), recording what Escape asked of it. */
+  function sessionAt(
+    over: {
+      focusId?: string;
+      landed?: boolean;
+      overlay?: string | null;
+      selectedId?: string | null;
+      story?: boolean;
+    } = {},
+  ) {
+    const calls: string[] = [];
+    const session = {
+      getState: () => ({
+        focusId: over.focusId ?? 'planet',
+        landed: over.landed ?? true,
+        overlay: over.overlay ?? null,
+        selectedId: over.selectedId ?? null,
+      }),
+      formation: { getState: () => ({ fact: over.story === true ? { id: 'story' } : undefined }) },
+      places: () => [
+        { id: 'planet', kind: 'planet' },
+        { id: 'region', kind: 'region' },
+      ],
+      focus: (id: string) => {
+        calls.push(`focus ${id}`);
+        return true;
+      },
+      escape: () => {
+        calls.push('escape');
+        return true;
+      },
+    } as unknown as Parameters<typeof escapeOneStop>[0];
+    return { session, calls };
+  }
+
+  it('climbs from the ground to its planet’s globe when nothing is open', () => {
+    const { session, calls } = sessionAt();
+    expect(escapeOneStop(session)).toBe(true);
+    expect(calls).toEqual(['focus planet']);
+  });
+
+  it('leaves everything else to the Universe’s own Escape', () => {
+    for (const over of [
+      { story: true },
+      { overlay: 'search' },
+      { selectedId: 'planet' },
+      { focusId: 'region' },
+      { landed: false },
+    ]) {
+      const { session, calls } = sessionAt(over);
+      escapeOneStop(session);
+      expect(calls).toEqual(['escape']);
+    }
   });
 });

@@ -273,7 +273,7 @@ export const spaceRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'How black holes form. A star more than about eight times as massive as the Sun ends when its fuel is spent: the core falls in, bounces back, and the star blows apart in a supernova. How heavy the star was decides the remnant: a neutron star just above that limit, and a stellar-mass black hole from a star around 20 times as massive as the Sun or more. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. Write every mass as a number of times as massive as the Sun, keeping the number words the passages use (“around 20 times as massive as the Sun”, “hundreds of thousands to billions of times as massive as the Sun”); never write “times the Sun’s mass”: with those number words it repeats the page word for word, and the copy check refuses it. Do not say the Sun will become a black hole.',
+      'How black holes form. A star more than about eight times as massive as the Sun ends when its fuel is spent: the core falls in, bounces back, and the star blows apart in a supernova. How heavy the star was decides the remnant: a neutron star just above that limit, and a stellar-mass black hole from a star around 20 times as massive as the Sun or more. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. In the text, write every mass as a number of times as massive as the Sun, keeping the number words the passages use (“around 20 times as massive as the Sun”, “hundreds of thousands to billions of times as massive as the Sun”); in a grid cell, which holds at most 60 characters, write it short in Suns (“a few to hundreds of Suns”); never write “times the Sun’s mass”: with those number words it repeats the page word for word, and the copy check refuses it. Do not say the Sun will become a black hole.',
     pages: ['https://science.nasa.gov/universe/black-holes/types/'],
     scrollV3: {
       shape: 'story',
@@ -291,7 +291,7 @@ export const spaceRecipes = {
         {
           kind: 'grid',
           purpose:
-            'A comparison of three sizes of black hole: rows stellar-mass, intermediate, supermassive; columns mass range and what is known of their origin.',
+            'A comparison of three sizes of black hole: rows stellar-mass, intermediate, supermassive; columns mass range, written short in Suns (“a few to hundreds of Suns”), and what is known of their origin. Every cell is a short phrase of under 60 characters.',
         },
       ],
       misconception: { kind: 'none' },

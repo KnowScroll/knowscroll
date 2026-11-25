@@ -16,7 +16,6 @@ import { ExposureDocumentResponseSchema, type EncounterOffer, type NavigationOut
 import {
   beatsOfV3,
   coverFrameOfV3,
-  firstFrameOf,
   momentAnchorOf,
   momentOfBeat,
   parseDocumentV3,
@@ -530,7 +529,7 @@ describe('retirement: a released document v3 retires its asset’s v1 and v2 rev
       });
     });
 
-    it('is the stage frame of a v2 Scroll that is the current revision, to a v2-only session, and no cover for an asset that is now a v3', async () => {
+    it('is the cover of a v2 Scroll that is the current revision, to a v2-only session, with no figure (its stored Earth & sky stage is not drawn), and no cover for an asset that is now a v3', async () => {
       const person = await recordingPerson(database);
       const result = await c.navigate(person.authority, {
         commandId: randomUUID(),
@@ -542,7 +541,8 @@ describe('retirement: a released document v3 retires its asset’s v1 and v2 rev
       const offers = [outcome.offer, ...outcome.bufferedOffers];
       const current = offers.find((offer: EncounterOffer) => offer.assetId === standIn.assetId);
       expect(current?.assetRevision).toBe(2);
-      expect(current?.cover).toMatchObject({ version: COVER_V2, figure: firstFrameOf(standIn.v2.document) });
+      expect(current?.cover).toMatchObject({ version: COVER_V2 });
+      expect(current?.cover).not.toHaveProperty('figure');
       for (const retired of [threeAges.assetId, twoAges.assetId])
         expect(offers.some((offer: EncounterOffer) => offer.assetId === retired)).toBe(false);
     });

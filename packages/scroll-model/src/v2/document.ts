@@ -2,14 +2,6 @@ import { z } from '../zod.js';
 import { Framing, Integrity, SeriesRef, THEME_FAMILIES } from '../document.js';
 import { LanguageTag, LocalId, OpaqueId, plainText, Revision } from '../primitives.js';
 import { Guide, Interactive } from './blocks.js';
-import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
-import {
-  BLACK_HOLE_KIT,
-  BlackHoleStateSchema,
-  isStageKitId,
-  STARLIGHT_KIT,
-  StarlightStateSchema,
-} from './kits/index.js';
 import { FIELD_LIMITS_V2 as F, LIMITS_V2 as L, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 
 /**
@@ -118,10 +110,9 @@ export const CallItStop = z.strictObject({
 export type CallItStop = z.infer<typeof CallItStop>;
 
 /**
- * A control the Final call hands the reader on the pinned stage (D-187). `tilt` is Earth's axis: the
- * reader may turn it from nothing to a right angle on the Earth & sky picture, and the picture
- * follows. Set by code from the recipe, never by the model; the reader keeps the value to itself and
- * nothing about it is reported or stored.
+ * A control the Final call handed the reader on the pinned stage (D-187). `tilt` was Earth's axis on the Earth & sky
+ * picture. That kit is gone (#835) and nothing acts on the binding any more (D-432: v3 has `scrub`, `switch` and `pick`),
+ * but stored revisions hold it and must still parse, so the field stays. The reader's tilt was never reported or stored.
  */
 export const FinalCallBinding = z.strictObject({ kind: z.literal('tilt') });
 export type FinalCallBinding = z.infer<typeof FinalCallBinding>;
@@ -151,119 +142,43 @@ export const Aside = z.strictObject({
 });
 export type Aside = z.infer<typeof Aside>;
 
-/** The stage of one kit: the stops that change the picture, each with the state it changes it to and the words for it. */
-function stageOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: State) {
-  return z.strictObject({
-    kit: z.literal(kit),
-    states: stageStates(state),
-  });
-}
-
-function stageStates<State extends z.ZodType>(state: State) {
-  return z
-    .array(z.strictObject({ stop: LocalId, state, alt: plainText(10, F.stateDescriptionChars) }))
-    .min(1)
-    .max(L.maxStops);
-}
-
 /**
- * A kit id of the form every kit has ("tides.v1"). A stored stage of a kit the code no longer defines must still parse,
- * and the form keeps `kit` from being any string: it is looked up in registries, where a name such as "constructor"
- * must never be taken for a kit, and it keeps a cover's figure apart from a picture frame, which has no `kit`.
+ * A kit id of the form every kit had ("tides.v1"). No drawing kit exists any more (the last, `earth-sky.v1`, went with
+ * #835; D-442), so a stored stage's `kit` is not looked up anywhere: the form only keeps it from being any string, and keeps
+ * a cover's figure apart from a picture frame, which has no `kit`.
  */
 const KIT_ID_FORM = /^[a-z][a-z0-9-]{1,39}\.v[0-9]{1,3}$/;
 
-/**
- * The kit of a legacy stage: a well-formed kit id that is NOT in `STAGE_KIT_IDS`. It is derived from that list, so removing
- * a kit from it makes the stored stages of that kit legacy, with no other edit (the live arms below are then the only
- * place left to remove its lines).
- */
-const LegacyKit = z
-  .string()
-  .regex(KIT_ID_FORM, { message: 'id_format' })
-  // Aborting matters: a non-aborting refusal here would leave this arm the union's only live candidate when a live kit's
-  // own arm aborts on a wrong word, and Zod would then report this arm's `kit_is_live` at `stage.kit` instead of the word.
-  .refine((kit) => !isStageKitId(kit), { message: 'kit_is_live', abort: true });
-
-/** A state of a legacy stage: a plain object, whatever its kit once put in it. */
-const LegacyState = z.record(z.string(), z.unknown());
+/** A state of a stored stage: a plain object, whatever its kit once put in it. */
+const StoredState = z.record(z.string(), z.unknown());
 
 /**
- * The stage of a kit that no longer exists, as an older revision stored it (stored revisions are immutable and the library
- * serves them to older apps, D-433). Its kit-specific words and physics are not checked: they were checked when it was
- * admitted, and the code that checked them is gone. Its structure (stops, order, the words for each state) still is.
- * A stage whose kit is still defined never takes this arm, so a typo in it is still refused.
+ * The pinned figure of a stored Scroll, as the revision was stored. It names the kit that once drew it, and `states`
+ * lists the stops that changed it, in order. No kit is defined any more, so nothing checks the words of a state or the
+ * description written for it: they were checked when the revision was admitted, and stored revisions are immutable and
+ * still served to older apps (D-433, D-442). The structure still is checked (the stops it sits on, their order, the first
+ * stop, enough states, no repeats, `stageIssues`). A client draws no figure for it.
  */
-const LegacyStageSchema = z.strictObject({ kit: LegacyKit, states: stageStates(LegacyState) });
-export type LegacyStage = z.infer<typeof LegacyStageSchema>;
-
-/** The stages of the kits the code still defines, one arm each. */
-const LIVE_STAGES = [
-  stageOf(EARTH_SKY_KIT, StageStateSchema),
-  stageOf(STARLIGHT_KIT, StarlightStateSchema),
-  stageOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
-] as const;
-
-/** A stage of a kit the code still defines: every state holds that kit's words and no others. */
-export const LiveStage = z.discriminatedUnion('kit', LIVE_STAGES);
-export type LiveStage = z.infer<typeof LiveStage>;
-
-/**
- * The one pinned figure of a Scroll. It names the kit that draws it (D-194), and `states` lists the
- * stops that change it, in order; every other stop keeps the state before it. Every state holds the words
- * of that kit and no others, and the description of each is derived from the state by code. A stage of a kit
- * the code no longer defines is a {@link LegacyStage}: stored, readable, never made again. The union is flat
- * (one level of options) so the response contracts that embed it stay shallow.
- */
-export const Stage = z.union([...LIVE_STAGES, LegacyStageSchema]);
+export const Stage = z.strictObject({
+  kit: z.string().regex(KIT_ID_FORM, { message: 'id_format' }),
+  states: z
+    .array(z.strictObject({ stop: LocalId, state: StoredState, alt: plainText(10, F.stateDescriptionChars) }))
+    .min(1)
+    .max(L.maxStops),
+});
 export type Stage = z.infer<typeof Stage>;
 
-/** Whether a stage is of a kit the code still defines (so its states have that kit's words). */
-export function isLiveStage(stage: Stage): stage is LiveStage {
-  return isStageKitId(stage.kit);
-}
-
-/** One state of a kit as a picture on its own: the kit that draws it, the state, and the words for it. */
-function frameOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: State) {
-  return z.strictObject({ kit: z.literal(kit), state, alt: plainText(10, F.stateDescriptionChars) });
-}
-
-const LIVE_FRAMES = [
-  frameOf(EARTH_SKY_KIT, StageStateSchema),
-  frameOf(STARLIGHT_KIT, StarlightStateSchema),
-  frameOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
-] as const;
-
-/** A frame of a kit the code still defines. */
-export const LiveStageFrame = z.discriminatedUnion('kit', LIVE_FRAMES);
-export type LiveStageFrame = z.infer<typeof LiveStageFrame>;
-
-const LegacyFrameSchema = z.strictObject({
-  kit: LegacyKit,
-  state: LegacyState,
+/**
+ * A single frame of a stored stage, outside its document: what an older app's cover shows of a Scroll before it is
+ * opened (`offer-cover.v1`). Its kit is not drawn by anything in the code any more, so the server never makes one, and
+ * a client draws no figure for one.
+ */
+export const StageFrame = z.strictObject({
+  kit: z.string().regex(KIT_ID_FORM, { message: 'id_format' }),
+  state: StoredState,
   alt: plainText(10, F.stateDescriptionChars),
 });
-
-/**
- * A single frame of a stage, outside its document: what a cover shows of a Scroll before it is opened. The
- * kits on the device draw it from the state, so a frame carries no drawing. It accepts a frame of a kit the code
- * no longer defines, like {@link Stage}, so a cover stays readable; {@link firstFrameOf} never makes one.
- */
-export const StageFrame = z.union([...LIVE_FRAMES, LegacyFrameSchema]);
 export type StageFrame = z.infer<typeof StageFrame>;
-
-/**
- * The picture a Scroll opens on: its stage's first state, which validation pins to the first stop
- * (`stage_first_state_missing`). A Scroll without a stage has none, and neither has one whose kit the code no
- * longer defines: nothing here can draw it, so a cover shows no figure rather than one it cannot.
- */
-export function firstFrameOf(document: Pick<ScrollDocumentV2, 'stage'>): LiveStageFrame | undefined {
-  const first = document.stage?.states[0];
-  // The kit and its state come from one validated stage, so they belong together; TypeScript cannot follow that pairing.
-  return document.stage && first && isLiveStage(document.stage)
-    ? ({ kit: document.stage.kit, state: first.state, alt: first.alt } as LiveStageFrame)
-    : undefined;
-}
 
 /**
  * The landmark a Scroll awards when its Final call is locked (D-188): a stable key and the name the

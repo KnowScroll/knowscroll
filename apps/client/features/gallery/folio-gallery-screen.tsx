@@ -4,14 +4,12 @@ import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import blackHole from '@knowscroll/scroll-model/fixtures/black-hole-stage-ci.json';
 import broadStreetV3 from '@knowscroll/scroll-model/fixtures/broad-street-v3-ci.json';
 import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
-import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import {
   canonicalJson,
   describePicture,
@@ -24,7 +22,6 @@ import {
 import {
   Button,
   DisplayProvider,
-  drawableStage,
   EssayCover,
   FigureView,
   FolioReader,
@@ -33,7 +30,6 @@ import {
   readingModelOfV2,
   readingModelOfV3,
   scrollPageSurface,
-  stageFigureAt,
   Text,
   useDisplay,
   type ReadingModel,
@@ -45,14 +41,12 @@ import { useDocumentTitle } from '../../platform/document-title';
 const folioGalleryMarker = 'ks-folio-gallery';
 
 /**
- * The labelled CI fixtures of `scroll-model` (not product content): every kit, two Scrolls with play blocks and no
- * picture (all `scroll-document.v2`), and the three `scroll-document.v3` documents whose pictures the general renderer
- * draws (the names ending in V3).
+ * The labelled CI fixtures of `scroll-model` (not product content): a stored v2 Scroll with a stage (it draws no figure
+ * any more, no drawing kit being left, #835), two v2 Scrolls with play blocks and no stage (all `scroll-document.v2`),
+ * and the three `scroll-document.v3` documents whose pictures the general renderer draws (the names ending in V3).
  */
 const documents = {
   seasons,
-  starlight,
-  blackHole,
   scaleChart,
   sortFork,
   fenceV3,
@@ -119,7 +113,7 @@ const observer: UnitReadingObserver = {
  * Developer gallery of the Folio reader (`/gallery-folio`, gallery builds only): a v2 or v3 fixture document through the
  * real adapter (`readingModelOfV2` or `readingModelOfV3`) and reader, with the app's top bar and dock and no backend. Query: `doc` (a fixture
  * name), `stop` (open at that stop), `motion=reduce`, `scale=2` (200 % text), `bare=1` (no fixture toolbar: the screen as
- * a reader sees it), `figures=1` (every figure state of the document on the page, to check a kit or a picture kind in each
+ * a reader sees it), `figures=1` (every figure state of the document on the page, to check a picture kind in each
  * appearance; for a v3 document that is every state its beats show, and each state a scrub, switch or pick can reach),
  * `covers=1` (the cover of a Scroll in each of its cases, one under the other).
  */
@@ -230,7 +224,7 @@ function figuresOf(model: ReadingModel): { readonly figure: FigureProps['figure'
       if (block.kind === 'figure') {
         add(block.figure);
         const { figure, control } = block;
-        if (figure.kind === 'picture' && control !== undefined) {
+        if (control !== undefined) {
           const { picture } = figure;
           if (control.kind === 'scrub')
             for (const position of control.positions)
@@ -249,7 +243,7 @@ function figuresOf(model: ReadingModel): { readonly figure: FigureProps['figure'
   return [...figures.values()];
 }
 
-/** Every distinct figure of the essay, one under the other, on the page: how each kit state looks in each appearance. */
+/** Every distinct figure of the essay, one under the other, on the page: how each picture state looks in each appearance. */
 function FigureSheet({ model }: { readonly model: ReadingModel }) {
   return (
     <ScrollView {...scrollPageSurface()} contentContainerStyle={styles.sheet} testID="figure-sheet">
@@ -260,12 +254,7 @@ function FigureSheet({ model }: { readonly model: ReadingModel }) {
               {caption}
             </Text>
           )}
-          <FigureView
-            figure={figure}
-            height={figure.kind === 'picture' ? 300 : 240}
-            reducedMotion
-            textVersion={false}
-          />
+          <FigureView figure={figure} height={300} reducedMotion textVersion={false} />
         </View>
       ))}
     </ScrollView>
@@ -284,8 +273,8 @@ interface CoverFixture {
 }
 
 /**
- * A fixture document as a cover: its own words and reading time, and its first figure, which is the first state of a v2
- * Scroll's stage or the first picture of a document v3.
+ * A fixture document as a cover: its own words and reading time, and its first figure, which is the first picture of a
+ * document v3. A v2 Scroll has none (its stage is not drawn, #835).
  */
 function coverOf(
   id: string,
@@ -293,14 +282,10 @@ function coverOf(
   source: ScrollDocumentV2 | ScrollDocumentV3,
   way: 'read' | 'continue' = 'read',
 ): CoverFixture {
-  let figure: CoverFixture['figure'];
-  if (source.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION) {
-    figure = figuresOf(readingModelOfV3(source))[0]?.figure;
-  } else {
-    const stage = drawableStage(source.stage);
-    const first = stage?.states[0];
-    figure = stage === undefined || first === undefined ? undefined : stageFigureAt(stage, source.stops, first.stop);
-  }
+  const figure =
+    source.schemaVersion === SCROLL_DOCUMENT_V3_SCHEMA_VERSION
+      ? figuresOf(readingModelOfV3(source))[0]?.figure
+      : undefined;
   return {
     id,
     label,
@@ -317,8 +302,8 @@ function coverOf(
 const hand: readonly CoverFixture[] = [
   coverOf(
     'first',
-    'First cover of the hand, a v2 Scroll with a figure (no Previous)',
-    seasons as unknown as ScrollDocumentV2,
+    'First cover of the hand, a document v3 Scroll with a figure (no Previous)',
+    seasonsV3 as unknown as ScrollDocumentV3,
   ),
   coverOf('no-stage', 'A v2 Scroll without a stage: no figure', sortFork as unknown as ScrollDocumentV2),
   {

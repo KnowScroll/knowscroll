@@ -700,7 +700,7 @@ The present access model is shared admitted assets; no private-content access po
 `ReadOfferEncounter` (`readOfferEncounter` in `adapters/discovery-store.ts`) is `ReadExactEncounter` plus the
 offer's cover, taken from the document of the row it already read (no second query). `coverOfDocument`
 (`adapters/offer-cover.ts`) reads the kicker and reading minutes from a Scroll document of any version and,
-for a v2 Scroll, the number of read stops and the first stage frame (`firstFrameOf`); for a document v3 the number
+for a v2 Scroll, the number of read stops and no figure (its stored stage names a kit that no code draws any more, #835); for a document v3 the number
 of beats and, under `offer-cover.v2` only, its first picture in the state its first beat shows (`coverFrameOfV3`,
 a `PictureFrame`). The cover version is the newest the session declared (`declaredCoverSchema`): a session that
 declared only `offer-cover.v1` gets a v3's count and no figure (a picture frame is not a stage frame), and one that

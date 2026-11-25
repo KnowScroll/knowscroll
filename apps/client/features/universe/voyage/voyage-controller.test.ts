@@ -97,6 +97,87 @@ describe('where the ship parks', () => {
     const crowded = homeOf({ size, globe: null }, [anchor('s', 'system', 195, 844 * 0.675)], null, 0);
     expect(crowded.x).not.toBe(195);
   });
+
+  it('hovers gently while parked in the sky, and holds still with reduced motion', () => {
+    const heights = [0, 0.4, 0.8, 1.2, 1.6, 2.0].map((seconds) => homeOf({ size, globe: null }, [], null, seconds).y);
+    const park = 844 * 0.675;
+    expect(Math.max(...heights) - park).toBeCloseTo(2.5, 0);
+    expect(Math.max(...heights.map((y) => Math.abs(y - park)))).toBeLessThanOrEqual(2.5);
+    for (const seconds of [0.4, 1.2, 2.0]) expect(homeOf({ size, globe: null }, [], null, seconds, true).y).toBe(park);
+  });
+});
+
+describe('keys', () => {
+  it('turns by every arrow press, even several before the screen renders again', () => {
+    const turns: { x: number; y: number }[] = [];
+    const session = {
+      camera: (frame: { x: number; y: number }) => {
+        turns.push({ x: frame.x, y: frame.y });
+        return true;
+      },
+    } as unknown as UniverseMapSession;
+    const controller = createVoyageController({
+      session,
+      view: { kind: 'system' } as never,
+      target: { stop: 'star', systemId: 'system', planetId: null, regionId: null } as never,
+      size: { width: 390, height: 844 },
+      turn: { x: 0, y: 0 },
+      planet: null,
+      siblings: [],
+      reducedMotion: false,
+      universeFocus: { kind: 'universe' } as never,
+      systemFocus: () => undefined,
+    });
+    controller.key('ArrowRight');
+    controller.key('ArrowRight');
+    controller.key('ArrowUp');
+    expect(turns).toEqual([
+      { x: 60, y: 0 },
+      { x: 120, y: 0 },
+      { x: 120, y: -60 },
+    ]);
+  });
+});
+
+describe('the wheel', () => {
+  const landed: UniverseView = { kind: 'planet', planet: descriptor('p'), landed: true };
+  const inputsFor = (session: UniverseMapSession): VoyageInputs => ({
+    session,
+    view: landed,
+    target: { stop: 'ground', systemId: 's', planetId: 'p', regionId: null },
+    size: { width: 390, height: 844 },
+    turn: { x: 0, y: 0 },
+    planet: null,
+    siblings: [],
+    reducedMotion: false,
+    universeFocus: {} as VoyageInputs['universeFocus'],
+    systemFocus: () => undefined,
+  });
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('moves one stop, then rests before it moves another', () => {
+    const { session, calls } = recordingSession();
+    const controller = createVoyageController(inputsFor(session));
+    controller.wheel(100);
+    controller.wheel(100);
+    expect(calls).toEqual(['focus p']);
+    jest.advanceTimersByTime(300);
+    controller.wheel(100);
+    expect(calls).toEqual(['focus p', 'focus p']);
+  });
+
+  it('leaves no timer behind when the stage goes, and is ready again if the stage stays', () => {
+    const { session, calls } = recordingSession();
+    const controller = createVoyageController(inputsFor(session));
+    controller.wheel(100);
+    expect(jest.getTimerCount()).toBe(1);
+    controller.dispose();
+    expect(jest.getTimerCount()).toBe(0);
+    controller.wheel(100);
+    expect(calls).toEqual(['focus p', 'focus p']);
+  });
 });
 
 describe('the wheel', () => {
