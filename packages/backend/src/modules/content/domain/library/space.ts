@@ -273,7 +273,7 @@ export const spaceRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'How black holes form. When a star with more than about eight times the Sun’s mass runs out of fuel, its core collapses and the star explodes as a supernova; what is left depends on the star’s mass before the explosion: a neutron star near that threshold, and a stellar-mass black hole if it had around 20 times the Sun’s mass or more. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. Do not say the Sun will become a black hole.',
+      'How black holes form. A star more than about eight times as massive as the Sun ends when its fuel is spent: the core falls in, bounces back, and the star blows apart in a supernova. How heavy the star was decides the remnant: a neutron star just above that limit, and a stellar-mass black hole from a star around 20 times as massive as the Sun or more. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. Write every mass as a number of times as massive as the Sun, keeping the number words the passages use (“around 20 times as massive as the Sun”, “hundreds of thousands to billions of times as massive as the Sun”); never write “times the Sun’s mass”: with those number words it repeats the page word for word, and the copy check refuses it. Do not say the Sun will become a black hole.',
     pages: ['https://science.nasa.gov/universe/black-holes/types/'],
     scrollV3: {
       shape: 'story',
@@ -286,7 +286,7 @@ export const spaceRecipes = {
         {
           kind: 'flow',
           purpose:
-            'How a stellar-mass black hole forms: a star above about eight Suns runs out of fuel; its core collapses and rebounds; it explodes as a supernova; if it was around 20 Suns or more, the core collapses to a black hole.',
+            'How a stellar-mass black hole forms: a star above about eight Suns uses up its fuel; the core falls in and rebounds; the star explodes as a supernova; if it was around 20 Suns or more, the core becomes a black hole.',
         },
         {
           kind: 'grid',
