@@ -113,6 +113,9 @@ v3; the revisions already published keep theirs, and play awards nothing for a r
   support in any of its pages, add one public page of the kind the library already uses that states it (the passages are checked, see "How a v3 plan is
   written"); never invent a claim, and never ask for made-up or "illustrative" numbers (see `black-hole-formation`: the page says a star of
   about eight Suns or more ends in a supernova and one of about 20 or more leaves a black hole, so the brief says that and not "more than eight Suns leaves a black hole").
+  A brief does not repeat a page's sentence either: the writer takes up a brief's words, and nine words in a row of a passage are refused as a
+  copy (the apostrophe splits a word, so "times the Sun's mass" is five words). `black-hole-formation` asks for every mass as "N times as massive as
+  the Sun", keeping the page's number words, because "around 20 times the Sun's mass or more" copied the page in six takes.
   It names no block type; `interactive` and `interactiveKind` carry that. Medical and similar topics
   say they are physiology or history, not advice.
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.
