@@ -487,8 +487,17 @@ describe('a stored stage of a kit the code no longer defines (a legacy stage)', 
     expect(isLiveStage(outcome.document.stage ?? stageOf(fixture()))).toBe(false);
   });
 
-  it.each(['transit.v1', 'tides.v1', 'star.v1', 'greenhouse.v1', 'circulation.v1', 'nerve.v1', 'black-hole.v1'])(
-    'takes the stored stage of %s, a kit deleted from the code (#799, #802, #809, #832), on the client path and the server path',
+  it.each([
+    'transit.v1',
+    'tides.v1',
+    'star.v1',
+    'greenhouse.v1',
+    'circulation.v1',
+    'nerve.v1',
+    'black-hole.v1',
+    'starlight.v1',
+  ])(
+    'takes the stored stage of %s, a kit deleted from the code (#799, #802, #809, #832, #834), on the client path and the server path',
     (kit) => {
       const stored = JSON.parse(JSON.stringify(legacyOf(kit))) as ScrollDocumentV2;
       expect(isStageKitId(kit)).toBe(false);

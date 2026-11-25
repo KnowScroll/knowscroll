@@ -6,7 +6,6 @@ import { expect, test, type Page } from '@playwright/test';
 import fenceV3 from '@knowscroll/scroll-model/fixtures/fence-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
-import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import type { ScrollDocumentV2, ScrollDocumentV3 } from '@knowscroll/scroll-model';
 
 /**
@@ -20,7 +19,6 @@ import type { ScrollDocumentV2, ScrollDocumentV3 } from '@knowscroll/scroll-mode
 /** The `scroll-document.v2` fixtures: the tests that read a stop's kind, its prompt and its words need these. */
 const v2Documents = {
   seasons: seasons as unknown as ScrollDocumentV2,
-  starlight: starlight as unknown as ScrollDocumentV2,
 };
 type V2Name = keyof typeof v2Documents;
 /** Every fixture the page opens by name (`?doc=`); a document v3 has beats in sections, not stops. */
@@ -113,7 +111,7 @@ const galleryEvents = (page: Page) =>
   page.evaluate(() => (window as unknown as { __ksFolioGallery: GalleryEvents }).__ksFolioGallery);
 
 for (const { label, viewport } of sizes) {
-  for (const name of ['seasons', 'starlight'] as const satisfies readonly V2Name[]) {
+  for (const name of ['seasons'] as const satisfies readonly V2Name[]) {
     test(`every stop of ${name} is a beat, once, in order; a call is text, at ${label}`, async ({ page }) => {
       await open(page, name, viewport);
       const document = v2Documents[name];
@@ -267,7 +265,7 @@ test('the first hold of seasonsV3 keeps its figure beside its beats, in full vie
 });
 
 for (const { label, viewport } of sizes) {
-  for (const name of ['starlight', 'seasons'] as const satisfies readonly V2Name[]) {
+  for (const name of ['seasons'] as const satisfies readonly V2Name[]) {
     test(`reading ${name} from top to end reports a few stops at a time, each stop once read, in order, at ${label}`, async ({
       page,
     }) => {

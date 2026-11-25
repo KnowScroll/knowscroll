@@ -66,7 +66,6 @@ export default defineConfig({
         'rooms-scouts-smoke.spec.ts',
         'rooms-quiet-smoke.spec.ts',
         'scroll-reader-smoke.spec.ts',
-        'kit-figures-smoke.spec.ts',
         'blocks-smoke.spec.ts',
         'payoff-smoke.spec.ts',
         'reader-nav-smoke.spec.ts',

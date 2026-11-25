@@ -1,7 +1,6 @@
 import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
-import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { KIT_PICTURES } from '../kit';
 import { drawableStage } from '../stage/stage-figure';
@@ -9,10 +8,9 @@ import { HOLD_LIMIT } from './holds';
 import { readingModelOfV2 } from './from-v2';
 import { beatsOf, type ReadingBlock } from './reading-model';
 
-/** The labelled CI fixtures of `scroll-model` (not product content): every kit, and the two without a picture. */
+/** The labelled CI fixtures of `scroll-model` (not product content): the one kit, and the two without a picture. */
 const FIXTURES = Object.entries({
   seasons,
-  starlight,
   scaleChart,
   sortFork,
 }).map(([name, json]) => [name, json as unknown as ScrollDocumentV2] as const);
