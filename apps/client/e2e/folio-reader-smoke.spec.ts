@@ -325,6 +325,9 @@ test('the ••• button opens the More sheet with its rows, and Next idea on 
   await expect(page.getByTestId('more-text-version')).toHaveCount(0);
   await expect(page.getByTestId('more-simpler')).toBeVisible();
   await shot(page, 'more-sheet');
+  // Escape closes the sheet, and ••• opens it again.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
   // Simpler swaps the beat being read for its plainer words.
   await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByTestId('more-simpler').click();

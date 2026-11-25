@@ -264,7 +264,9 @@ for (const { label, viewport } of sizes) {
         if (next !== undefined && next.at - entry.at < 1) return;
         most_at_once = Math.max(most_at_once, [...latest.values()].filter((fraction) => fraction >= 0.5).length);
       });
-      expect(most_at_once).toBeLessThanOrEqual(3);
+      // A stored v2 draws no figure since #835, so its short stops sit closer: a 1440 x 900 screen holds four at half
+      // visibility, a phone three. Still a few at a time, never the whole essay (seasons has thirteen stops).
+      expect(most_at_once).toBeLessThanOrEqual(label === 'desktop' ? 4 : 3);
       for (const stop of document.stops.filter((entry) => entry.kind === 'read'))
         expect(reached.has(stop.id), `read stop ${stop.id} reached half visibility`).toBe(true);
       // Every id reported is a stop of the document.
