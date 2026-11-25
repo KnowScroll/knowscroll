@@ -5,7 +5,7 @@ import type { EvidencePassage } from './evidence.js';
 /** The finding for a Scroll that cites more than its provenance can record. */
 export const CITATIONS_TOO_MANY = 'citations_too_many';
 
-/** The fixed hint the one repair gets for it: a document v3's parts are beats, asides, pictures and the takeaway. */
+/** The fixed hint a repair gets for it: a document v3's parts are beats, asides, pictures and the takeaway. */
 export const CITATIONS_TOO_MANY_HINT_V3 = `Cite fewer different passages in all: at most ${String(PROVENANCE_V3_LIMITS.claims)} across the whole Scroll, from at most ${String(PROVENANCE_V3_LIMITS.sources)} pages, and cite from at most ${String(PROVENANCE_V3_LIMITS.citations)} parts (beats, asides, pictures and the takeaway). Reuse the passages that best support each part.`;
 
 /** The bounds of one provenance schema that a citation map must fit. */
@@ -35,7 +35,7 @@ function withinBounds(
 /**
  * Whether the claims a document v3 cites fit the provenance that records them (`scroll-provenance.v3`: 48 claims, 24 sources and 22 parts), checked while the answer is still being validated, so the one repair can fix it. The finding code
  * is the same; its hint is {@link CITATIONS_TOO_MANY_HINT_V3}. `citations` maps each beat, aside, picture and the takeaway to
- * the claim ids it cites. The finding sits at `path`, the part of the model's own reply the one repair can change: `items` for
+ * the claim ids it cites. The finding sits at `path`, the part of the model's own reply a repair can change: `items` for
  * a reply that holds the essay, `pictures` for a staging reply, whose prose is fixed. Pure.
  */
 export function citationLimitIssuesV3(

@@ -115,7 +115,8 @@ v3; the revisions already published keep theirs, and play awards nothing for a r
   about eight Suns or more ends in a supernova and one of about 20 or more leaves a black hole, so the brief says that and not "more than eight Suns leaves a black hole").
   A brief does not repeat a page's sentence either: the writer takes up a brief's words, and nine words in a row of a passage are refused as a
   copy (the apostrophe splits a word, so "times the Sun's mass" is five words). `black-hole-formation` asks for every mass as "N times as massive as
-  the Sun", keeping the page's number words, because "around 20 times the Sun's mass or more" copied the page in six takes.
+  the Sun", keeping the page's number words, because the brief's mass phrases ("around 20 times the Sun's mass or more" and the like) copied the page in the
+  recipe's takes at `scroll-production-v3.v3` and `.v4`.
   It names no block type; `interactive` and `interactiveKind` carry that. Medical and similar topics
   say they are physiology or history, not advice.
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.

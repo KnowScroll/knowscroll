@@ -27,14 +27,15 @@ import { writerInstructionsV3, type WriterV3Plan, type WriterV3Step } from './wr
 
 /**
  * The versions of the three roles of the document v3 writer: one reply (arm a), prose (arm b step 1), staging (arm b step 2). They
- * moved from `.v1` with D-441, and from `.v2` with D-444, because the role's version names its instructions and its fixed hints, and both
- * changed (D-441: the copy hint points to the repair notes, a chart is told it always has its marks; D-444: the figure hint points to
- * the repair notes too, and the instructions say a picture's short texts are the writer's own words and how a figure that ends a range
- * is read).
+ * moved from `.v1` with D-441, from `.v2` with D-444 and from `.v3` with D-445, because the role's version names its instructions and its
+ * fixed hints, and they changed (D-441: the copy hint points to the repair notes, a chart is told it always has its marks; D-444: the
+ * figure hint points to the repair notes too, and the instructions say a picture's short texts are the writer's own words and how a
+ * figure that ends a range is read; D-445: the instructions say a repair changes only the parts its notes name, and the role has a
+ * second repair for copies).
  */
-export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v3';
-export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v3';
-export const STAGER_V3_VERSION = 'scroll-stager-v3.v3';
+export const WRITER_V3A_VERSION = 'scroll-writer-v3a.v4';
+export const WRITER_V3B_VERSION = 'scroll-writer-v3b.v4';
+export const STAGER_V3_VERSION = 'scroll-stager-v3.v4';
 
 /** The kicker every library Scroll carries, the same as a v2 library Scroll's (`publicationV2`): code's, never the model's. */
 const LIBRARY_KICKER = 'A closer look';
@@ -185,7 +186,7 @@ export function compileGeneratedScrollV3(
   });
   const own = nameIssues([...essayParts(reply), ...pictureParts(reply.pictures)], namesOf(context));
   if (compiled.kind === 'refused') return { kind: 'refused', issues: withoutRepeats([...compiled.issues, ...own]) };
-  // A Scroll whose citations the provenance cannot record is refused here, where the one repair can fix it.
+  // A Scroll whose citations the provenance cannot record is refused here, where a repair can fix it.
   const tooMany = citationLimitIssuesV3(compiled.citations, context.passages);
   if (own.length > 0 || tooMany.length > 0) return { kind: 'refused', issues: [...own, ...tooMany] };
   return compiled;
@@ -301,7 +302,16 @@ function refusal(issue: AdmissionIssue, safe: Readonly<Record<string, string>>) 
   };
 }
 
-/** What the three roles share: the ceiling, the effort, one repair that carries the refused answer, and the fixed hints. */
+/**
+ * The one code a refusal may have left for the writer's second repair (D-445): the harness runs it only when the first repair's findings
+ * are all `copied_passage`, the finding the first repair most often left standing (17 of the 50 repairs that ended a take on dev).
+ */
+export const SECOND_REPAIR_CODES_V3: readonly string[] = Object.freeze(['copied_passage']);
+
+/**
+ * What the three roles share: the ceiling, the effort, a repair that carries the refused answer, the second repair for copies, and
+ * the fixed hints.
+ */
 function sharedRole(context: WriterV3Context) {
   return {
     safeCustomIssues: safeIssuesOf(context),
@@ -309,6 +319,7 @@ function sharedRole(context: WriterV3Context) {
     maxOutputTokens: 16_000,
     effort: 'medium' as const,
     repairWithPreviousAnswer: true,
+    secondRepairOnlyFor: SECOND_REPAIR_CODES_V3,
   };
 }
 

@@ -25,7 +25,7 @@ const asIssues = (issues: readonly AdmissionIssue[]): AdmissionIssue[] =>
  * `scroll-provenance.v3` with the claims every beat, aside, picture and the takeaway cite, and the reading facts (v4).
  *
  * The production record names the real writer run and its paid attempts, and `WRITER_V3_PROMPT_VERSION`: the value the
- * publication lineage (`storedLineage`) requires of a stored v3 revision, not the role's own version (`scroll-writer-v3a.v3`,
+ * publication lineage (`storedLineage`) requires of a stored v3 revision, not the role's own version (`scroll-writer-v3a.v4`,
  * which only names the arm in the attempt ledger).
  *
  * Refuses, with codes and paths and never text, what the producer refuses (at the model's own items, so a repair can fix it),

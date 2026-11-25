@@ -1,15 +1,18 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { NO_USAGE } from '../domain/budgets.js';
 import { makeScopedReasoningHarness, type ProposeInput, type ReasoningRole } from './propose.js';
-import type {
-  AttemptLedger,
-  AttemptRow,
-  ExecutionPorts,
-  GuardedModelPort,
-  ModelReply,
-  ModelRequest,
-  Reservation,
+import {
+  ModelOutcomeUnknownError,
+  ModelRejectedError,
+  type AttemptLedger,
+  type AttemptRow,
+  type ExecutionPorts,
+  type GuardedModelPort,
+  type ModelReply,
+  type ModelRequest,
+  type Reservation,
 } from './ports.js';
 
 // Hand-built engine fixtures: a fake model, ledger and clock. No database or provider. The paths here
@@ -142,9 +145,14 @@ describe('the opportunistic purge', () => {
   });
 });
 
-/** An in-memory attempt ledger: just enough state for one primary attempt and one repair. */
-function memoryLedger(options: { keptAnswer?: string } = {}) {
+/**
+ * An in-memory attempt ledger: just enough state for a proposal's attempts. `keptAnswer` is the refused answer every attempt has
+ * kept; `keptByStep` gives each step its own, as the production ledger keeps one for each refused attempt. Every reservation is
+ * recorded in `reserved`, and it is charged to the spend the next reservation is checked against, as the real ledger charges it.
+ */
+function memoryLedger(options: { keptAnswer?: string; keptByStep?: Readonly<Record<string, string>> } = {}) {
   const rows = new Map<string, { -readonly [K in keyof AttemptRow]: AttemptRow[K] }>();
+  const reserved: Reservation[] = [];
   const spend = { requests: 0, tokens: 0 };
   const ledger = {
     find: (_scopeId: string, _runId: string, step: string) => Promise.resolve(rows.get(step)),
@@ -160,6 +168,9 @@ function memoryLedger(options: { keptAnswer?: string } = {}) {
       }),
     canStartRun: () => Promise.resolve(true),
     reserve: (_scope: null, reservation: Reservation) => {
+      reserved.push(reservation);
+      spend.requests += 1;
+      spend.tokens += reservation.reservedTokens;
       rows.set(reservation.step, {
         runGeneration: 1,
         runState: 'admitted',
@@ -196,14 +207,27 @@ function memoryLedger(options: { keptAnswer?: string } = {}) {
       });
       return Promise.resolve(true);
     },
-    readRejectedAnswerText: () => Promise.resolve(options.keptAnswer),
+    readRejectedAnswerText: (attempt: { attemptId: string }) => {
+      const step = [...rows.values()].find((candidate) => candidate.id === attempt.attemptId)?.step;
+      return Promise.resolve(
+        options.keptByStep === undefined || step === undefined ? options.keptAnswer : options.keptByStep[step],
+      );
+    },
     purgeExpiredRequests: () => Promise.resolve(0),
   };
-  return ledger as unknown as AttemptLedger<null>;
+  return { ledger: ledger as unknown as AttemptLedger<null>, reserved };
 }
 
 /** The whole engine over the in-memory ledger and a scripted model: no database, no provider. */
-function scriptedEngine(options: { replies: readonly string[]; maxRequestBytes?: number; keptAnswer?: string }) {
+function scriptedEngine(options: {
+  /** What the model answers, one for each request: an answer's text, or the error the transport raises. */
+  replies: readonly (string | Error)[];
+  maxRequestBytes?: number;
+  keptAnswer?: string;
+  keptByStep?: Readonly<Record<string, string>>;
+  /** The role's daily cap of requests; none by default. */
+  roleRequestsPerDay?: number;
+}) {
   /** The requests that were actually sent, in order. */
   const sent: ModelRequest[] = [];
   const answers = [...options.replies];
@@ -216,15 +240,21 @@ function scriptedEngine(options: { replies: readonly string[]; maxRequestBytes?:
       Promise.resolve({ verdict: 'not_applicable', intervalRemainingPercent: null, weeklyRemainingPercent: null }),
     send: (body: Uint8Array): Promise<ModelReply> => {
       sent.push(JSON.parse(new TextDecoder().decode(body)) as ModelRequest);
+      const next = answers.shift() ?? '{}';
+      if (next instanceof Error) return Promise.reject(next);
       return Promise.resolve({
         usage: NO_USAGE,
-        answer: { kind: 'text', text: answers.shift() ?? '{}', stop: 'end' },
+        answer: { kind: 'text', text: next, stop: 'end' },
       });
     },
   } as unknown as GuardedModelPort;
+  const memory = memoryLedger({
+    ...(options.keptAnswer === undefined ? {} : { keptAnswer: options.keptAnswer }),
+    ...(options.keptByStep === undefined ? {} : { keptByStep: options.keptByStep }),
+  });
   const ports = {
     model,
-    ledger: memoryLedger(options.keptAnswer === undefined ? {} : { keptAnswer: options.keptAnswer }),
+    ledger: memory.ledger,
     hashBytes: (bytes: Uint8Array) => `hash-${bytes.length}`,
     redactRecorded: (value: Readonly<Record<string, unknown>>) => value,
     newId: () => `0199f0a0-0000-7000-8000-${String(++nextId).padStart(12, '0')}`,
@@ -234,7 +264,7 @@ function scriptedEngine(options: { replies: readonly string[]; maxRequestBytes?:
       caps: {
         global: { requestsPerDay: 1_000, tokensPerDay: 1e9 },
         scope: { requestsPerDay: 1_000, tokensPerDay: 1e9 },
-        roleDefault: { requestsPerDay: 1_000, tokensPerDay: 1e9 },
+        roleDefault: { requestsPerDay: options.roleRequestsPerDay ?? 1_000, tokensPerDay: 1e9 },
       },
       backgroundSharePercent: 100,
       ambientSharePercent: 100,
@@ -251,8 +281,18 @@ function scriptedEngine(options: { replies: readonly string[]; maxRequestBytes?:
     }),
     authorityHolds: () => Promise.resolve(true),
   } as unknown as ExecutionPorts<null, null>;
-  return { harness: makeScopedReasoningHarness(ports), sent };
+  return { harness: makeScopedReasoningHarness(ports), sent, reserved: memory.reserved };
 }
+
+/**
+ * What the harness sent for a role without `secondRepairOnlyFor` before D-445, in the scripted run of the test that uses them: the
+ * SHA-256 of the two requests and the step and request hash (the scripted model's hash is the byte length) of each reservation.
+ */
+const PRE_D445_REQUESTS_SHA256 = 'af916ebb34809dcafe4a1a1d87909796bc9f9faafd81699dde5edfff0d92cedf';
+const PRE_D445_RESERVATIONS: readonly (readonly [string, string])[] = [
+  ['primary', 'hash-756'],
+  ['repair', 'hash-1307'],
+];
 
 const valid = '{"ok":true}';
 const invalid = '{"ok":false}';
@@ -337,6 +377,223 @@ describe('a proposal over the scripted model', () => {
       const { harness, sent } = scriptedEngine({ replies: [invalid, invalid, valid] });
       await expect(harness.propose(narrowed(['only_this']), signal)).resolves.toMatchObject({ kind: 'invalid_output' });
       expect(sent).toHaveLength(2);
+    });
+  });
+
+  describe('a second repair, for a role that opts into it (D-445)', () => {
+    // `{"ok":false}` is refused with the role's own code `copied`; `{"ok":"no"}` with the schema's type finding, another code.
+    const copying: ReasoningRole<unknown> = {
+      ...input().role,
+      outputSchema: z.object({ ok: z.boolean() }).superRefine((value, context) => {
+        if (!value.ok) context.addIssue({ code: 'custom', path: [], message: 'x', params: { safeCode: 'copied' } });
+      }),
+      safeCustomIssues: { copied: 'Fixed hint for copies.' },
+      repairWithPreviousAnswer: true,
+      repairNotes: (previousAnswer) => `NOTES-OF[${previousAnswer}]`,
+      secondRepairOnlyFor: ['copied'],
+    };
+    const withoutField: ReasoningRole<unknown> = (({ secondRepairOnlyFor: _unused, ...rest }) => rest)(copying);
+    const kept = { primary: 'ANSWER-OF-PRIMARY', repair: 'ANSWER-OF-FIRST-REPAIR' } as const;
+    const mixed = '{"ok":"no"}';
+
+    it('runs exactly one more repair when the first repair’s findings are all of its codes, a new attempt caused by the first repair', async () => {
+      const { harness, sent, reserved } = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      const outcome = await harness.propose(input({ role: copying }), signal);
+      expect(outcome).toMatchObject({ kind: 'proposed', output: { ok: true }, repaired: true });
+      expect(outcome).toMatchObject({ attemptId: reserved[2]?.id });
+      expect(sent).toHaveLength(3);
+      // Its own reservation, each a new attempt of its own step, caused by the attempt it repairs.
+      expect(reserved.map((reservation) => reservation.step)).toEqual(['primary', 'repair', 'repair2']);
+      expect(new Set(reserved.map((reservation) => reservation.id)).size).toBe(3);
+      expect(reserved.map((reservation) => reservation.causationAttemptId)).toEqual([
+        undefined,
+        reserved[0]?.id,
+        reserved[1]?.id,
+      ]);
+      for (const reservation of reserved) expect(reservation.reservedTokens).toBeGreaterThan(0);
+      expect(sent[2]?.system).toContain('Validation: your previous answer');
+      expect(sent[2]?.system).toContain('Fixed hint for copies.');
+    });
+
+    it('sends the first repair’s answer and the notes built from it, not the first write’s', async () => {
+      const { harness, sent } = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      await harness.propose(input({ role: copying }), signal);
+      expect(sent[1]?.user).toContain('ANSWER-OF-PRIMARY');
+      expect(sent[1]?.user).toContain('NOTES-OF[ANSWER-OF-PRIMARY]');
+      expect(sent[2]?.user).toContain('ANSWER-OF-FIRST-REPAIR');
+      expect(sent[2]?.user).toContain('NOTES-OF[ANSWER-OF-FIRST-REPAIR]');
+      expect(sent[2]?.user).not.toContain('ANSWER-OF-PRIMARY');
+    });
+
+    it('never sends a third repair: a proposal is three attempts at most', async () => {
+      const { harness, sent, reserved } = scriptedEngine({
+        replies: [invalid, invalid, invalid, valid],
+        keptByStep: kept,
+      });
+      const outcome = await harness.propose(input({ role: copying }), signal);
+      expect(outcome).toMatchObject({ kind: 'invalid_output', reason: 'OUTPUT_SCHEMA_MISMATCH' });
+      // The answer it ends on is the last one it was given: the second repair's.
+      expect(outcome).toMatchObject({ attemptId: reserved[2]?.id });
+      expect(sent).toHaveLength(3);
+      expect(reserved).toHaveLength(3);
+    });
+
+    it('sends none after a first repair refused for anything else, or for a mix of kinds', async () => {
+      const { harness, sent, reserved } = scriptedEngine({ replies: [invalid, mixed, valid], keptByStep: kept });
+      const outcome = await harness.propose(input({ role: copying }), signal);
+      expect(outcome).toMatchObject({ kind: 'invalid_output', attemptId: reserved[1]?.id });
+      expect(sent).toHaveLength(2);
+      expect(reserved.map((reservation) => reservation.step)).toEqual(['primary', 'repair']);
+    });
+
+    it('sends none after a first repair whose outcome is unknown or failed', async () => {
+      const unknown = scriptedEngine({
+        replies: [invalid, new ModelOutcomeUnknownError('TIMEOUT'), valid],
+        keptByStep: kept,
+      });
+      await expect(unknown.harness.propose(input({ role: copying }), signal)).resolves.toMatchObject({
+        kind: 'unknown',
+      });
+      expect(unknown.sent).toHaveLength(2);
+      const failed = scriptedEngine({
+        replies: [invalid, new ModelRejectedError('HTTP_500'), valid],
+        keptByStep: kept,
+      });
+      await expect(failed.harness.propose(input({ role: copying }), signal)).resolves.toMatchObject({
+        kind: 'failed',
+        code: 'HTTP_500',
+      });
+      expect(failed.sent).toHaveLength(2);
+    });
+
+    it('sends no repair at all when the caller forbids it, and narrows only the first repair with repairOnlyFor', async () => {
+      const forbidden = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      await expect(
+        forbidden.harness.propose(input({ role: copying, limits: { allowRepair: false } }), signal),
+      ).resolves.toMatchObject({ kind: 'invalid_output' });
+      expect(forbidden.sent).toHaveLength(1);
+      const narrowed = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      await expect(
+        narrowed.harness.propose(input({ role: copying, limits: { repairOnlyFor: ['another_code'] } }), signal),
+      ).resolves.toMatchObject({ kind: 'invalid_output' });
+      expect(narrowed.sent).toHaveLength(1);
+      // The first repair is allowed for the role's code; the second is then the role's own decision.
+      const allowed = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      await expect(
+        allowed.harness.propose(input({ role: copying, limits: { repairOnlyFor: ['copied'] } }), signal),
+      ).resolves.toMatchObject({ kind: 'proposed', repaired: true });
+      expect(allowed.sent).toHaveLength(3);
+    });
+
+    it('sends none when the first repair’s answer was not kept: there is nothing for it to revise', async () => {
+      const { harness, sent } = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: { primary: 'x' } });
+      await expect(harness.propose(input({ role: copying }), signal)).resolves.toMatchObject({
+        kind: 'invalid_output',
+      });
+      expect(sent).toHaveLength(2);
+    });
+
+    it('stops at the role’s budget for the attempt: each repair is reserved and checked on its own', async () => {
+      // Two requests a day for the role: the primary and the first repair fit; the second repair does not, and nothing is sent for it.
+      const tight = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept, roleRequestsPerDay: 2 });
+      await expect(tight.harness.propose(input({ role: copying }), signal)).resolves.toEqual({
+        kind: 'budget_exhausted',
+        dimension: 'role',
+        limit: 'requests',
+      });
+      expect(tight.sent).toHaveLength(2);
+      expect(tight.reserved).toHaveLength(2);
+      const roomy = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept, roleRequestsPerDay: 3 });
+      await expect(roomy.harness.propose(input({ role: copying }), signal)).resolves.toMatchObject({
+        kind: 'proposed',
+      });
+      expect(roomy.reserved).toHaveLength(3);
+    });
+
+    it('counts a refusal with more findings than the harness lists as mixed: its `more` entry is not a copy, so it gets no second repair', async () => {
+      // The harness lists at most eight findings and closes the list with a `more` entry (`MAX_ISSUES`). That entry's code is not the role's,
+      // and what it counts is unknown, so a refusal that was cut is not one of copies only.
+      const copiesAt = (count: number): ReasoningRole<unknown> => ({
+        ...copying,
+        outputSchema: z.object({ ok: z.boolean() }).superRefine((value, context) => {
+          if (!value.ok)
+            for (let index = 0; index < count; index += 1)
+              context.addIssue({ code: 'custom', path: [], message: 'x', params: { safeCode: 'copied' } });
+        }),
+      });
+      const eight = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      await expect(eight.harness.propose(input({ role: copiesAt(8) }), signal)).resolves.toMatchObject({
+        kind: 'proposed',
+        repaired: true,
+      });
+      expect(eight.sent).toHaveLength(3);
+      const nine = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+      await expect(nine.harness.propose(input({ role: copiesAt(9) }), signal)).resolves.toMatchObject({
+        kind: 'invalid_output',
+      });
+      expect(nine.sent).toHaveLength(2);
+      expect(nine.sent[1]?.system).toContain('(root): more (1 more)');
+    });
+
+    it('sends none when no request that carries the first repair’s answer fits: the findings alone are not a second repair', async () => {
+      const big = { primary: 'small answer', repair: 'x'.repeat(4_000) };
+      const fits = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: big, maxRequestBytes: 20_000 });
+      await expect(fits.harness.propose(input({ role: copying }), signal)).resolves.toMatchObject({ kind: 'proposed' });
+      expect(fits.sent).toHaveLength(3);
+      // The first repair fits (it carries the small answer); the second would carry 4,000 characters more than the limit allows.
+      const tight = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: big, maxRequestBytes: 3_000 });
+      await expect(tight.harness.propose(input({ role: copying }), signal)).resolves.toMatchObject({
+        kind: 'invalid_output',
+      });
+      expect(tight.sent).toHaveLength(2);
+      expect(tight.reserved.map((reservation) => reservation.step)).toEqual(['primary', 'repair']);
+    });
+
+    it('refuses a role that names no code, a malformed one, or has no refused answer to revise, before anything is sent', async () => {
+      for (const role of [
+        { ...copying, secondRepairOnlyFor: [] },
+        { ...copying, secondRepairOnlyFor: ['Not A Code'] },
+        { ...copying, secondRepairOnlyFor: Array.from({ length: 17 }, (_unused, index) => `code_${String(index)}`) },
+        { ...copying, repairWithPreviousAnswer: false },
+      ]) {
+        const { harness, sent } = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+        await expect(harness.propose(input({ role }), signal)).resolves.toEqual({
+          kind: 'refused',
+          reason: 'role_invalid',
+        });
+        expect(sent).toHaveLength(0);
+      }
+    });
+
+    describe('a role without the field is as it was, one repair and no more', () => {
+      it('gives up after one repair, with the same requests and the same reservations as the role with the field up to that point', async () => {
+        const without = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+        await expect(without.harness.propose(input({ role: withoutField }), signal)).resolves.toMatchObject({
+          kind: 'invalid_output',
+        });
+        expect(without.sent).toHaveLength(2);
+        expect(without.reserved.map((reservation) => reservation.step)).toEqual(['primary', 'repair']);
+        const opted = scriptedEngine({ replies: [invalid, valid], keptByStep: kept });
+        await opted.harness.propose(input({ role: copying }), signal);
+        // The first two requests do not depend on the field: byte for byte the same.
+        expect(JSON.stringify(opted.sent)).toBe(JSON.stringify(without.sent));
+        expect(opted.reserved.slice(0, 2).map((reservation) => reservation.requestHash)).toEqual(
+          without.reserved.map((reservation) => reservation.requestHash),
+        );
+      });
+
+      it('sends the requests it sent before the field existed, pinned by their hash', async () => {
+        // The digest was taken from the harness as it was before D-445, over the same script: a primary refused, a first repair
+        // that carries its answer and its notes, and a first repair refused again. Any change to either request changes it.
+        const { harness, sent, reserved } = scriptedEngine({ replies: [invalid, invalid, valid], keptByStep: kept });
+        await harness.propose(input({ role: withoutField }), signal);
+        const digest = createHash('sha256').update(JSON.stringify(sent)).digest('hex');
+        expect(digest).toBe(PRE_D445_REQUESTS_SHA256);
+        expect(reserved.map((reservation) => [reservation.step, reservation.requestHash])).toEqual(
+          PRE_D445_RESERVATIONS,
+        );
+        expect(reserved.map((reservation) => reservation.causationAttemptId)).toEqual([undefined, reserved[0]?.id]);
+      });
     });
   });
 

@@ -16,7 +16,7 @@ import type {
 } from '../../../../reasoning/public.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from '../evidence.js';
 import { isSentAttempt } from '../publication-topic.js';
-import { TOPICS } from '../topics.js';
+import { REQUEST_BOUND_V3_WRITER, TOPICS } from '../topics.js';
 import {
   compileGeneratedScrollV3,
   compileStagedScrollV3,
@@ -63,7 +63,7 @@ export interface SpikeStepLineV3 {
   readonly roleVersion: string;
   readonly outcome: SpikeOutcome;
   readonly code?: string;
-  /** Paid requests sent: 1 for a first take, 2 when a repair was needed. */
+  /** Paid requests sent: 1 for a first take, 2 when a repair was needed, 3 when a second repair was needed too (D-445). */
   readonly requests: number;
   /** The findings of each refused answer of the run: the repair's reason. */
   readonly findings: readonly SpikeFinding[];
@@ -155,7 +155,7 @@ const isAccepted = (outcome: SpikeOutcome): boolean =>
 /**
  * The writer spike for `scroll-writing-v3.v1` (#771): for a recipe and an arm, fetch the recipe's public research and
  * ask the document v3 writer through the production harness. Arm `a` is one run: the whole Scroll in one reply. Arm
- * `b` is two: the prose, and, once it is accepted, the staging of that prose. Each run allows the harness's one repair.
+ * `b` is two: the prose, and, once it is accepted, the staging of that prose. Each run allows the harness's repair, and the second one for copies the writer's roles opt into (D-445).
  * Nothing is admitted, published or stored in a content table: the only records are the harness's own (runs,
  * attempts, kept refused answers), so every paid attempt consults the attempt ledger and an unknown outcome is never resent.
  *
@@ -342,8 +342,8 @@ export function makeWriterSpikeV3(deps: WriterSpikeV3Deps) {
   const productionOf = (last: StepRun<unknown>): ProductionRecord => ({
     kind: 'model',
     runId: last.line.runId,
-    // The provenance records at most the primary attempt and its repair.
-    attemptIds: last.attemptIds.slice(-2),
+    // The provenance records at most the primary attempt and its two repairs.
+    attemptIds: last.attemptIds.slice(-REQUEST_BOUND_V3_WRITER),
     model: SPIKE_MODEL,
     promptVersion: last.line.roleVersion,
   });

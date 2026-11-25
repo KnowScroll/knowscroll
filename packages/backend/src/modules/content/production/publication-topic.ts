@@ -36,6 +36,7 @@ import {
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
   SCROLL_PRODUCTION_V3_SECOND_VERSION,
   SCROLL_PRODUCTION_V3_THIRD_VERSION,
+  SCROLL_PRODUCTION_V3_FOURTH_VERSION,
   scrollV3PlanOf,
 } from './topics.js';
 import {
@@ -43,10 +44,13 @@ import {
   WRITER_V3_PROMPT_VERSION_V1,
   WRITER_V3_PROMPT_VERSION_V2,
   WRITER_V3_PROMPT_VERSION_V3,
+  WRITER_V3_PROMPT_VERSION_V4,
 } from './writer-v3-version.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
-const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
+const SENT_STEP = /^(primary|repair|repair2)(\.[1-9])?$/;
+/** The logical steps of a take's sent attempts, in order: the writer, its first repair and the second repair its roles opt into (D-445). */
+const SENT_STEPS = ['primary', 'repair', 'repair2'] as const;
 const AttemptIdentity = z.object({
   attemptId: z.uuid(),
   step: z.string().regex(SENT_STEP),
@@ -70,7 +74,7 @@ export function isSentAttempt(attempt: { readonly state: string }): boolean {
   return attempt.state !== 'reserved' && attempt.state !== 'not_sent';
 }
 
-/** `primary.2` is the second try of the primary step: the logical step is what the lineage names. */
+/** `primary.2` is the second try of the primary step: the logical step is what the lineage names; `repair2` is the second repair. */
 const logicalStep = (step: string): string => step.split('.')[0] ?? step;
 
 /** A published generated revision whose job, recipe, document and writer attempts all agree. */
@@ -133,6 +137,7 @@ async function readPublishedRevision(
       SCROLL_PRODUCTION_V3_FIRST_VERSION,
       SCROLL_PRODUCTION_V3_SECOND_VERSION,
       SCROLL_PRODUCTION_V3_THIRD_VERSION,
+      SCROLL_PRODUCTION_V3_FOURTH_VERSION,
     ])
     .where('job.writer_run_id', '=', writerRunId)
     .where('job.scope_generation', '=', generation)
@@ -192,7 +197,7 @@ function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
  * The pairs of a job's production version and the writer prompt version its Scroll names that the lineage accepts for a recipe's
  * Scroll of this document schema. A pair is the version of the job and the instructions that ran under it, so a Scroll never
  * names a prompt its job did not run. A document v3 of a recipe the plan marks `scrollV3` also accepts the earlier pairs (D-438,
- * D-441, D-444): the revisions `scroll-production-v3.v1`, `.v2` and `.v3` wrote keep their lineage after the version moved, and no
+ * D-441, D-444, D-445): the revisions `scroll-production-v3.v1`, `.v2`, `.v3` and `.v4` wrote keep their lineage after the version moved, and no
  * new job is made at any of them. Pure.
  */
 export function lineagePairsOf(
@@ -206,6 +211,7 @@ export function lineagePairsOf(
         [SCROLL_PRODUCTION_V3_FIRST_VERSION, WRITER_V3_PROMPT_VERSION_V1],
         [SCROLL_PRODUCTION_V3_SECOND_VERSION, WRITER_V3_PROMPT_VERSION_V2],
         [SCROLL_PRODUCTION_V3_THIRD_VERSION, WRITER_V3_PROMPT_VERSION_V3],
+        [SCROLL_PRODUCTION_V3_FOURTH_VERSION, WRITER_V3_PROMPT_VERSION_V4],
       ]
     : [current];
 }
@@ -255,7 +261,7 @@ function matchesWriterAttempts(
   attempts: readonly ProductionAttemptAccounting[],
   production: { readonly model: string; readonly attemptIds: readonly string[] },
 ): boolean {
-  const identities = z.array(AttemptIdentity).min(1).max(2).safeParse(attempts.filter(isSentAttempt));
+  const identities = z.array(AttemptIdentity).min(1).max(SENT_STEPS.length).safeParse(attempts.filter(isSentAttempt));
   const receipts = z.array(z.unknown()).safeParse(outcomes);
   if (!identities.success || !receipts.success) return false;
   const writers = receipts.data.filter((outcome) => z.object({ role: z.literal('writer') }).safeParse(outcome).success);
@@ -269,8 +275,8 @@ function matchesWriterAttempts(
     !receipt.success ||
     !recorded?.success ||
     final === undefined ||
-    logicalStep(identities.data[0]?.step ?? '') !== 'primary' ||
-    (identities.data.length === 2 && logicalStep(final.step) !== 'repair') ||
+    // The sent attempts are the writer, then its first repair, then the second: each at its place, none skipped.
+    identities.data.some((attempt, index) => logicalStep(attempt.step) !== SENT_STEPS[index]) ||
     new Set(identities.data.map((attempt) => attempt.attemptId)).size !== identities.data.length ||
     identities.data.some((attempt) => attempt.model !== production.model) ||
     receipt.data.attemptId !== final.attemptId ||

@@ -21,7 +21,13 @@ import {
   type SafeCustomIssues,
 } from '../domain/output.js';
 import { HARNESS_PROMPT_VERSION, buildPrompt } from '../domain/prompt.js';
-import { makeExecuteAttempt, type AttemptPlan, type AttemptResult, type Judgement } from './execute-attempt.js';
+import {
+  makeExecuteAttempt,
+  type AttemptPlan,
+  type AttemptResult,
+  type AttemptStep,
+  type Judgement,
+} from './execute-attempt.js';
 import { PersonalCall, guardPersonalLedger, requirePersonalAccess } from './personal-guard.js';
 import {
   MAX_STORED_OUTPUT_BYTES,
@@ -77,6 +83,18 @@ export interface ReasoningRole<T> {
    * production keeps refused answers, so a personal role never receives it.
    */
   readonly repairWithPreviousAnswer?: boolean;
+  /**
+   * Opts the role into one more repair (a second one), for a refusal of these kinds only (D-445). After the first repair's answer is
+   * conclusively invalid, the harness runs exactly one more repair when every finding of that answer carries one of these codes (a code of
+   * the role's `safeCustomIssues`); any other refusal stands, and so does one cut at `MAX_ISSUES` findings, whose closing `more` entry is
+   * not one of these codes. The second repair is a new admitted attempt (step `repair2`) with its own reservation, budget check and
+   * causation (the first repair), and carries the first repair's answer, with the role's `repairNotes` rebuilt from it. Never a third:
+   * a proposal sends at most three requests. Never after an unknown, failed or unavailable first repair, nor when the caller set
+   * `allowRepair: false`; `ProposeLimits.repairOnlyFor` keeps its meaning for the first repair. Needs `repairWithPreviousAnswer` (the role
+   * is refused as invalid without it) and a request that carries the first repair's kept answer: none is sent where the ledger keeps no
+   * refused answer (the personal one) or no such request fits. Not set, the role has one repair, as every role did before.
+   */
+  readonly secondRepairOnlyFor?: readonly string[];
   /**
    * Facts the role can derive from the refused answer that a fixed finding cannot carry (for the
    * Scroll writer, which source words it copied). Called only when the repair carries the previous
@@ -135,12 +153,16 @@ export interface ReasoningContext {
 }
 
 export interface ProposeLimits {
-  /** Whether one repair attempt may follow an invalid answer (default `true`). */
+  /**
+   * Whether a repair attempt may follow an invalid answer (default `true`). `false` forbids every repair, the second one a role may
+   * opt into (`ReasoningRole.secondRepairOnlyFor`) included.
+   */
   readonly allowRepair?: boolean;
   /**
-   * Narrows the one repair to refusals of these kinds: it follows an invalid answer only when every finding of the
+   * Narrows the first repair to refusals of these kinds: it follows an invalid answer only when every finding of the
    * refusal carries one of these codes (a code of the role's `safeCustomIssues`), and any other refusal stands. Not set,
-   * every invalid answer may be repaired. Has no effect when `allowRepair` is `false`.
+   * every invalid answer may be repaired. Has no effect when `allowRepair` is `false`. It does not narrow a second repair,
+   * which the role's own `secondRepairOnlyFor` decides.
    */
   readonly repairOnlyFor?: readonly string[];
 }
@@ -181,7 +203,7 @@ export type ProposeOutcome<T> =
       readonly output: T;
       readonly attemptId: string;
       readonly usage: ReportedUsage;
-      /** The answer came from the one repair attempt. */
+      /** The answer came from a repair attempt (the first or, for a role that opted in, the second). */
       readonly repaired: boolean;
       /** A late conclusive answer after the attempt had been marked `unknown`. */
       readonly reconciled: boolean;
@@ -199,7 +221,8 @@ export type ProposeOutcome<T> =
 export interface ReasoningHarness<A = PersonalAuthority, S = PersonalScopeTx> {
   /**
    * Runs one role proposal for one business run: at most one primary attempt and, after a
-   * conclusively invalid answer, at most one repair attempt. No tool loop.
+   * conclusively invalid answer, at most one repair attempt; a role that opts in (`secondRepairOnlyFor`, D-445)
+   * gets one more repair when the first repair's findings are all of the codes it names, three attempts at most. No tool loop.
    *
    * Inputs: run (ID, authority, owner module, purpose, policy version), role (instructions,
    * schema, limits), the module's frozen context and limits; an abort signal (worker shutdown).
@@ -223,7 +246,7 @@ export interface ReasoningHarness<A = PersonalAuthority, S = PersonalScopeTx> {
    * attempt, and does not retry: starting a new run is the caller's decision.
    * Invariants: no transaction spans the network; unknown outcomes are never resent or repaired;
    * a repair is a new admitted attempt with its own reservation and causation, only after the
-   * first attempt is conclusively complete; provider-returned values are redacted before they are
+   * attempt it repairs is conclusively complete; provider-returned values are redacted before they are
    * stored or returned.
    */
   propose<T>(input: ProposeInput<T, A>, signal: AbortSignal): Promise<ProposeOutcome<T>>;
@@ -256,6 +279,20 @@ const codePattern = /^[a-z][a-z0-9_-]{0,63}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const refPattern = /^[A-Za-z0-9_.:@/-]{1,128}$/;
 
+/** The most codes a role may name for its second repair. */
+const MAX_SECOND_REPAIR_CODES = 16;
+
+/** A second repair names at least one code, each a well-formed code, and needs the refused answer to revise. */
+function secondRepairProblem<T>(role: ReasoningRole<T>): boolean {
+  const codes = role.secondRepairOnlyFor ?? [];
+  return (
+    role.repairWithPreviousAnswer !== true ||
+    codes.length === 0 ||
+    codes.length > MAX_SECOND_REPAIR_CODES ||
+    codes.some((code) => !codePattern.test(code))
+  );
+}
+
 function roleProblem<T>(role: ReasoningRole<T>): boolean {
   return (
     !roleIdPattern.test(role.id) ||
@@ -266,7 +303,8 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
     role.maxOutputTokens < 1 ||
     role.maxOutputTokens > MAX_ROLE_OUTPUT_TOKENS ||
     (role.minContextItems !== undefined && (!Number.isInteger(role.minContextItems) || role.minContextItems < 0)) ||
-    (role.safeCustomIssues !== undefined && !validSafeCustomIssues(role.safeCustomIssues))
+    (role.safeCustomIssues !== undefined && !validSafeCustomIssues(role.safeCustomIssues)) ||
+    (role.secondRepairOnlyFor !== undefined && secondRepairProblem(role))
   );
 }
 
@@ -639,12 +677,14 @@ function planAttempt<T, A, S>(
   ports: ExecutionPorts<A, S>,
   proposal: Proposal<T, A>,
   body: Uint8Array,
-  step: 'primary' | 'repair',
+  step: AttemptStep,
   causationAttemptId?: string,
 ): AttemptPlan<A> {
   const { run, role } = proposal.input;
   const requestHash = ports.hashBytes(body);
-  ports.beforeAttempt?.(step, requestHash);
+  // The personal binding knows two steps. A second repair needs a kept refused answer, which only the production ledger keeps,
+  // so it never runs where this binding is set.
+  if (step !== 'repair2') ports.beforeAttempt?.(step, requestHash);
   return {
     authority: run.authority,
     run: proposal.descriptor,
@@ -670,7 +710,7 @@ async function runAttempt<T, A, S>(
   signal: AbortSignal,
 ): Promise<AttemptOutcome<T>> {
   const result = await engine.executeAttempt(proposal.model, plan, proposal.judge, signal);
-  return outcomeOf(proposal.input.role.outputSchema, result, plan.step === 'repair');
+  return outcomeOf(proposal.input.role.outputSchema, result, plan.step !== 'primary');
 }
 
 /** The primary attempt. A request too large for the protected store is refused before anything is reserved. */
@@ -700,6 +740,12 @@ function repairFollows(refused: Repairable, limits: ProposeLimits | undefined): 
   );
 }
 
+/** Whether the role's second repair follows this refusal: every finding of it carries one of the codes the role named. */
+function secondRepairFollows<T>(refused: Repairable, role: ReasoningRole<T>): boolean {
+  const only = role.secondRepairOnlyFor;
+  return only !== undefined && refused.issues.length > 0 && refused.issues.every((issue) => only.includes(issue.code));
+}
+
 /**
  * The model's own refused answer, for a role that asks to revise it. Only nonpersonal production
  * keeps refused answers, so a personal role gets none.
@@ -714,27 +760,51 @@ async function keptAnswerFor<T, A, S>(
   return ports.ledger.readRejectedAnswerText?.({ scopeId: ports.scopeId(run.authority), attemptId: refusedAttemptId });
 }
 
-/** The richest repair request that fits: answer and notes, then the answer alone, then the findings alone. */
+/**
+ * The richest repair request that fits: answer and notes, then the answer alone, then the findings alone. With `answerRequired`
+ * (the second repair, which exists to revise the answer it is given) the findings alone are not a request: none fits, and none is sent.
+ */
 function repairRequest<T, A, S>(
   ports: ExecutionPorts<A, S>,
   proposal: Proposal<T, A>,
   issues: readonly OutputIssue[],
   previousAnswer: string | undefined,
+  answerRequired = false,
 ): Uint8Array | undefined {
   const { maxRequestBytes } = ports.settings;
   const notes = previousAnswer === undefined ? undefined : repairNotesOf(proposal.input.role, previousAnswer);
   return (
     encodeRequest(proposal, maxRequestBytes, { issues, previousAnswer, notes }) ??
     encodeRequest(proposal, maxRequestBytes, { issues, previousAnswer }) ??
-    encodeRequest(proposal, maxRequestBytes, { issues })
+    (answerRequired ? undefined : encodeRequest(proposal, maxRequestBytes, { issues }))
   );
 }
 
 /**
- * The one repair: a new attempt, caused by the conclusively complete primary, that sends the
- * validator's findings and, only for a production role that opts in, the model's own refused answer
- * as delimited data (a raw provider reply is never returned by the ledger). When no repair request
- * fits the protected store, the primary's refusal stands.
+ * A repair: a new attempt, caused by the conclusively complete attempt it repairs (`refused`), that sends the
+ * validator's findings and, only for a production role that opts in, the model's own refused answer as delimited data (a raw
+ * provider reply is never returned by the ledger). `step` is `repair` for the first and `repair2` for the second. `undefined` when no
+ * repair request fits the protected store: the refusal stands. A second repair needs the refused answer to revise, so it is also
+ * `undefined` without one, or when no request that carries it fits.
+ */
+async function runRepairAttempt<T, A, S>(
+  engine: Engine<A, S>,
+  proposal: Proposal<T, A>,
+  refused: Repairable,
+  step: 'repair' | 'repair2',
+  signal: AbortSignal,
+): Promise<AttemptOutcome<T> | undefined> {
+  const { ports } = engine;
+  const previousAnswer = await keptAnswerFor(ports, proposal, refused.attemptId);
+  if (step === 'repair2' && previousAnswer === undefined) return undefined;
+  const body = repairRequest(ports, proposal, refused.issues, previousAnswer, step === 'repair2');
+  if (body === undefined) return undefined;
+  return runAttempt(engine, proposal, planAttempt(ports, proposal, body, step, refused.attemptId), signal);
+}
+
+/**
+ * The first repair, and for a role that opted in (`ReasoningRole.secondRepairOnlyFor`) the one more that follows it when the
+ * first repair's answer is conclusively invalid with findings of only those codes. Never a third attempt of this kind.
  */
 async function runRepair<T, A, S>(
   engine: Engine<A, S>,
@@ -742,24 +812,20 @@ async function runRepair<T, A, S>(
   refused: Repairable,
   signal: AbortSignal,
 ): Promise<ProposeOutcome<T>> {
-  const { ports } = engine;
-  const previousAnswer = await keptAnswerFor(ports, proposal, refused.attemptId);
-  const body = repairRequest(ports, proposal, refused.issues, previousAnswer);
-  if (body === undefined) return invalidOutputOf(refused);
-  const repair = await runAttempt(
-    engine,
-    proposal,
-    planAttempt(ports, proposal, body, 'repair', refused.attemptId),
-    signal,
-  );
-  return repair.kind === 'repairable' ? invalidOutputOf(repair) : repair;
+  const first = await runRepairAttempt(engine, proposal, refused, 'repair', signal);
+  if (first === undefined) return invalidOutputOf(refused);
+  if (first.kind !== 'repairable') return first;
+  if (!secondRepairFollows(first, proposal.input.role)) return invalidOutputOf(first);
+  const second = await runRepairAttempt(engine, proposal, first, 'repair2', signal);
+  if (second === undefined) return invalidOutputOf(first);
+  return second.kind === 'repairable' ? invalidOutputOf(second) : second;
 }
 
 /**
  * The shared proposal and attempt engine, selected only by the two concrete composition adapters
  * (personal: `makeBoundPersonalHarness`; nonpersonal production). A proposal runs admission, an
  * opportunistic purge, the primary attempt and, after a conclusively invalid answer and unless the
- * caller forbids it, one repair. No tool loop; every step passes its values explicitly.
+ * caller forbids it, one repair, and for a role that opts in one more when only its codes are left. No tool loop; every step passes its values explicitly.
  */
 export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): ReasoningHarness<A, S> {
   const engine: Engine<A, S> = { ports, executeAttempt: makeExecuteAttempt(ports) };

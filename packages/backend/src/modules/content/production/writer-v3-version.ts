@@ -7,13 +7,15 @@
  * v4 (D-444): an `authoring_number_not_in_evidence` finding says in the repair notes where the figure is (a passage to cite, how a cited
  * passage writes it, or that it is in none; also for a reply the shape refused), a copy note lists up to four runs of a place, and the
  * instructions say that a picture's short texts are the writer's own words and how a figure that ends a range is read.
- * The role's own version (`scroll-writer-v3a.v3`, since D-444) is different on purpose: it names the arm in the attempt ledger and the
+ * v5 (D-445): a refusal that only has copies left after the first repair gets a second repair (the roles' `secondRepairOnlyFor`), the repair notes' headers and the
+ * instructions say a repair changes only the parts its notes name and returns every other item and picture exactly as it was.
+ * The role's own version (`scroll-writer-v3a.v4`, since D-445) is different on purpose: it names the arm in the attempt ledger and the
  * contract of its instructions, hints and schema (it moved with this version, because those changed); the attempts of a take are told
  * apart by the run's policy version.
  * `versions.test.ts` pairs this string with `SCROLL_PRODUCTION_V3_VERSION`, so a new writer cannot reuse the old writer's takes.
  * Kept in a module of its own so the production versions and the lineage can name it without loading the writer.
  */
-export const WRITER_V3_PROMPT_VERSION = 'scroll-writer-v3.v4';
+export const WRITER_V3_PROMPT_VERSION = 'scroll-writer-v3.v5';
 
 /** The prompt version of the writer that ran under `scroll-production-v3.v1`: the revisions it wrote (the first five on dev) still name it. */
 export const WRITER_V3_PROMPT_VERSION_V1 = 'scroll-writer-v3.v1';
@@ -23,3 +25,6 @@ export const WRITER_V3_PROMPT_VERSION_V2 = 'scroll-writer-v3.v2';
 
 /** The prompt version of the writer that ran under `scroll-production-v3.v3` (D-441): the revisions it wrote still name it. */
 export const WRITER_V3_PROMPT_VERSION_V3 = 'scroll-writer-v3.v3';
+
+/** The prompt version of the writer that ran under `scroll-production-v3.v4` (D-444): the revisions it wrote still name it. */
+export const WRITER_V3_PROMPT_VERSION_V4 = 'scroll-writer-v3.v4';

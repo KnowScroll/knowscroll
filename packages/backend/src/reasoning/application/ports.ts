@@ -491,7 +491,7 @@ export interface AttemptLedger<S = PersonalScopeTx> {
   /**
    * The kept text of a refused answer, if it is the model's own answer (never a raw provider reply),
    * was kept whole (not cut at the bound) and has not expired: what a role that asks for it gets to
-   * revise in its one repair. Production ledger only.
+   * revise in its repair (and its second one, `secondRepairOnlyFor`). Production ledger only.
    */
   readonly readRejectedAnswerText?: (attempt: AttemptRef) => Promise<string | undefined>;
   /** Usage that arrived for an attempt already written off: recorded on its receipt only. */

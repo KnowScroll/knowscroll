@@ -16,6 +16,7 @@ import {
   makeWriterSpikeV3,
   parseSpikeArms,
   parseSpikeTopicsV3,
+  REQUEST_BOUND_V3_WRITER,
   runSpikeJobs,
   SPIKE_ID_PATTERN,
   SPIKE_MAX_CONCURRENCY,
@@ -39,8 +40,8 @@ export interface WriterSpikeV3Options {
   readonly dispatchedBy: string;
 }
 
-/** The most paid requests a job can send: the writer and its repair, and for arm b the stager and its repair too. */
-const requestBound = (job: SpikeJobV3): number => (job.arm === 'a' ? 2 : 4);
+/** The most paid requests a job can send: the writer and its two repairs (D-445), and for arm b the stager and its repairs too. */
+const requestBound = (job: SpikeJobV3): number => (job.arm === 'a' ? 1 : 2) * REQUEST_BOUND_V3_WRITER;
 
 /** The line written to `--out` for an accepted job: the compiled document and the claims each part cites. */
 function documentLine(spikeId: string, result: SpikeResultV3): string | undefined {
