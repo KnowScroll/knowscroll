@@ -7,6 +7,7 @@
 import { PanResponder, type GestureResponderEvent, type PanResponderInstance } from 'react-native';
 import type { FlightLeg } from '../frame-rate/frame-meter';
 import type { RigFocus } from '../space/camera-rig';
+import { clamp } from '../space/paint';
 import type { loadSpaceRenderer } from '../space/load-space-renderer';
 import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
@@ -30,6 +31,12 @@ import { loadVoyageRenderer } from './voyage-loader';
 
 /** A pinch has to open or close by this much to move a stop (the prototype's 1.4 and 1/1.4). */
 const PINCH_STEP = 1.4;
+/** How near and how far a pinch may take the camera, as a share of its stop's distance. */
+const PINCH_ZOOM = { least: 0.35, most: 3 } as const;
+/** Fingers closer than this (points) count as this far apart, so the zoom never runs away (the prototype's `max(20, d)`). */
+const PINCH_SPREAD_FLOOR = 20;
+/** A pinch that asked for a flight lets go of the camera after this long (seconds) if no flight has started. */
+const PINCH_HOLD_SECONDS = 0.5;
 /** A drag has to move this far before it turns the view; a shorter press is a tap on whatever is under it. */
 const DRAG_START = 8;
 /** Where the ship may go on a phone: clear of the header above and the chips below (the prototype's margins). */
@@ -105,21 +112,39 @@ function nearestAnchor(anchors: readonly SpaceAnchor[], kinds: readonly SpaceAnc
   return best;
 }
 
-/** One stop down, toward what is under a point: a system, a planet of the star, the ground of the planet. */
+/** Where one stop down goes from `view`, toward a point: the system or planet nearest it, the ground, or nowhere. */
+export function descentOf(
+  view: UniverseView,
+  anchors: readonly SpaceAnchor[],
+  x: number,
+  y: number,
+): { readonly focus: string } | 'land' | null {
+  if (view.kind === 'universe') {
+    const system = nearestAnchor(anchors, ['system'], x, y);
+    return system === undefined ? null : { focus: system.id };
+  }
+  if (view.kind === 'system') {
+    const planet = nearestAnchor(anchors, ['planet'], x, y);
+    return planet === undefined ? null : { focus: planet.id };
+  }
+  return view.landed ? null : 'land';
+}
+
+/** Goes one stop down as {@link descentOf} says. Returns whether it moved. */
+function goDown(session: UniverseMapSession, descent: ReturnType<typeof descentOf>): boolean {
+  if (descent === null) return false;
+  return descent === 'land' ? session.land() : session.focus(descent.focus);
+}
+
+/** One stop down, toward what is under a point: a system, a planet of the star, the ground of the planet. Returns whether it moved. */
 export function descend(
   session: UniverseMapSession,
   view: UniverseView,
   anchors: readonly SpaceAnchor[],
   x: number,
   y: number,
-): void {
-  if (view.kind === 'universe') {
-    const system = nearestAnchor(anchors, ['system'], x, y);
-    if (system) void session.focus(system.id);
-  } else if (view.kind === 'system') {
-    const planet = nearestAnchor(anchors, ['planet'], x, y);
-    if (planet) void session.focus(planet.id);
-  } else if (!view.landed) void session.land();
+): boolean {
+  return goDown(session, descentOf(view, anchors, x, y));
 }
 
 /** Places the ship could be let go over: everything named on screen. */
@@ -194,6 +219,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   });
   let held: { x: number; y: number } | null = null;
   let seconds = 0;
+  /** How long a pinch that asked for a flight has held the camera since the fingers lifted. */
+  let pinchHeldFor = 0;
   const legs = createFlightLegs(first.target);
 
   const control: VoyageControl = {
@@ -205,8 +232,13 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     universeFocus: first.universeFocus,
     systemFocus: first.systemFocus,
     lean: { x: 0, y: 0 },
+    zoom: null,
     afterFrame: (frame): DrawnShip => {
       seconds += frame.dt;
+      if (control.zoom !== null && mode !== 'pinch') {
+        pinchHeldFor += frame.dt;
+        if (pinchHeldFor > PINCH_HOLD_SECONDS) control.zoom = null;
+      }
       const { width, height } = frame.size;
       ship = stepShip(
         ship,
@@ -214,7 +246,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
           home: homeOf(frame, anchors, inputs.target.regionId, seconds, inputs.reducedMotion),
           drag: held,
           targets: shipTargets(anchors),
-          away: frame.flying,
+          // A pinch moves the camera under the ship, so it goes, as it does for a flight (the prototype's `zoomBusy`).
+          away: frame.flying || mode === 'pinch',
           bounds: {
             left: SHIP_MARGINS.side,
             right: width - SHIP_MARGINS.side,
@@ -230,7 +263,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       control.lean = ship.lean;
       const landed = legs.frame(frame.flying, frame.programs, performance.now());
       if (landed !== null) inputs.onFlight?.(landed);
-      return drawn(ship);
+      const caught = ship.candidate === null ? undefined : anchors.find((anchor) => anchor.id === ship.candidate);
+      return drawn(ship, caught === undefined ? null : { x: caught.x, y: caught.y });
     },
   };
 
@@ -240,7 +274,11 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   let startTurn = { x: 0, y: 0 };
   let startSpread = 0;
   let lastSpread = 0;
-  let pinchAt = { x: 0, y: 0 };
+  /**
+   * Where a pinch in would go: what was under the fingers when they came down. It is chosen then, because the camera
+   * zooms toward it as they spread and everything else moves on screen.
+   */
+  let pinchDescent: ReturnType<typeof descentOf> = null;
   const local = (event: GestureResponderEvent) => ({
     x: event.nativeEvent.pageX - origin.x,
     y: event.nativeEvent.pageY - origin.y,
@@ -250,6 +288,17 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     return one && two ? Math.hypot(one.pageX - two.pageX, one.pageY - two.pageY) : 0;
   };
   const centre = () => ({ x: inputs.size.width / 2, y: inputs.size.height / 2 });
+  const beginPinch = (event: GestureResponderEvent) => {
+    const [one, two] = event.nativeEvent.touches;
+    mode = 'pinch';
+    startSpread = spread(event);
+    lastSpread = startSpread;
+    const between =
+      one && two
+        ? { x: (one.pageX + two.pageX) / 2 - origin.x, y: (one.pageY + two.pageY) / 2 - origin.y }
+        : local(event);
+    pinchDescent = descentOf(inputs.view, anchors, between.x, between.y);
+  };
 
   const responder = PanResponder.create({
     // A finger on the ship takes it at once, before a button under it can.
@@ -261,10 +310,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       spread(event) > 0 || Math.abs(gesture.dx) + Math.abs(gesture.dy) > DRAG_START,
     onPanResponderGrant: (event) => {
       const at = local(event);
-      startSpread = spread(event);
-      lastSpread = startSpread;
-      pinchAt = at;
-      if (startSpread > 0) mode = 'pinch';
+      startSpread = 0;
+      if (spread(event) > 0) beginPinch(event);
       else if (pickShip(ship, at.x, at.y)) {
         mode = 'ship';
         held = at;
@@ -275,11 +322,14 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     onPanResponderMove: (event, gesture) => {
       const now = spread(event);
       if (now > 0) {
-        if (mode !== 'pinch') {
-          mode = 'pinch';
-          startSpread = now;
-        }
+        if (mode !== 'pinch') beginPinch(event);
         lastSpread = now;
+        // The camera follows the fingers (the prototype's `zoomTo`); with reduced motion it only moves on release.
+        if (!inputs.reducedMotion)
+          control.zoom = {
+            scale: clamp(startSpread / Math.max(PINCH_SPREAD_FLOOR, now), PINCH_ZOOM.least, PINCH_ZOOM.most),
+            toward: pinchDescent !== null && pinchDescent !== 'land' ? pinchDescent.focus : null,
+          };
         return;
       }
       if (mode === 'ship') {
@@ -302,15 +352,22 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
           inputs.onStation?.(goTo);
         else if (goTo !== null) void inputs.session.focus(goTo);
       } else if (mode === 'pinch' && startSpread > 0) {
+        // Far enough, one stop in or out, and the flight leaves from where the pinch left the camera; not far enough,
+        // or nothing to go to, and the camera eases back to its stop.
         const ratio = lastSpread / startSpread;
-        if (ratio > PINCH_STEP) descend(inputs.session, inputs.view, anchors, pinchAt.x, pinchAt.y);
-        else if (ratio < 1 / PINCH_STEP) climbOneStop(inputs.session, inputs.view);
+        const moved =
+          ratio > PINCH_STEP
+            ? goDown(inputs.session, pinchDescent)
+            : ratio < 1 / PINCH_STEP && climbOneStop(inputs.session, inputs.view);
+        pinchHeldFor = 0;
+        if (!moved) control.zoom = null;
       }
       mode = 'turn';
     },
     onPanResponderTerminate: () => {
       held = null;
       mode = 'turn';
+      control.zoom = null;
     },
     onPanResponderTerminationRequest: () => mode !== 'ship',
   });
@@ -322,8 +379,10 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     responder,
     sync(next) {
       if (targetKey(next.target) !== targetKey(inputs.target)) {
-        // Going somewhere calls the ship home: it parks at the new stop.
+        // Going somewhere calls the ship home: it parks at the new stop. A pinch's zoom has done its work: the flight
+        // leaves from where it left the camera.
         ship = recentreShip(ship);
+        control.zoom = null;
         legs.asked(next.target, performance.now());
       }
       inputs = next;

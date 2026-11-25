@@ -101,7 +101,7 @@ export interface SceneScripting {
   /** Eases the atmosphere of a planet and the glow of its sun down as the camera comes close; `undefined` restores them. */
   readonly closeUp: (
     planetId: string,
-    state: { atmosphere: number; sunBloom: number; sunGlow: number } | undefined,
+    state: { atmosphere: number; sunBloom: number; sunGlow: number; sun?: number } | undefined,
   ) => void;
   /** Turns a planet's ring and moon into the planet view's, or back with `null`. */
   readonly handOver: (planetId: string, handover: PlanetHandover | null) => void;
@@ -536,7 +536,7 @@ export function buildSpace(
       const body = bodyOf(planetId);
       if (body === undefined) return;
       body.planet.setAtmosphere(state?.atmosphere ?? 1.15);
-      live.get(body.systemId)?.build.sun.setCloseUp(state?.sunBloom ?? 1, state?.sunGlow ?? 1);
+      live.get(body.systemId)?.build.sun.setCloseUp(state?.sunBloom ?? 1, state?.sunGlow ?? 1, state?.sun ?? 1);
     },
     handOver: (planetId, handover) => bodyOf(planetId)?.planet.handOver(handover),
   };

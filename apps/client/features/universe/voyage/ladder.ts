@@ -23,16 +23,21 @@ export interface StopSpec {
    * above the middle on a phone, so the chips at the bottom never cover it.
    */
   readonly heldAt: number;
-  /** The kinds of place the stop names with a button: the systems from afar, a star's planets, a planet's regions. */
+  /** The kinds of place the stop gives a named button: the systems from afar, a star's planets, a planet's regions. */
   readonly names: readonly SpaceAnchor['kind'][];
+  /**
+   * The kinds whose name is also written beside them. From afar a room's name would crowd its star's, so there it is
+   * only its button's, for a screen reader.
+   */
+  readonly written: readonly SpaceAnchor['kind'][];
 }
 
 /** The ladder as data: one row per stop. Stations and dust are named where they are, beside their star. */
 export const STOPS: Readonly<Record<Stop, StopSpec>> = {
-  universe: { heldAt: 0.455, names: ['system', 'station', 'dust'] },
-  star: { heldAt: 0.5, names: ['planet', 'station', 'dust'] },
-  planet: { heldAt: 0.415, names: ['region'] },
-  ground: { heldAt: 0.45, names: ['region'] },
+  universe: { heldAt: 0.455, names: ['system', 'station', 'dust'], written: ['system'] },
+  star: { heldAt: 0.5, names: ['planet', 'station', 'dust'], written: ['planet', 'station'] },
+  planet: { heldAt: 0.415, names: ['region'], written: ['region'] },
+  ground: { heldAt: 0.45, names: ['region'], written: ['region'] },
 };
 
 /** Where the person is going: a stop of the ladder and the places that make it. */
@@ -86,14 +91,11 @@ export function climbsToGlobe(view: UniverseView): boolean {
 
 /**
  * One stop up the ladder: the ground climbs to its planet's globe, everything else to its parent. The Back pill's
- * `up` goes from a landed planet straight to its system, which would skip the planet stop.
+ * `up` goes from a landed planet straight to its system, which would skip the planet stop. Returns whether it moved.
  */
-export function climbOneStop(session: UniverseMapSession, view: UniverseView): void {
-  if (view.kind === 'planet' && climbsToGlobe(view)) {
-    void session.focus(view.planet.objectId);
-    return;
-  }
-  void session.up();
+export function climbOneStop(session: UniverseMapSession, view: UniverseView): boolean {
+  if (view.kind === 'planet' && climbsToGlobe(view)) return session.focus(view.planet.objectId);
+  return session.up();
 }
 
 /**

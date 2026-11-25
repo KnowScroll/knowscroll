@@ -67,6 +67,7 @@ function rig(initial: VoyageTarget) {
       return system && { kind: 'system', systemId: id, center: system.position, radius: 7.5 };
     },
     lean: { x: 0, y: 0 },
+    zoom: null,
     afterFrame: (frame) => {
       frames.push(frame);
       return null;

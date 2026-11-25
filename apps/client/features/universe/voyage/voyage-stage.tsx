@@ -28,6 +28,10 @@ import { labelPoints } from './world-texture';
 
 /** How far below a region's point its name sits, in points. */
 const REGION_NAME_GAP = 14;
+/** A region's name is a pill: its sides take this much more than plain text (`MapLabel`'s pill padding). */
+const PILL_PADDING = 20;
+/** A star's sun keeps names off its glow as well as its disc: this many of its radii. */
+const SUN_CLEARANCE = 1.4;
 /** A body's name sits this far below its edge, in points ... */
 const BODY_NAME_GAP = 6;
 /** ... counted from at least this radius, so a tiny body's name still clears its button. */
@@ -122,9 +126,19 @@ export function VoyageStage({
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {
       const named = STOPS[stop].names;
+      // Below the whole universe only the star you are at is drawn: the other stars' bodies are hidden, but their
+      // anchors are still reported (a hidden parent leaves a child's own `visible` set).
+      const own = (anchor: SpaceAnchor) =>
+        stop === 'universe' || anchor.kind === 'dust' || anchor.systemId === systemId;
+      const sun =
+        stop === 'universe'
+          ? undefined
+          : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
       return (
         <VoyageOverlay
-          anchors={info.anchors.filter((anchor) => named.includes(anchor.kind))}
+          anchors={info.anchors.filter((anchor) => named.includes(anchor.kind) && own(anchor))}
+          written={STOPS[stop].written}
+          keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
           size={size}
           focusId={focusId}
           onAnchors={controller.setAnchors}
@@ -134,7 +148,7 @@ export function VoyageStage({
         />
       );
     },
-    [controller, session, onStation, onDust, stop, size, focusId],
+    [controller, session, onStation, onDust, stop, systemId, size, focusId],
   );
 
   const stage = useRef<ComponentRef<typeof View>>(null);
@@ -218,7 +232,12 @@ function usePlanetSurface(
   }, [planet, plan, globe, index]);
 }
 
-/** Every place on screen is a named 48 px button over the canvas, with its name beside it. */
+/** A box no name may cover: the square round a body, `share` of its radius out from its middle. */
+const squareAround = (anchor: SpaceAnchor, share: number) => {
+  const reach = Math.max(anchor.radiusPx, MIN_BODY_RADIUS) * share;
+  return { x: anchor.x - reach, y: anchor.y - reach, width: 2 * reach, height: 2 * reach };
+};
+
 /** A place's name, with what its station says on the map ("6 of 7 · Reel live"), as the old map shows it. */
 const captioned = (anchor: SpaceAnchor): string =>
   anchor.mapCaption === undefined ? anchor.name : `${anchor.name} · ${anchor.mapCaption}`;
@@ -243,29 +262,33 @@ function placeNames(
   anchors: readonly SpaceAnchor[],
   size: { readonly width: number; readonly height: number },
   focusId: string | null,
+  keepOff: readonly Box[],
 ) {
   const bands = size.width >= DESKTOP_WIDTH ? LABEL_BANDS.desktop : LABEL_BANDS.phone;
-  const requests: LabelRequest[] = anchors
-    .filter((anchor) => anchor.kind !== 'dust')
-    .map((anchor) => ({
-      id: anchor.id,
-      anchor: { x: anchor.x, y: anchor.y },
-      clearance:
-        anchor.kind === 'region' ? REGION_NAME_GAP : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
-      width: labelWidth(captioned(anchor)),
-      height: LABEL_HEIGHT,
-      priority: (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
-    }));
+  const requests: LabelRequest[] = anchors.map((anchor) => ({
+    id: anchor.id,
+    anchor: { x: anchor.x, y: anchor.y },
+    clearance: anchor.kind === 'region' ? REGION_NAME_GAP : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
+    width: anchor.kind === 'region' ? labelWidth(captioned(anchor), PILL_PADDING) : labelWidth(captioned(anchor)),
+    height: LABEL_HEIGHT,
+    priority: (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
+  }));
   return new Map(
     placeLabels(requests, size, [
       { x: 0, y: 0, width: size.width, height: bands.top },
       { x: 0, y: size.height - bands.bottom, width: size.width, height: bands.bottom },
+      ...keepOff,
     ]).map((label) => [label.id, label]),
   );
 }
 
+/** A box on screen, in layout points. */
+type Box = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+
 function VoyageOverlay({
   anchors,
+  written,
+  keepOff,
   size,
   focusId,
   onAnchors,
@@ -274,6 +297,10 @@ function VoyageOverlay({
   onDust,
 }: {
   readonly anchors: readonly SpaceAnchor[];
+  /** The kinds whose names are written beside them at this stop; the others are named for a screen reader only. */
+  readonly written: readonly SpaceAnchor['kind'][];
+  /** Where no name may sit, beside the header and the chips: a star's sun. */
+  readonly keepOff: readonly Box[];
   readonly size: { readonly width: number; readonly height: number };
   readonly focusId: string | null;
   /** Told the places this stop names after each frame is shown: what the ship and the gestures can reach. */
@@ -284,7 +311,12 @@ function VoyageOverlay({
 }) {
   useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
   const shown = anchors.filter((anchor) => anchor.visible);
-  const names = placeNames(shown, size, focusId);
+  const names = placeNames(
+    shown.filter((anchor) => written.includes(anchor.kind)),
+    size,
+    focusId,
+    keepOff,
+  );
   // Bodies orbit and pass close: crowded targets shrink and step apart so each stays a target of its own.
   const targets = new Map(
     separateTargets(shown.map((anchor) => ({ id: anchor.id, x: anchor.x, y: anchor.y, size: target.comfortable }))).map(

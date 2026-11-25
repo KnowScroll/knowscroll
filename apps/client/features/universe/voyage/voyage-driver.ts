@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import type { Vec3 } from '../space/camera-rig';
-import { clamp } from '../space/paint';
+import { clamp, smooth } from '../space/paint';
 import type { BuiltSpace } from '../space/scene/build-scene';
 import type { SpaceCameraDriver } from '../space/space-renderer';
 import { flightAt, planFlight, type FlightPlan } from './flight';
@@ -22,6 +22,15 @@ import { createShipLayer } from './ship-layer';
 import { chainOf, focalOf, peakOf, type ChainPlaces, type PlacedChain, type ViewSize } from './voyage-chains';
 import type { VoyageControl, VoyagePlanet } from './voyage-control';
 import { heldOffset, placeCamera, vec, viewDirection } from './voyage-view';
+
+/** How fast the camera eases back to its stop after a pinch lets go of it without moving a stop (per second). */
+const ZOOM_RELAX_RATE = 6;
+/** A pinch never takes the camera nearer a planet's centre than this many of its radii. */
+const NEAREST_RADII = 1.15;
+/** Pinched out this far at a star, the camera shows the other stars as well, as the whole universe does. */
+const SHOW_ALL_FROM_ZOOM = 1.3;
+/** Pinched in to this share of its stop's distance, the camera aims wholly at the place under the fingers (1 / 1.4, the step). */
+const AIMED_AT_ZOOM = 0.714;
 
 /** A flight under way: its plan, the time it started (set on its first frame) and the target it leaves. */
 interface Flight {
@@ -52,6 +61,12 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   /** The target the camera was last sent to: what the next flight leaves. */
   let arrived: VoyageTarget | null = null;
   let flight: Flight | null = null;
+  /** The pinch's zoom as drawn: the screen's while a pinch holds the camera, easing back to 1 when it lets go. */
+  let zoom = 1;
+  /** How far the camera's aim has turned toward the place a pinch in would go to (0 to 1), easing back with the zoom. */
+  let aim = 0;
+  /** Where the camera turns its aim while pinched in: the place's own point, as its stop would look at it. */
+  let aimPoint: Vec3 | null = null;
   /** The last planet the screen gave: kept while a flight leaves it, so its globe does not drop to the painted body. */
   let lastPlanet: VoyagePlanet | null = null;
   /** The planet drawn as a world now: the screen's, or the one a flight is still leaving. */
@@ -80,17 +95,28 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     },
   });
 
-  /** Starts a flight to a new target, or cuts to it on the first frame and under reduced motion. */
-  const retarget = (places: ChainPlaces, size: ViewSize) => {
+  /** The point a pinch in turns the camera toward: a star's (from the whole universe) or a planet's (from its star). */
+  const aimOf = (placeId: string | null, places: ChainPlaces, size: ViewSize): Vec3 | null => {
+    if (placeId === null) return null;
+    if (places.systemFocus(placeId) !== undefined)
+      return chainOf({ stop: 'star', systemId: placeId, planetId: null, regionId: null }, places, size).chain[0]!.point;
+    return places.planetAt(placeId)?.position ?? null;
+  };
+
+  /**
+   * Starts a flight to a new target, or cuts to it on the first frame and under reduced motion. A flight a pinch asked
+   * for is quicker: the fingers already moved the camera part of the way. Returns whether the target changed.
+   */
+  const retarget = (places: ChainPlaces, size: ViewSize, pinched: boolean): boolean => {
     const next = control.target;
     const key = targetKey(next);
-    if (key === currentKey) return;
+    if (key === currentKey) return false;
     currentKey = key;
     const leaving = arrived;
     arrived = next;
     if (station === null || leaving === null || control.reducedMotion) {
       flight = null;
-      return;
+      return true;
     }
     const from = chainOf(leaving, places, size);
     const to = chainOf(next, places, size);
@@ -103,10 +129,12 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         fromChain: from.chain,
         toChain: to.chain,
         touchesGround: next.stop === 'ground' || leaving.stop === 'ground',
+        fast: pinched,
       }),
       startedAt: null,
       from: leaving,
     };
+    return true;
   };
 
   return {
@@ -119,7 +147,20 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       lastT = t;
       lastDt = dt;
       const places = placesOf(space);
-      retarget(places, size);
+      // A new flight leaves from where the camera stands and looks, a pinch's zoom included, and carries it from there.
+      if (retarget(places, size, control.zoom !== null)) zoom = 1;
+      if (flight !== null || control.reducedMotion) {
+        zoom = 1;
+        aim = 0;
+      } else if (control.zoom !== null) {
+        zoom = control.zoom.scale;
+        aimPoint = aimOf(control.zoom.toward, places, size) ?? aimPoint;
+        aim = aimPoint === null ? 0 : smooth(1, AIMED_AT_ZOOM, zoom);
+      } else {
+        const relax = Math.exp(-dt * ZOOM_RELAX_RATE);
+        zoom = 1 + (zoom - 1) * relax;
+        aim *= relax;
+      }
       const target = chainOf(control.target, places, size);
       let focus: Vec3;
       let distance: number;
@@ -137,8 +178,16 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         if (frame.done) flight = null;
       } else {
         // At rest the camera looks at the place itself: on the ground too, the planet's centre, from nearer.
-        distance = target.stopDistance;
-        focus = target.chain[0]!.point;
+        distance = Math.max(target.stopDistance * zoom, (target.planetRadius ?? 0) * NEAREST_RADII);
+        const here = target.chain[0]!.point;
+        focus =
+          aim > 0 && aimPoint !== null
+            ? [
+                here[0] + (aimPoint[0] - here[0]) * aim,
+                here[1] + (aimPoint[1] - here[1]) * aim,
+                here[2] + (aimPoint[2] - here[2]) * aim,
+              ]
+            : here;
       }
       station = { ids: target.ids, focus, distance };
 
@@ -178,7 +227,10 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       // A star or anything below it shows its own system alone once the camera has nearly arrived, and keeps it alone
       // for the first part of a flight away, so the other systems come in as the camera climbs and not at once.
       const keptAlone = leaving !== null && leaving.stop !== 'universe' && q < 0.4 ? leaving.systemId : null;
-      const alone = control.target.stop !== 'universe' && q > 0.6 ? control.target.systemId : keptAlone;
+      const alone =
+        control.target.stop !== 'universe' && q > 0.6 && zoom < SHOW_ALL_FROM_ZOOM
+          ? control.target.systemId
+          : keptAlone;
       space.showOnly(alone);
       return camera;
     },

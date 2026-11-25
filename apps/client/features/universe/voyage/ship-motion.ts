@@ -86,6 +86,11 @@ export interface DrawnShip {
   readonly heading: number;
   readonly flame: number;
   readonly alpha: number;
+  /**
+   * Where the place the held ship bends toward is on screen, if any: it lights up, so the person sees what letting go
+   * would do (the prototype's `PICK` glow).
+   */
+  readonly catchAt?: Point | null;
 }
 
 /** What letting go of the ship does. */
@@ -322,7 +327,7 @@ export function recentreShip(state: ShipState): ShipState {
 }
 
 /** The ship as it is painted: when it hides it rises, grows and fades (the prototype's `e`, lines 1916 and 1921). */
-export function drawn(state: ShipState): DrawnShip {
+export function drawn(state: ShipState, catchAt: Point | null = null): DrawnShip {
   const presence = smootherstep(clamp(state.vis, 0, 1));
   return {
     x: state.x,
@@ -331,6 +336,7 @@ export function drawn(state: ShipState): DrawnShip {
     heading: state.heading,
     flame: state.flame,
     alpha: presence,
+    catchAt,
   };
 }
 

@@ -67,6 +67,18 @@ const GLOW_RADIUS_MIN = 0.4;
 const GLOW_RADIUS_PER_FLAME = 0.8;
 /** The size of the glow's texture, in pixels. */
 const GLOW_SIZE = 64;
+/** The glow round the place a held ship bends toward: the prototype's `PICK` sprite, 88 points across at 0.95 (line 1904). */
+const CATCH_GLOW = {
+  size: 88,
+  opacity: 0.95,
+  colour: '#FFE44D',
+  /** Alpha from the middle out: `rgba(255,228,77,0.55)`, then 0.3 at 0.45 of the way, then 0 (line 272). */
+  stops: [
+    [0, 0.55],
+    [0.45, 0.3],
+    [1, 0],
+  ],
+} as const;
 /** The ship is not drawn at or below this opacity: the prototype's `fa <= 0.02` (line 1920). */
 const HIDDEN_ALPHA = 0.02;
 /** How far either side of the board the layer's camera sees. Parts are ordered by `renderOrder`, not depth, so it only has to be wide enough to cut nothing. */
@@ -197,6 +209,22 @@ export function createShipLayer(): ShipLayer {
   });
   materials.push(glowMaterial);
 
+  // The catch glow lies under the ship, on the place it would go to, in screen points.
+  const catchTexture = pixelTexture(radialGlow(CATCH_GLOW.stops, GLOW_SIZE));
+  const catchMaterial = new THREE.SpriteMaterial({
+    map: catchTexture,
+    color: CATCH_GLOW.colour,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  materials.push(catchMaterial);
+  const catchGlow = new THREE.Sprite(catchMaterial);
+  // Drawn before every part of the ship (the parts count up from 0).
+  catchGlow.renderOrder = -1;
+  catchGlow.visible = false;
+  catchGlow.scale.set(CATCH_GLOW.size, CATCH_GLOW.size, 1);
+
   const root = new THREE.Group();
   root.visible = false;
   const glow = new THREE.Sprite(glowMaterial);
@@ -225,6 +253,7 @@ export function createShipLayer(): ShipLayer {
   addPart(board, translatedGeometry([circleShape(PORTHOLE.x, PORTHOLE.y, PORTHOLE.radius + rim)]), COLOURS.portholeRim);
   addPart(board, translatedGeometry([circleShape(PORTHOLE.x, PORTHOLE.y, PORTHOLE.radius - rim)]), COLOURS.porthole);
   scene.add(root);
+  scene.add(catchGlow);
 
   return {
     scene,
@@ -238,6 +267,12 @@ export function createShipLayer(): ShipLayer {
     },
     draw(ship, seconds = 0) {
       root.visible = ship.alpha > HIDDEN_ALPHA;
+      const catchAt = ship.catchAt ?? null;
+      catchGlow.visible = root.visible && catchAt !== null;
+      if (catchAt !== null) {
+        catchGlow.position.set(catchAt.x, catchAt.y, 0);
+        catchMaterial.opacity = CATCH_GLOW.opacity * ship.alpha;
+      }
       if (!root.visible) return;
       root.position.set(ship.x, ship.y, 0);
       root.rotation.z = ship.heading;
@@ -256,9 +291,11 @@ export function createShipLayer(): ShipLayer {
     },
     dispose() {
       scene.remove(root);
+      scene.remove(catchGlow);
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
       glowTexture.dispose();
+      catchTexture.dispose();
       geometries.length = 0;
       materials.length = 0;
     },

@@ -50,6 +50,8 @@ const LIGHT_TO_PX = 430;
 const NAMED_FROM_PX = 90;
 /** A region's name point is shown while its surface faces the camera at least this much (cosine of the angle). */
 const FACING_LEAST = 0.25;
+/** The sun starts to shrink away once the globe shows this much (its opacity), and is gone when it is whole. */
+const SUN_GONE_FROM = 0.3;
 /** Where the light comes from when the planet's star is not in the scene. */
 const DEFAULT_TO_SUN = new THREE.Vector3(-0.45, 0.55, 0.7);
 
@@ -136,6 +138,9 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
       atmosphere: 1.15 * (1 - opacity),
       sunBloom: 1 - 0.85 * opacity,
       sunGlow: 1 - 0.85 * opacity,
+      // The prototype's planet stop shows no sun, and a sun cut off by the screen's edge reads as a flat shape: it
+      // shrinks away, glow and all, as the globe takes over, and the sky behind the planet goes dark.
+      sun: 1 - smooth(SUN_GONE_FROM, 1, opacity),
     });
     const body = space.script.planet(planetId);
     if (body) body.object.visible = opacity < 0.98;
