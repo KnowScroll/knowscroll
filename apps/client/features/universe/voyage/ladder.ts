@@ -36,14 +36,11 @@ export function targetKey(target: {
   return `${target.stop}|${target.systemId ?? ''}|${target.planetId ?? ''}|${target.regionId ?? ''}`;
 }
 
-/** A view of a planet, on its globe or landed. */
-type PlanetView = Extract<UniverseView, { readonly kind: 'planet' }>;
-
 /**
  * True on the ground of a whole planet, with no region chosen: one step up is that planet's globe, not its star. A
  * chosen region climbs to the ground first (`selectedRegion`), so this is false for it.
  */
-export function climbsToGlobe(view: UniverseView): view is PlanetView {
+export function climbsToGlobe(view: UniverseView): boolean {
   return view.kind === 'planet' && view.landed && view.selectedRegion === undefined;
 }
 
@@ -52,7 +49,7 @@ export function climbsToGlobe(view: UniverseView): view is PlanetView {
  * `up` goes from a landed planet straight to its system, which would skip the planet stop.
  */
 export function climbOneStop(session: UniverseMapSession, view: UniverseView): void {
-  if (climbsToGlobe(view)) {
+  if (view.kind === 'planet' && climbsToGlobe(view)) {
     void session.focus(view.planet.objectId);
     return;
   }
