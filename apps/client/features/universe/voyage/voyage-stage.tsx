@@ -12,9 +12,9 @@ import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
 import { CROWDED_TARGET, separateTargets } from '../space/separate-targets';
 import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
-import type { UniverseView } from '../universe-layout';
+import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { stopOf, type Stop } from './ladder';
+import { climbOneStop, stopOf, type Stop } from './ladder';
 import { createVoyageController, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet, VoyageTarget } from './voyage-driver';
 import { labelPoints } from './world-texture';
@@ -103,6 +103,8 @@ export function VoyageStage({
 
   const systemId = inputs.target.systemId;
   const stop = inputs.target.stop;
+  /** The place the camera is at: its name wins a crowded spot. */
+  const focusId = inputs.target.regionId ?? inputs.target.planetId ?? inputs.target.systemId;
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
   // you are, of what you turned or of the planet's world must be one.
   const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
@@ -122,13 +124,15 @@ export function VoyageStage({
       return (
         <VoyageOverlay
           anchors={shown}
+          size={size}
+          focusId={focusId}
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
         />
       );
     },
-    [controller, session, onStation, onDust, stop],
+    [controller, session, onStation, onDust, stop, size, focusId],
   );
 
   const stage = useRef<ComponentRef<typeof View>>(null);
@@ -144,6 +148,23 @@ export function VoyageStage({
     element.addEventListener('wheel', wheel, { passive: false });
     return () => element.removeEventListener('wheel', wheel);
   }, [controller]);
+  // Escape on the ground climbs one stop, to the planet's globe, as the Back pill does. The Universe's own Escape (close
+  // what is open, else go up a level) listens after this one and handles every other case; its "up" would skip the
+  // globe and go straight to the star.
+  const onGround = view.kind === 'planet' && view.landed && view.selectedRegion === undefined;
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !onGround) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.altKey || event.ctrlKey || event.metaKey) return;
+      const { overlay, selectedId } = session.getState();
+      if (overlay !== null || selectedId !== null || document.querySelector('[aria-modal="true"]') !== null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      climbOneStop(session, view);
+    };
+    window.addEventListener('keydown', escape, { capture: true });
+    return () => window.removeEventListener('keydown', escape, { capture: true });
+  }, [onGround, session, view]);
   const onKeyDown: NonNullable<ViewProps['onKeyDown']> = (event) => {
     if (event.target !== event.currentTarget || !('key' in event.nativeEvent)) return;
     // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.
@@ -197,12 +218,15 @@ function usePlanetSurface(
     if (!planet || !plan || globe.status !== 'ready') return null;
     const chart = chartWorld(globe.world, plan.sites);
     const names = new Map((index.regions.get(planet.objectId) ?? []).map((region) => [region.objectId, region.label]));
+    const hueShift = plan.look?.hueShift ?? 0;
+    // Everything the painted texture depends on: a new look (its type or hue) repaints the globe as a new chart does.
+    const sites = plan.sites.map((site) => `${site.objectId}:${String(site.site)}`).join(',');
     return {
-      key: `${planet.objectId}|${plan.sites.map((site) => `${site.objectId}:${String(site.site)}`).join(',')}`,
+      key: `${planet.objectId}|${plan.spec.type}|${String(hueShift)}|${sites}`,
       planetId: planet.objectId,
       world: globe.world,
       chart,
-      palette: paletteOf(plan.spec.type, plan.look?.hueShift ?? 0),
+      palette: paletteOf(plan.spec.type, hueShift),
       labels: labelPoints(chart),
       names,
     };
@@ -210,18 +234,63 @@ function usePlanetSurface(
 }
 
 /** Every place on screen is a named 48 px button over the canvas, with its name beside it. */
+/**
+ * Where names may not sit, as the prototype keeps them (its label pass, `top` and `bot`): clear of the header and of the
+ * chips and caption at the bottom. On a desktop (the prototype's `W >= 900`) the bands are narrower.
+ */
+const LABEL_BANDS = {
+  phone: { top: 150, bottom: 196 },
+  desktop: { top: 64, bottom: 46 },
+} as const;
+const DESKTOP_WIDTH = 900;
+
+/**
+ * The names of the places on screen, placed so that none covers another or the header and chips: each tries below,
+ * above, right and left of its place, and a name with no free spot is left out until the camera comes closer (its
+ * button keeps the name for a screen reader). The place the camera is at is placed first, then planets, systems and
+ * regions, then rooms.
+ */
+function placeNames(
+  anchors: readonly SpaceAnchor[],
+  size: { readonly width: number; readonly height: number },
+  focusId: string | null,
+) {
+  const bands = size.width >= DESKTOP_WIDTH ? LABEL_BANDS.desktop : LABEL_BANDS.phone;
+  const requests: LabelRequest[] = anchors
+    .filter((anchor) => anchor.kind !== 'dust')
+    .map((anchor) => ({
+      id: anchor.id,
+      anchor: { x: anchor.x, y: anchor.y },
+      clearance: anchor.kind === 'region' ? 14 : Math.max(anchor.radiusPx, 6) + 6,
+      width: labelWidth(anchor.name),
+      height: LABEL_HEIGHT,
+      priority: (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
+    }));
+  return new Map(
+    placeLabels(requests, size, [
+      { x: 0, y: 0, width: size.width, height: bands.top },
+      { x: 0, y: size.height - bands.bottom, width: size.width, height: bands.bottom },
+    ]).map((label) => [label.id, label]),
+  );
+}
+
 function VoyageOverlay({
   anchors,
+  size,
+  focusId,
   onPlace,
   onStation,
   onDust,
 }: {
   readonly anchors: readonly SpaceAnchor[];
+  readonly size: { readonly width: number; readonly height: number };
+  readonly focusId: string | null;
   readonly onPlace: (id: string) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
 }) {
   const shown = anchors.filter((anchor) => anchor.visible);
+  const names = placeNames(shown, size, focusId);
   // Bodies orbit and pass close: crowded targets shrink and step apart so each stays a target of its own.
   const targets = new Map(
     separateTargets(shown.map((anchor) => ({ id: anchor.id, x: anchor.x, y: anchor.y, size: target.comfortable }))).map(
@@ -246,15 +315,12 @@ function VoyageOverlay({
             />
           );
         const kind = anchor.kind === 'station' ? undefined : anchor.kind;
-        const width = labelWidth(anchor.name);
-        const below = anchor.kind === 'region' ? 14 : Math.max(anchor.radiusPx, 6) + 6;
+        const name = names.get(anchor.id);
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            <MapLabel
-              label={{ id: anchor.id, x: anchor.x - width / 2, y: anchor.y + below, width, height: LABEL_HEIGHT }}
-              text={anchor.name}
-              variant={anchor.kind === 'region' ? 'pill' : 'plain'}
-            />
+            {name === undefined ? null : (
+              <MapLabel label={name} text={anchor.name} variant={anchor.kind === 'region' ? 'pill' : 'plain'} />
+            )}
             <BodyTarget
               x={box.x}
               y={box.y}

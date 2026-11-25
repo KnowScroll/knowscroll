@@ -2,7 +2,7 @@ import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { climbOneStop } from './ladder';
-import { descend, homeOf } from './voyage-controller';
+import { createVoyageController, descend, homeOf } from './voyage-controller';
 
 const descriptor = (objectId: string, parentId = 'system') => ({ objectId, parentId }) as never;
 
@@ -96,5 +96,37 @@ describe('where the ship parks', () => {
     expect(free).toMatchObject({ x: 195, y: 844 * 0.675 });
     const crowded = homeOf({ size, globe: null }, [anchor('s', 'system', 195, 844 * 0.675)], null, 0);
     expect(crowded.x).not.toBe(195);
+  });
+});
+
+describe('keys', () => {
+  it('turns by every arrow press, even several before the screen renders again', () => {
+    const turns: { x: number; y: number }[] = [];
+    const session = {
+      camera: (frame: { x: number; y: number }) => {
+        turns.push({ x: frame.x, y: frame.y });
+        return true;
+      },
+    } as unknown as UniverseMapSession;
+    const controller = createVoyageController({
+      session,
+      view: { kind: 'system' } as never,
+      target: { stop: 'star', systemId: 'system', planetId: null, regionId: null } as never,
+      size: { width: 390, height: 844 },
+      turn: { x: 0, y: 0 },
+      planet: null,
+      siblings: [],
+      reducedMotion: false,
+      universeFocus: { kind: 'universe' } as never,
+      systemFocus: () => undefined,
+    });
+    controller.key('ArrowRight');
+    controller.key('ArrowRight');
+    controller.key('ArrowUp');
+    expect(turns).toEqual([
+      { x: 60, y: 0 },
+      { x: 120, y: 0 },
+      { x: 120, y: -60 },
+    ]);
   });
 });

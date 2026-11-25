@@ -285,9 +285,14 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       else climbOneStop(inputs.session, inputs.view);
     },
     key(name) {
-      const { session, view, turn } = inputs;
+      const { session, view } = inputs;
       const at = centre();
-      const turnBy = (dx: number, dy: number) => session.camera({ x: turn.x + dx, y: turn.y + dy, scale: 1 });
+      // Built on the turn the last key asked for, not the last render's: a held arrow repeats faster than the screen
+      // re-renders, and every press has to count.
+      const turnBy = (dx: number, dy: number) => {
+        control.turn = { x: control.turn.x + dx, y: control.turn.y + dy };
+        session.camera({ ...control.turn, scale: 1 });
+      };
       const actions: Readonly<Record<string, () => void>> = {
         ArrowLeft: () => turnBy(-60, 0),
         ArrowRight: () => turnBy(60, 0),

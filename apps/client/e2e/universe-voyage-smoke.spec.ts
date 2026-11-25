@@ -90,6 +90,21 @@ test('with reduced motion every stop is drawn at once, and the globe’s regions
   await shot(page, 'voyage-5-ground-reduced-motion');
 });
 
+test('Escape on the ground climbs one stop, to the planet’s globe, as the Back pill does', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openVoyage(page, [], { calm: true });
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click({ timeout: 30_000 });
+  await page.getByTestId('voyage-stage').focus();
+  await page.keyboard.press('+');
+  await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Back to CI system 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toBeVisible();
+});
+
 /**
  * What the Universe screen paints, in page order: the colour of each visible piece of text, each background that is not
  * transparent, each border that has a width, and each SVG shape's fill and stroke. The tab bar and the rest of the app
