@@ -116,7 +116,7 @@ itself fails `schema-structure.test.ts`, instead of silently masking every path.
   repair doubles it (a role that opts into a second repair, `secondRepairOnlyFor`, D-445, triples it: the
   Scroll writer's roles do). Declare `expireInSeconds ≥ 2 × (10 + request deadline in seconds + 10) + 30`
   (550 s with the defaults, 670 s at the 300 s maximum), and `3 × (…) + 30` for a role with a second repair
-  (790 s with the defaults, 990 s at the maximum). A job that makes several proposals counts
+  (810 s with the defaults, 990 s at the maximum). A job that makes several proposals counts
   every request it may send at `10 + 300 + 10` s each: the Scroll production job fourteen for the answer
   to a question plus 180 s for research and database steps (`content.produce-answer`,
   `PRODUCE_ANSWER_CLAIM_SECONDS`, 4,660 s, D-267, D-297), a library recipe its six (`content.produce-scroll`, 2,100 s; a take of the document v3 writer sends three of them at most, the writer and its two repairs, D-445, 3 × 320 + 180 = 1,140 s, so the claim did not change), the support check of a held library Scroll its eleven, ten batches and the harness's one repair (`content.check-library-support`, 3,700 s, D-415), and the Quick answer job its six paid attempts (1,950 s). Below that, pg-boss expires a
