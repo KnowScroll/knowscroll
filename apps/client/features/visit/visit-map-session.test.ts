@@ -113,7 +113,7 @@ describe('a friend’s map session: when it is live', () => {
     expect(session.getState().focusId).toBeNull();
   });
 
-  it('reads again through the screen’s Refresh only while live', async () => {
+  it('reads again through the screen’s Refresh while live', async () => {
     const { session, refresh } = open();
     await session.refresh();
     expect(refresh).toHaveBeenCalledTimes(1);

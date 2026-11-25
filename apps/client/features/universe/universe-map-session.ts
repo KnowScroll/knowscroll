@@ -66,7 +66,11 @@ export interface UniverseMapSession {
   readonly places: () => readonly UniversePlace[];
   /** The scene descriptors the places are drawn from. A drawing may ask for geometry only of one of these. */
   readonly descriptors: () => readonly SceneDescriptor[];
-  /** Flies to a place, pushing a Back step; `land` on a planet goes straight to its map. False when the place is not on the map. */
+  /**
+   * Flies to a place. It adds a Back step, except between places that replace each other (regions of one planet on
+   * your own map, planets of one system on a friend's). `land` on a planet goes straight to its map. False when the
+   * place is not on the map.
+   */
   readonly focus: (id: string, options?: { readonly land?: boolean }) => boolean;
   /** One step back: closes a sheet, then a pick, then returns to the previous camera. False when there is nothing to go back to. */
   readonly back: () => boolean;
