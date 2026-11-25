@@ -5,11 +5,13 @@
  * below copies the design prototype (`Universe.dc.html`, Round 7.3) it names the prototype's own constant.
  */
 import { PanResponder, type GestureResponderEvent, type PanResponderInstance } from 'react-native';
+import type { FlightLeg } from '../frame-rate/frame-meter';
 import type { RigFocus } from '../space/camera-rig';
 import type { loadSpaceRenderer } from '../space/load-space-renderer';
 import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
+import { createFlightLegs } from './flight-legs';
 import { climbOneStop, targetKey, type VoyageTarget } from './ladder';
 import {
   drawn,
@@ -84,6 +86,8 @@ export interface VoyageInputs {
   readonly systemFocus: (systemId: string) => Extract<RigFocus, { kind: 'system' }> | undefined;
   /** Opens a room: what a tap on its station does, and what letting the ship go over it does. */
   readonly onStation?: (id: string) => void;
+  /** Told of each flight once it lands, when the frame-rate readout is on. */
+  readonly onFlight?: (leg: FlightLeg) => void;
 }
 
 /** The nearest visible anchor of one of `kinds` to a point on screen. */
@@ -190,6 +194,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   });
   let held: { x: number; y: number } | null = null;
   let seconds = 0;
+  const legs = createFlightLegs(first.target);
 
   const control: VoyageControl = {
     target: first.target,
@@ -223,6 +228,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         frame.dt,
       );
       control.lean = ship.lean;
+      const landed = legs.frame(frame.flying, frame.programs, performance.now());
+      if (landed !== null) inputs.onFlight?.(landed);
       return drawn(ship);
     },
   };
@@ -314,8 +321,11 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     load: loadVoyageRenderer(control),
     responder,
     sync(next) {
-      // Going somewhere calls the ship home: it parks at the new stop.
-      if (targetKey(next.target) !== targetKey(inputs.target)) ship = recentreShip(ship);
+      if (targetKey(next.target) !== targetKey(inputs.target)) {
+        // Going somewhere calls the ship home: it parks at the new stop.
+        ship = recentreShip(ship);
+        legs.asked(next.target, performance.now());
+      }
       inputs = next;
       control.target = next.target;
       control.turn = next.turn;

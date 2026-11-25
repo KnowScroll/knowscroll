@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 import { chartWorld } from '@knowscroll/scene-core';
 import { target } from '@knowscroll/design-tokens';
-import { useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
+import { useFlightRecorder, useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
 import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
@@ -78,6 +78,7 @@ export function VoyageStage({
     [index, looks, stations, state.dust.cues, state.lately],
   );
   const planet = usePlanetSurface(session, state, index, view);
+  const recordFlight = useFlightRecorder();
   const inputs: VoyageInputs = {
     session,
     view,
@@ -93,6 +94,7 @@ export function VoyageStage({
     universeFocus: space.universeFocus,
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),
+    ...(recordFlight ? { onFlight: recordFlight } : {}),
   };
   const [controller] = useState(() => createVoyageController(inputs));
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must

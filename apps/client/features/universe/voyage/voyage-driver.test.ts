@@ -77,7 +77,13 @@ function rig(initial: VoyageTarget) {
     },
   };
   const compileAsync = jest.fn(() => Promise.resolve());
-  const renderer = { autoClear: true, clearDepth() {}, render() {}, compileAsync } as unknown as THREE.WebGLRenderer;
+  const renderer = {
+    autoClear: true,
+    info: { programs: [] },
+    clearDepth() {},
+    render() {},
+    compileAsync,
+  } as unknown as THREE.WebGLRenderer;
   const driver = createVoyageDriver(control);
   driver.attach(space);
   let t = 0;

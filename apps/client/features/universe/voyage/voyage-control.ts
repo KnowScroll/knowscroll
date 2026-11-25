@@ -64,4 +64,6 @@ export interface VoyageFrame {
   readonly globe: GlobeOnScreen | null;
   /** The size of the view, in layout points. */
   readonly size: { readonly width: number; readonly height: number };
+  /** How many shader programs three.js holds now, for the frame-rate readout: a rise during a flight is a link. */
+  readonly programs: number;
 }
