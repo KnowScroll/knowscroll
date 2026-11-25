@@ -50,6 +50,8 @@ export interface VoyageControl {
    * is; null when no pinch holds the camera, and the camera eases back to its stop.
    */
   zoom: { readonly scale: number; readonly toward: string | null } | null;
+  /** How many times the person asked to skip a flight: the driver ends the flight under way when this grows. */
+  skips: number;
   /** Called after each frame drawn: the screen moves the ship with the frame and says where to draw it, if anywhere. */
   afterFrame?: (frame: VoyageFrame) => DrawnShip | null;
 }

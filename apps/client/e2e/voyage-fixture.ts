@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { COLLECTION_READS, fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 
@@ -194,6 +194,13 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
   });
   await page.goto('/universe');
 }
+
+/**
+ * Waits until no flight is under way: the screen says where a flight is going while it flies, and a tap then skips it
+ * instead of reaching a place, so a test taps a place only once it has landed.
+ */
+export const landed = (page: Page): Promise<void> =>
+  expect(page.getByTestId('voyage-flight')).toHaveCount(0, { timeout: 30_000 });
 
 /** The readout's two lines as one, for the pull request. */
 export const readoutOf = async (page: Page): Promise<string> =>

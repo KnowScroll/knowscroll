@@ -68,6 +68,7 @@ function rig(initial: VoyageTarget) {
     },
     lean: { x: 0, y: 0 },
     zoom: null,
+    skips: 0,
     afterFrame: (frame) => {
       frames.push(frame);
       return null;
