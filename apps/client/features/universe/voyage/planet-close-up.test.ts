@@ -58,8 +58,7 @@ function rig(initial: VoyageTarget) {
     turn: { x: 0, y: 0 },
     planet: null,
     siblings: [],
-    // One painter is finished in one frame, so a test can count frames instead of milliseconds.
-    reducedMotion: true,
+    reducedMotion: false,
     universeFocus: { kind: 'universe', center: { x: 0, z: 0 }, halfWidth: 1, halfDepth: 1 },
     systemFocus: () => undefined,
     lean: { x: 0, y: 0 },
@@ -92,7 +91,10 @@ function rig(initial: VoyageTarget) {
 
 beforeEach(() => {
   calls.length = 0;
+  // A clock that never moves: a painter's 4 ms never run out, so each finishes in one frame and a test counts frames.
+  jest.spyOn(performance, 'now').mockReturnValue(0);
 });
+afterEach(() => jest.restoreAllMocks());
 
 describe('when the close-up paints the ground patch', () => {
   it('paints the quick texture, then the patch for the first region, then the sharper texture: one painter a frame', () => {
@@ -165,9 +167,18 @@ describe('when the close-up paints the ground patch', () => {
     expect(r.run(planetOf('w2')).map((call) => call.kind)).toEqual(['patch']);
   });
 
+  it('paints no patch under reduced motion, where a frame would hold for the whole of it: the ground keeps the sharper texture', () => {
+    const r = rig(target('ground'));
+    r.control.reducedMotion = true;
+    const planet = planetOf('w1');
+    const kinds = [r.run(planet), r.run(planet), r.run(planet)].flat().map((call) => call.kind);
+    expect(kinds).not.toContain('patch');
+    expect(kinds.filter((kind) => kind === 'texture').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps each frame to one painter step within the budget when it is not reducing motion', () => {
     const r = rig(target('ground'));
-    r.control.reducedMotion = false;
+    jest.restoreAllMocks();
     let clock = 0;
     jest.spyOn(performance, 'now').mockImplementation(() => (clock += 1));
     const planet = planetOf('w1');

@@ -224,7 +224,10 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
         look: worldLookOf(world.palette),
       });
     }
-    const landing = painted?.key === world.key && inFall(control.target.stop) ? landingOf(world) : null;
+    // Under reduced motion every texture is painted in the one frame drawn, so a patch would hold that frame for a
+    // second on a phone, again at every region: the ground keeps the sharper whole-band texture there instead.
+    const landing =
+      !control.reducedMotion && painted?.key === world.key && inFall(control.target.stop) ? landingOf(world) : null;
     const patchKey = landing === null ? null : `${world.key}|${landing.x}|${landing.lat}|${size.width}x${size.height}`;
     if (patching !== null && patching.key !== patchKey) patching = null;
     if (patchKey !== null && landing !== null && patchWorn !== patchKey && patching === null) {

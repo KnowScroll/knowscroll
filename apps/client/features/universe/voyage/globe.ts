@@ -42,6 +42,8 @@ import {
  * come out darker than the palette.
  */
 
+/** The patch comes in from this far down (`near`, 0 in orbit, 1 on the ground) and is whole on the ground. */
+const PATCH_FROM_NEAR = 0.5;
 /** The patch gives way to the whole-band texture over this many band units inside its window's edge (about 70 points on the ground). */
 const PATCH_SOFT_EDGE = 10;
 /** The halo of air reaches this many planet radii (the prototype's `R * 1.34`). */
@@ -126,7 +128,9 @@ const FRAGMENT = /* glsl */ `
     // left edge wrapping round the seam), met softly inside its edge. Row 0 of the patch is its top, as the band's.
     vec2 inPatch = vec2(mod(uv.x * ${BAND_WIDTH.toFixed(1)} - patchBox.x, ${BAND_WIDTH.toFixed(1)}), bandY - patchBox.y);
     float fromEdge = min(min(inPatch.x, patchBox.z - inPatch.x), min(inPatch.y, patchBox.w - inPatch.y));
-    float patchShown = patchOn * smoothstep(0.0, ${PATCH_SOFT_EDGE.toFixed(1)}, fromEdge);
+    // Its lines are drawn for the ground's scale: from orbit they would be too fine and would shimmer, so the patch
+    // comes in only as the camera nears the ground.
+    float patchShown = patchOn * smoothstep(0.0, ${PATCH_SOFT_EDGE.toFixed(1)}, fromEdge) * smoothstep(${PATCH_FROM_NEAR.toFixed(1)}, 1.0, near);
     land = mix(land, texture2D(patchMap, clamp(inPatch / patchBox.zw, 0.0, 1.0)), patchShown) * painted;
     // Above the band's edges: no land, and the palette's cap where it has one, met softly.
     float outside = smoothstep(0.0, 0.02, max(-v, v - 1.0));
