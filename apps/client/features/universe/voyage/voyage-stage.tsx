@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Platform, StyleSheet, View, type ViewProps } from 'react-native';
+import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 import { chartWorld } from '@knowscroll/scene-core';
 import { target } from '@knowscroll/design-tokens';
 import { useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
@@ -37,6 +37,13 @@ const targetOf = (view: UniverseView): VoyageTarget => {
     regionId: view.selectedRegion?.objectId ?? null,
   };
 };
+
+/**
+ * On the web a browser handles some touches itself unless told not to: two fingers zoom the page, a drag down pulls
+ * to refresh. Every touch on the stage is the Universe's (turn, pinch one stop, fly the ship), so it takes them all.
+ * `touchAction` is a web style React Native's types do not list; React Native Web passes it through.
+ */
+const WEB_TOUCH = Platform.OS === 'web' ? ({ touchAction: 'none' } as unknown as ViewStyle) : null;
 
 /**
  * The Universe's Round 7.3 look, on trial behind a device switch (#811): one camera that flies along the ladder
@@ -153,7 +160,7 @@ export function VoyageStage({
   return (
     <View
       ref={stage}
-      style={StyleSheet.absoluteFill}
+      style={[StyleSheet.absoluteFill, WEB_TOUCH]}
       focusable
       onLayout={measure}
       {...(Platform.OS === 'web' ? { onKeyDown } : {})}

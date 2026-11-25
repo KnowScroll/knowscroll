@@ -172,6 +172,62 @@ test('with reduced motion every stop is drawn at once, and the globe’s regions
   await shot(page, 'voyage-5-ground-reduced-motion');
 });
 
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  /** Two fingers on the stage, `from` px apart, spread or closed to `to` px about a point, then lifted. */
+  async function pinch(page: Page, at: { x: number; y: number }, from: number, to: number): Promise<void> {
+    const cdp = await page.context().newCDPSession(page);
+    const fingers = (spread: number) => [
+      { x: at.x - spread / 2, y: at.y, id: 0 },
+      { x: at.x + spread / 2, y: at.y, id: 1 },
+    ];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(from) });
+    for (let step = 1; step <= 8; step += 1)
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: fingers(from + ((to - from) * step) / 8),
+      });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+  }
+
+  test('a two-finger pinch moves one stop and never zooms the page', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openUniverse(page, []);
+    const stage = page.getByTestId('voyage-stage');
+    // The browser leaves every touch on the stage to the Universe: no page zoom, no scroll, no pull to refresh.
+    await expect(stage).toHaveCSS('touch-action', 'none');
+    const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+    await expect(system).toBeVisible({ timeout: 60_000 });
+
+    // Two fingers that rest on a system without spreading are no tap on it: the camera stays where it is.
+    const box = await system.boundingBox();
+    if (box === null) throw new Error('The system has no box to pinch over');
+    const over = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await pinch(page, over, 60, 60);
+    await page.waitForTimeout(1000);
+    await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toHaveCount(0);
+
+    // Spreading them over it goes down one stop, to its star.
+    await pinch(page, over, 60, 220);
+    await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // Closing them climbs one stop, back to the whole universe.
+    await pinch(page, { x: 195, y: 422 }, 220, 60);
+    await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toHaveCount(0, {
+      timeout: 30_000,
+    });
+    await expect(system).toBeVisible({ timeout: 30_000 });
+    expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1);
+  });
+});
+
 test('with the trial switch off the Universe is the one that ships', async ({ page }) => {
   await openUniverse(page, [], { trial: false });
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
