@@ -354,16 +354,15 @@ does it on dev, one kit at a time**, in this order, and reads each kit's rewrite
 
 | # | Kit | Recipes | `--only` |
 |---|---|---|---|
-| 1 | starlight (`starlight.v1`) | `stars-colour-brightness`, `exoplanet-habitable-zone` | `stars-colour-brightness,exoplanet-habitable-zone` |
-| 2 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
+| 1 | Earth & sky (`earth-sky.v1`) | `seasons`, `seasons-hemispheres`, `seasons-limits` | `seasons,seasons-hemispheres,seasons-limits` |
 
-One recipe, the exact command (the first row's `stars-colour-brightness`; nothing is sent by the dry run):
+One recipe, the exact command (the first row's `seasons`; nothing is sent by the dry run):
 
 ```sh
 # worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash
-node dist/operator.js content produce-library --dry-run --only stars-colour-brightness   # wouldQueue, take 1 at scroll-production-v3.v1
-node dist/operator.js content produce-library --only stars-colour-brightness             # queues the job; the dev worker writes it and it ends held
-node dist/operator.js content production-status --only stars-colour-brightness           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
+node dist/operator.js content produce-library --dry-run --only seasons   # wouldQueue, take 1 at scroll-production-v3.v1
+node dist/operator.js content produce-library --only seasons             # queues the job; the dev worker writes it and it ends held
+node dist/operator.js content production-status --only seasons           # held = waiting; running; retryable = refused (see "When a Scroll is refused")
 node dist/operator.js content review-list
 node dist/operator.js content review-show --asset <asset id from review-list> --sources
 node dist/operator.js content release --asset <asset id> --revision <n>             # or reject with a reason; or leave it to the release policy
@@ -388,7 +387,7 @@ until then `production-status` shows it `not_started`. Supply never commissions 
 them. One thing does change for supply: `exoplanet-kinds` was the last code recipe supply could commission (a v1 recipe, D-138), so since #790
 a reader's ask or the Planner's demand for a Scroll the library has not made yet starts production only for a stored (`gen-`) recipe, within
 the growth cap; with none, the ask closes as `no_recipe_left` and is counted as a gap. Nothing was produced by the change. **An operator does it on dev, one batch at a time**, in this order (small batches first; every series
-is inside one batch, except the three Earth & sky parts, which wait for their kit batch above: Earth & sky; the tides batch is done, #799, and the greenhouse batch, #802, the nerve batch, #809, and the black hole batch, #832):
+is inside one batch, except the three Earth & sky parts, which wait for their kit batch above: Earth & sky; the tides batch is done, #799, and the greenhouse batch, #802, the nerve batch, #809, the black hole batch, #832, and the starlight batch, #834):
 
 | # | Batch | Recipes | `--only` |
 |---|---|---|---|
@@ -398,7 +397,7 @@ is inside one batch, except the three Earth & sky parts, which wait for their ki
 | 4 | Computing | `dns-lookup`, `https-handshake`, `web-caching`, `rendering-pipeline`, `event-loop`, `same-origin-policy`, `big-o-growth`, `hybrid-sorting`, `hash-tables` | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
 | 5 | Machine learning, attention and its neighbours | `attention-mechanism`, `attention-example`, `attention-limits`, `transformer-architecture`, `token-embeddings`, `next-token-generation` | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation` |
 | 6 | Machine learning, training and cost | `training-by-example`, `gradient-descent`, `overfitting`, `long-input-cost`, `mixture-of-experts`, `subword-tokens` | `training-by-example,gradient-descent,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
-| 7 | Earth & sky, after the Earth & sky kit batch (2) | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
+| 7 | Earth & sky, after the Earth & sky kit batch (1) | `tides-coasts`, `greenhouse-limits`, `seasons-elsewhere` | `tides-coasts,greenhouse-limits,seasons-elsewhere` |
 
 One batch, the exact command (the first batch of three recipes, number 2; nothing is sent by the dry run):
 

@@ -1,6 +1,5 @@
 import { EARTH_SKY_KIT, EARTH_SKY_KIT_DEFINITION } from '../kit.js';
 import { type KitDefinition } from './definition.js';
-import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
 
 /**
  * Every drawing kit a Scroll's stage can use (D-194). A stage names one kit and every state of that
@@ -8,7 +7,7 @@ import { STARLIGHT_KIT, STARLIGHT_KIT_DEFINITION } from './starlight.js';
  * test keeps the plan's list and this one the same. Adding a kit is a new id,
  * its own words and physics, and a new decision.
  */
-export const STAGE_KIT_IDS = [EARTH_SKY_KIT, STARLIGHT_KIT] as const;
+export const STAGE_KIT_IDS = [EARTH_SKY_KIT] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 /** Whether `id` names a kit the code still defines. A stored stage may name one it no longer does (a legacy stage). */
@@ -18,7 +17,6 @@ export function isStageKitId(id: string): id is StageKitId {
 
 const KITS: Readonly<Record<StageKitId, KitDefinition>> = {
   [EARTH_SKY_KIT]: EARTH_SKY_KIT_DEFINITION,
-  [STARLIGHT_KIT]: STARLIGHT_KIT_DEFINITION,
 };
 
 /**
@@ -42,50 +40,3 @@ export {
   type KitState,
   type WordState,
 } from './definition.js';
-export {
-  blackbodyColour,
-  colourMatching,
-  peakNanometres,
-  planckGlow,
-  VISIBLE_NANOMETRES,
-  wavelengthColour,
-  WIEN_NANOMETRE_KELVINS,
-} from './spectrum.js';
-export {
-  describeStarlightState,
-  DISTANCE_STEPS,
-  dimmedShare,
-  habitableZoneOf,
-  INITIAL_STARLIGHT_STATE,
-  luminosityOf,
-  MAIN_SEQUENCE_MASS_IN_SUNS,
-  mainSequenceLuminosityAt,
-  ORBIT_ASTRONOMICAL_UNITS,
-  settleStarlightState,
-  STARLIGHT_ENUMS,
-  STARLIGHT_KIT,
-  starlightAt,
-  starlightParts,
-  starlightPhysics,
-  StarlightStateSchema,
-  starlightStar,
-  starGroup,
-  STARS_BY_TEMPERATURE,
-  SUN_SURFACE_KELVINS,
-  ZONE_STARLIGHT,
-  ZONE_STARS,
-  zoneVerdict,
-  type HabitableZone,
-  type PlanetOrbit,
-  type StarGroup,
-  type StarKind,
-  type StarlightDistance,
-  type StarlightPart,
-  type StarlightPatch,
-  type StarlightPhysics,
-  type StarlightState,
-  type StarlightStar,
-  type StarlightView,
-  type ZoneStar,
-  type ZoneVerdict,
-} from './starlight.js';

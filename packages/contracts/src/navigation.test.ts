@@ -348,7 +348,7 @@ describe('Explore prerequisite wire contracts', () => {
       figure: { kit: 'gone.v1', state: { old: 'word' }, alt: 'What the removed kit drew.' },
     };
     expect(EncounterOfferSchema.parse({ ...offer, cover }).cover).toEqual(cover);
-    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809) and black-hole.v1 (#832) were deleted from the code; a stored offer may still name them.
+    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832) and starlight.v1 (#834) were deleted from the code; a stored offer may still name them.
     for (const kit of [
       'transit.v1',
       'tides.v1',
@@ -357,6 +357,7 @@ describe('Explore prerequisite wire contracts', () => {
       'circulation.v1',
       'nerve.v1',
       'black-hole.v1',
+      'starlight.v1',
     ]) {
       const stored = { ...cover, figure: { ...cover.figure, kit } };
       expect(EncounterOfferSchema.parse({ ...offer, cover: stored }).cover, kit).toEqual(stored);

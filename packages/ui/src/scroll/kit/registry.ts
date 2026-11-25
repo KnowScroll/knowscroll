@@ -1,9 +1,7 @@
 import type { ReactElement } from 'react';
-import { AXIAL_TILT_DEGREES, describeStageAtTilt, type StageState, type StarlightState } from '../model';
+import { AXIAL_TILT_DEGREES, describeStageAtTilt, type StageState } from '../model';
 import { EarthSkyPicture } from './earth-sky';
 import { canTween, describeRecap, lerpScene, recapSceneOf, sceneOf, type EarthSkyScene } from './earth-sky-scene';
-import { StarlightPicture } from './starlight';
-import { canTweenStarlight, lerpStarlightScene, starlightSceneOf, type StarlightScene } from './starlight-scene';
 
 /**
  * What the stage engine needs of a kit's drawing (D-133, D-194): the scene of a stored state, whether a
@@ -67,12 +65,6 @@ export const KIT_PICTURES = {
       describe: describeStageAtTilt,
     },
     recap: { sceneOf: recapSceneOf, describe: describeRecap },
-  }),
-  'starlight.v1': kitPicture<StarlightState, StarlightScene>({
-    sceneOf: starlightSceneOf,
-    canTween: canTweenStarlight,
-    lerpScene: lerpStarlightScene,
-    Picture: StarlightPicture,
   }),
 } as const satisfies Record<string, KitPicture>;
 

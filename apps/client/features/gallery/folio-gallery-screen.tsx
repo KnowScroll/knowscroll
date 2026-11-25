@@ -10,7 +10,6 @@ import scaleChart from '@knowscroll/scroll-model/fixtures/scale-chart-blocks-ci.
 import seasonsV3 from '@knowscroll/scroll-model/fixtures/seasons-v3-ci.json';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import sortFork from '@knowscroll/scroll-model/fixtures/sort-fork-blocks-ci.json';
-import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import {
   canonicalJson,
   describePicture,
@@ -50,7 +49,6 @@ const folioGalleryMarker = 'ks-folio-gallery';
  */
 const documents = {
   seasons,
-  starlight,
   scaleChart,
   sortFork,
   fenceV3,

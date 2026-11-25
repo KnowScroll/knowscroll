@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { LiveStage, ScrollDocumentV2 } from '@knowscroll/scroll-model';
-import starlight from '@knowscroll/scroll-model/fixtures/starlight-stage-ci.json';
 import { Stage, type StageProps } from './stage';
 import { stageEntryAt } from './stage-state';
 
@@ -100,26 +99,26 @@ describe('the recap of a Scroll whose picture stood on the orbit at two months, 
     await render(<Stage {...own} recap />);
     expect(screen.queryByLabelText(/The picture you built/)).not.toBeOnTheScreen();
   });
-});
 
-describe('a kit that has no recap, at the end of its Scroll (V3 F10)', () => {
-  it('keeps its last state and says so in the same words as before', async () => {
-    const other = starlight as unknown as ScrollDocumentV2;
-    const stageOf = other.stage;
+  // Earth & sky is the one kit left and it draws a recap, so the end of a Scroll whose kit has none (the starlight kit, until #834) is
+  // ported to the same end of the Scroll with one month: no recap can be drawn, so the stage keeps its last state, in the same words.
+  it('keeps its last state and says so in the same words as before, at the end of its Scroll, with the recap asked for or not', async () => {
+    const own = standingAt(['jun']);
+    const last = own.document.stops.at(-1)!.id;
+    const stageOf = own.document.stage;
     if (stageOf === undefined) throw new Error('the fixture has a stage');
-    const last = other.stops.at(-1)!.id;
-    const own = { document: { stops: other.stops, stage: stageOf }, stopId: last, reducedMotion: true, height: 240 };
-    const view = await render(<Stage {...own} />);
-    const expected = stageEntryAt(stageOf, other.stops, last).alt;
+    const ended = { ...own, stopId: last };
+    const view = await render(<Stage {...ended} />);
+    const expected = stageEntryAt(stageOf, own.document.stops, last).alt;
     expect(screen.getByLabelText(expected)).toBeOnTheScreen();
-    await view.rerender(<Stage {...own} recap />);
+    await view.rerender(<Stage {...ended} recap />);
     expect(screen.getByLabelText(expected)).toBeOnTheScreen();
     expect(screen.queryByLabelText(/The picture you built/)).not.toBeOnTheScreen();
   });
 });
 
 describe('a stored stage of a kit this build does not draw', () => {
-  // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809) and black-hole.v1 (#832) were deleted from the code; stage and main still store Scrolls that name them.
+  // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832) and starlight.v1 (#834) were deleted from the code; stage and main still store Scrolls that name them.
   it.each([
     'gone.v1',
     'transit.v1',
@@ -129,6 +128,7 @@ describe('a stored stage of a kit this build does not draw', () => {
     'circulation.v1',
     'nerve.v1',
     'black-hole.v1',
+    'starlight.v1',
   ])('draws nothing for %s, and does not throw looking the kit up', async (kit) => {
     const gone = {
       kit,

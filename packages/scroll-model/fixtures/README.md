@@ -36,18 +36,6 @@ pnpm --filter @knowscroll/scroll-model fixtures   # builds, then runs regenerate
 pnpm format
 ```
 
-## Stage fixtures of the drawing kits (v2)
-
-`documents/starlight-stage-ci.json` is a labelled CI fixture of a `scroll-document.v2` Scroll,
-for the drawing kit of D-204 that is still defined, for the reader's end-to-end check of that kit (`kit-figures-smoke.spec.ts`) and the kit
-screenshots. It is shorter than a Scroll may be, so only the reading time is outside the limits; the rest is
-validated, and the file carries correct measures and hash. Regenerate after a change to a kit's words or text:
-
-```sh
-pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-kits-v2.mjs
-pnpm format
-```
-
 ## Hand-written document v3 fixtures
 
 `documents/{fence,seasons,broad-street}-v3-ci.json` are the owner's three `CONTENT.md` topics as `scroll-document.v3`

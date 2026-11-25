@@ -114,16 +114,6 @@ describe('the renderer on the device', () => {
       // The recap picture's months and words (V3 F10): derived from the states a document already holds.
       'recapMonths',
       'describeStageRecap',
-      // The starlight kit's physics (D-204): the same derivations the text versions use, at one state, with no admission.
-      'mainSequenceLuminosityAt',
-      'STARLIGHT_ENUMS',
-      'starlightParts',
-      'starlightPhysics',
-      'starlightStar',
-      'STARS_BY_TEMPERATURE',
-      'VISIBLE_NANOMETRES',
-      'wavelengthColour',
-      'ZONE_STARS',
       'describeChart',
       'describePoint',
       'describeScale',

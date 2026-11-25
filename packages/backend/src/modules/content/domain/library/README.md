@@ -60,7 +60,6 @@ has no kit: its pictures come from the closed set of six kinds (`statement`, `fl
 | Kit they had     | Recipes                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------- |
 | `earth-sky.v1`   | `seasons`, `seasons-hemispheres`, `seasons-limits`                                         |
-| `starlight.v1`   | `stars-colour-brightness`, `exoplanet-habitable-zone`                                      |
 
 The other 33 (#790) are `seasons-elsewhere`, `tides-coasts` and `greenhouse-limits` (Earth & sky); `exoplanet-kinds` (Space); the three
 immune-system recipes (Human body); the nine recipes of Computing; the twelve of Machine learning; and the five of History.

@@ -38,7 +38,7 @@ describe('the served document of an exposure', () => {
   it('serves a stored Scroll v2 whose stage is of a kit the code no longer defines, whole, and still refuses a live kit’s wrong state', () => {
     const document = fixture('seasons-stage-ci') as { stage: { kit: string; states: { state: unknown }[] } };
     const states = document.stage.states.map((entry, index) => ({ ...entry, state: { old: `word ${String(index)}` } }));
-    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809) and black-hole.v1 (#832) were deleted from the code; stage and main still store Scrolls that name them.
+    // transit.v1, tides.v1 and star.v1 (#799), greenhouse.v1 and circulation.v1 (#802), nerve.v1 (#809), black-hole.v1 (#832) and starlight.v1 (#834) were deleted from the code; stage and main still store Scrolls that name them.
     for (const kit of [
       'gone.v1',
       'transit.v1',
@@ -48,6 +48,7 @@ describe('the served document of an exposure', () => {
       'circulation.v1',
       'nerve.v1',
       'black-hole.v1',
+      'starlight.v1',
     ]) {
       const legacy = { ...document, stage: { kit, states } };
       expect(ExposureDocumentResponseSchema.parse(response(legacy)).document, kit).toEqual(legacy);
