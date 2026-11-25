@@ -73,7 +73,7 @@ export interface IssueV3 {
    * (`producer/v3/copy-detail.ts`): the part of the item that copies and the research's own words that it copies. For a
    * figure (`producer/v3/number-detail.ts`, D-444): the part, the figure as written, and where the research has it (the
    * passages to cite, how a cited passage writes it, or that it is in none). Built from the research's words and the
-   * figure itself, never from other text the model wrote. The writer sends it to its one repair in the repair notes; every
+   * figure itself, never from other text the model wrote. The writer sends it to its repairs in the repair notes; every
    * other finding is a code and a path.
    */
   readonly detail?: string;

@@ -12,7 +12,7 @@ export interface CopyFinding {
 }
 
 /**
- * What the writer's one repair is told about a draft refused for `copied_passage` (D-441): for each place in the model's reply,
+ * What the writer's repairs are told about a draft refused for `copied_passage` (D-441): for each place in the model's reply,
  * the part of it that copies and the research's words that it copies. The same notes as `repairNotesV3` with no figure to name
  * (that one also carries the figures of D-444); see it for how the notes fit the harness's limit. `undefined` when there is no
  * copy finding.

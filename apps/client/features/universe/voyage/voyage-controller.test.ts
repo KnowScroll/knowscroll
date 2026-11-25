@@ -179,3 +179,44 @@ describe('the wheel', () => {
     expect(calls).toEqual(['focus p', 'focus p']);
   });
 });
+
+describe('the wheel', () => {
+  const landed: UniverseView = { kind: 'planet', planet: descriptor('p'), landed: true };
+  const inputsFor = (session: UniverseMapSession): VoyageInputs => ({
+    session,
+    view: landed,
+    target: { stop: 'ground', systemId: 's', planetId: 'p', regionId: null },
+    size: { width: 390, height: 844 },
+    turn: { x: 0, y: 0 },
+    planet: null,
+    siblings: [],
+    reducedMotion: false,
+    universeFocus: {} as VoyageInputs['universeFocus'],
+    systemFocus: () => undefined,
+  });
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('moves one stop, then rests before it moves another', () => {
+    const { session, calls } = recordingSession();
+    const controller = createVoyageController(inputsFor(session));
+    controller.wheel(100);
+    controller.wheel(100);
+    expect(calls).toEqual(['focus p']);
+    jest.advanceTimersByTime(300);
+    controller.wheel(100);
+    expect(calls).toEqual(['focus p', 'focus p']);
+  });
+
+  it('leaves no timer behind when the stage goes, and is ready again if the stage stays', () => {
+    const { session, calls } = recordingSession();
+    const controller = createVoyageController(inputsFor(session));
+    controller.wheel(100);
+    expect(jest.getTimerCount()).toBe(1);
+    controller.dispose();
+    expect(jest.getTimerCount()).toBe(0);
+    controller.wheel(100);
+    expect(calls).toEqual(['focus p', 'focus p']);
+  });
+});

@@ -22,9 +22,11 @@ import {
   PRODUCTION_VERSIONS,
   REQUEST_BOUND_V2_PER_TOPIC,
   REQUEST_BOUND_V3_PER_TOPIC,
+  REQUEST_BOUND_V3_WRITER,
   requestBoundOf,
   SCROLL_PRODUCTION_V2_VERSION,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
+  SCROLL_PRODUCTION_V3_FOURTH_VERSION,
   SCROLL_PRODUCTION_V3_SECOND_VERSION,
   SCROLL_PRODUCTION_V3_THIRD_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
@@ -110,23 +112,26 @@ describe('production versions: a recipe the plan marks document v3', () => {
       'scroll-writer-v3.v2': 'scroll-production-v3.v2',
       'scroll-writer-v3.v3': 'scroll-production-v3.v3',
       'scroll-writer-v3.v4': 'scroll-production-v3.v4',
+      'scroll-writer-v3.v5': 'scroll-production-v3.v5',
     };
     expect(productionVersionOfWriter[WRITER_V3_PROMPT_VERSION]).toBe(SCROLL_PRODUCTION_V3_VERSION);
   });
 
-  it('moved to v4 when a figure finding began to say where the figure is, and no job is made at the first three versions (D-438, D-441, D-444)', () => {
+  it('moved to v5 when the writer got a second repair for copies, and no job is made at the first four versions (D-438, D-441, D-444, D-445)', () => {
     expect([WRITER_V3_PROMPT_VERSION, SCROLL_PRODUCTION_V3_VERSION]).toEqual([
-      'scroll-writer-v3.v4',
-      'scroll-production-v3.v4',
+      'scroll-writer-v3.v5',
+      'scroll-production-v3.v5',
     ]);
     expect(SCROLL_PRODUCTION_V3_FIRST_VERSION).toBe('scroll-production-v3.v1');
     expect(SCROLL_PRODUCTION_V3_SECOND_VERSION).toBe('scroll-production-v3.v2');
     expect(SCROLL_PRODUCTION_V3_THIRD_VERSION).toBe('scroll-production-v3.v3');
+    expect(SCROLL_PRODUCTION_V3_FOURTH_VERSION).toBe('scroll-production-v3.v4');
     markV3('exoplanet-kinds');
     for (const earlier of [
       SCROLL_PRODUCTION_V3_FIRST_VERSION,
       SCROLL_PRODUCTION_V3_SECOND_VERSION,
       SCROLL_PRODUCTION_V3_THIRD_VERSION,
+      SCROLL_PRODUCTION_V3_FOURTH_VERSION,
     ]) {
       expect(productionVersionOf('exoplanet-kinds')).not.toBe(earlier);
       expect(PRODUCTION_VERSIONS).not.toContain(earlier);
@@ -134,26 +139,27 @@ describe('production versions: a recipe the plan marks document v3', () => {
     expect(produceScrollJob('exoplanet-kinds', 1).policyVersion).toBe(SCROLL_PRODUCTION_V3_VERSION);
   });
 
-  it('keeps the lineage of a revision written at v1, v2 or v3: its job and prompt pair is accepted next to the current one', () => {
+  it('keeps the lineage of a revision written at v1, v2, v3 or v4: its job and prompt pair is accepted next to the current one (D-445)', () => {
     markV3('exoplanet-kinds');
     expect(lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V3_SCHEMA_VERSION)).toEqual([
-      ['scroll-production-v3.v4', 'scroll-writer-v3.v4'],
+      ['scroll-production-v3.v5', 'scroll-writer-v3.v5'],
       ['scroll-production-v3.v1', 'scroll-writer-v3.v1'],
       ['scroll-production-v3.v2', 'scroll-writer-v3.v2'],
       ['scroll-production-v3.v3', 'scroll-writer-v3.v3'],
+      ['scroll-production-v3.v4', 'scroll-writer-v3.v4'],
     ]);
     // The pairs are never mixed: a job of one version does not vouch for the prompt of another.
     const accepts = (production: string, prompt: string): boolean =>
       lineagePairsOf('exoplanet-kinds', SCROLL_DOCUMENT_V3_SCHEMA_VERSION).some(
         ([policy, version]) => policy === production && version === prompt,
       );
-    for (const version of ['v1', 'v2', 'v3', 'v4'])
-      for (const other of ['v1', 'v2', 'v3', 'v4'])
+    for (const version of ['v1', 'v2', 'v3', 'v4', 'v5'])
+      for (const other of ['v1', 'v2', 'v3', 'v4', 'v5'])
         expect(accepts(`scroll-production-v3.${version}`, `scroll-writer-v3.${other}`), `${version} ${other}`).toBe(
           version === other,
         );
     // A version that never existed is not accepted.
-    expect(accepts('scroll-production-v3.v5', 'scroll-writer-v3.v5')).toBe(false);
+    expect(accepts('scroll-production-v3.v6', 'scroll-writer-v3.v6')).toBe(false);
   });
 
   it('accepts only the current pair for a recipe the plan does not mark document v3; a stored v2 document names the v2 writer’s prompt', () => {
@@ -271,6 +277,18 @@ describe('how long a production delivery may hold its claim (D-198, D-267, D-297
     expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(claimNeeded(6, deadlineSeconds));
     expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(2100);
     expect(produceScrollQueue.policy.expireInSeconds).toBe(2100);
+  });
+
+  it('holds the claim of a library take for the document v3 writer’s three requests: the writer and its two repairs (D-445)', () => {
+    // One more paid request than before the second repair, and the claim is sized by the bound of six, so it needed no change.
+    expect(REQUEST_BOUND_V3_WRITER).toBe(1 + 2);
+    expect(REQUEST_BOUND_V3_WRITER).toBeLessThanOrEqual(REQUEST_BOUND_V3_PER_TOPIC);
+    expect(claimNeeded(REQUEST_BOUND_V3_WRITER, deadlineSeconds)).toBe(1140);
+    expect(claimNeeded(REQUEST_BOUND_V3_WRITER, deadlineSeconds)).toBeLessThanOrEqual(PRODUCE_SCROLL_CLAIM_SECONDS);
+    expect(claimSecondsFor(REQUEST_BOUND_V3_WRITER)).toBe(claimNeeded(REQUEST_BOUND_V3_WRITER, deadlineSeconds));
+    expect(produceScrollQueue.policy.expireInSeconds).toBeGreaterThanOrEqual(
+      claimNeeded(REQUEST_BOUND_V3_WRITER, deadlineSeconds),
+    );
   });
 
   it('gives the answer to a question, on a queue of its own, the claim of its fourteen requests', () => {

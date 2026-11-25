@@ -14,7 +14,7 @@ import { withAccounting, writerReceipt } from './receipts.js';
 import { hasAnswerCheck } from './review-hold.js';
 import type { ProductionRow } from './store.js';
 import type { ProductionSubject } from './subject.js';
-import { productionVersionOf, requestBoundOf } from './topics.js';
+import { productionVersionOf, REQUEST_BOUND_V3_WRITER, requestBoundOf } from './topics.js';
 import type { ClosingRun, ProduceScrollResult, RoleReceipt } from './types.js';
 import { writerPlanFor, type WriterPlan } from './writer-plan.js';
 
@@ -82,8 +82,8 @@ function linksDroppedReceipt(compiled: Compiled): readonly RoleReceipt[] {
 }
 
 /**
- * The writer stage of a production job: ask the writer, compile its answer and publish it. The stage sends at most two writer requests
- * (the first draft with the harness's repair) and holds no transaction while a request is out. A document v3 has no calls to check
+ * The writer stage of a production job: ask the writer, compile its answer and publish it. The stage sends at most three writer requests
+ * (the first draft with the harness's repair, and a second repair when copies are all that is left, D-445) and holds no transaction while a request is out. A document v3 has no calls to check
  * (decision I1 on #756), so its answer check is the empty one (D-198). The support check of the answer to a question, the code's trim and
  * drop of its sentences and the revision they earned went with the v1 writer (#818, D-443).
  */
@@ -117,8 +117,9 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     const attempts = await attemptsOf(runId);
     if (attempts === undefined) return refuse(['accounting_unavailable'], receipt);
     const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
-    // The writer's one request and the harness's one repair of it.
-    if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2) return refuse(['attempt_bound_exceeded'], receipt);
+    // The writer's one request, the harness's repair of it and the second repair its roles opt into when copies are all that is left (D-445).
+    if (paidAttemptIds.length < 1 || paidAttemptIds.length > REQUEST_BOUND_V3_WRITER)
+      return refuse(['attempt_bound_exceeded'], receipt);
     const recorded = withAccounting(receipt, attempts);
     const compiled = stage.plan.compile(writer.output, { runId, attemptIds: paidAttemptIds, model: deps.model });
     if (compiled.kind === 'refused')
@@ -146,7 +147,7 @@ export function makeWriterStage(deps: WriterStageDependencies, ops: JobOperation
     return ops.publish(stage.subject, stage.row, [draft.receipt], draft.authored, draft.compiled, draft.runId, []);
   }
 
-  /** The writer stage: ask once (the harness allows one repair), then settle the answer. */
+  /** The writer stage: ask once (the harness allows a repair, and a second one for copies, D-445), then settle the answer. */
   return async function writeAndPublish(
     subject: ProductionSubject,
     row: ProductionRow,

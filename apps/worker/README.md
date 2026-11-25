@@ -273,7 +273,7 @@ and the validator's findings. No production job or source text is placed on the 
 
 `node dist/operator.js content writer-spike-v3 --topics <recipe keys> --arms <a,b> [--raw-dir <absolute dir>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]`
 (`src/writer-spike-v3-operator.ts`, #771) runs the document v3 writer on the ten recipes of the spike's own plan table, in arm `a` (one
-reply: at most two requests) and arm `b` (the prose, then its staging: at most four), through the same harness grant
+reply: at most three requests, the writer and its two repairs, D-445) and arm `b` (the prose, then its staging: at most six), through the same harness grant
 (`MiniMax-M3.1-Flash` only), and prints one JSON line per recipe and arm. `--raw-dir` keeps every paid reply, one file each, and
 `--out` the accepted documents. `node dist/operator.js content writer-spike-v3-blind --in <out file> --page <html file> --key <key file> [--seed <n>]`
 (`src/writer-spike-v3-blind.ts`) turns those documents into one local page to read without knowing the arm, and a key file to open

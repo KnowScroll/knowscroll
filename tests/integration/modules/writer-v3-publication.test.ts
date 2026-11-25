@@ -18,6 +18,7 @@ import {
   productionVersionOf,
   REQUEST_BOUND_V3_PER_TOPIC,
   SCROLL_PRODUCTION_V3_FIRST_VERSION,
+  SCROLL_PRODUCTION_V3_FOURTH_VERSION,
   SCROLL_PRODUCTION_V3_SECOND_VERSION,
   SCROLL_PRODUCTION_V3_THIRD_VERSION,
   SCROLL_PRODUCTION_V3_VERSION,
@@ -75,6 +76,11 @@ function copyingParagraph(): { items: { text?: string }[]; pictures: Record<stri
     text: 'Near the equator the noon sun stays high in every season, so the tropics change far less across the year than the poles do.',
   };
   return draft;
+}
+
+/** The copying reply with a title of its own, so a test can tell which refused answer a later request carries. */
+function copyingParagraphTitled(title: string): unknown {
+  return { ...copyingParagraph(), title };
 }
 
 /** The same copy, and a chart written without its marks: the shape is refused before the copy rule can run. */
@@ -313,8 +319,9 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
     ['first', SCROLL_PRODUCTION_V3_FIRST_VERSION, 'scroll-writer-v3.v1'],
     ['second', SCROLL_PRODUCTION_V3_SECOND_VERSION, 'scroll-writer-v3.v2'],
     ['third', SCROLL_PRODUCTION_V3_THIRD_VERSION, 'scroll-writer-v3.v3'],
+    ['fourth', SCROLL_PRODUCTION_V3_FOURTH_VERSION, 'scroll-writer-v3.v4'],
   ])(
-    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-441, D-444)',
+    'still releases, serves and reads as published a revision written at the %s v3 version, after the version moved (D-438, D-441, D-444, D-445)',
     async (_which, earlier, earlierPrompt) => {
       await produce();
       // Make the stored revision what an earlier production version wrote: its job's policy version and the prompt version it named.
@@ -462,6 +469,114 @@ describe('A document v3 library recipe is written, held, attributed, covered, ch
         'items[13]: Nine or more words in a row match the research, in the text: "near the equator the noon sun stays high in every season so the tropics change …". Rewrite them in your own words, with a different sentence structure.',
       );
       expect(worker.writerCalls[0]?.request.user).not.toContain('<repair-notes>');
+    });
+
+    it('gives a second repair when the first repair still holds only a copy: three writer requests, each in the Scroll’s lineage, the third carrying the first repair’s answer (D-445)', async () => {
+      const worker = setup((sequence) =>
+        sequence === 1
+          ? answerWith(copyingParagraphTitled('The first write'))
+          : sequence === 2
+            ? answerWith(copyingParagraphTitled('The first repair'))
+            : good(),
+      );
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(3);
+      const [first, firstRepair, secondRepair] = worker.writerCalls.map((call) => call.request);
+      expect(first?.user).not.toContain('<repair-notes>');
+      expect(firstRepair?.user).toContain('The first write');
+      expect(secondRepair?.system).toContain('copied_passage');
+      expect(secondRepair?.user).toContain('<previous-answer>');
+      expect(secondRepair?.user).toContain('The first repair');
+      expect(secondRepair?.user).not.toContain('The first write');
+      expect(secondRepair?.user).toContain('<repair-notes>');
+      expect(secondRepair?.user).toContain(
+        'items[13]: Nine or more words in a row match the research, in the text: "near the equator the noon sun stays high',
+      );
+      // Three attempts, each a step of its own, each caused by the one it repairs, each with its own reservation and receipt.
+      const attempts = await database.db
+        .selectFrom('reasoning.production_attempts')
+        .select(['id', 'step', 'state', 'causation_attempt_id'])
+        .where('role_id', '=', 'content.scroll-writer')
+        .orderBy('reserved_at')
+        .execute();
+      expect(attempts.map((attempt) => [attempt.step, attempt.state])).toEqual([
+        ['primary', 'succeeded'],
+        ['repair', 'succeeded'],
+        ['repair2', 'succeeded'],
+      ]);
+      expect(attempts.map((attempt) => attempt.causation_attempt_id)).toEqual([null, attempts[0]?.id, attempts[1]?.id]);
+      expect(
+        await database.db
+          .selectFrom('reasoning.usage_receipts')
+          .select('attempt_id')
+          .where(
+            'attempt_id',
+            'in',
+            attempts.map((attempt) => attempt.id),
+          )
+          .execute(),
+      ).toHaveLength(3);
+      const { production } = await provenanceOf(1);
+      expect(production.attemptIds).toEqual(attempts.map((attempt) => attempt.id));
+      expect(production.promptVersion).toBe(WRITER_V3_PROMPT_VERSION);
+      expect(result.attempts).not.toContainEqual(expect.objectContaining({ code: 'attribution_unverified' }));
+      expect(result.attempts).not.toContainEqual(expect.objectContaining({ code: 'attribution_conflict' }));
+      expect(
+        await database.db
+          .selectFrom('content.encounter_topics')
+          .select(['topic_id', 'role'])
+          .where('asset_id', '=', recipe.assetId)
+          .execute(),
+      ).toEqual([{ topic_id: recipe.topicId, role: 'primary' }]);
+      expect(await reviewOf(1)).toMatchObject({ state: 'held' });
+    });
+
+    it('ends the job rejected when the second repair is a copy too: three writer requests, never a fourth, and the take is final (D-445)', async () => {
+      const worker = setup(() => answerWith(copyingParagraph()));
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'rejected', codes: ['invalid_output'] });
+      expect(worker.writerCalls).toHaveLength(3);
+      expect(await jobRow()).toEqual({ policy_version: SCROLL_PRODUCTION_V3_VERSION, state: 'rejected' });
+      expect(
+        (
+          await database.db
+            .selectFrom('reasoning.production_attempts')
+            .select('step')
+            .where('role_id', '=', 'content.scroll-writer')
+            .orderBy('reserved_at')
+            .execute()
+        ).map((attempt) => attempt.step),
+      ).toEqual(['primary', 'repair', 'repair2']);
+      expect(await worker.producer()(key, false, signal())).toMatchObject({ outcome: 'rejected', take: 1 });
+      expect(worker.writerCalls).toHaveLength(3);
+    });
+
+    it('gives no second repair when the first repair is refused for anything but a copy: two writer requests, as before (D-445)', async () => {
+      const worker = setup((sequence) => (sequence === 1 ? answerWith(copyingParagraph()) : bad()));
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'rejected', codes: ['invalid_output'] });
+      expect(worker.writerCalls).toHaveLength(2);
+      expect(
+        (
+          await database.db
+            .selectFrom('reasoning.production_attempts')
+            .select('step')
+            .where('role_id', '=', 'content.scroll-writer')
+            .orderBy('reserved_at')
+            .execute()
+        ).map((attempt) => attempt.step),
+      ).toEqual(['primary', 'repair']);
+    });
+
+    it('gives the second repair whenever the first repair’s findings are all copies, whatever the first write was refused for (D-445)', async () => {
+      // It follows the first repair's findings, not the first write's.
+      const worker = setup((sequence) =>
+        sequence === 1 ? bad() : sequence === 2 ? answerWith(copyingParagraph()) : good(),
+      );
+      const result = await worker.producer()(key, false, signal());
+      expect(result).toMatchObject({ outcome: 'published', revision: 1, held: true });
+      expect(worker.writerCalls).toHaveLength(3);
     });
 
     it('names the copy to the repair when the first write was refused for its shape too: a chart without its marks hid the copy rule (D-441)', async () => {

@@ -14,7 +14,7 @@ export const SPIKE_MAX_CONCURRENCY = 4;
 export type SpikeOutcome =
   | 'accepted_first_take'
   | 'accepted_after_repair'
-  /** The writer's answer and its one repair were both refused. */
+  /** The writer's answer and its repairs were all refused. */
   | 'rejected'
   | 'research_failed'
   | 'evidence_insufficient'

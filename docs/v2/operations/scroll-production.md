@@ -213,7 +213,7 @@ pnpm build
 node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
-The bound is **six model requests per take** for a library recipe (all of them are document v3 recipes): the writer once and at most one repair, and the answer check of a document v3 sends none (a v2 take's checks were deleted, #815). The v1 writer's two-request take is deleted with it (#818). A refusal ends the
+The bound is **six model requests per take** for a library recipe (all of them are document v3 recipes): the writer once and at most two repairs (the second only when copies are all that is left, D-445: three requests at most, so the claim of 2,100 s is unchanged), and the answer check of a document v3 sends none (a v2 take's checks were deleted, #815). The v1 writer's two-request take is deleted with it (#818). A refusal ends the
 take; a spent budget or quota pauses it; an unknown outcome halts the recipe, except the checker's, which leaves the Scroll
 held and marked unchecked.
 Output is one JSON line with IDs, outcome codes, attempt states and token counts; never prompts,
@@ -278,7 +278,7 @@ The ten recipes, each with a plan of the spike's own (the library marks none as 
 | `immune-memory` | mechanism | the writer chooses |
 | `exoplanet-kinds` | argument | the writer chooses |
 
-Each recipe runs in each arm: `--topics` times `--arms` jobs. A job sends at most two requests in arm `a` and four in arm `b` (the writer or the stager, and one repair of each). All ten recipes in both arms is at most 60 requests. Run them in two halves of five recipes if the MiniMax window is short; the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) apply as for every production call.
+Each recipe runs in each arm: `--topics` times `--arms` jobs. A job sends at most three requests in arm `a` and six in arm `b` (the writer or the stager, and up to two repairs of each, D-445). All ten recipes in both arms is at most 90 requests. Run them in two halves of five recipes if the MiniMax window is short; the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) apply as for every production call.
 
 ```sh
 node dist/operator.js content writer-spike-v3 --topics seasons,tides-spring-neap,greenhouse-radiation,cardiac-cycle,black-hole-formation --arms a,b --concurrency 2 --spike-id writer-v3-1 --raw-dir /var/tmp/ks-v3-spike/raw --out /var/tmp/ks-v3-spike/writer-v3-1.jsonl
@@ -330,7 +330,7 @@ node dist/operator.js content review-show --asset <asset id> --sources         #
 node dist/operator.js content release --asset <asset id> --revision <n>        # or reject, with a reason; or leave it to the release policy
 ```
 
-A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]`. A take is refused until the earlier one was rejected, or released (a document v3 may be taken again after a release, as a v2 may: the new revision is held and the served one keeps serving). A recipe has three takes at a production version; the current one for a document v3 is `scroll-production-v3.v4` (D-444: a figure finding says where the figure is, in the repair notes; a copy note lists up to four runs; a picture's words are the writer's own; `.v3` was D-441 and `.v2` D-438). Takes made at an earlier version do not count against `.v4`, so every recipe whose served Scroll is not yet a document v3 has three new takes (the four recipes stopped after three takes included), and a recipe whose served Scroll is already a document v3 is still skipped by `produce-library`. The revisions `.v1`, `.v2` and `.v3` wrote still read, release and are served. One repair a take stays. `industrial-towns` can still be held only if its second chart is not the planned line of 17 in 1801 and 54 in 1891, which the figure rule does not accept (D-444, "Open"): decide that before spending its three takes.
+A direct run of one recipe is `content produce-scroll --topic <key> [--take <n>]`. A take is refused until the earlier one was rejected, or released (a document v3 may be taken again after a release, as a v2 may: the new revision is held and the served one keeps serving). A recipe has three takes at a production version; the current one for a document v3 is `scroll-production-v3.v5` (D-445: a second repair when the first repair's findings are all copies, and a repair changes only the parts its notes name; `.v4` was D-444, `.v3` D-441 and `.v2` D-438). Takes made at an earlier version do not count against `.v5`, so every recipe whose served Scroll is not yet a document v3 has three new takes (the four recipes stopped after three takes included), and a recipe whose served Scroll is already a document v3 is still skipped by `produce-library`. The revisions `.v1` to `.v4` wrote still read, release and are served. A take sends at most three writer requests now (the writer and two repairs); the second repair is for copies only, and every other finding keeps its one repair. `industrial-towns` can still be held only if its second chart is not the planned line of 17 in 1801 and 54 in 1891, which the figure rule does not accept (D-444, "Open"): decide that before spending its three takes.
 
 **D-438.** A link of a paragraph that the writer's compile cannot place (its phrase is not in the paragraph exactly once, it overlaps a link kept before it, no picture is on screen, or its label is not a part of that picture) is dropped, and the Scroll is not refused for it. The job's `outcomes` then hold a receipt `{role: 'checks', kind: 'links_dropped', dropped: n}` with the count, never the words. The validator is as strict as before. A control that lights an item (a scrub along items, a pick) also reveals it, so a reader who chooses an item the beat's `upTo` had not reached sees it; the support check reads the words of that revealed state.
 
@@ -504,7 +504,7 @@ planet, facet or system. A stored recipe is a **document v3** recipe (#781, owne
 (`argument`, `mechanism` or `story`) and one intent per section (two or three), and the writer picks the picture kinds from the closed set by what its passages
 hold; the statement picture is always available. A proposal may name a picture in its brief, but never a quiz or anything interactive. Every Scroll made from a
 stored recipe is held for your read, like any document v3 library Scroll, and nobody is served it before `content release`. **The document v3 writer produces a stored recipe
-(`content produce-library --only gen-<key>` runs it like a v3 library recipe, at `scroll-production-v3.v4`), and proposing and listing work.** A stored row that still holds the old plain v2 plan is refused as a plan problem (`plan_refused`, `stored_recipe_plan_not_v3`) and no job is
+(`content produce-library --only gen-<key>` runs it like a v3 library recipe, at `scroll-production-v3.v5`), and proposing and listing work.** A stored row that still holds the old plain v2 plan is refused as a plan problem (`plan_refused`, `stored_recipe_plan_not_v3`) and no job is
 reserved. The flow:
 
 1. **Propose.** `content propose-recipes --topic <planet id> [--facet <facet id>] [--retry <1-2>]` asks the model once (and repairs once) and stores the
