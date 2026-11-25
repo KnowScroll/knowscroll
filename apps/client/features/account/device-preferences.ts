@@ -20,9 +20,9 @@ export interface DevicePreferences {
    * once to carry an earlier choice over and is never written again.
    */
   readonly appearance: Appearance;
-  /** A trial switch, off by default: draw the Universe's new look. It goes when the trial does. */
+  /** Whether this device draws the Universe's new look: a per-device trial switch, off by default. */
   readonly universeTrial: boolean;
-  /** A small frame-rate readout over the Universe, for checking speed. Off by default. */
+  /** Whether this device shows a small frame-rate readout over the Universe, for checking speed: off by default. */
   readonly universeFrameRate: boolean;
 }
 

@@ -1,13 +1,13 @@
+/**
+ * The rocket of the Universe's voyage, drawn in its own screen-space layer above the sky. One unit is one layout point
+ * and y points down, as in the layout. The art is the prototype's six paths on a 60 x 60 board (`Universe.dc.html`,
+ * `SHIP` line 869 and `drawShip` lines 870-875); there is no trail, no exhaust particles and no line. It is drawn with
+ * three.js, so it lives in the voyage's lazy chunk, away from the main bundle.
+ */
 import * as THREE from 'three';
 import { pixelTexture } from '../space/scene/context';
 import { radialGlow } from '../space/texture-data';
 import type { DrawnShip } from './ship-motion';
-
-/**
- * The rocket of the Universe's Round 7.3 look, drawn in its own screen-space layer above the
- * sky. One unit is one layout point and y points down, as in the layout. The art is the
- * prototype's six paths on a 60 x 60 board; there is no trail, no exhaust particles and no line.
- */
 
 /** The prototype's art board, in its own units. */
 const BOARD = 60;
@@ -16,6 +16,10 @@ const BOARD_CENTRE = { x: 30, y: 27 } as const;
 /** Where the flame hangs from the body, which is also what its scale pivots on. */
 const FLAME_ROOT = { x: 30, y: 44 } as const;
 
+/**
+ * The ship's art, one SVG path per part, in board units: absolute `M`, `L`, `Q`, `C`, `H` and `Z` only, which is what
+ * {@link parseSvgPath} reads. Exported so the test can check each against the board.
+ */
 export const SHIP_PATHS = {
   flame: 'M24 44Q30 63 36 44Z',
   flame2: 'M27 44Q30 55 33 44Z',
@@ -25,6 +29,7 @@ export const SHIP_PATHS = {
   nose: 'M30 5C33.8 8.8 36.2 13.6 37.6 19H22.4C23.8 13.6 26.2 8.8 30 5Z',
 } as const;
 
+/** The prototype's `drawShip` colours, and the warm light behind the flame (line 1922). */
 const COLOURS = {
   flame: '#FF8A3D',
   flame2: '#FFF0B8',
@@ -38,16 +43,33 @@ const COLOURS = {
   glow: '#FFAA50',
 } as const;
 
+/** The coloured band across the body, and the porthole with its rim, in board units (`drawShip`, lines 873-874). */
 const BAND = { x: 22.4, y: 37, width: 15.2, height: 3.2 } as const;
 const PORTHOLE = { x: 30, y: 27.5, radius: 4.6, rim: 1.6 } as const;
-const CIRCLE_SEGMENTS = 32;
+/** How many segments a curve of the art is cut into. */
+const CURVE_SEGMENTS = 32;
+/** How fast the flame flickers, in radians per second: the prototype's `sin(T * 40)` (line 872). */
 const FLICKER_RATE = 40;
-const GLOW_ON = 0.25;
-const GLOW_STRENGTH = 0.45;
-const GLOW_BEHIND = 33;
-const HIDDEN_ALPHA = 0.02;
+/** The flame's length as a multiple of its full length: `0.4 + flame * (0.9 + 0.2 * sin(T * 40))` (line 872). */
+const FLAME_LENGTH_MIN = 0.4;
+const FLAME_LENGTH_PER_STRENGTH = 0.9;
+const FLICKER_DEPTH = 0.2;
+/** The flame is drawn above this strength (`drawShip`, line 872). */
 const FLAME_ON = 0.02;
+/** The glow is drawn above this flame strength (line 1922). */
+const GLOW_ON = 0.25;
+/** The glow's opacity at full flame and full presence: `0.45 * flame * fa` (line 1922). */
+const GLOW_STRENGTH = 0.45;
+/** How far below the middle of the board the glow sits, in board units (the prototype puts it 0.6 of the ship's size behind, line 1922). */
+const GLOW_BEHIND = 33;
+/** The glow's radius as a multiple of the board: `S * (0.4 + flame * 0.8)` (line 1922). */
+const GLOW_RADIUS_MIN = 0.4;
+const GLOW_RADIUS_PER_FLAME = 0.8;
+/** The size of the glow's texture, in pixels. */
 const GLOW_SIZE = 64;
+/** The ship is not drawn at or below this opacity: the prototype's `fa <= 0.02` (line 1920). */
+const HIDDEN_ALPHA = 0.02;
+/** How far either side of the board the layer's camera sees. Parts are ordered by `renderOrder`, not depth, so it only has to be wide enough to cut nothing. */
 const CAMERA_DEPTH = 10;
 
 const COMMAND_ARGUMENTS: Readonly<Record<string, number>> = { M: 2, L: 2, Q: 4, C: 6, H: 1 };
@@ -90,6 +112,7 @@ export function parseSvgPath(path: string): THREE.Shape[] {
   return shapes;
 }
 
+/** The ship's own scene and camera, drawn over the sky by the caller. */
 export interface ShipLayer {
   readonly scene: THREE.Scene;
   readonly camera: THREE.OrthographicCamera;
@@ -100,21 +123,25 @@ export interface ShipLayer {
    * is the only one there is.
    */
   draw(ship: DrawnShip, seconds?: number): void;
+  /** Releases the geometries, materials and glow texture the layer made. */
   dispose(): void;
 }
 
+/** The shapes as one geometry, moved by (`dx`, `dy`) so a part can turn and scale about its own root. */
 function translatedGeometry(shapes: THREE.Shape[], dx = 0, dy = 0): THREE.ShapeGeometry {
-  const geometry = new THREE.ShapeGeometry(shapes, CIRCLE_SEGMENTS);
+  const geometry = new THREE.ShapeGeometry(shapes, CURVE_SEGMENTS);
   geometry.translate(dx, dy, 0);
   return geometry;
 }
 
+/** A full circle as a shape, for the porthole. */
 function circleShape(x: number, y: number, radius: number): THREE.Shape {
   const shape = new THREE.Shape();
   shape.absarc(x, y, radius, 0, Math.PI * 2, false);
   return shape;
 }
 
+/** A rectangle as a shape, for the band. */
 function rectangleShape({ x, y, width, height }: { x: number; y: number; width: number; height: number }): THREE.Shape {
   const shape = new THREE.Shape();
   shape.moveTo(x, y);
@@ -130,6 +157,8 @@ export function createShipLayer(): ShipLayer {
   const camera = new THREE.OrthographicCamera(0, 1, 0, 1, -CAMERA_DEPTH, CAMERA_DEPTH);
   const geometries: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
+  /** The parts' materials: they share the ship's opacity; the glow's has its own. */
+  const partMaterials: THREE.MeshBasicMaterial[] = [];
   let order = 0;
 
   const addPart = (parent: THREE.Object3D, geometry: THREE.BufferGeometry, colour: string): THREE.Mesh => {
@@ -142,6 +171,7 @@ export function createShipLayer(): ShipLayer {
       side: THREE.DoubleSide,
     });
     materials.push(material);
+    partMaterials.push(material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.renderOrder = order++;
     parent.add(mesh);
@@ -196,8 +226,6 @@ export function createShipLayer(): ShipLayer {
   addPart(board, translatedGeometry([circleShape(PORTHOLE.x, PORTHOLE.y, PORTHOLE.radius - rim)]), COLOURS.porthole);
   scene.add(root);
 
-  const partMaterials = materials.filter((material): material is THREE.MeshBasicMaterial => material !== glowMaterial);
-
   return {
     scene,
     camera,
@@ -216,9 +244,13 @@ export function createShipLayer(): ShipLayer {
       root.scale.setScalar(ship.size / BOARD);
       for (const material of partMaterials) material.opacity = ship.alpha;
       flameGroup.visible = ship.flame > FLAME_ON;
-      flameGroup.scale.set(1, 0.4 + ship.flame * (0.9 + 0.2 * Math.sin(seconds * FLICKER_RATE)), 1);
+      flameGroup.scale.set(
+        1,
+        FLAME_LENGTH_MIN + ship.flame * (FLAME_LENGTH_PER_STRENGTH + FLICKER_DEPTH * Math.sin(seconds * FLICKER_RATE)),
+        1,
+      );
       glow.visible = ship.flame > GLOW_ON;
-      const radius = BOARD * (0.4 + ship.flame * 0.8);
+      const radius = BOARD * (GLOW_RADIUS_MIN + ship.flame * GLOW_RADIUS_PER_FLAME);
       glow.scale.set(radius * 2, radius * 2, 1);
       glowMaterial.opacity = GLOW_STRENGTH * ship.flame * ship.alpha;
     },

@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from '
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { space, spacing, target } from '@knowscroll/design-tokens';
 import { Text, useDisplay } from '@knowscroll/ui';
+import type { FrameTime } from '../frame-rate/frame-meter';
 import { loadSpaceRenderer } from './load-space-renderer';
 import { createRenderLoop, type RenderLoop } from './render-loop';
 import { reuseUnchangedAnchors } from './reuse-anchors';
@@ -68,7 +69,7 @@ export interface SpaceViewProps {
    * Told the time of every frame drawn, for the frame-rate readout. Unlike `diagnostics` it changes nothing about how
    * the frame is drawn, so it is safe in a production build.
    */
-  readonly onFrameTime?: (frame: { readonly atMs: number; readonly drawMs: number }) => void;
+  readonly onFrameTime?: (frame: FrameTime) => void;
   /** Developer gallery only. Makes the drawing readable and reports every frame. */
   readonly diagnostics?: {
     readonly onFrame: (sample: SpaceFrameSample) => void;

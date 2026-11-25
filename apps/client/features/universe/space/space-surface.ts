@@ -34,7 +34,7 @@ export interface SpaceProbe {
 /** A named point of the scene in layout pixels, for the labels and tap targets drawn over it. */
 export interface SpaceAnchor {
   readonly id: string;
-  /** A region only comes from the Round 7.3 camera on trial, which draws the planet as one world. */
+  /** A region only comes from the trial's camera driver, which draws the planet as one world. */
   readonly kind: 'system' | 'planet' | 'station' | 'dust' | 'region';
   /** Empty for dust, which has no name. */
   readonly name: string;

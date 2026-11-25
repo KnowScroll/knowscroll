@@ -9,10 +9,10 @@ import { usePlayerValue } from '../animation/animated';
 import { chromeAt as planetChrome } from '../animation/enter-planet';
 import { chromeAt as systemChrome } from '../animation/enter-system';
 import type { UniverseAnimation } from '../animation/use-universe-animation';
+import { useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
 import type { SpaceCameraSpec } from './space-renderer';
 import type { SpaceChoice, SpaceFailure } from './space-surface';
 import { SpaceView, type SpaceOverlayInfo } from './space-view';
-import { useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
 
 /**
  * U01, U08 and U02 in 3D: the whole universe (the Overview, and Far when the camera has drawn back) or
@@ -172,7 +172,7 @@ function useDetailReport(session: SceneProps['session']): (systemIds: readonly s
 }
 
 /** Draws nothing: it tells the screen 3D is gone, and the screen swaps in the Simple lists. */
-function Unavailable({
+export function Unavailable({
   reason,
   onUnavailable,
 }: {

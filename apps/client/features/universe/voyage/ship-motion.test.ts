@@ -35,17 +35,17 @@ describe('the ship under a finger', () => {
   it('follows a finger and settles near it', () => {
     const finger = { x: 120, y: 300 };
     const state = run(initialShip(HOME), { ...BASE, drag: finger }, 3);
-    expect(state.loose).toBe(true);
+    expect(state.free).toBe(true);
     expect(distance(state, finger)).toBeLessThan(2);
     expect(state.size).toBeCloseTo(34, 0);
     expect(state.flame).toBeGreaterThanOrEqual(0.16);
   });
 
   it('glides home and stays parked when nothing holds it', () => {
-    const away = { ...initialShip(HOME), x: 300, y: 250, free: false };
+    const away = { ...initialShip(HOME), x: 300, y: 250 };
     const state = run(away, BASE, 3);
     expect(distance(state, HOME)).toBeLessThan(0.5);
-    expect(state.loose).toBe(false);
+    expect(state.free).toBe(false);
   });
 
   it('never leaves its bounds, even with a finger far outside them', () => {
@@ -72,6 +72,22 @@ describe('the ship under a finger', () => {
     expect(rushing.flame).toBeGreaterThan(slow.flame);
     const goingRight = run(initialShip(HOME), { ...BASE, drag: { x: 340, y: 570 } }, 0.3);
     expect(goingRight.heading).toBeGreaterThan(0.5);
+  });
+
+  it('turns the short way round when its heading and the way it goes lie either side of the half turn', () => {
+    const speed = 100;
+    const across = 1.71;
+    const flying = {
+      ...initialShip(HOME),
+      free: true,
+      x: 195,
+      y: 300,
+      heading: -3,
+      vx: speed * Math.cos(across),
+      vy: speed * Math.sin(across),
+    };
+    const next = stepShip(flying, BASE, FRAME);
+    expect(Math.abs(next.heading - flying.heading)).toBeLessThan(0.05);
   });
 
   it('clamps a long step to a tenth of a second and ignores a step of no time', () => {
@@ -165,7 +181,7 @@ describe('hiding during a flight', () => {
 });
 
 describe('the leaning view', () => {
-  it('leans with a loose ship, capped, and carries the ship back so it does not slide', () => {
+  it('leans with a free ship, capped, and carries the ship back so it does not slide', () => {
     const limited = { ...BASE, leanLimit: 40 };
     const finger = { x: 40, y: 160 };
     const state = run(initialShip(HOME), { ...limited, drag: finger }, 3);

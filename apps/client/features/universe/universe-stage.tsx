@@ -125,7 +125,7 @@ export function UniverseStage({
   readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
   /** How far up from the stage's bottom the open card reaches, once measured: a picked region's name stays above it. */
   readonly coveredBottom?: number;
-  /** This device is trying the Round 7.3 look (#811): one camera from the ground to the whole universe, and the ship. */
+  /** This device is trying the new look: one camera from the ground to the whole universe, and the ship. */
   readonly voyage?: boolean;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
