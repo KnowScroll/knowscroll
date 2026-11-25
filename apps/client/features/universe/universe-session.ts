@@ -3,7 +3,6 @@ import {
   createFormationPresentationSession,
   createUniverseSceneSession,
   type AvailableRegionPreview,
-  type RegionPreviewState,
   type AccountScope,
   type UniverseSceneState,
 } from '@knowscroll/client-core';
@@ -13,7 +12,7 @@ import {
   WORLD_GENERATOR_VERSION,
   type SceneClientCapabilities,
 } from '@knowscroll/contracts';
-import type { SceneDescriptor, SceneGeometry, SceneLook } from '@knowscroll/scene-core';
+import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
 import { PLANET_ZOOM } from './planet/map-camera';
 import { ZOOM_LIMITS } from './space/camera-rig';
@@ -22,10 +21,10 @@ import { createCameraHistory, type CameraEntry } from './universe-camera-history
 import { createDeviceMemory } from './universe-device-memory';
 import { clearHereMarker, readHereMarker, writeHereMarker } from './universe-here-marker';
 import { readSeenLandmark, writeSeenLandmark } from './collection/landmark-seen';
-import { createCollectionReader, NO_COLLECTION_STATE, type CollectionState } from './universe-collection-reader';
-import { createDustReader, NO_DUST, type DustState } from './universe-dust';
+import { createCollectionReader, NO_COLLECTION_STATE } from './universe-collection-reader';
+import { createDustReader, NO_DUST } from './universe-dust';
 import { createGeometryCache } from './universe-geometry-cache';
-import type { LastPlace } from './universe-memory';
+import type { UniverseViewSession, UniverseViewState } from './universe-map-session';
 import {
   cameraStillValid,
   chunkOfObject,
@@ -41,43 +40,8 @@ import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 
 export type { UniversePlace } from './universe-places';
-export type { DustState } from './universe-dust';
-export type { CollectionState } from './universe-collection-reader';
+export type { UniverseMapSession, UniverseViewSession, UniverseViewState } from './universe-map-session';
 
-export interface UniverseViewState extends CameraEntry {
-  /** On a planet: its landed map (U04) is showing instead of its globe (U03). A focused region is always landed. */
-  readonly landed: boolean;
-  readonly read: UniverseSceneState;
-  /** `collection` is the landmarks sheet (D-084); `finds` is the focused system's Reels and Scrolls (#697). */
-  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | 'finds' | 'settings' | null;
-  readonly detail: 'full' | 'low';
-  readonly reducedMotion: boolean;
-  readonly notice?: 'place_unavailable';
-  readonly historyDepth: number;
-  readonly regionPreview: RegionPreviewState;
-  /** The Lately lens: quiet places draw calm, and the list puts recent ones first. Per device. */
-  readonly lately: boolean;
-  readonly dust: DustState;
-  /** The person's own landmarks, Orbit and next Part. Always empty for a friend's universe (D-214). */
-  readonly collection: CollectionState;
-  /** Where the ship is parked: the last place flown to on this device. */
-  readonly lastPlace: LastPlace | undefined;
-  /** Away long enough that the camera starts framed on everything, with the ship at its last place. */
-  readonly absent: boolean;
-  /** A system picked on the map but not entered yet (second tap or Open enters it). */
-  readonly selectedId: string | null;
-  /**
-   * The looks to draw when they do not come from a scene read: a friend's visit derives its own on this device
-   * (D-114). Absent on the person's own map, whose looks are the server's (D-102).
-   */
-  readonly looks?: readonly SceneLook[];
-  /** U04: the region the person left through its card's Open, private to this device, until they choose it again. */
-  readonly youWereHere: string | null;
-  /** The system whose Reels and Scrolls the `finds` sheet lists (#697). */
-  readonly findsFor: string | null;
-  /** The landmark the person already looked at or put away on this device: its large card stays folded (#694). */
-  readonly seenLandmark: string | null;
-}
 /** The farthest in the whole-universe view may ever zoom, whatever the map's extent. */
 const ZOOM_CEILING = 400;
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
@@ -98,7 +62,11 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
   };
 }
 /** Focus/camera/preview stay read-only; deliberate Open delegates to the real encounter engine. */
-export function createUniverseViewSession(scope: AccountScope, newId = newCommandId, now = Date.now) {
+export function createUniverseViewSession(
+  scope: AccountScope,
+  newId = newCommandId,
+  now = Date.now,
+): UniverseViewSession {
   let ended = false;
   const live = () => !ended && scope.active;
   const memory = createDeviceMemory(scope, now, live);
@@ -504,7 +472,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     formation.setForeground(foreground && state.overlay === null);
   };
 
-  return withTransitionGate({
+  return withTransitionGate<Omit<UniverseViewSession, 'gate'>>({
     getState: () => state,
     subscribe(this: void, listener: () => void) {
       if (!live()) return () => {};
@@ -725,9 +693,3 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     },
   });
 }
-export type UniverseViewSession = ReturnType<typeof createUniverseViewSession>;
-/**
- * What the map is drawn from. A friend's universe (U06) is drawn and navigated the same way as your
- * own, but has no formation story, so that part is not something the drawing needs.
- */
-export type UniverseMapSession = Omit<UniverseViewSession, 'formation' | 'dismissFormation'>;
