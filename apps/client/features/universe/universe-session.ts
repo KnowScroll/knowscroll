@@ -40,8 +40,6 @@ import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 
 export type { UniversePlace } from './universe-places';
-export type { DustState } from './universe-dust';
-export type { CollectionState } from './universe-collection-reader';
 export type { UniverseMapSession, UniverseViewSession, UniverseViewState } from './universe-map-session';
 
 /** The farthest in the whole-universe view may ever zoom, whatever the map's extent. */
