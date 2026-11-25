@@ -19,9 +19,17 @@ import { flightAt, planFlight, type FlightPlan } from './flight';
 import { targetKey, type VoyageTarget } from './ladder';
 import { createPlanetCloseUp } from './planet-close-up';
 import { createShipLayer } from './ship-layer';
-import { chainOf, focalOf, peakOf, type ChainPlaces, type PlacedChain, type ViewSize } from './voyage-chains';
+import {
+  chainOf,
+  focalOf,
+  peakOf,
+  planetDistances,
+  type ChainPlaces,
+  type PlacedChain,
+  type ViewSize,
+} from './voyage-chains';
 import type { VoyageControl, VoyagePlanet } from './voyage-control';
-import { heldOffset, placeCamera, vec, viewDirection } from './voyage-view';
+import { fieldOfView, heldOffset, placeCamera, vec, viewDirection } from './voyage-view';
 
 /** How fast the camera eases back to its stop after a pinch lets go of it without moving a stop (per second). */
 const ZOOM_RELAX_RATE = 6;
@@ -31,6 +39,8 @@ const NEAREST_RADII = 1.15;
 const SHOW_ALL_FROM_ZOOM = 1.3;
 /** Pinched in to this share of its stop's distance, the camera aims wholly at the place under the fingers (1 / 1.4, the step). */
 const AIMED_AT_ZOOM = 0.714;
+/** An aim turned less than this toward a pinch's place is back on its stop. */
+const AIM_FORGOTTEN = 1e-3;
 
 /** A flight under way: its plan, the time it started (set on its first frame) and the target it leaves. */
 interface Flight {
@@ -67,6 +77,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   let aim = 0;
   /** Where the camera turns its aim while pinched in: the place's own point, as its stop would look at it. */
   let aimPoint: Vec3 | null = null;
+  /**
+   * A pinch held the camera in the last frame. The screen lets go of the pinch in the same moment it changes place,
+   * so the flight that starts then is known to be a pinch's by this.
+   */
+  let pinchedLastFrame = false;
   /** The last planet the screen gave: kept while a flight leaves it, so its globe does not drop to the painted body. */
   let lastPlanet: VoyagePlanet | null = null;
   /** The planet drawn as a world now: the screen's, or the one a flight is still leaving. */
@@ -148,18 +163,22 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       lastDt = dt;
       const places = placesOf(space);
       // A new flight leaves from where the camera stands and looks, a pinch's zoom included, and carries it from there.
-      if (retarget(places, size, control.zoom !== null)) zoom = 1;
+      if (retarget(places, size, pinchedLastFrame || control.zoom !== null)) zoom = 1;
+      pinchedLastFrame = control.zoom !== null;
+      const towardPoint = control.zoom === null ? null : aimOf(control.zoom.toward, places, size);
       if (flight !== null || control.reducedMotion) {
         zoom = 1;
         aim = 0;
-      } else if (control.zoom !== null) {
-        zoom = control.zoom.scale;
-        aimPoint = aimOf(control.zoom.toward, places, size) ?? aimPoint;
-        aim = aimPoint === null ? 0 : smooth(1, AIMED_AT_ZOOM, zoom);
-      } else {
-        const relax = Math.exp(-dt * ZOOM_RELAX_RATE);
-        zoom = 1 + (zoom - 1) * relax;
-        aim *= relax;
+      } else if (control.zoom !== null) zoom = control.zoom.scale;
+      else zoom = 1 + (zoom - 1) * Math.exp(-dt * ZOOM_RELAX_RATE);
+      if (flight === null && !control.reducedMotion && towardPoint !== null) {
+        aimPoint = towardPoint;
+        aim = smooth(1, AIMED_AT_ZOOM, zoom);
+      } else aim *= Math.exp(-dt * ZOOM_RELAX_RATE);
+      // Once the aim is back on its stop, the point it turned toward is forgotten, so the next pinch starts afresh.
+      if (aim < AIM_FORGOTTEN) {
+        aim = 0;
+        aimPoint = null;
       }
       const target = chainOf(control.target, places, size);
       let focus: Vec3;
@@ -203,7 +222,10 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         { stop: control.target.stop, turnX: control.turn.x, planet: planet?.position, sun, planetChain, distance },
         direction,
       );
-      const focal = focalOf(size);
+      // Falling from a planet to its ground the lens lengthens, so the land is seen nearly from above.
+      const groundDistance = planet === undefined ? null : planetDistances(planet.radius, size).ground;
+      const fov = fieldOfView(planetChain, groundDistance, distance);
+      const focal = focalOf(size, fov);
       const camera = placeCamera(
         {
           focus,
@@ -211,6 +233,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
           distance,
           lean: control.lean,
           held: heldOffset(leaving?.stop ?? null, control.target.stop, q, size.height),
+          fov,
           focal,
         },
         cameraPosition,

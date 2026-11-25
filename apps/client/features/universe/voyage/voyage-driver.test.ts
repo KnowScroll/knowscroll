@@ -200,21 +200,28 @@ describe('a pinch', () => {
   });
 
   it('hands the flight it asks for the distance it left the camera at, and that flight is quicker', () => {
-    const plain = rig(target('universe', null));
-    plain.step();
-    plain.control.target = target('star', second.id);
-    const plainFlight = plain.settle().length;
-
-    const r = rig(target('universe', null));
-    r.step();
-    r.control.zoom = { scale: 0.6, toward: second.id };
-    const pinched = r.step();
-    // The fingers lift and the screen asks for the star: the flight starts from where the pinch left the camera.
-    r.control.target = target('star', second.id);
-    r.control.zoom = null;
-    const first = r.step();
+    // The screen lets go of the pinch in the same moment it changes place, as the controller does.
+    const pinchedRig = rig(target('universe', null));
+    pinchedRig.step();
+    pinchedRig.control.zoom = { scale: 0.6, toward: second.id };
+    const pinched = pinchedRig.step();
+    pinchedRig.control.target = target('star', second.id);
+    pinchedRig.control.zoom = null;
+    const first = pinchedRig.step();
     expect(Math.abs(first - pinched) / pinched).toBeLessThan(0.1);
-    expect(r.settle().length).toBeLessThan(plainFlight);
+    const quick = pinchedRig.settle().length;
+
+    // The same flight from about the same place, asked for a moment after the pinch let go: an ordinary one.
+    const plainRig = rig(target('universe', null));
+    plainRig.step();
+    plainRig.control.zoom = { scale: 0.6, toward: second.id };
+    plainRig.step();
+    plainRig.control.zoom = null;
+    plainRig.step();
+    plainRig.step();
+    plainRig.control.target = target('star', second.id);
+    const ordinary = plainRig.settle().length;
+    expect(quick).toBeLessThan(ordinary * 0.8);
   });
 
   it('never takes the camera inside a planet', () => {

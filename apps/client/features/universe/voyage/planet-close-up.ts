@@ -52,6 +52,10 @@ const NAMED_FROM_PX = 90;
 const FACING_LEAST = 0.25;
 /** The sun starts to shrink away once the globe shows this much (its opacity), and is gone when it is whole. */
 const SUN_GONE_FROM = 0.3;
+/** A painted planet's ring at rest, in planet radii (`scene/planet.ts`), and the hand-over values that leave it and its moon where they are. */
+const RING_AT_REST = { inner: 1.4, outer: 2.4 } as const;
+const NO_TURN = new THREE.Quaternion();
+const NO_MOVE = new THREE.Vector3();
 /** Where the light comes from when the planet's star is not in the scene. */
 const DEFAULT_TO_SUN = new THREE.Vector3(-0.45, 0.55, 0.7);
 
@@ -125,6 +129,7 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
   const giveBack = (space: BuiltSpace) => {
     if (closeUpOf === null) return;
     space.script.closeUp(closeUpOf.id, undefined);
+    space.script.handOver(closeUpOf.id, null);
     for (const id of [closeUpOf.id, ...closeUpOf.siblings]) {
       const body = space.script.planet(id);
       if (body) body.object.visible = true;
@@ -144,6 +149,12 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
     });
     const body = space.script.planet(planetId);
     if (body) body.object.visible = opacity < 0.98;
+    // The globe has no ring or moon: the painted planet's come in as the globe goes, instead of all at once.
+    const fade = 1 - opacity;
+    space.script.handOver(planetId, {
+      ring: { inner: RING_AT_REST.inner, outer: RING_AT_REST.outer, weight: 0, fade, turnTo: NO_TURN },
+      moon: { weight: 0, fade, target: NO_MOVE, shrinkTo: 1 },
+    });
     for (const id of closeUpOf.siblings) {
       const sibling = space.script.planet(id);
       if (sibling) sibling.object.visible = opacity < 0.5;
