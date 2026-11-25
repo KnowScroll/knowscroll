@@ -50,7 +50,10 @@ export interface ViewInput {
   /** The stop the camera is going to, and the turn a finger gave (used at a star and the whole universe). */
   readonly stop: Stop;
   readonly turnX: number;
-  /** The planet the target is at or a flight is leaving, its star's sun, and the chain that holds that planet. */
+  /**
+   * The planet the target is at or a flight is leaving, its star's sun, and the chain that holds that planet: its first
+   * link is the planet's and its second the star's, whatever links follow.
+   */
   readonly planet: THREE.Vector3 | undefined;
   readonly sun: THREE.Vector3 | undefined;
   readonly planetChain: Chain | null;
@@ -83,7 +86,9 @@ export function viewDirection(input: ViewInput, out: THREE.Vector3): THREE.Vecto
  */
 export function heldOffset(leaving: Stop | null, going: Stop, q: number, height: number): number {
   const heldAt =
-    leaving === null ? STOPS[going].heldAt : THREE.MathUtils.lerp(STOPS[leaving].heldAt, STOPS[going].heldAt, smooth(0, 1, q));
+    leaving === null
+      ? STOPS[going].heldAt
+      : THREE.MathUtils.lerp(STOPS[leaving].heldAt, STOPS[going].heldAt, smooth(0, 1, q));
   return (0.5 - heldAt) * height;
 }
 

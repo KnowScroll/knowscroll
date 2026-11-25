@@ -27,7 +27,7 @@ The camera driver (`voyage-driver.ts`) is loaded on demand with three.js (`voyag
 
 The stage (`voyage-stage.tsx`) and its controller (`voyage-controller.ts`, gestures and the ship, outside React) reach the main bundle, so they never import three.js; `voyage-control.ts` is the typed channel between them and the driver.
 
-**Adding a level** (a galaxy between the whole universe and a star): one more member of `Stop` and one row of `STOPS`; one more link in `chainOf`, between the star and the universe; and the session's kind of place that opens it.
+**Adding a level** (a galaxy between the whole universe and a star): one more member of `Stop` and one row of `STOPS`; one more link in `chainOf`, after the star's and before the universe's (the camera reads a planet's chain as the planet's link, then the star's, whatever follows); `targetOf` and `stopOf` for the view that opens it; and the session's kind of place. A level with no data yet (a universe with no galaxy) is simply absent from a chain.
 
 ## What is kept on the device
 

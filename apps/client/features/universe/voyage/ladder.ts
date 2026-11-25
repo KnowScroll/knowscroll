@@ -11,8 +11,8 @@ import type { UniverseMapSession, UniverseViewSession } from '../universe-sessio
  * The stops of the ladder that today's places fill, outermost first. One camera moves between them: each stop is a
  * distance from what you are in, not a separate screen. The prototype's names for `star` and `ground` are `system` and
  * `surface`. A level above a star (a galaxy, a cluster) is one more member here and one more row of {@link STOPS},
- * between `universe` and `star`; the camera's chain of places (`voyage-chains.ts`) then gains its link, and the session
- * the kind of place that opens it.
+ * between `universe` and `star`; the camera's chain of places (`voyage-chains.ts`) then gains its link after the star's,
+ * and the session the kind of place that opens it.
  */
 export type Stop = 'universe' | 'star' | 'planet' | 'ground';
 

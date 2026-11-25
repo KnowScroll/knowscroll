@@ -15,11 +15,11 @@ import type { Vec3 } from '../space/camera-rig';
 import { clamp } from '../space/paint';
 import type { BuiltSpace } from '../space/scene/build-scene';
 import type { SpaceCameraDriver } from '../space/space-renderer';
-import { flightAt, planFlight, type Chain, type FlightPlan } from './flight';
+import { flightAt, planFlight, type FlightPlan } from './flight';
 import { targetKey, type VoyageTarget } from './ladder';
 import { createPlanetCloseUp } from './planet-close-up';
 import { createShipLayer } from './ship-layer';
-import { chainOf, focalOf, peakOf, type ChainPlaces, type ViewSize } from './voyage-chains';
+import { chainOf, focalOf, peakOf, type ChainPlaces, type PlacedChain, type ViewSize } from './voyage-chains';
 import type { VoyageControl, VoyagePlanet } from './voyage-control';
 import { heldOffset, placeCamera, vec, viewDirection } from './voyage-view';
 
@@ -61,7 +61,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     return control.planet ?? lastPlanet;
   };
 
-  // Reused every frame, so that posing the camera allocates nothing but the pose it returns.
+  // Reused every frame: posing the camera makes no three.js vectors of its own.
   const direction = new THREE.Vector3();
   const cameraPosition = new THREE.Vector3();
   const planetPosition = new THREE.Vector3();
@@ -126,11 +126,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       let q = 1;
       /** Where the flight under way left from, and that place's chain; both null at rest. */
       const leaving = flight?.from ?? null;
-      let fromChain: Chain | null = null;
+      let from: PlacedChain | null = null;
       if (flight !== null) {
         flight.startedAt ??= t;
-        fromChain = chainOf(flight.from, places, size).chain;
-        const frame = flightAt(flight.plan, t - flight.startedAt, fromChain, target.chain);
+        from = chainOf(flight.from, places, size);
+        const frame = flightAt(flight.plan, t - flight.startedAt, from.chain, target.chain);
         focus = frame.focus;
         distance = frame.distance;
         q = frame.q;
@@ -148,7 +148,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const systemId = control.target.systemId ?? flight?.from.systemId ?? null;
       const sun = systemId === null ? undefined : space.script.sun(systemId);
       // The chain that holds the planet: the one flown to or, flying out of a planet, the one being left.
-      const planetChain = target.chain.length === 3 ? target.chain : fromChain?.length === 3 ? fromChain : null;
+      const planetChain =
+        target.planetRadius !== null ? target.chain : from !== null && from.planetRadius !== null ? from.chain : null;
       viewDirection(
         { stop: control.target.stop, turnX: control.turn.x, planet: planet?.position, sun, planetChain, distance },
         direction,
