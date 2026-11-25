@@ -420,9 +420,12 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       let focus: Vec3;
       let distance: number;
       let q = 1;
+      /** Where the flight under way left from, and that place's chain; both null at rest. */
+      const leaving = flight?.from ?? null;
+      let fromChain: Chain | null = null;
       if (flight !== null) {
         flight.startedAt ??= t;
-        const fromChain = chainOf(space, flight.from, size).chain;
+        fromChain = chainOf(space, flight.from, size).chain;
         const frame = flightAt(flight.plan, t - flight.startedAt, fromChain, target.chain);
         focus = frame.focus;
         distance = frame.distance;
@@ -443,12 +446,16 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       let direction = orbitDirection(
         control.target.stop === 'star' || control.target.stop === 'universe' ? control.turn.x : 0,
       );
-      if (planet !== undefined && sun !== undefined && target.chain.length === 3) {
+      // The chain that holds the planet: the one flown to or, flying out of a planet, the one being left. Turning
+      // by the distance along it eases the bearing both ways; without the second case the camera would snap from
+      // the day side to the star's orbit view on the first frame of a flight out.
+      const planetChain = target.chain.length === 3 ? target.chain : fromChain?.length === 3 ? fromChain : null;
+      if (planet !== undefined && sun !== undefined && planetChain !== null) {
         const towardPlanet = smooth(
           0,
           1,
-          (Math.log(target.chain[1]!.distance) - Math.log(distance)) /
-            (Math.log(target.chain[1]!.distance) - Math.log(target.chain[0]!.distance)),
+          (Math.log(planetChain[1]!.distance) - Math.log(distance)) /
+            (Math.log(planetChain[1]!.distance) - Math.log(planetChain[0]!.distance)),
         );
         direction = direction.lerp(planetDirection(planet.position, sun), towardPlanet).normalize();
       }
@@ -458,8 +465,13 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const up = new THREE.Vector3(0, 1, 0).addScaledVector(direction, -direction.y).normalize();
       const right = new THREE.Vector3().crossVectors(up, direction).normalize();
       const leanUnits = distance / focal;
-      // Holding the subject above the middle means looking a little below it.
-      const held = (0.5 - HELD_AT[control.target.stop]) * size.height;
+      // Holding the subject above the middle means looking a little below it. In flight the height moves from the
+      // stop left to the stop ahead with the flight, so the view never jumps when a flight starts.
+      const heldAt =
+        leaving === null
+          ? HELD_AT[control.target.stop]
+          : THREE.MathUtils.lerp(HELD_AT[leaving.stop], HELD_AT[control.target.stop], smooth(0, 1, q));
+      const held = (0.5 - heldAt) * size.height;
       const leaned = new THREE.Vector3(...focus)
         .addScaledVector(right, control.lean.x * leanUnits)
         .addScaledVector(up, -(control.lean.y + held) * leanUnits);
@@ -500,8 +512,10 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       // The person's own ship is drawn over the scene; the scene's parked rocket stays out of the way.
       space.script.shipScale(0);
 
-      // A star or anything below it shows its own system alone once the camera has nearly arrived.
-      const alone = control.target.stop !== 'universe' && q > 0.6 ? control.target.systemId : null;
+      // A star or anything below it shows its own system alone once the camera has nearly arrived, and keeps it alone
+      // for the first part of a flight away, so the other systems come in as the camera climbs and not at once.
+      const keptAlone = leaving !== null && leaving.stop !== 'universe' && q < 0.4 ? leaving.systemId : null;
+      const alone = control.target.stop !== 'universe' && q > 0.6 ? control.target.systemId : keptAlone;
       space.showOnly(alone);
       return camera;
     },
