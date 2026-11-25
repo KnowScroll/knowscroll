@@ -10,7 +10,7 @@ import type { loadSpaceRenderer } from '../space/load-space-renderer';
 import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { climbOneStop, targetKey } from './ladder';
+import { climbOneStop, targetKey, type VoyageTarget } from './ladder';
 import {
   drawn,
   initialShip,
@@ -23,7 +23,7 @@ import {
   recentreShip,
   type ShipState,
 } from './ship-motion';
-import type { VoyageControl, VoyageFrame, VoyagePlanet, VoyageTarget } from './voyage-driver';
+import type { VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
 import { loadVoyageRenderer } from './voyage-loader';
 
 /** A pinch has to open or close by this much to move a stop (the prototype's 1.4 and 1/1.4). */

@@ -21,18 +21,10 @@ import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { stopOf, type Stop } from './ladder';
+import { STOPS, targetOf } from './ladder';
 import { createVoyageController, type VoyageInputs } from './voyage-controller';
-import type { VoyagePlanet, VoyageTarget } from './voyage-driver';
+import type { VoyagePlanet } from './voyage-control';
 import { labelPoints } from './world-texture';
-
-/** What each stop names: the systems from afar, a star's planets, a planet's regions. Stations and dust where they are. */
-const NAMED_AT: Readonly<Record<Stop, readonly SpaceAnchor['kind'][]>> = {
-  universe: ['system', 'station', 'dust'],
-  star: ['planet', 'station', 'dust'],
-  planet: ['region'],
-  ground: ['region'],
-};
 
 /** How far below a region's point its name sits, in points. */
 const REGION_NAME_GAP = 14;
@@ -40,18 +32,6 @@ const REGION_NAME_GAP = 14;
 const BODY_NAME_GAP = 6;
 /** ... counted from at least this radius, so a tiny body's name still clears its button. */
 const MIN_BODY_RADIUS = 6;
-
-/** Where a view of the map is on the ladder: the stop, and the star, planet and region that make it. */
-const targetOf = (view: UniverseView): VoyageTarget => {
-  if (view.kind === 'universe') return { stop: 'universe', systemId: null, planetId: null, regionId: null };
-  if (view.kind === 'system') return { stop: 'star', systemId: view.system.objectId, planetId: null, regionId: null };
-  return {
-    stop: stopOf(view),
-    systemId: view.planet.parentId,
-    planetId: view.planet.objectId,
-    regionId: view.selectedRegion?.objectId ?? null,
-  };
-};
 
 /**
  * On the web a browser handles some touches itself unless told not to: two fingers zoom the page, a drag down pulls
@@ -82,6 +62,9 @@ export function VoyageStage({
   readonly onUnavailable: (reason: SpaceFailure) => void;
 }) {
   const looks = looksOfState(state);
+  // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
+  // flight records a new last place, and a new layout rebuilds the whole scene, freeing its shader programs to be
+  // linked again mid-flight: a stall of a few hundred milliseconds on the first flight to each place.
   const space = useMemo(
     () =>
       layOutUniverse({
@@ -90,9 +73,9 @@ export function VoyageStage({
         stations: stations ?? [],
         dustCueIds: state.dust.cues.map((cue) => cue.id),
         lately: state.lately,
-        lastPlaceId: state.lastPlace?.id,
+        lastPlaceId: undefined,
       }),
-    [index, looks, stations, state.dust.cues, state.lately, state.lastPlace?.id],
+    [index, looks, stations, state.dust.cues, state.lately],
   );
   const planet = usePlanetSurface(session, state, index, view);
   const inputs: VoyageInputs = {
@@ -136,14 +119,13 @@ export function VoyageStage({
   );
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {
-      const named = NAMED_AT[stop];
-      const shown = info.anchors.filter((anchor) => named.includes(anchor.kind));
-      controller.setAnchors(shown);
+      const named = STOPS[stop].names;
       return (
         <VoyageOverlay
-          anchors={shown}
+          anchors={info.anchors.filter((anchor) => named.includes(anchor.kind))}
           size={size}
           focusId={focusId}
+          onAnchors={controller.setAnchors}
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
@@ -284,6 +266,7 @@ function VoyageOverlay({
   anchors,
   size,
   focusId,
+  onAnchors,
   onPlace,
   onStation,
   onDust,
@@ -291,10 +274,13 @@ function VoyageOverlay({
   readonly anchors: readonly SpaceAnchor[];
   readonly size: { readonly width: number; readonly height: number };
   readonly focusId: string | null;
+  /** Told the places this stop names after each frame is shown: what the ship and the gestures can reach. */
+  readonly onAnchors: (anchors: readonly SpaceAnchor[]) => void;
   readonly onPlace: (id: string) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
 }) {
+  useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
   const shown = anchors.filter((anchor) => anchor.visible);
   const names = placeNames(shown, size, focusId);
   // Bodies orbit and pass close: crowded targets shrink and step apart so each stays a target of its own.
