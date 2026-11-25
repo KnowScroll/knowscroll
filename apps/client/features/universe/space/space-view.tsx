@@ -80,7 +80,11 @@ export interface SpaceViewProps {
 /** What went wrong, in one short line, for the developer gallery (never shown to a person). */
 const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error)).slice(0, 300);
 
-/** The pixel probe costs a read-back, so it samples now and then, not every frame. */
+/**
+ * The pixel probe reads pixels back from the GPU, which makes the GPU finish everything it was asked to draw first: on a
+ * phone that can cost a frame. So it samples now and then, not every frame, and only for a view that asked for
+ * diagnostics (the developer gallery and its gate tests); nothing else reads it.
+ */
 const PROBE_EVERY = 15;
 
 const browserScheduler = {
@@ -215,7 +219,10 @@ export function SpaceView({
             }
             const drawMs = performance.now() - started;
             frames.current += 1;
-            const probe = frames.current % PROBE_EVERY === 1 ? created.probe() : undefined;
+            const probe =
+              live.current.diagnostics !== undefined && frames.current % PROBE_EVERY === 1
+                ? created.probe()
+                : undefined;
             setAnchors((previous) => reuseUnchangedAnchors(previous, created.anchors()));
             setFar(created.isFar());
             live.current.onFrameTime?.({ atMs, drawMs });
