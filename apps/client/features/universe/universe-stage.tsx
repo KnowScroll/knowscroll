@@ -190,7 +190,7 @@ export function UniverseStage({
         }}
         style={styles.stage}
       >
-        <VoyageStage {...sceneProps} view={view} onUnavailable={onUnavailable} />
+        <VoyageStage {...sceneProps} view={view} visitor={visitor === true} onUnavailable={onUnavailable} />
       </View>
     );
   return (

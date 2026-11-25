@@ -64,9 +64,12 @@ export function VoyageStage({
   stations,
   onStation,
   onUnavailable,
+  visitor = false,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
+  /** A friend's Universe: their planets are drawn with every continent in colour and no region named or tappable. */
+  readonly visitor?: boolean;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -84,7 +87,7 @@ export function VoyageStage({
       }),
     [index, looks, stations, state.dust.cues, state.lately],
   );
-  const planet = usePlanetSurface(session, state, index, view);
+  const planet = usePlanetSurface(session, state, index, view, visitor);
   const recordFlight = useFlightRecorder();
   const [flying, setFlying] = useState(false);
   const inputs: VoyageInputs = {
@@ -260,6 +263,7 @@ function usePlanetSurface(
   state: SceneProps['state'],
   index: SceneProps['index'],
   view: UniverseView,
+  visitor: boolean,
 ): VoyagePlanet | null {
   const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
@@ -270,21 +274,26 @@ function usePlanetSurface(
   const globe = useGlobeWorld(session, plan?.spec);
   return useMemo(() => {
     if (!planet || !plan || globe.status !== 'ready') return null;
-    const chart = chartWorld(globe.world, plan.sites);
+    // A friend shares no regions: their planet wears every continent in colour, as the old globe drew it, so it neither
+    // looks unreached nor shows which places they have. Nothing on it is named, so nothing is tappable either.
+    const charted = visitor
+      ? Array.from({ length: plan.spec.siteCount }, (_, site) => ({ objectId: `${planet.objectId}:${site}`, site }))
+      : plan.sites;
+    const chart = chartWorld(globe.world, charted);
     const names = new Map((index.regions.get(planet.objectId) ?? []).map((region) => [region.objectId, region.label]));
     const hueShift = plan.look?.hueShift ?? 0;
     // Everything the painted texture depends on: a new look (its type or hue) repaints the globe as a new chart does.
-    const sites = plan.sites.map((site) => `${site.objectId}:${String(site.site)}`).join(',');
+    const sites = charted.map((site) => `${site.objectId}:${String(site.site)}`).join(',');
     return {
       key: `${planet.objectId}|${plan.spec.type}|${String(hueShift)}|${sites}`,
       planetId: planet.objectId,
       world: globe.world,
       chart,
       palette: paletteOf(plan.spec.type, hueShift),
-      labels: labelPoints(chart),
+      labels: visitor ? [] : labelPoints(chart),
       names,
     };
-  }, [planet, plan, globe, index]);
+  }, [planet, plan, globe, index, visitor]);
 }
 
 /** A box no name may cover: the square round a body, `share` of its radius out from its middle. */
