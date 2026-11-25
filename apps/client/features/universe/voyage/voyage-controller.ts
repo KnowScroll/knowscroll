@@ -1,10 +1,16 @@
+/**
+ * What the trial's stage changes from frame to frame and touch to touch, outside React, and the pure rules it follows:
+ * the driver's control (`VoyageControl`), the ship's motion (`ship-motion.ts`) and the stage's own gestures. It reaches
+ * the main bundle, so it holds no three.js: the driver comes in on demand through `voyage-loader.ts`. Where a number
+ * below copies the design prototype (`Universe.dc.html`, Round 7.3) it names the prototype's own constant.
+ */
 import { PanResponder, type GestureResponderEvent, type PanResponderInstance } from 'react-native';
 import type { RigFocus } from '../space/camera-rig';
 import type { loadSpaceRenderer } from '../space/load-space-renderer';
 import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { climbOneStop } from './ladder';
+import { climbOneStop, targetKey } from './ladder';
 import {
   drawn,
   initialShip,
@@ -26,12 +32,41 @@ const PINCH_STEP = 1.4;
 const DRAG_START = 8;
 /** Where the ship may go on a phone: clear of the header above and the chips below (the prototype's margins). */
 const SHIP_MARGINS = { side: 26, top: 150, bottom: 204 } as const;
-/** A wheel moves one stop, then waits this long before it moves another. */
+/** A wheel moves one stop, then waits this long before it moves another (the prototype's 260 ms `settle` timer). */
 const WHEEL_REST_MS = 260;
+/** Where the ship parks when none of its places is on screen: a share of the view's height down (the prototype's `H * 0.675`). */
+const PARK_AT = 0.675;
+/** The ship's size parked low in the sky, in points (the prototype's `hs = 32`). */
+const PARKED_SIZE = 32;
+/** The ship's size going round a globe, in points (the prototype's 26 for a planet in orbit). */
+const ORBIT_SIZE = 26;
+/** The ship's size standing on a region, in points. */
+const REGION_SIZE = 30;
+/** How far above a region's name point the ship stands, in points. */
+const REGION_RISE = 22;
+/** The ship goes round a globe whose radius on screen is over this (pixels): the same as the driver's `NAMED_FROM_PX`. */
+const ORBIT_FROM_PX = 90;
+/** ... and under this: nearer than that the globe fills the view, and the ship parks instead. */
+const ORBIT_TO_PX = 400;
+/** The ship's orbit round a globe turns this fast, in radians per second (the prototype's `a = T * 0.5`). */
+const ORBIT_RATE = 0.5;
+/** The orbit's half width, as a share of the globe's radius (the prototype's `1.34`). */
+const ORBIT_WIDTH = 1.34;
+/** The orbit's half height, as a share of the globe's radius (the prototype's `0.34`). */
+const ORBIT_HEIGHT = 0.34;
+/** How far up the orbit's middle rides, as a share of the globe's radius (the prototype's `R * 0.1`). */
+const ORBIT_RISE = 0.1;
+/** A parked ship steps clear of a named place by at least this much, in points. */
+const PARK_CLEARANCE = 24;
+/** The view leans from this far down, as a share of its height (the prototype's `ay = H * 0.56`). */
+const LEAN_CENTRE = 0.56;
+/** The view leans by at most this share of its short side (the prototype's `LM = min(W, H) * 0.3`). */
+const LEAN_LIMIT = 0.3;
 
+/** A width and a height, in layout points. */
 type Size = { readonly width: number; readonly height: number };
 
-/** What the screen hands the controller on every render. */
+/** What the screen hands the controller on every render: where the person is, what they turned and what is drawn. */
 export interface VoyageInputs {
   readonly session: UniverseMapSession;
   readonly view: UniverseView;
@@ -77,9 +112,6 @@ export function descend(
   } else if (!view.landed) void session.land();
 }
 
-const keyOf = (target: VoyageTarget) =>
-  `${target.stop}|${target.systemId ?? ''}|${target.planetId ?? ''}|${target.regionId ?? ''}`;
-
 /** Places the ship could be let go over: everything named on screen. */
 const shipTargets = (anchors: readonly SpaceAnchor[]) =>
   anchors
@@ -96,22 +128,23 @@ export function homeOf(
   const { width, height } = frame.size;
   const globe = frame.globe;
   const region = anchors.find((anchor) => anchor.kind === 'region' && anchor.visible && anchor.id === regionId);
-  if (region) return { x: region.x, y: region.y - 22, size: 30, heading: 0 };
-  if (globe !== null && globe.radiusPx > 90 && globe.radiusPx < 400) {
-    const angle = seconds * 0.5;
+  if (region) return { x: region.x, y: region.y - REGION_RISE, size: REGION_SIZE, heading: 0 };
+  if (globe !== null && globe.radiusPx > ORBIT_FROM_PX && globe.radiusPx < ORBIT_TO_PX) {
+    const angle = seconds * ORBIT_RATE;
     return {
-      x: globe.x + Math.cos(angle) * globe.radiusPx * 1.34,
-      y: globe.y + Math.sin(angle) * globe.radiusPx * 0.34 - globe.radiusPx * 0.1,
-      size: 26,
-      heading: Math.atan2(Math.cos(angle) * 0.34, -Math.sin(angle)) + Math.PI / 2,
+      x: globe.x + Math.cos(angle) * globe.radiusPx * ORBIT_WIDTH,
+      y: globe.y + Math.sin(angle) * globe.radiusPx * ORBIT_HEIGHT - globe.radiusPx * ORBIT_RISE,
+      size: ORBIT_SIZE,
+      heading: Math.atan2(Math.cos(angle) * ORBIT_HEIGHT, -Math.sin(angle)) + Math.PI / 2,
     };
   }
   const avoid = anchors
     .filter((anchor) => anchor.visible)
-    .map((anchor) => ({ x: anchor.x, y: anchor.y, r: Math.max(24, anchor.radiusPx) }));
-  return { ...parkingSpot({ anchor: { x: width / 2, y: height * 0.675 }, avoid }), size: 32, heading: 0 };
+    .map((anchor) => ({ x: anchor.x, y: anchor.y, r: Math.max(PARK_CLEARANCE, anchor.radiusPx) }));
+  return { ...parkingSpot({ anchor: { x: width / 2, y: height * PARK_AT }, avoid }), size: PARKED_SIZE, heading: 0 };
 }
 
+/** What the stage holds to run the trial look: its renderer, its gestures and what it is told. */
 export interface VoyageController {
   /** The renderer, with the controller's camera driving it, for `SpaceView`'s `load`. */
   readonly load: typeof loadSpaceRenderer;
@@ -126,18 +159,25 @@ export interface VoyageController {
   wheel(deltaY: number): void;
   /** A key the focused map heard. Returns whether it acted on it. */
   key(name: string): boolean;
+  /** Stops what the controller started outside React (the wheel's rest timer). Call it when the stage goes. */
+  dispose(): void;
 }
 
 /**
- * Everything the Round 7.3 stage changes from frame to frame and touch to touch, outside React: the driver's control,
- * the ship's motion, and the stage's own gestures (a finger on the ship flies it, one finger elsewhere turns what is in
+ * Everything the trial's stage changes from frame to frame and touch to touch, outside React: the driver's control, the
+ * ship's motion, and the stage's own gestures (a finger on the ship flies it, one finger elsewhere turns what is in
  * front of you, two fingers pinch one stop in or out; a short press is left to the named buttons beneath).
  */
 export function createVoyageController(first: VoyageInputs): VoyageController {
   let inputs = first;
   let anchors: readonly SpaceAnchor[] = [];
   let origin = { x: 0, y: 0 };
-  let ship: ShipState = initialShip({ x: first.size.width / 2, y: first.size.height * 0.675, size: 32, heading: 0 });
+  let ship: ShipState = initialShip({
+    x: first.size.width / 2,
+    y: first.size.height * PARK_AT,
+    size: PARKED_SIZE,
+    heading: 0,
+  });
   let held: { x: number; y: number } | null = null;
   let seconds = 0;
 
@@ -167,8 +207,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
             bottom: height - Math.min(SHIP_MARGINS.bottom, height * 0.3),
           },
           reducedMotion: inputs.reducedMotion,
-          viewCentre: { x: width / 2, y: height * 0.56 },
-          leanLimit: Math.min(width, height) * 0.3,
+          viewCentre: { x: width / 2, y: height * LEAN_CENTRE },
+          leanLimit: Math.min(width, height) * LEAN_LIMIT,
         },
         frame.dt,
       );
@@ -255,12 +295,13 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   });
 
   let wheelResting = false;
+  let wheelTimer: ReturnType<typeof setTimeout> | undefined;
   return {
     load: loadVoyageRenderer(control),
     responder,
     sync(next) {
       // Going somewhere calls the ship home: it parks at the new stop.
-      if (keyOf(next.target) !== keyOf(inputs.target)) ship = recentreShip(ship);
+      if (targetKey(next.target) !== targetKey(inputs.target)) ship = recentreShip(ship);
       inputs = next;
       control.target = next.target;
       control.turn = next.turn;
@@ -279,7 +320,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     wheel(deltaY) {
       if (wheelResting) return;
       wheelResting = true;
-      setTimeout(() => (wheelResting = false), WHEEL_REST_MS);
+      wheelTimer = setTimeout(() => (wheelResting = false), WHEEL_REST_MS);
       const at = centre();
       if (deltaY < 0) descend(inputs.session, inputs.view, anchors, at.x, at.y);
       else climbOneStop(inputs.session, inputs.view);
@@ -306,6 +347,11 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       const action = Object.hasOwn(actions, name) ? actions[name] : undefined;
       action?.();
       return action !== undefined;
+    },
+    dispose() {
+      clearTimeout(wheelTimer);
+      wheelTimer = undefined;
+      wheelResting = false;
     },
   };
 }

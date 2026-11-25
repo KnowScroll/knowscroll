@@ -1,6 +1,5 @@
 import type { Vec3 } from '../space/camera-rig';
-import { depthOf, LADDER, stopOf } from './ladder';
-import { flightAt, focusAlong, gravity, planFlight, release, type Chain } from './flight';
+import { flightAt, focusAlong, gravity, planFlight, release, wrapAngle, type Chain } from './flight';
 
 const planet: Vec3 = [10, 0, 0];
 const star: Vec3 = [0, 0, 0];
@@ -14,22 +13,6 @@ const planetChain: Chain = [
 const expectNear = (actual: Vec3, expected: Vec3) =>
   actual.forEach((value, axis) => expect(value).toBeCloseTo(expected[axis]!));
 const starChain: Chain = planetChain.slice(1);
-
-describe('the ladder', () => {
-  it('runs from the whole universe down to the ground, and a level above a star would sit between the first two', () => {
-    expect(LADDER).toEqual(['universe', 'star', 'planet', 'ground']);
-    expect(depthOf('universe')).toBeLessThan(depthOf('star'));
-    expect(depthOf('planet')).toBeLessThan(depthOf('ground'));
-  });
-
-  it('reads the stop from the stored camera as it always was', () => {
-    expect(stopOf({ kind: 'universe' })).toBe('universe');
-    const descriptor = { objectId: 'p' } as never;
-    expect(stopOf({ kind: 'system', system: descriptor })).toBe('star');
-    expect(stopOf({ kind: 'planet', planet: descriptor, landed: false })).toBe('planet');
-    expect(stopOf({ kind: 'planet', planet: descriptor, landed: true })).toBe('ground');
-  });
-});
 
 describe('a chain', () => {
   it('moves the focus in a straight line between two stops as the distance does', () => {
@@ -128,5 +111,15 @@ describe('a flight', () => {
     const plain = planFlight({ ...base, touchesGround: false }).seconds;
     expect(planFlight({ ...base, touchesGround: true }).seconds).toBeCloseTo(plain * 1.15);
     expect(planFlight({ ...base, touchesGround: false, fast: true }).seconds).toBeCloseTo(plain * 0.6);
+  });
+});
+
+describe('wrapping an angle', () => {
+  it('leaves an angle inside -PI..PI as it is and brings any other into it by whole turns', () => {
+    expect(wrapAngle(0)).toBe(0);
+    expect(wrapAngle(1)).toBeCloseTo(1, 12);
+    expect(wrapAngle(-2.5)).toBeCloseTo(-2.5, 12);
+    expect(wrapAngle(3 * Math.PI - 0.5)).toBeCloseTo(Math.PI - 0.5, 12);
+    expect(wrapAngle(-5 * Math.PI + 0.25)).toBeCloseTo(-Math.PI + 0.25, 12);
   });
 });

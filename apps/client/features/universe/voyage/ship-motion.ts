@@ -1,21 +1,28 @@
 /**
- * The motion of the Universe's rocket: a ship the person can drag, that glides home when let go,
- * bends toward a place it could catch, and hides while the view flies. Round 7.3 look.
+ * The motion of the Universe's rocket: a ship the person can drag, that glides home when let go, bends toward a place
+ * it could catch, and hides while the view flies. Its numbers are the prototype's ship block (`Universe.dc.html`, the
+ * `frame` function, lines 1886-1929, and the pointer handlers from line 2037); each constant below names the one it
+ * copies.
  *
- * Pure: screen coordinates in layout points, no three.js, no React and no clock. The caller owns
- * the frame loop and passes `dt` in seconds. Every function returns a new value and never mutates
- * its arguments, so the same inputs always give the same ship.
+ * Pure, and three-free (the controller reaches the main bundle): screen coordinates in layout points, no React and no
+ * clock. The caller owns the frame loop and passes `dt` in seconds. Every function returns a new value and never
+ * mutates its arguments, so the same inputs always give the same ship.
  */
+import { smootherstep } from '../animation/easing';
+import { wrapAngle } from './flight';
 
+/** A place on screen, in layout points, y down. */
 export interface Point {
   readonly x: number;
   readonly y: number;
 }
 
+/** A place the ship could be let go over, and what to call it when it is. */
 export interface ShipTarget extends Point {
   readonly id: string;
 }
 
+/** Where the ship parks when nothing holds it. */
 export interface ShipHome extends Point {
   /** Size in points when parked. */
   readonly size: number;
@@ -23,6 +30,7 @@ export interface ShipHome extends Point {
   readonly heading: number;
 }
 
+/** The part of the screen the ship may be in, in layout points. */
 export interface ShipBounds {
   readonly left: number;
   readonly right: number;
@@ -30,6 +38,7 @@ export interface ShipBounds {
   readonly bottom: number;
 }
 
+/** Everything about the ship that carries from one frame to the next. */
 export interface ShipState {
   readonly x: number;
   readonly y: number;
@@ -43,16 +52,15 @@ export interface ShipState {
   readonly size: number;
   /** How present the ship is, 0 (hidden during a flight or pinch) to 1. */
   readonly vis: number;
-  /** Released somewhere in empty sky: it stays there until recentred. */
+  /** Held now, or let go in empty sky: it stays where it is until recentred, and the view leans with it (the prototype's `loose`). */
   readonly free: boolean;
-  /** Held now, or free: the view leans with it. */
-  readonly loose: boolean;
   /** How far the view is leaned, in points. */
   readonly lean: Point;
   /** Id of the target it is bending toward, or null. */
   readonly candidate: string | null;
 }
 
+/** What the screen tells the ship each frame. */
 export interface ShipInput {
   readonly home: ShipHome;
   /** Finger position while the ship is held, else null. */
@@ -64,6 +72,7 @@ export interface ShipInput {
   readonly bounds: ShipBounds;
   /** Snap into place: no springs, no lean, no fade. */
   readonly reducedMotion: boolean;
+  /** The point the view leans away from: the lean follows the ship's offset from it. */
   readonly viewCentre: Point;
   /** The most the view may lean, in points. */
   readonly leanLimit: number;
@@ -79,49 +88,81 @@ export interface DrawnShip {
   readonly alpha: number;
 }
 
+/** What letting go of the ship does. */
 export interface ShipRelease {
   readonly state: ShipState;
-  /** The target to fly to, or null when the ship stays loose where it is. */
+  /** The target to fly to, or null when the ship stays free where it is. */
   readonly goTo: string | null;
 }
 
-export const MAX_STEP_SECONDS = 0.1;
-/** A target this close to the finger pulls the ship toward it and is marked as the candidate. */
-export const CATCH_RADIUS = 64;
-/** Lifting the finger this close to the candidate sends the ship there. */
-export const RELEASE_RADIUS = 70;
-/** A finger this close to the drawn ship takes it. */
-export const PICK_RADIUS = 26;
-/** The ship must be at least this present to be taken. */
-export const PICK_MIN_VIS = 0.6;
-export const HELD_SIZE = 34;
+/** The longest step one call advances, in seconds: a stalled frame does not throw the ship across the screen. */
+const MAX_STEP_SECONDS = 0.1;
+/** A target this close to the finger pulls the ship toward it and is marked as the candidate: prototype `bd = 64` (line 1901). */
+const CATCH_RADIUS = 64;
+/** Lifting the finger this close to the candidate sends the ship there: prototype `< 70` on release (line 2075). */
+const RELEASE_RADIUS = 70;
+/** A finger this close to the drawn ship takes it: the prototype's hit radius for the ship, `r: 26` (line 1924). */
+const PICK_RADIUS = 26;
+/**
+ * The ship must be more present than this to be taken. The prototype adds the hit area at `e > 0.6` (line 1924) with `e`
+ * the eased presence; this tests `vis` itself.
+ */
+const PICK_MIN_VIS = 0.6;
+/** The size, in points, of a ship in the hand: `ship.sz` eases to 34 (line 1918). */
+const HELD_SIZE = 34;
 
+/** Spring that follows the finger: stiffness `k` and damping ratio `zeta` of `v += (k (to - at) - 2 zeta sqrt(k) v) dt` (line 1905). */
 const FOLLOW_STIFFNESS = 34;
 const FOLLOW_DAMPING_RATIO = 0.75;
+/** Spring that glides the ship home, same form (line 1908). */
 const HOME_STIFFNESS = 70;
 const HOME_DAMPING_RATIO = 0.9;
+/** How far toward a caught target the goal bends at the finger's very centre: `k = 0.45 * (1 - distance / catch radius)` (line 1904). */
 const MAX_BEND = 0.45;
+/** Slower than this, in points per second, the ship stops turning its nose toward where it goes (line 1916). */
 const TURN_SPEED = 22;
+/** How fast the heading catches up while moving and while resting, per second (line 1917). */
 const FAST_TURN_RATE = 8;
 const SLOW_TURN_RATE = 3.5;
+/** How fast the size eases to its target, per second (line 1918). */
 const SIZE_RATE = 6;
+/** The speed, in points per second, at which the flame is full (line 1919). */
 const FLAME_FULL_SPEED = 240;
+/** The least flame a ship in the hand has (line 1919). */
 const HELD_FLAME = 0.16;
+/** The flame of a ship that is hiding, in proportion to how far gone it is (line 1919). */
 const LEAVE_FLAME = 0.9;
+/** How much of the ship's offset from the view centre the view leans by (line 1912). */
 const LEAN_GAIN = 0.5;
+/** How fast the lean follows its target, per second (line 1913). */
 const LEAN_RATE = 3.2;
+/** What is left of the lean after one second once the ship is back home: `look *= 0.02 ^ dt` (line 1915). */
 const LEAN_DECAY = 0.02;
+/** A lean smaller than this, in points, is dropped to nothing (line 1915). */
 const LEAN_REST = 0.4;
+/** How fast a ship let go in empty sky slows, per second: `v *= exp(-2.4 dt)` (line 1906). */
 const FREE_DRAG_RATE = 2.4;
+/** How fast `vis` falls toward 0 when the ship hides, and rises toward 1 when it returns, per second (line 1899). */
 const VIS_LEAVE_RATE = 10;
 const VIS_ARRIVE_RATE = 3.2;
+/** How far a hiding ship rises, in points, and how much it grows, as a share of its size (line 1921). */
 const HIDDEN_RISE = 46;
 const HIDDEN_GROWTH = 0.45;
+/** A ship this hidden does not glide home: it is put there (line 1906). */
 const HIDDEN_SNAP_VIS = 0.05;
+/** The offsets along x from the anchor to try, in order, when something tappable is under the ship (line 1892). */
 const PARKING_OFFSETS: readonly number[] = [0, 64, -64, 112, -112];
+/** A parked ship keeps at least this far, in points, from anything tappable, or the thing's radius plus the margin (line 1892). */
+const PARKING_MIN_CLEARANCE = 40;
+const PARKING_MARGIN = 18;
 
+/**
+ * Not `space/paint`'s `clamp`: for a range turned the wrong way round (`low > high`, a very small screen) and for
+ * -0 it gives another answer, and the ship has always used this order.
+ */
 const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
-const smootherstep = (q: number): number => q * q * q * (q * (6 * q - 15) + 10);
+
+/** Spring gains `k` and `c` for a stiffness and a damping ratio: `c = 2 * ratio * sqrt(k)`. */
 const springCoefficients = (stiffness: number, ratio: number): { k: number; c: number } => ({
   k: stiffness,
   c: 2 * ratio * Math.sqrt(stiffness),
@@ -141,7 +182,6 @@ export function initialShip(home: ShipHome): ShipState {
     size: home.size,
     vis: 1,
     free: false,
-    loose: false,
     lean: { x: 0, y: 0 },
     candidate: null,
   };
@@ -162,6 +202,7 @@ function nearestCatch(finger: Point, targets: readonly ShipTarget[]): { target: 
   return best;
 }
 
+/** The velocity after one step of a damped spring pulling `from` toward `to`. */
 function spring(from: Point, velocity: Velocity, to: Point, gains: { k: number; c: number }, dt: number): Velocity {
   return {
     vx: velocity.vx + (gains.k * (to.x - from.x) - gains.c * velocity.vx) * dt,
@@ -169,7 +210,7 @@ function spring(from: Point, velocity: Velocity, to: Point, gains: { k: number; 
   };
 }
 
-/** Where the view should lean for a ship at `at`: half the way from the centre, capped. */
+/** Where the view should lean for a ship at `at`: {@link LEAN_GAIN} of the way from the centre, capped. */
 function leanTarget(at: Point, input: ShipInput): Point {
   const x = (at.x - input.viewCentre.x) * LEAN_GAIN;
   const y = (at.y - input.viewCentre.y) * LEAN_GAIN;
@@ -180,17 +221,16 @@ function leanTarget(at: Point, input: ShipInput): Point {
 }
 
 /**
- * Advances the ship by `dt` seconds (clamped to 0.1). While held it follows the finger on a soft
- * spring and bends toward a target within 64 pt; at rest it glides home; released in empty sky it
- * drifts to a stop and stays. The view leans with a loose ship and the ship is carried back by the
- * lean step, so it does not slide on screen. Reduced motion snaps and does not lean.
+ * Advances the ship by `dt` seconds (at most {@link MAX_STEP_SECONDS}; no time at all returns `state` itself). While
+ * held it follows the finger on a soft spring and bends toward a target within the catch radius; at rest it glides
+ * home; let go in empty sky it drifts to a stop and stays. The view leans with a free ship and the ship is carried
+ * back by the lean step, so it does not slide on screen. Reduced motion snaps and does not lean.
  */
 export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number): ShipState {
   const dt = clamp(dtSeconds, 0, MAX_STEP_SECONDS);
   if (dt === 0) return state;
   const held = input.drag !== null;
   const free = state.free || held;
-  const loose = free;
   const snap = input.reducedMotion;
 
   const vis = snap
@@ -233,7 +273,7 @@ export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number):
   y += velocity.vy * dt;
 
   let lean = state.lean;
-  if (loose && !snap) {
+  if (free && !snap) {
     const target = leanTarget({ x, y }, input);
     const rate = Math.min(1, dt * LEAN_RATE);
     const stepX = (target.x - lean.x) * rate;
@@ -251,22 +291,22 @@ export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number):
 
   const speed = Math.hypot(velocity.vx, velocity.vy);
   const moving = speed > TURN_SPEED;
-  const wanted = moving ? Math.atan2(velocity.vy, velocity.vx) + Math.PI / 2 : loose ? 0 : input.home.heading;
-  const turn = Math.atan2(Math.sin(wanted - state.heading), Math.cos(wanted - state.heading));
+  const wanted = moving ? Math.atan2(velocity.vy, velocity.vx) + Math.PI / 2 : free ? 0 : input.home.heading;
+  const turn = wrapAngle(wanted - state.heading);
   const heading =
     snap && !moving ? wanted : state.heading + turn * Math.min(1, dt * (moving ? FAST_TURN_RATE : SLOW_TURN_RATE));
 
-  const targetSize = loose ? HELD_SIZE : input.home.size;
+  const targetSize = free ? HELD_SIZE : input.home.size;
   const size = snap ? targetSize : state.size + (targetSize - state.size) * Math.min(1, dt * SIZE_RATE);
   const presence = smootherstep(clamp(vis, 0, 1));
-  const flame = Math.max(clamp(speed / FLAME_FULL_SPEED, 0, 1), (1 - presence) * LEAVE_FLAME, loose ? HELD_FLAME : 0);
+  const flame = Math.max(clamp(speed / FLAME_FULL_SPEED, 0, 1), (1 - presence) * LEAVE_FLAME, free ? HELD_FLAME : 0);
 
-  return { x, y, vx: velocity.vx, vy: velocity.vy, heading, flame, size, vis, free, loose, lean, candidate };
+  return { x, y, vx: velocity.vx, vy: velocity.vy, heading, flame, size, vis, free, lean, candidate };
 }
 
 /**
- * The finger lifted. A candidate within 70 pt of the ship is where it goes: the caller flies
- * there as if that place had been tapped. Anywhere else the ship stays loose in the sky.
+ * The finger lifted. A candidate within the release radius of the ship is where it goes: the caller flies there as if
+ * that place had been tapped. Anywhere else the ship stays free in the sky.
  */
 export function releaseShip(state: ShipState, targets: readonly ShipTarget[]): ShipRelease {
   const candidate = targets.find((target) => target.id === state.candidate);
@@ -278,10 +318,10 @@ export function releaseShip(state: ShipState, targets: readonly ShipTarget[]): S
 
 /** Puts a ship that was left in the sky back on its parking spot. */
 export function recentreShip(state: ShipState): ShipState {
-  return { ...state, free: false, loose: false, candidate: null };
+  return { ...state, free: false, candidate: null };
 }
 
-/** The ship as it is painted: when it hides it rises 46 pt, grows by half and fades. */
+/** The ship as it is painted: when it hides it rises, grows and fades (the prototype's `e`, lines 1916 and 1921). */
 export function drawn(state: ShipState): DrawnShip {
   const presence = smootherstep(clamp(state.vis, 0, 1));
   return {
@@ -294,27 +334,32 @@ export function drawn(state: ShipState): DrawnShip {
   };
 }
 
-/** A finger within 26 pt of the drawn ship takes it, once the ship is mostly there. */
+/** True when a finger at (`x`, `y`) takes the ship: it is within the pick radius of the drawn ship, which is mostly there. */
 export function pickShip(state: ShipState, x: number, y: number): boolean {
   if (state.vis <= PICK_MIN_VIS) return false;
   const ship = drawn(state);
   return Math.hypot(ship.x - x, ship.y - y) <= PICK_RADIUS;
 }
 
+/** What {@link parkingSpot} needs to know. */
 export interface ParkingInput {
+  /** The spot the ship would like. */
   readonly anchor: Point;
   /** Things the person might tap, with their radius. */
   readonly avoid: readonly (Point & { readonly r: number })[];
 }
 
 /**
- * Where the ship parks: the first offset along x from the anchor that is clear of every tappable
- * thing, so it never rests on top of one. With no clear spot it stays at the anchor.
+ * Where the ship parks: the first offset along x from the anchor that is clear of every tappable thing, so it never
+ * rests on top of one. With no clear spot it stays at the anchor.
  */
 export function parkingSpot({ anchor, avoid }: ParkingInput): Point {
   for (const offset of PARKING_OFFSETS) {
     const spot = { x: anchor.x + offset, y: anchor.y };
-    const clear = avoid.every((thing) => Math.hypot(thing.x - spot.x, thing.y - spot.y) >= Math.max(40, thing.r + 18));
+    const clear = avoid.every(
+      (thing) =>
+        Math.hypot(thing.x - spot.x, thing.y - spot.y) >= Math.max(PARKING_MIN_CLEARANCE, thing.r + PARKING_MARGIN),
+    );
     if (clear) return spot;
   }
   return anchor;

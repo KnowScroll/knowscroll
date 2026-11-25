@@ -1,14 +1,16 @@
+import { createHash } from 'node:crypto';
 import { buildGlobe, chartWorld, type Chart, type GlobeWorld, type Loop, type WorldSpec } from '@knowscroll/scene-core';
 import { paletteOf } from '../planet/planet-palette';
-import { fillLoops, maskLoops, maskShapes, strokeLoops, type PixelTarget } from './fill-loops';
+import { fillLoops, maskShapes, strokeLoops, type PixelTarget } from './fill-loops';
 import {
-  bandToLonLat,
-  bandYOfLatitude,
+  BAND_HEIGHT,
+  BAND_UNITS_PER_RADIAN,
+  BAND_WIDTH,
   createWorldPainter,
   labelPoints,
   latitudeOfBandY,
-  paintWorldTexture,
   type WorldTexture,
+  type WorldTextureInput,
 } from './world-texture';
 
 const WIDTH = 512;
@@ -23,8 +25,22 @@ const chart: Chart = chartWorld(
   FORMED.map((site) => ({ objectId: `region-${site}`, site })),
 );
 const palette = paletteOf('lush', 0);
-const paint = (overrides: Partial<Parameters<typeof paintWorldTexture>[0]> = {}) =>
+
+/** The whole texture at once: `createWorldPainter` stepped until it is done. */
+function paintWorldTexture(input: WorldTextureInput): WorldTexture {
+  const painter = createWorldPainter(input);
+  while (!painter.step(Infinity));
+  return painter.result();
+}
+
+const paint = (overrides: Partial<WorldTextureInput> = {}) =>
   paintWorldTexture({ world, chart, palette, width: WIDTH, height: HEIGHT, ...overrides });
+
+/** The band row of a latitude in radians, kept within the band: the inverse of `latitudeOfBandY`. */
+function bandYOfLatitude(latitude: number): number {
+  const y = BAND_HEIGHT / 2 - BAND_UNITS_PER_RADIAN * Math.log(Math.tan(Math.PI / 4 + latitude / 2));
+  return Math.min(BAND_HEIGHT, Math.max(0, y));
+}
 
 let standardTexture: WorldTexture | undefined;
 let cloudlessTexture: WorldTexture | undefined;
@@ -35,8 +51,8 @@ const cloudless = (): WorldTexture =>
   (cloudlessTexture ??= paint({ world: { ...world, clouds: { body: [], middle: [], core: [] } } }));
 
 const grid: PixelTarget = { width: WIDTH, height: HEIGHT, data: new Uint8Array(0) };
-const draw = { scale: { x: WIDTH / 480, y: HEIGHT / 360 } };
-const maskOf = (loops: readonly Loop[]) => maskLoops(grid, loops, draw);
+const draw = { scale: { x: WIDTH / BAND_WIDTH, y: HEIGHT / BAND_HEIGHT } };
+const maskOf = (loops: readonly Loop[]) => maskShapes(grid, [loops], draw);
 const UNREACHED = maskShapes(
   grid,
   chart.unreached.map((land) => land.loops),
@@ -131,8 +147,8 @@ describe('painting a world into a texture', () => {
   it('puts no cloud over the point a formed region is named at', () => {
     const clear = cloudless();
     const cloudy = standard();
-    for (const { x, y } of labelPoints(chart)) {
-      const at = Math.floor((y * HEIGHT) / 360) * WIDTH + Math.floor((x * WIDTH) / 480);
+    for (const { label } of chart.charted) {
+      const at = Math.floor((label.y * HEIGHT) / BAND_HEIGHT) * WIDTH + Math.floor((label.x * WIDTH) / BAND_WIDTH);
       expect(rgbAt(cloudy, at)).toBe(rgbAt(clear, at));
     }
   });
@@ -251,13 +267,6 @@ describe('painting a world into a texture', () => {
 });
 
 describe('where a name goes', () => {
-  it('turns a place on the band into an angle round the planet and up from the equator', () => {
-    expect(bandToLonLat(0, 180)).toEqual({ lon: 0, lat: 0 });
-    expect(bandToLonLat(240, 180).lon).toBeCloseTo(Math.PI, 12);
-    expect(bandToLonLat(120, 0).lon).toBeCloseTo(Math.PI / 2, 12);
-    expect(bandToLonLat(120, 0).lat).toBeCloseTo(latitudeOfBandY(0), 12);
-  });
-
   it('maps band rows to latitude as Mercator does: the band edges are about 79.2 degrees', () => {
     const edge = (79.2 * Math.PI) / 180;
     expect(latitudeOfBandY(0)).toBeCloseTo(edge, 2);
@@ -268,16 +277,15 @@ describe('where a name goes', () => {
   });
 
   it('keeps a unit as long north as it is east, wherever it is: a row is cos(latitude) of a radian', () => {
-    const perRadian = 480 / (2 * Math.PI);
     for (const y of [20, 100, 180, 250, 340]) {
       const step = latitudeOfBandY(y - 0.5) - latitudeOfBandY(y + 0.5);
-      expect(step).toBeCloseTo(Math.cos(latitudeOfBandY(y)) / perRadian, 5);
+      expect(step).toBeCloseTo(Math.cos(latitudeOfBandY(y)) / BAND_UNITS_PER_RADIAN, 5);
     }
   });
 
   it('goes from a row to a latitude and back', () => {
     for (let y = 0; y <= 360; y += 15) expect(bandYOfLatitude(latitudeOfBandY(y))).toBeCloseTo(y, 9);
-    expect(bandYOfLatitude(0.3)).toBeCloseTo(180 - (480 / (2 * Math.PI)) * Math.log(Math.tan(Math.PI / 4 + 0.15)), 9);
+    expect(bandYOfLatitude(0.3)).toBeCloseTo(180 - BAND_UNITS_PER_RADIAN * Math.log(Math.tan(Math.PI / 4 + 0.15)), 9);
   });
 
   it('keeps a latitude within the band, the poles included', () => {
@@ -293,9 +301,26 @@ describe('where a name goes', () => {
     expect(points).toHaveLength(FORMED.length);
     for (const [index, point] of points.entries()) {
       const label = chart.charted[index]!.label;
-      expect([point.x, point.y]).toEqual([label.x, label.y]);
-      expect(point.lon).toBeCloseTo(bandToLonLat(label.x, label.y).lon, 12);
-      expect(point.lat).toBeCloseTo(bandToLonLat(label.x, label.y).lat, 12);
+      expect(point.x).toBe(label.x);
+      expect(point.lat).toBe(latitudeOfBandY(label.y));
     }
+  });
+});
+
+/**
+ * Pins the painter's output: a tidy-up of the painter or of `fill-loops.ts` must not change a pixel.
+ * One world with each of three palettes (lush, gas, scorched: the gas bands and the scorched coast
+ * glow are layers the lush one lacks), SHA-1 of the whole RGBA array at 1024 by 512. A deliberate
+ * change of look updates the hashes. 2048 by 1024 is not pinned: it costs about 13 s for the three.
+ */
+describe('the painter output, pinned', () => {
+  const PINNED = {
+    lush: '562d891f292ba8bb5779542cc086431b92cc38cb',
+    gas: '6ac8a2fce69c8b8a046dbd9ec4b365b9f2f25da5',
+    scorched: 'a3b21a44ca288001af1f067aee82a8d0ec282156',
+  } as const;
+  it.each(Object.keys(PINNED) as (keyof typeof PINNED)[])('paints %s at 1024 by 512 to the pinned bytes', (type) => {
+    const texture = paint({ palette: paletteOf(type, 0), width: 1024, height: 512 });
+    expect(createHash('sha1').update(texture.data).digest('hex')).toBe(PINNED[type]);
   });
 });

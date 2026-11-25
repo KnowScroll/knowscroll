@@ -1,9 +1,15 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+/**
+ * The small frame-rate figure over the Universe and the hook the drawing loop reports through. The meter's own maths is
+ * in `frame-meter.ts`; this file only holds the one meter, shows it and hands the loop a way to feed it. Both reach the
+ * main bundle, so neither may import three.js.
+ */
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { radius, space, spacing } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
 import { createFrameMeter, describeFrames, type FrameMeter, type FrameTime } from './frame-meter';
 
+/** Carries the meter from the readout to the drawing loop below it; null when nobody is reading. */
 const MeterContext = createContext<FrameMeter | null>(null);
 
 /** How often the figure is redrawn. Slow on purpose: the readout must not cost what it measures. */
@@ -14,21 +20,21 @@ const REFRESH_MS = 500;
  * drawing loop reports each frame through {@link useFrameTimeRecorder}; without the setting nothing is recorded.
  */
 export function FrameRateReadout({ on, children }: { readonly on: boolean; readonly children: ReactNode }) {
-  const meter = useMemo(() => (on ? createFrameMeter() : null), [on]);
+  const [meter] = useState(() => createFrameMeter());
   return (
-    <MeterContext.Provider value={meter}>
+    <MeterContext.Provider value={on ? meter : null}>
       {children}
-      {meter ? <Figure meter={meter} /> : null}
+      {on ? <Figure meter={meter} /> : null}
     </MeterContext.Provider>
   );
 }
 
 /** Where a drawing loop reports a frame, or undefined when nobody is reading. */
 export function useFrameTimeRecorder(): ((frame: FrameTime) => void) | undefined {
-  const meter = useContext(MeterContext);
-  return useMemo(() => (meter ? (frame: FrameTime) => meter.record(frame) : undefined), [meter]);
+  return useContext(MeterContext)?.record;
 }
 
+/** The two lines of figures, refreshed every {@link REFRESH_MS}. */
 function Figure({ meter }: { readonly meter: FrameMeter }) {
   const [line, setLine] = useState(() => describeFrames(meter.summary(performance.now())));
   useEffect(() => {
@@ -44,15 +50,19 @@ function Figure({ meter }: { readonly meter: FrameMeter }) {
   );
 }
 
+/** Distance from the top in layout points: level with the search and Lately chips, below the header's avatar. */
+const FIGURE_TOP = 76;
+/** The sky's near-black at 72%: dark enough for the small text to read over bright stars. Used nowhere else. */
+const FIGURE_BACKGROUND = 'rgba(2, 3, 8, 0.72)';
+
 const styles = StyleSheet.create({
   figure: {
     position: 'absolute',
     right: spacing[4],
-    // Beside the search and Lately chips, below the header's avatar.
-    top: 76,
+    top: FIGURE_TOP,
     paddingHorizontal: spacing[2],
     paddingVertical: spacing[1],
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(2, 3, 8, 0.72)',
+    backgroundColor: FIGURE_BACKGROUND,
   },
 });

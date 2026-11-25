@@ -9,12 +9,13 @@ import type { SpaceFailure } from '../universe/space/space-surface';
 import { indexUniverse, viewFor, type Size } from '../universe/universe-layout';
 import { VoyageStage } from '../universe/voyage/voyage-stage';
 import { createVisitMapSession, type VisitMapSession } from '../visit/visit-map-session';
-import { sampleScene } from './sample-universe';
+import { sampleScene, type SampleScene } from './sample-universe';
 
+/** What the stage's station and dust buttons do here: nothing, the sample has no rooms or forming places to open. */
 const noop = (): void => {};
 
 /**
- * `?scene=voyage` of the developer space gallery: the Universe's Round 7.3 look (`VoyageStage`) drawn over the labelled
+ * `?scene=voyage` of the developer space gallery: the Universe's trial look (`VoyageStage`) drawn over the labelled
  * sample universe, so the emulator lane, which cannot sign in, can fly it and drag the ship. The map session is a
  * friend's-universe one (pure and local, over descriptors); it cannot land on a planet, which the flow does not need.
  * The stage fills the screen, as it does on the tab, with the heading and caption laid over it.
@@ -23,7 +24,9 @@ export function VoyageGalleryPage() {
   useDocumentTitle('Voyage · KnowScroll');
   const insets = useSafeAreaInsets();
   const { reducedMotion } = useDisplay();
-  const scene = useMemo(() => sampleScene(), []);
+  const [scene] = useState(sampleScene);
+  // The session is made and filled before the first render, so the stage's first frame already has the sample places.
+  // The initialiser touches only the session it makes, so running it twice (StrictMode) is harmless.
   const [session] = useState(() => {
     const made = createVisitMapSession({ refresh: () => Promise.resolve() });
     made.setForeground(true);
@@ -60,13 +63,14 @@ export function VoyageGalleryPage() {
   );
 }
 
+/** The stage over the sample places, with the map session's state read as the Universe screen reads it. */
 function VoyageGalleryStage({
   session,
   scene,
   onUnavailable,
 }: {
   readonly session: VisitMapSession;
-  readonly scene: ReturnType<typeof sampleScene>;
+  readonly scene: SampleScene;
   readonly onUnavailable: (reason: SpaceFailure) => void;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
