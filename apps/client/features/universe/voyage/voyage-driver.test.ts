@@ -189,9 +189,11 @@ describe('a pinch', () => {
       Math.hypot(restAim[0] - starAim[0], restAim[2] - starAim[2]) / 4,
     );
     r.control.zoom = null;
-    const easing = [r.step(), r.step(), r.step()];
-    expect(easing[0]).toBeGreaterThan(pinched);
-    expect(easing[2]).toBeGreaterThan(easing[0]);
+    const first = r.step();
+    r.step();
+    const third = r.step();
+    expect(first).toBeGreaterThan(pinched);
+    expect(third).toBeGreaterThan(first);
     for (let i = 0; i < 90; i += 1) r.step();
     expect(r.step()).toBeCloseTo(atRest, 1);
     expect(r.last().flying).toBe(false);
