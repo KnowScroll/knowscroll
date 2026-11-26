@@ -552,12 +552,25 @@ float over it.
     place, which only parks the old map's rocket). When a scene must be rebuilt (a place formed, Lately), the renderer
     takes the new scene's shader programs while the old one still holds them, so none is linked again mid-flight; the
     globe's program is compiled ahead. The browser spec checks that no flight frees a program.
-  - Not yet: the stations' own look, search from every stop, landmark pennants on the globe, the crossing to a
-    friend's Universe, desktop and tablet layouts.
+  - **Search from every stop, and the sky's answer** (`universe-header.tsx`, `voyage/search-sky.tsx`). Beside Back, at a
+    star, a planet and its ground, sits a small dark-glass search circle ("Search your universe", 48 px, where the prototype
+    draws 44), which opens the same search card as the magnifier at the whole universe; `/` works everywhere as
+    before, Escape closes the card wherever the focus is (typed in the field it is handled there, since a text field
+    keeps the key from the screen's own listener), and choosing a result flies there. While search is open the stage, not the screen, dims the
+    sky, so the matched stars can shine through it. With nothing typed the dim is flat (as the old map's). With a query,
+    every system that holds a match (a system itself, a planet's or region's system, a room's system) keeps its light
+    under a soft yellow glow and a thin ring (`voyage-search-lit-<id>`), and the rest of the sky drops to about 28 %;
+    a query that matches no system dims the whole sky. Only systems are lit, and only those the stop draws (from a
+    star, its own). The card reports the lit systems through `onLit` (`systemsOfResults`); the sky is drawn by SVG
+    over the canvas, takes no touch and is hidden from assistive technology (the results list is how a person
+    chooses), and never animates, so reduced motion needs no change. With the switch off the old dim and the old
+    header are unchanged; on a desktop Browse still carries search and no sky answer is drawn.
+  - Not yet: the stations' own look, landmark pennants on the globe, the crossing to a friend's Universe, desktop and
+    tablet layouts.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and
-    its skip; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look.
+    its skip; the search circle at a star, a planet and its ground, and the rings the sky draws for what is typed; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look.
   - Tracked on #806.
 - **Desktop D02** (`universe-panel.tsx`, D-395). From 1024 px the map uses the full available width.
   Browse opens a modal over it: search, selected-place details, Resume and Orbit when available, and the complete

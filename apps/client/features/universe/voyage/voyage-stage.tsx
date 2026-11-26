@@ -25,6 +25,7 @@ import type { UniverseMapSession } from '../universe-session';
 import { STOPS, targetOf } from './ladder';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
+import { SearchSky, type SearchAnswer } from './search-sky';
 import { labelPoints } from './world-texture';
 
 /** How far below a region's point its name sits, in points. */
@@ -65,11 +66,14 @@ export function VoyageStage({
   onStation,
   onUnavailable,
   visitor = false,
+  search,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
   /** A friend's Universe: their planets are drawn with every continent in colour and no region named or tappable. */
   readonly visitor?: boolean;
+  /** Search is open: the sky dims, and the systems that hold a match keep their light and wear a ring. */
+  readonly search?: SearchAnswer;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -158,10 +162,13 @@ export function VoyageStage({
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
+          {...(search
+            ? { search, stars: info.anchors.filter((anchor) => anchor.kind === 'system' && own(anchor)) }
+            : {})}
         />
       );
     },
-    [controller, session, onStation, onDust, stop, systemId, size, focusId, hereId],
+    [controller, session, onStation, onDust, stop, systemId, size, focusId, hereId, search],
   );
 
   const stage = useRef<ComponentRef<typeof View>>(null);
@@ -399,6 +406,8 @@ function VoyageOverlay({
   onPlace,
   onStation,
   onDust,
+  search,
+  stars = [],
 }: {
   readonly anchors: readonly SpaceAnchor[];
   /** The kinds whose names are written beside them at this stop; the others are named for a screen reader only. */
@@ -414,6 +423,10 @@ function VoyageOverlay({
   readonly onPlace: (id: string) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
+  /** The sky's answer to an open search, drawn over everything but the buttons' touches. */
+  readonly search?: SearchAnswer;
+  /** The stars this stop draws, named or not: the whole sky from the whole universe, only the star you are at below it. */
+  readonly stars?: readonly SpaceAnchor[];
 }) {
   useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
   const shown = anchors.filter((anchor) => anchor.visible);
@@ -471,6 +484,7 @@ function VoyageOverlay({
           </View>
         );
       })}
+      {search ? <SearchSky answer={search} anchors={stars} size={size} /> : null}
     </View>
   );
 }

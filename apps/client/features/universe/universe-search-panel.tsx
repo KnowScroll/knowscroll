@@ -1,10 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
 import { borderWidth, content, radius, space, spacing, target } from '@knowscroll/design-tokens';
 import { Button, Icon, IconButton, Text } from '@knowscroll/ui';
 import { nameWithTruth } from './universe-lists';
-import { KIND_WORD, searchRoomsOf, searchUniverse, type SearchResult } from './universe-search';
+import { KIND_WORD, searchRoomsOf, searchUniverse, systemsOfResults, type SearchResult } from './universe-search';
 import type { UniverseMapSession } from './universe-session';
 
 /** The yellow under the letters that matched. */
@@ -24,6 +24,8 @@ export function UniverseSearchPanel({
   onStation,
   children,
   embedded = false,
+  onLit,
+  closeOnEscape = false,
 }: {
   readonly children?: ReactNode;
   /** Browse supplies its own Close control and the unfiltered outline. */
@@ -34,6 +36,16 @@ export function UniverseSearchPanel({
   /** The person's own rooms. A friend's universe has none to search (a visit shows what the friend shares). */
   readonly stations?: readonly RoomStation[];
   readonly onStation?: (roomId: string) => void;
+  /**
+   * Told, after each draw, the systems that hold a match for what is typed (null while nothing is typed) and, with
+   * null, when the panel goes: the sky lights them (the new look). Called with the same list again when nothing changed.
+   */
+  readonly onLit?: (systems: readonly string[] | null) => void;
+  /**
+   * Escape typed in the field closes the card. A text field keeps the key to itself on the web, so the screen's own
+   * Escape never hears it from here; the new look asks for it so that Escape closes search wherever the focus is.
+   */
+  readonly closeOnEscape?: boolean;
 }) {
   const subject = owner === undefined ? 'your universe' : `${owner}’s universe`;
   const [query, setQuery] = useState('');
@@ -48,6 +60,12 @@ export function UniverseSearchPanel({
     } else session.focus(result.id);
   };
   const searched = query.trim().length > 0;
+  // The sky lights every system that holds a match, not only those of the results the card has room for.
+  const litSystems = searched
+    ? systemsOfResults(searchUniverse(session.places(), rooms, query, Infinity), session.places(), rooms)
+    : null;
+  useEffect(() => onLit?.(litSystems));
+  useEffect(() => () => onLit?.(null), [onLit]);
   return (
     <View testID="universe-search-panel" style={styles.root}>
       <View style={styles.bar}>
@@ -62,6 +80,11 @@ export function UniverseSearchPanel({
             }}
             onKeyPress={(event) => {
               const key = event.nativeEvent.key;
+              if (key === 'Escape' && closeOnEscape) {
+                event.preventDefault();
+                session.back();
+                return;
+              }
               if (key !== 'ArrowDown' && key !== 'ArrowUp') return;
               event.preventDefault();
               setLit((current) => Math.min(results.length - 1, Math.max(0, current + (key === 'ArrowDown' ? 1 : -1))));

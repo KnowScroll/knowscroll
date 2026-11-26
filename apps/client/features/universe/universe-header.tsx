@@ -110,6 +110,17 @@ export function UniverseHeader({
       : session.places().find((place) => place.id === (view.kind === 'planet' ? view.planet.parentId : ''));
   const universeName = visitor ? `${visitor.ownerName}’s universe` : 'Universe';
   const toGlobe = voyage && climbsToGlobe(view);
+  // The new look searches from every stop: a small dark-glass circle at the right end of the Back row.
+  const miniSearch =
+    voyage && hasPlaces && !desktop ? (
+      <IconButton
+        icon="search"
+        label={visitor ? `Search ${visitor.ownerName}’s universe` : 'Search your universe'}
+        variant="onSpaceDark"
+        onPress={onSearch}
+        testID="universe-search"
+      />
+    ) : null;
   const backLabel =
     view.kind === 'system'
       ? universeName
@@ -137,7 +148,10 @@ export function UniverseHeader({
             </View>
           ) : null}
         </View>
-        <View style={styles.actions}>{view.kind === 'system' && !visitor && !desktop ? lens : null}</View>
+        <View style={styles.actions}>
+          {view.kind === 'system' && !visitor && !desktop ? lens : null}
+          {miniSearch}
+        </View>
       </View>
       {view.kind === 'system' ? (
         <View style={styles.block}>

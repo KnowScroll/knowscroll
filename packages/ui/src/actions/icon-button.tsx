@@ -6,6 +6,7 @@ import {
   overlay,
   printed,
   radius,
+  space,
   target,
   toggle,
   type FocusTone,
@@ -18,15 +19,17 @@ import { fillWhenPressed, type IconName } from '../icons/icon-paths';
 
 /**
  * `paper`: 2 px ink edge on paper. `onMedia` / `onSpace`: borderless cream at 94 % over media or
- * the map. `plain`: no edge (Scroll top-bar Back). `accent`: Send.
+ * the map. `onSpaceDark`: a cream glyph on dark glass, edged in cream, for a control that must stay quiet over the sky
+ * (the search circle beside Back). `plain`: no edge (Scroll top-bar Back). `accent`: Send.
  */
-export type IconButtonVariant = 'paper' | 'onMedia' | 'onSpace' | 'plain' | 'accent';
+export type IconButtonVariant = 'paper' | 'onMedia' | 'onSpace' | 'onSpaceDark' | 'plain' | 'accent';
 
 const looks: Record<IconButtonVariant, { background: string; border: string; foreground: string; focus: FocusTone }> = {
   paper: { background: content.paper, border: content.ink, foreground: content.ink, focus: 'onLight' },
   // A cream control over media or the sky: ink on it in both appearances (#666).
   onMedia: { background: overlay.onMediaControl, border: 'transparent', foreground: printed.ink, focus: 'onDark' },
   onSpace: { background: overlay.onMediaControl, border: 'transparent', foreground: printed.ink, focus: 'onDark' },
+  onSpaceDark: { background: space.glass, border: space.glassEdge, foreground: space.label, focus: 'onDark' },
   plain: { background: 'transparent', border: 'transparent', foreground: content.ink, focus: 'onLight' },
   accent: { background: content.accent, border: content.ink, foreground: content.onAccent, focus: 'onLight' },
 };

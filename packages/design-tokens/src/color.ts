@@ -149,6 +149,9 @@ export const space = {
   edge: 'rgba(255,251,240,0.22)',
   /** Route line on the map. */
   route: 'rgba(255,251,240,0.4)',
+  /** Dark glass over the sky: the small circle controls beside Back (cream glyph, `glassEdge` round it). */
+  glass: 'rgba(2,3,8,0.45)',
+  glassEdge: 'rgba(255,253,242,0.5)',
   /** Organising-star core. */
   star: '#FFE9A8',
   /** Focus ring and ship trail. */

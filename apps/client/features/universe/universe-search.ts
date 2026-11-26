@@ -88,7 +88,8 @@ interface Candidate {
 /**
  * Searches what the person already has by name: the places of their map and, when it is their own,
  * the rooms beside it (D-111). Best match first, then systems before planets before regions before
- * rooms. It runs on the places and stations already on this device, never calls the server and never
+ * rooms, at most `limit` of them (the card lists {@link SEARCH_LIMIT}; the sky lights every match).
+ * It runs on the places and stations already on this device, never calls the server and never
  * keeps or logs the query. Stars are not results: they are the system's own light. A place that has
  * not formed is not in `places`, so it cannot be found.
  */
@@ -96,6 +97,7 @@ export function searchUniverse(
   places: readonly UniversePlace[],
   rooms: readonly SearchRoom[],
   rawQuery: string,
+  limit = SEARCH_LIMIT,
 ): readonly SearchResult[] {
   const query = normaliseQuery(rawQuery);
   if (!query) return [];
@@ -144,7 +146,7 @@ export function searchUniverse(
         KIND_ORDER[a.candidate.kind] - KIND_ORDER[b.candidate.kind] ||
         a.candidate.name.localeCompare(b.candidate.name),
     )
-    .slice(0, SEARCH_LIMIT)
+    .slice(0, limit)
     .map(({ candidate, match }) => {
       const trail: string[] = [];
       for (let parent = byId.get(candidate.parentId); parent && trail.length < 3; parent = byId.get(parent.parentId))
@@ -159,3 +161,29 @@ export function searchUniverse(
       };
     });
 }
+
+/**
+ * The systems the sky should light for these results: a system is itself, a planet its system, a region the system of its
+ * planet, a room the system it stands beside. In the order they first appear (best match first), each once. A result whose
+ * place cannot be followed up to a system lights nothing.
+ */
+export function systemsOfResults(
+  results: readonly SearchResult[],
+  places: readonly UniversePlace[],
+  rooms: readonly SearchRoom[],
+): readonly string[] {
+  const byId = new Map(places.map((place) => [place.id, place]));
+  const roomSystem = new Map(rooms.map((room) => [room.id, room.systemId]));
+  const systemOf = (result: SearchResult): string | undefined => {
+    if (result.kind === 'room') return roomSystem.get(result.id);
+    let place = byId.get(result.id);
+    // A region sits on a planet which sits on a system: at most two steps up.
+    for (let step = 0; place && place.kind !== 'system' && step < 2; step += 1) place = byId.get(place.parentId);
+    return place?.kind === 'system' ? place.id : undefined;
+  };
+  return [...new Set(results.flatMap((result) => systemOf(result) ?? []))];
+}
+
+/** Whether two lists of system ids are the same, in the same order: a screen holding one keeps it when nothing changed. */
+export const sameSystems = (a: readonly string[] | null, b: readonly string[] | null): boolean =>
+  a === b || (a !== null && b !== null && a.length === b.length && a.every((id, at) => id === b[at]));
