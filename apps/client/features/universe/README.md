@@ -24,6 +24,9 @@ The camera driver (`voyage-driver.ts`) is loaded on demand with three.js (`voyag
 - `voyage-view.ts`: which way the camera looks and where it stands.
 - `planet-close-up.ts`: the planet as one world (`globe.ts`, painted by `world-texture.ts`), with a sharp patch of the map round the place you land.
 - `ship-motion.ts` (pure) and `ship-layer.ts`: the ship.
+- `station-look.ts` (pure) and `station-layer.tsx`: a room's station, drawn flat over the canvas at its anchor in place of the scene's own mesh (`showStations`, called by the driver on attach), with the prototype's lights, glow and hover.
+
+Search: the Back row of a star, a planet and its ground carries a small search circle (`universe-header.tsx`), and while the card is open the stage draws the sky's answer (`search-sky.tsx`): a dim, with a glow and a ring on each system the card reports as holding a match (`universe-search.ts` `systemsOfResults`, handed up by the card's `onLit`). The screen skips its flat dim in this look. `search-sky.tsx` is drawn from the overlay's anchors, over the canvas and under the buttons' touches.
 
 Search: the Back row of a star, a planet and its ground carries a small search circle (`universe-header.tsx`), and while the card is open the stage draws the sky's answer (`search-sky.tsx`): a dim, with a glow and a ring on each system the card reports as holding a match (`universe-search.ts` `systemsOfResults`, handed up by the card's `onLit`). The screen skips its flat dim in this look. `search-sky.tsx` is drawn from the overlay's anchors, over the canvas and under the buttons' touches.
 

@@ -65,6 +65,11 @@ export interface BuiltSpace {
   readonly setViewHeight: (heightPx: number) => void;
   /** Shows one system alone (a System view), or everything (`null`). */
   readonly showOnly: (systemId: string | null) => void;
+  /**
+   * Draws the stations' own meshes, or not (shown by default). A station's anchor, its name and its tap target do not
+   * change: only what three.js draws does, for a view that draws the stations itself (the trial look, `voyage/`).
+   */
+  readonly showStations: (visible: boolean) => void;
   /** Pulses a warm glow around one system (picked on the Far level) or one planet (picked on the desktop), or none. */
   readonly highlight: (id: string | null) => void;
   /** What a camera script ("Enter a system", "Enter a planet") reads of the scene and changes in it. */
@@ -374,6 +379,8 @@ export function buildSpace(
   let anchorList: WorldAnchor[] = [];
   let highlighted: string | null = null;
   let only: string | null = null;
+  /** Whether the stations' meshes are drawn; kept here so a system built again later follows it. */
+  let stationsDrawn = true;
   let heightPx = 640;
   let fov: number = FIELD_OF_VIEW;
   let places = placesOf(definition);
@@ -402,6 +409,7 @@ export function buildSpace(
     for (const { built } of stations) scene.add(built.object);
     const objects = [build.built.object, ...stations.map(({ built }) => built.object)];
     for (const object of objects) object.visible = shownNow(system.id);
+    for (const { built } of stations) drawMeshes(built.object, stationsDrawn);
     belongings.set(system.id, objects);
     for (const [id, sprite] of build.picks) sprite.visible = id === highlighted;
     live.set(system.id, { id: system.id, signature: signatureOf(system, definition), build, stations, textures: own });
@@ -642,6 +650,10 @@ export function buildSpace(
         for (const object of objects) object.visible = systemId === null || id === systemId;
       if (far !== undefined) far.object.visible = systemId === null;
     },
+    showStations(visible) {
+      stationsDrawn = visible;
+      for (const record of live.values()) for (const { built } of record.stations) drawMeshes(built.object, visible);
+    },
     highlight(pickedId) {
       highlighted = pickedId;
       for (const { build } of live.values()) for (const [id, sprite] of build.picks) sprite.visible = id === pickedId;
@@ -653,6 +665,14 @@ export function buildSpace(
       live.clear();
     },
   };
+}
+
+/**
+ * Shows or hides what a station is made of while the station itself stays in the scene. Its group keeps `visible`: an
+ * anchor reports `visible` from its object, and a hidden object would take the station's name and button with it.
+ */
+function drawMeshes(station: THREE.Object3D, drawn: boolean): void {
+  for (const child of station.children) child.visible = drawn;
 }
 
 /** The far plane of the camera at rest; a map larger than this deepens it. */

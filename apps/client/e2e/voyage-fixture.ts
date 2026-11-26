@@ -23,6 +23,48 @@ export const VOYAGE_READS: ReadonlySet<string> = new Set([
   ...COLLECTION_READS,
 ]);
 
+/** The id of the room a member of {@link VOYAGE_ROOMS} sees: its station stands beside CI system 0. */
+export const MEMBER_ROOM_ID = '0199d000-0000-7000-8000-1111aaaa0001';
+/** The id of the room whose station an outsider sees, beside the same system. A station's place round its system comes from its id, so the two ids differ where that is read. */
+export const OUTSIDER_ROOM_ID = '0199d000-0000-7000-8000-9999bbbb0002';
+
+const roomOf = (roomId: string, name: string, accent: string) => ({
+  roomId,
+  name,
+  description: 'A room about the first system.',
+  topic: { kind: 'system', id: 'ci-topic', label: 'CI topic' },
+  joinRule: 'open',
+  status: 'open',
+  identity: {
+    kit: {
+      version: 'station-kit.v1',
+      palette: { ground: 'midnight', accent, ink: 'cream' },
+      emblem: { frame: 'circle', glyph: 'ringed-planet' },
+      motif: 'constellation',
+      motion: 'twinkle',
+      cast: { explainer: 'star', skeptic: 'atom' },
+    },
+  },
+});
+
+/**
+ * Two room stations beside CI system 0 (authored for CI, never product data): one a member's, with a sky of three
+ * stars lit in seven, and one an outsider's, which carries none.
+ */
+export const VOYAGE_ROOMS = [
+  {
+    room: roomOf(MEMBER_ROOM_ID, 'CI room', 'mint'),
+    standing: 'member',
+    placement: { systemId: fixtureId(10) },
+    sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
+  },
+  {
+    room: roomOf(OUTSIDER_ROOM_ID, 'CI outsider room', 'sun'),
+    standing: 'none',
+    placement: { systemId: fixtureId(10) },
+  },
+] as const;
+
 export interface VoyageOptions {
   readonly size?: { width: number; height: number };
   readonly trial?: boolean;
@@ -35,6 +77,11 @@ export interface VoyageOptions {
   readonly programs?: boolean;
   /** Keep every line the flight line shows, for {@link flightLines}. */
   readonly flightLines?: boolean;
+  /**
+   * Two room stations beside CI system 0 ({@link VOYAGE_ROOMS}): a member's, with a sky, and an outsider's. `'live'`
+   * has a Reel on in the member's room (D-268).
+   */
+  readonly rooms?: boolean | 'live';
   /** Two landmarks earned on CI planet 2 (a gold and a plain), so its pennants stand on its globe. */
   readonly landmarks?: boolean;
 }
@@ -155,6 +202,11 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
       { ...earned, key: 'the-turning-halves', name: 'The Turning Halves', tier: 'plain', assetId: fixtureId(501) },
     ];
     world.collection.planets = [{ id: fixtureId(12), topicId: 'earth.seasons' }];
+  }
+  if (options.rooms !== undefined && options.rooms !== false) {
+    const [member, outsider] = VOYAGE_ROOMS;
+    const rooms = options.rooms === 'live' ? [{ ...member, live: 'reel' }, outsider] : [member, outsider];
+    world.stations.push(...(rooms as unknown as typeof world.stations));
   }
   await page.setViewportSize(options.size ?? { width: 390, height: 844 });
   if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
