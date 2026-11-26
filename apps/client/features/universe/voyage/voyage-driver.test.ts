@@ -237,6 +237,45 @@ describe('a pinch', () => {
     expect(quick).toBeLessThan(ordinary * 0.8);
   });
 
+  it('keeps a star alone however far the fingers pinch out from it, so a shaking finger never flickers the sky', () => {
+    const r = rig(target('star', base.id));
+    r.step();
+    for (const scale of [1.25, 1.35, 1.28, 1.36, 2, 2.9, 1.1]) {
+      r.control.zoom = { scale, toward: null };
+      r.step();
+    }
+    r.control.zoom = null;
+    for (let i = 0; i < 30; i += 1) r.step();
+    expect(new Set(r.showOnly)).toEqual(new Set([base.id]));
+  });
+
+  it('hurries a flight under way while two fingers hold the camera, then eases to where they are with no jump', () => {
+    const plain = rig(target('universe', null));
+    plain.step();
+    plain.control.target = target('star', base.id);
+    const ordinary = plain.settle().length;
+
+    const r = rig(target('universe', null));
+    r.step();
+    r.control.target = target('star', base.id);
+    r.step();
+    r.step();
+    // Two fingers come down mid-flight and close: they ask for the camera 1.3 times farther out than the stop.
+    r.control.zoom = { scale: 1.3, toward: null };
+    const flown = r.settle();
+    expect(flown.length + 2).toBeLessThan(ordinary * 0.6);
+    const stop = r.stopDistance(target('star', base.id));
+    expect(flown[flown.length - 1]).toBeCloseTo(stop, 1);
+    // Landed: the camera goes out to the fingers over a few frames, never in one.
+    let previous = flown[flown.length - 1]!;
+    for (let i = 0; i < 20; i += 1) {
+      const now = r.step();
+      expect(Math.abs(now - previous) / previous).toBeLessThan(0.1);
+      previous = now;
+    }
+    expect(previous).toBeCloseTo(stop * 1.3, 0);
+  });
+
   it('never takes the camera inside a planet', () => {
     const r = rig(target('ground', base.id, PLANET));
     r.control.zoom = { scale: 0.05, toward: null };

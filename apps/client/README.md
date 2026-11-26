@@ -496,8 +496,10 @@ float over it.
   `onFrameTime`), changes nothing about how a frame is drawn, and says "No 3D frames" while the loop rests or a planet's
   SVG view is up. Under it, one line for each of the last four flights of the new look, timed from the ask (a tap, a
   key, a pinch let go) to the landing, marked "again" for a place already visited, with any shader programs linked on
-  the way (`voyage/flight-legs.ts`). A frame drawn outside the loop (stamp 0) makes no gap. It exists to measure the
-  Universe on a real phone and goes when that work ends.
+  the way (`voyage/flight-legs.ts`). Last, a "touch:" line says what the fingers did last on the new look: the ship
+  held and what it is pulled to, where it was let go and what that did, a pinch's spread and whether it moved a stop
+  (`onGesture` in `voyage-controller.ts`). A frame drawn outside the loop (stamp 0) makes no gap. It exists to measure
+  the Universe on a real phone and goes when that work ends.
 - **New Universe look on trial** (`voyage/`). "Try the new Universe" in Settings → Accessibility, off by default and
   kept on the device, swaps the map of your own Universe, and of a friend's you visit, for the Round 7.3 look:
   - **One camera along a ladder of stops** (`ladder.ts`): the whole universe, a star, a planet, its ground. The stored
@@ -507,10 +509,16 @@ float over it.
     A flight out eases back the way it came in. A pinch follows the fingers (`pinch-gesture.ts`): the camera comes
     nearer or goes farther as they spread or close, turning toward the place under them; past a step of 1.4 it moves
     one stop and the flight leaves from where the pinch left the camera, quicker; short of it the camera eases back.
+    Fingers are followed by id (`stage-touches.ts`): one lifting pauses the pinch, one landing again carries it on
+    from where it was, and the pinch decides when the last finger lifts. Fingers that come down during a flight hurry
+    it to its stop, then the camera eases to where they have taken it. A pinch out from a star keeps it alone; the
+    other stars come in with the flight it asks for.
     The wheel and `+`/`-` move one stop; the Back pill and Escape climb one stop, the ground to its globe first
     (`climbOneStop`). On the web the stage takes every touch (`touch-action: none`), so a pinch never zooms the page.
     While the camera flies one line says where it is going ("Going to X · tap to skip", read out once), and a tap
-    anywhere skips to the end of the flight. Reduced motion cuts instead of flying.
+    anywhere skips to the end of the flight. The skip's tap target stays mounted between flights, letting touches
+    through and hidden from assistive technology: a browser sends the rest of a touch to the element it began on, so a
+    target removed on landing would cut off every touch that began mid-flight. Reduced motion cuts instead of flying.
   - **The planet as one world** (`globe.ts`, `world-texture.ts`): a sphere wearing the `worldmap.v1` globe band,
     painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey
     land not reached yet shows from orbit too, outlined as one shape, never named, counted or tappable. The sea is the
@@ -525,7 +533,8 @@ float over it.
   - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky (hovering gently, still under reduced
     motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans; let
     it go within 70 pt of a place to go there, or of a station to open its room; while held, the place it would go to
-    glows. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
+    glows. A finger that moves less than 6 pt is a tap (it calls the ship home), and a second finger lets go of the
+    ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
     "X · you are here" pill.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
@@ -544,9 +553,9 @@ float over it.
   - Not yet: the stations' own look, search from every stop, landmark pennants on the globe, the crossing to a
     friend's Universe, desktop and tablet layouts.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
-    read out and browsing sends no write; pinches with two fingers; checks Escape, Light against Dark and the plain-lists
-    fallbacks (no WebGL, low memory, a lost context); a flight's line and its skip; and reports the frames of each stop
-    and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look.
+    read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
+    Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and
+    its skip; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look.
   - Tracked on #806.
 - **Desktop D02** (`universe-panel.tsx`, D-395). From 1024 px the map uses the full available width.
   Browse opens a modal over it: search, selected-place details, Resume and Orbit when available, and the complete

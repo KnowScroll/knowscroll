@@ -180,12 +180,47 @@ describe('the wheel', () => {
   });
 });
 
-describe('the wheel', () => {
-  const landed: UniverseView = { kind: 'planet', planet: descriptor('p'), landed: true };
-  const inputsFor = (session: UniverseMapSession): VoyageInputs => ({
+/** A finger as React Native reports it: its identifier and where it is on the page. */
+type Touch = { readonly id: number; readonly x: number; readonly y: number };
+
+/** The responder event of fingers `down`, with the touch history PanResponder reads its deltas from. */
+function touchEvent(down: readonly Touch[], time: number) {
+  const touchBank: object[] = [];
+  for (const touch of down)
+    touchBank[touch.id] = {
+      touchActive: true,
+      startPageX: touch.x,
+      startPageY: touch.y,
+      startTimeStamp: time,
+      currentPageX: touch.x,
+      currentPageY: touch.y,
+      currentTimeStamp: time,
+      previousPageX: touch.x,
+      previousPageY: touch.y,
+      previousTimeStamp: time,
+    };
+  return {
+    nativeEvent: {
+      touches: down.map((touch) => ({ identifier: String(touch.id), pageX: touch.x, pageY: touch.y })),
+      changedTouches: [],
+      pageX: down[0]?.x ?? 0,
+      pageY: down[0]?.y ?? 0,
+    },
+    touchHistory: {
+      touchBank,
+      numberActiveTouches: down.length,
+      indexOfSingleActiveTouch: down.length === 1 ? down[0]!.id : -1,
+      mostRecentTimeStamp: time,
+    },
+  } as never;
+}
+
+describe('the fingers on the stage', () => {
+  const universe: UniverseView = { kind: 'universe' };
+  const inputsFor = (session: UniverseMapSession, onGesture: (line: string) => void): VoyageInputs => ({
     session,
-    view: landed,
-    target: { stop: 'ground', systemId: 's', planetId: 'p', regionId: null },
+    view: universe,
+    target: { stop: 'universe', systemId: null, planetId: null, regionId: null },
     size: { width: 390, height: 844 },
     turn: { x: 0, y: 0 },
     planet: null,
@@ -193,30 +228,89 @@ describe('the wheel', () => {
     reducedMotion: false,
     universeFocus: {} as VoyageInputs['universeFocus'],
     systemFocus: () => undefined,
+    onGesture,
+  });
+  /** A stage over the whole universe with one star at (200, 380), driven through its responder as touches arrive. */
+  function stage() {
+    const { session, calls } = recordingSession();
+    const lines: string[] = [];
+    const controller = createVoyageController(inputsFor(session, (line) => lines.push(line)));
+    controller.setAnchors([anchor('star', 'system', 200, 380)]);
+    const handlers = controller.responder.panHandlers as unknown as Record<string, (event: unknown) => unknown>;
+    let time = 0;
+    const fingers = (phase: 'start' | 'move' | 'end', down: readonly Touch[]) => {
+      time += 16;
+      const event = touchEvent(down, time);
+      if (phase === 'start' && handlers['onResponderGrant'] && !granted) {
+        granted = true;
+        handlers['onResponderGrant'](event);
+      } else if (phase === 'start') handlers['onResponderStart']!(event);
+      else if (phase === 'move') handlers['onResponderMove']!(event);
+      else {
+        handlers['onResponderEnd']!(event);
+        if (down.length === 0) {
+          handlers['onResponderRelease']!(event);
+          granted = false;
+        }
+      }
+    };
+    let granted = false;
+    return { controller, calls, lines, fingers };
+  }
+
+  it('pause a pinch when one finger lifts, carry it on when a finger lands again, and decide when the last one lifts', () => {
+    const { calls, lines, fingers } = stage();
+    fingers('start', [
+      { id: 0, x: 170, y: 380 },
+      { id: 1, x: 230, y: 380 },
+    ]);
+    fingers('move', [
+      { id: 0, x: 155, y: 380 },
+      { id: 1, x: 245, y: 380 },
+    ]);
+    // One finger lifts: nothing moves a stop yet, and the name under the other finger stays where it is.
+    fingers('end', [{ id: 0, x: 155, y: 380 }]);
+    expect(lines.at(-1)).toBe('pinch ×1.50 · a finger lifted');
+    expect(calls).toEqual([]);
+    // It lands again close to the other: the pinch goes on from ×1.50, it does not jump back to ×1.
+    fingers('start', [
+      { id: 0, x: 155, y: 380 },
+      { id: 2, x: 215, y: 380 },
+    ]);
+    expect(lines.at(-1)).toBe('pinch ×1.50');
+    fingers('move', [
+      { id: 0, x: 155, y: 380 },
+      { id: 2, x: 245, y: 380 },
+    ]);
+    expect(lines.at(-1)).toBe('pinch ×2.25');
+    fingers('end', [{ id: 2, x: 245, y: 380 }]);
+    fingers('end', []);
+    expect(calls).toEqual(['focus star']);
+    expect(lines.at(-1)).toBe('pinch ×2.25 → in (a stop is ×1.40)');
   });
 
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
-
-  it('moves one stop, then rests before it moves another', () => {
-    const { session, calls } = recordingSession();
-    const controller = createVoyageController(inputsFor(session));
-    controller.wheel(100);
-    controller.wheel(100);
-    expect(calls).toEqual(['focus p']);
-    jest.advanceTimersByTime(300);
-    controller.wheel(100);
-    expect(calls).toEqual(['focus p', 'focus p']);
+  it('let go of the ship when a second finger comes, so the ship is not left held after the pinch', () => {
+    const { calls, lines, fingers } = stage();
+    // The ship parks at the middle, 0.675 of the way down.
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    expect(lines.at(-1)).toBe('ship held');
+    fingers('move', [{ id: 0, x: 195, y: 540 }]);
+    fingers('start', [
+      { id: 0, x: 195, y: 540 },
+      { id: 1, x: 195, y: 470 },
+    ]);
+    expect(lines).toContain('ship → home: a second finger came');
+    fingers('end', []);
+    expect(lines.at(-1)).toBe('pinch ×1.00 → back (a stop is ×1.40)');
+    expect(calls).toEqual([]);
   });
 
-  it('leaves no timer behind when the stage goes, and is ready again if the stage stays', () => {
-    const { session, calls } = recordingSession();
-    const controller = createVoyageController(inputsFor(session));
-    controller.wheel(100);
-    expect(jest.getTimerCount()).toBe(1);
-    controller.dispose();
-    expect(jest.getTimerCount()).toBe(0);
-    controller.wheel(100);
-    expect(calls).toEqual(['focus p', 'focus p']);
+  it('take a shaking finger on the ship for a tap, not a drop', () => {
+    const { calls, lines, fingers } = stage();
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    fingers('move', [{ id: 0, x: 197, y: 572 }]);
+    fingers('end', []);
+    expect(lines.at(-1)).toBe('ship tapped → home');
+    expect(calls).toEqual([]);
   });
 });
