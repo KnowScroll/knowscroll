@@ -94,11 +94,11 @@ export function StationLayer({
   const moving = !reducedMotion && drawn.length > 0;
   const blinking = moving && drawn.some((anchor) => !looks.get(anchor.id)!.live && !looks.get(anchor.id)!.calm);
   const pulsing = moving && drawn.some((anchor) => looks.get(anchor.id)!.live && !looks.get(anchor.id)!.calm);
-  const clocks: Clocks = {
-    blink: useClock(BLINK_PERIOD_MS, blinking),
-    hover: useClock(HOVER_PERIOD_MS, moving),
-    pulse: useClock(PULSE_PERIOD_MS, pulsing),
-  };
+  const blink = useClock(BLINK_PERIOD_MS, blinking);
+  const hover = useClock(HOVER_PERIOD_MS, moving);
+  const pulse = useClock(PULSE_PERIOD_MS, pulsing);
+  // One object for as long as the clocks are the same, so a station whose place did not change is not drawn again.
+  const clocks = useMemo<Clocks>(() => ({ blink, hover, pulse }), [blink, hover, pulse]);
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} {...HIDDEN} testID="voyage-stations">
       {drawn.map((anchor) => (
