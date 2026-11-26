@@ -14,6 +14,7 @@ import {
   type Rgba,
 } from './fill-loops';
 import { focalOf, GROUND_FIELD_OF_VIEW, planetDistances, type ViewSize } from './voyage-chains';
+import { regionCentre } from './region-centre';
 
 /**
  * The planet's surface as pixels. The planet you fly to is one sphere that wears this texture, so
@@ -213,15 +214,21 @@ export interface LabelPoint {
 }
 
 /**
- * The place for the name of each formed region (and its tap target), in the order of the chart. Only
- * formed regions have one: land that is not reached yet has no name and so no point.
+ * The place for the name of each formed region (and its tap target, where the camera comes down over it and where the
+ * ship stands on it), in the order of the chart: a point well inside its land ({@link regionCentre}), not the
+ * generator's label, which is often on the shore. Only formed regions have one: land that is not reached yet has no
+ * name and so no point.
  */
 export function labelPoints(chart: Chart): readonly LabelPoint[] {
-  return chart.charted.map(({ objectId, label }) => ({
-    objectId,
-    x: label.x,
-    lat: latitudeOfBandY(label.y),
-  }));
+  return chart.charted.map(({ objectId, loops, label }) => {
+    const centre = regionCentre(loops, label);
+    return {
+      objectId,
+      // A region that crosses the band's seam has loops past its edges; its column wraps like the band.
+      x: ((centre.x % BAND_WIDTH) + BAND_WIDTH) % BAND_WIDTH,
+      lat: latitudeOfBandY(centre.y),
+    };
+  });
 }
 
 /** A `#rrggbb` colour as 0..255 channels (not `space/paint`'s `hexToUnit`: 0..1 floats would round the bytes differently). */
@@ -306,6 +313,8 @@ interface Masks {
 
 /** How far round the point a formed region is named at (and tapped) the cloud keeps off, in band units. */
 const LABEL_CLEAR = 10;
+/** The pale shelf off the coast on the ground: the prototype's `rgba(255,255,255,0.2)`. */
+const GROUND_SHELF: Rgba = [255, 255, 255, 0.2];
 
 /** The ranges a texture of `count` rows (or columns) is painted in, `size` at a time. */
 const rangesOf = (count: number, size: number): RowRange[] =>
@@ -338,24 +347,12 @@ function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
         )
       : []),
     // The globe's shelf is the world's shallows filled; the ground's is the coast stroked at a width in points, as the
-    // prototype strokes it (a wide pale shelf, then a narrower one), because a fill would be dozens of points wide there.
+    // prototype's `drawGlobe` strokes it: white at 0.2, half of it under the land, so the deep sea shows a pale band
+    // along the coast and then the foam. A fill would be dozens of points wide there.
     ...(ground
-      ? [
-          ...rowTasks(target, (rows) =>
-            strokeLoops(target, world.land, hexAlpha(palette.shallow, 0.35), {
-              ...draw,
-              rows,
-              ...stroke(widths(rows).shelf),
-            }),
-          ),
-          ...rowTasks(target, (rows) =>
-            strokeLoops(target, world.land, hexAlpha(palette.foam, 0.35), {
-              ...draw,
-              rows,
-              ...stroke(widths(rows).shelf / 2),
-            }),
-          ),
-        ]
+      ? rowTasks(target, (rows) =>
+          strokeLoops(target, world.land, GROUND_SHELF, { ...draw, rows, ...stroke(widths(rows).shelf) }),
+        )
       : [
           ...rowTasks(target, (rows) =>
             fillLoops(target, world.shallowWide, hexAlpha(palette.shallow, 0.35), { ...draw, rows }),
@@ -408,10 +405,12 @@ function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
   const unreached = unreachedShapes(chart);
   const unreachedEdges = unreachedLoops(chart);
   const chartedEdges = chart.charted.flatMap((cell) => cell.loops);
-  // Each label's place on the band, with its copies a whole turn either side so a name by the seam is kept clear too.
-  const places = chart.charted.flatMap(({ label }) =>
-    [-BAND_WIDTH, 0, BAND_WIDTH].map((turn) => ({ x: label.x + turn, y: label.y })),
-  );
+  // Each name's place on the band ({@link labelPoints}), with its copies a whole turn either side so a name by the
+  // seam is kept clear too.
+  const places = chart.charted.flatMap(({ loops, label }) => {
+    const centre = regionCentre(loops, label);
+    return [-BAND_WIDTH, 0, BAND_WIDTH].map((turn) => ({ x: centre.x + turn, y: centre.y }));
+  });
   return rowTasks(target, (rows) => {
     maskShapes(target, charted, { ...draw, rows, into: masks.charted });
     maskShapes(target, unreached, { ...draw, rows, into: masks.unreachedLand });
