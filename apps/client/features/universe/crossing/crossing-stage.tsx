@@ -55,6 +55,7 @@ export function CrossingStage({
     (surface: SpaceSurface) => {
       owned.current?.dispose();
       owned.current = null;
+      setRenderer(null);
       generation.current += 1;
       const mine = generation.current;
       loadCrossingRenderer()
@@ -100,7 +101,10 @@ export function CrossingStage({
 
   return (
     <View testID="ks-crossing-stage" style={styles.stage}>
-      <View style={[styles.shaken, { transform: [{ translateX: frame.shake.x }, { translateY: frame.shake.y }] }]}>
+      <View
+        testID="ks-crossing-shaken"
+        style={[styles.shaken, { transform: [{ translateX: frame.shake.x }, { translateY: frame.shake.y }] }]}
+      >
         <SpaceCanvas
           onSurface={onSurface}
           onResize={onResize}

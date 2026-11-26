@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { universe } from '@knowscroll/design-tokens';
@@ -30,22 +30,19 @@ function arcPath(x: number, y: number, radius: number, start: number, length: nu
 const BubbleSprite = memo(function BubbleSprite({ seed }: { readonly seed: string }) {
   const dots = useMemo(() => bubbleDots(seed), [seed]);
   const half = BUBBLE_SIZE / 2;
+  const instance = useId();
+  // Two sprites share a document on the web, so each names its own gradient.
+  const haloId = `crossing-bubble-halo-${instance.replace(/[^a-zA-Z0-9]/g, '')}`;
   return (
     <Svg width={BUBBLE_SIZE} height={BUBBLE_SIZE} viewBox={`0 0 ${BUBBLE_SIZE} ${BUBBLE_SIZE}`}>
       <Defs>
-        <RadialGradient
-          id="crossing-bubble-halo"
-          cx={half}
-          cy={half}
-          r={BUBBLE_SIZE * 0.5}
-          gradientUnits="userSpaceOnUse"
-        >
+        <RadialGradient id={haloId} cx={half} cy={half} r={BUBBLE_SIZE * 0.5} gradientUnits="userSpaceOnUse">
           <Stop offset="0.6" stopColor="rgb(255,220,180)" stopOpacity="0" />
           <Stop offset="0.72" stopColor="rgb(255,226,190)" stopOpacity="0.28" />
           <Stop offset="1" stopColor="rgb(255,200,150)" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      <Rect x="0" y="0" width={BUBBLE_SIZE} height={BUBBLE_SIZE} fill="url(#crossing-bubble-halo)" />
+      <Rect x="0" y="0" width={BUBBLE_SIZE} height={BUBBLE_SIZE} fill={`url(#${haloId})`} />
       {dots.map((dot, index) => (
         <Rect
           key={index}
