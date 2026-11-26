@@ -25,6 +25,8 @@ The camera driver (`voyage-driver.ts`) is loaded on demand with three.js (`voyag
 - `planet-close-up.ts`: the planet as one world (`globe.ts`, painted by `world-texture.ts`), with a sharp patch of the map round the place you land.
 - `ship-motion.ts` (pure) and `ship-layer.ts`: the ship.
 
+Search: the Back row of a star, a planet and its ground carries a small search circle (`universe-header.tsx`), and while the card is open the stage draws the sky's answer (`search-sky.tsx`): a dim, with a glow and a ring on each system the card reports as holding a match (`universe-search.ts` `systemsOfResults`, handed up by the card's `onLit`). The screen skips its flat dim in this look. `search-sky.tsx` is drawn from the overlay's anchors, over the canvas and under the buttons' touches.
+
 The stage (`voyage-stage.tsx`) and its controller (`voyage-controller.ts`, gestures and the ship, outside React) reach the main bundle, so they never import three.js; `voyage-control.ts` is the typed channel between them and the driver. The controller's pure parts: `stage-touches.ts` (what the fingers mean, each followed by its id), `pinch-gesture.ts` (a pinch that follows the fingers and moves one stop) and `flight-legs.ts` (each flight timed for the frame-rate readout).
 
 **Adding a level** (a galaxy between the whole universe and a star): one more member of `Stop` and one row of `STOPS`; one more link in `chainOf`, after the star's and before the universe's (the camera reads a planet's chain as the planet's link, then the star's, whatever follows); `targetOf` and `stopOf` for the view that opens it; and the session's kind of place. A level with no data yet (a universe with no galaxy) is simply absent from a chain.

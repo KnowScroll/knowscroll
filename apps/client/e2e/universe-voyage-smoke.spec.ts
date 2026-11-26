@@ -356,4 +356,171 @@ test('with the trial switch off the Universe is the one that ships', async ({ pa
     timeout: 60_000,
   });
   await expect(page.getByTestId('voyage-stage')).toHaveCount(0);
+  // Search has its one magnifier, at the whole universe, as it always had.
+  await expect(page.getByRole('button', { name: 'Search your universe', exact: true })).toBeVisible();
+});
+
+/**
+ * Search in the new look (#811): the search circle beside Back at every stop, and the sky's answer to what is typed:
+ * the systems that hold a match keep their light under a yellow ring, and the rest of the sky dims. Reduced motion
+ * draws every stop at once, so nothing here waits on a moment inside a flight.
+ */
+const searchCircle = (page: Page) => page.getByRole('button', { name: 'Search your universe', exact: true });
+const searchField = (page: Page) => page.getByRole('searchbox', { name: 'Search your universe' });
+/** The ring each lit star wears: one element per lit system, named by its id. */
+const rings = (page: Page) => page.locator('[data-testid^="voyage-search-lit-"]');
+const ringIds = async (page: Page): Promise<string[]> =>
+  (await rings(page).evaluateAll((all) => all.map((ring) => ring.getAttribute('data-testid') ?? ''))).sort();
+/** The id behind a system's button: `voyage-system-<id>`. */
+const systemId = async (page: Page, name: string): Promise<string> => {
+  const testId = await page.getByRole('button', { name: `${name}, a system`, exact: true }).getAttribute('data-testid');
+  return (testId ?? '').replace(/^voyage-system-/, '');
+};
+
+test('the search circle opens search at a star, a planet and its ground, and Escape closes it', async ({ page }) => {
+  test.setTimeout(240_000);
+  await openVoyage(page, [], { calm: true });
+  // At the whole universe the magnifier is the header's, as it was.
+  await expect(searchCircle(page)).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+
+  const stops: readonly (readonly [string, () => Promise<void>])[] = [
+    ['a star', async () => expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toBeVisible()],
+    [
+      'a planet',
+      async () => {
+        await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click({ timeout: 30_000 });
+        await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+      },
+    ],
+    [
+      'the ground',
+      async () => {
+        await page.getByTestId('voyage-stage').focus();
+        await page.keyboard.press('+');
+        await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeVisible({
+          timeout: 30_000,
+        });
+      },
+    ],
+  ];
+  for (const [stop, arrive] of stops) {
+    await arrive();
+    const circle = searchCircle(page);
+    await expect(circle, `the search circle at ${stop}`).toBeVisible();
+    // A small circle that is still a 48 px target.
+    const box = await circle.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    await circle.click();
+    await expect(searchField(page)).toBeVisible();
+    await expect(page.getByTestId('universe-search-panel')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('universe-search-panel')).toHaveCount(0);
+    // The stop is unchanged by opening and closing search.
+    await expect(circle).toBeVisible();
+  }
+});
+
+test('typing lights the systems that hold a match, dims the rest, and choosing a result flies there', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await openVoyage(page, [], { calm: true });
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  const ids = {
+    first: await systemId(page, 'CI system 0'),
+    second: await systemId(page, 'CI system 2'),
+  };
+  await searchCircle(page).click();
+  // With nothing typed the sky is dimmed flat and no star is ringed.
+  await expect(page.getByTestId('universe-search-dim')).toBeAttached();
+  await expect(rings(page)).toHaveCount(0);
+
+  // A system by its name lights that system alone.
+  await searchField(page).fill('system 2');
+  await expect.poll(() => ringIds(page)).toEqual([`voyage-search-lit-${ids.second}`]);
+  await expect(page.getByTestId('voyage-search-sky')).toBeAttached();
+  await shot(page, 'search-1-universe-system-2');
+
+  // A planet lights the system it belongs to, and no other; so does a region, through its planet.
+  await searchField(page).fill('planet 2.3');
+  await expect.poll(() => ringIds(page)).toEqual([`voyage-search-lit-${ids.second}`]);
+  await searchField(page).fill('region 4');
+  await expect.poll(() => ringIds(page)).toEqual([`voyage-search-lit-${ids.first}`]);
+
+  // Every system that holds a match is lit.
+  await searchField(page).fill('system');
+  await expect.poll(async () => (await ringIds(page)).length).toBe(3);
+
+  // Nothing matches: the whole sky dims and no star wears a ring.
+  await searchField(page).fill('zzz');
+  await expect(rings(page)).toHaveCount(0);
+  await expect(page.getByTestId('voyage-search-sky')).toBeAttached();
+
+  // Clearing the field returns to the flat dim; closing search takes the sky's answer away.
+  await searchField(page).fill('region 4');
+  await expect(rings(page)).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('universe-search-panel')).toHaveCount(0);
+  await expect(page.getByTestId('voyage-search-sky')).toHaveCount(0);
+  await expect(page.getByTestId('universe-search-dim')).toHaveCount(0);
+  await expect(rings(page)).toHaveCount(0);
+
+  // Choosing a result flies there: the planet's own screen, and search is closed.
+  await searchCircle(page).click();
+  await searchField(page).fill('planet 2.3');
+  await page.getByRole('button', { name: /^CI planet 2\.3, planet, in CI system 2/ }).click();
+  await landed(page);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2.3', exact: true })).toBeVisible();
+  await expect(page.getByTestId('universe-search-panel')).toHaveCount(0);
+  await expect(rings(page)).toHaveCount(0);
+
+  // From the planet, search for a system and fly to it.
+  await searchCircle(page).click();
+  await searchField(page).fill('system 0');
+  await page.getByRole('button', { name: /^CI system 0, system/ }).click();
+  await landed(page);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+});
+
+test('the sky answers a search made at a star: its own star is ringed when it matches', async ({ page }) => {
+  test.setTimeout(240_000);
+  await openVoyage(page, [], { calm: true });
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  const first = await systemId(page, 'CI system 0');
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  // `/` opens search from the stage, at any stop.
+  await page.getByTestId('voyage-stage').focus();
+  await page.keyboard.press('/');
+  await expect(searchField(page)).toBeVisible();
+  await searchField(page).fill('region 4');
+  await expect.poll(() => ringIds(page)).toEqual([`voyage-search-lit-${first}`]);
+  await shot(page, 'search-2-star-region-4');
+  // A match in a star that is not drawn here rings nothing, and the sky still dims.
+  await searchField(page).fill('planet 2.3');
+  await expect(rings(page)).toHaveCount(0);
+  await expect(page.getByTestId('voyage-search-sky')).toBeAttached();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('universe-search-panel')).toHaveCount(0);
+});
+
+test('choosing a search result flies there, with the flight line, and the sky is clear on landing', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openVoyage(page, [], { flightLines: true });
+  await searchCircle(page).click({ timeout: 60_000 });
+  await searchField(page).fill('planet 2.3');
+  await expect.poll(async () => (await ringIds(page)).length).toBe(1);
+  await page.getByRole('button', { name: /^CI planet 2\.3, planet, in CI system 2/ }).click();
+  await expect.poll(() => flightLines(page), { timeout: 30_000 }).toEqual(['Going to CI planet 2.3 · tap to skip']);
+  await landed(page);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2.3', exact: true })).toBeVisible();
+  await expect(page.getByTestId('voyage-search-sky')).toHaveCount(0);
+  await expect(rings(page)).toHaveCount(0);
 });

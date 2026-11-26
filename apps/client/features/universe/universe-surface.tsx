@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION, type AccountScope } from '@knowscroll/client-core';
@@ -21,6 +21,7 @@ import { isQuiet, planetCountOf, viewFor, type Size, type UniverseIndex, type Un
 import { countOf } from './universe-lists';
 import { UniversePanel, UniverseSettings } from './universe-panel';
 import { UniverseSearchPanel } from './universe-search-panel';
+import { sameSystems } from './universe-search';
 import { SpaceChip } from './space-chip';
 import { SystemFindsSheet } from './system-finds-sheet';
 import { UniverseStage } from './universe-stage';
@@ -164,6 +165,16 @@ export function UniverseSurface({
     </View>
   ) : null;
   const openSearch = () => session.showOverlay('search');
+  // The new look lights the systems that hold a match for what is typed: the search card reports them.
+  const [litSystems, setLitSystems] = useState<readonly string[] | null>(null);
+  const keepLit = useCallback(
+    (next: readonly string[] | null) => setLitSystems((current) => (sameSystems(current, next) ? current : next)),
+    [],
+  );
+  const searchAnswer = useMemo(
+    () => (voyage && searching && !wide ? { lit: litSystems } : undefined),
+    [voyage, searching, wide, litSystems],
+  );
   // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
   const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
@@ -305,6 +316,7 @@ export function UniverseSurface({
         {...(visitor ? { owner: visitor.ownerName } : {})}
         {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
         {...(onStation ? { onStation } : {})}
+        {...(voyage ? { onLit: keepLit, closeOnEscape: true } : {})}
       />
     ) : (
       <View style={styles.headerStack}>
@@ -514,8 +526,10 @@ export function UniverseSurface({
             animation={animation}
             onSize={setStageSize}
             voyage={voyage}
+            {...(searchAnswer ? { search: searchAnswer } : {})}
           />
-          {searching && !wide ? (
+          {/* The new look's stage dims the sky itself, so the matched systems can shine through the dim. */}
+          {searching && !wide && !voyage ? (
             <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} />
           ) : null}
           <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>

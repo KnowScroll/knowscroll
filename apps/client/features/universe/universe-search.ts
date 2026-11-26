@@ -159,3 +159,29 @@ export function searchUniverse(
       };
     });
 }
+
+/**
+ * The systems the sky should light for these results: a system is itself, a planet its system, a region the system of its
+ * planet, a room the system it stands beside. In the order they first appear (best match first), each once. A result whose
+ * place cannot be followed up to a system lights nothing.
+ */
+export function systemsOfResults(
+  results: readonly SearchResult[],
+  places: readonly UniversePlace[],
+  rooms: readonly SearchRoom[],
+): readonly string[] {
+  const byId = new Map(places.map((place) => [place.id, place]));
+  const roomSystem = new Map(rooms.map((room) => [room.id, room.systemId]));
+  const systemOf = (result: SearchResult): string | undefined => {
+    if (result.kind === 'room') return roomSystem.get(result.id);
+    let place = byId.get(result.id);
+    // A region sits on a planet which sits on a system: at most two steps up.
+    for (let step = 0; place && place.kind !== 'system' && step < 2; step += 1) place = byId.get(place.parentId);
+    return place?.kind === 'system' ? place.id : undefined;
+  };
+  return [...new Set(results.flatMap((result) => systemOf(result) ?? []))];
+}
+
+/** Whether two lists of system ids are the same, in the same order: a screen holding one keeps it when nothing changed. */
+export const sameSystems = (a: readonly string[] | null, b: readonly string[] | null): boolean =>
+  a === b || (a !== null && b !== null && a.length === b.length && a.every((id, at) => id === b[at]));

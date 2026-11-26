@@ -1,12 +1,15 @@
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { space, spacing } from '@knowscroll/design-tokens';
+import { space, spacing, target } from '@knowscroll/design-tokens';
 import { AccountButton, IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountInitial } from '../../providers/account-scope';
 import { SpaceChip } from './space-chip';
 import type { UniverseView } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 import { climbOneStop, climbsToGlobe } from './voyage/ladder';
+
+/** The small search circle is 44 px; this much round it makes it the repo's 48 px target. */
+const MINI_SEARCH_SLOP = (target.comfortable - target.minimum) / 2;
 
 /**
  * What the header says for each view (U01, U02, U03): the screen title with search and the Lately
@@ -110,6 +113,19 @@ export function UniverseHeader({
       : session.places().find((place) => place.id === (view.kind === 'planet' ? view.planet.parentId : ''));
   const universeName = visitor ? `${visitor.ownerName}’s universe` : 'Universe';
   const toGlobe = voyage && climbsToGlobe(view);
+  // The new look searches from every stop: a small dark-glass circle at the right end of the Back row.
+  const miniSearch =
+    voyage && hasPlaces && !desktop ? (
+      <IconButton
+        icon="search"
+        label={visitor ? `Search ${visitor.ownerName}’s universe` : 'Search your universe'}
+        variant="onSpaceDark"
+        size={44}
+        hitSlop={MINI_SEARCH_SLOP}
+        onPress={onSearch}
+        testID="universe-search"
+      />
+    ) : null;
   const backLabel =
     view.kind === 'system'
       ? universeName
@@ -137,7 +153,10 @@ export function UniverseHeader({
             </View>
           ) : null}
         </View>
-        <View style={styles.actions}>{view.kind === 'system' && !visitor && !desktop ? lens : null}</View>
+        <View style={styles.actions}>
+          {view.kind === 'system' && !visitor && !desktop ? lens : null}
+          {miniSearch}
+        </View>
       </View>
       {view.kind === 'system' ? (
         <View style={styles.block}>

@@ -1,4 +1,4 @@
-import { searchUniverse, type SearchRoom } from './universe-search';
+import { sameSystems, searchUniverse, systemsOfResults, type SearchRoom } from './universe-search';
 import type { UniversePlace } from './universe-session';
 
 const place = (id: string, kind: UniversePlace['kind'], label: string, parentId = ''): UniversePlace => ({
@@ -57,5 +57,41 @@ describe('search over your own places and rooms', () => {
     expect(searchUniverse(places, rooms, 'zzz')).toEqual([]);
     const many = Array.from({ length: 40 }, (_, n) => place(`m${n}`, 'region', `Mode ${n}`, 'p1'));
     expect(searchUniverse(many, [], 'mode')).toHaveLength(12);
+  });
+});
+
+describe('the systems the sky lights for a search', () => {
+  const lit = (query: string, withRooms = rooms) =>
+    systemsOfResults(searchUniverse(places, withRooms, query), places, withRooms);
+
+  it('lights a system for itself, for its planet, for its region and for its room', () => {
+    expect(lit('machine')).toEqual(['s1']);
+    expect(lit('serving')).toEqual(['s1']);
+    expect(lit('latency')).toEqual(['s1']);
+    expect(lit('model room')).toEqual(['s2']);
+  });
+
+  it('lights each system once, in the order of the best match', () => {
+    // A region of s1, a planet of s2 and a room of s2: s1 first, s2 once.
+    expect(lit('cost')).toEqual(['s1', 's2']);
+  });
+
+  it('lights nothing for a query that matches nothing', () => {
+    expect(lit('zzz')).toEqual([]);
+  });
+
+  it('lights nothing for a result it cannot follow up to a system', () => {
+    const orphan = [place('p9', 'planet', 'Lost', 'gone')];
+    expect(systemsOfResults(searchUniverse(orphan, [], 'lost'), orphan, [])).toEqual([]);
+  });
+});
+
+describe('keeping the lit systems', () => {
+  it('knows the same list, in the same order, and a list from no list', () => {
+    expect(sameSystems(['a', 'b'], ['a', 'b'])).toBe(true);
+    expect(sameSystems(['a', 'b'], ['b', 'a'])).toBe(false);
+    expect(sameSystems(['a'], ['a', 'b'])).toBe(false);
+    expect(sameSystems(null, null)).toBe(true);
+    expect(sameSystems([], null)).toBe(false);
   });
 });

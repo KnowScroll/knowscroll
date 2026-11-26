@@ -24,6 +24,7 @@ import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+import type { SearchAnswer } from './voyage/search-sky';
 import { VoyageStage } from './voyage/voyage-stage';
 
 const KEY_PAN = 60;
@@ -101,6 +102,7 @@ export function UniverseStage({
   landmarksByPlanet,
   coveredBottom,
   voyage = false,
+  search,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -127,6 +129,8 @@ export function UniverseStage({
   readonly coveredBottom?: number;
   /** This device is trying the new look: one camera from the ground to the whole universe, and the ship. */
   readonly voyage?: boolean;
+  /** The new look only: search is open and the sky answers it (the old map is dimmed by the screen). */
+  readonly search?: SearchAnswer;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -190,7 +194,13 @@ export function UniverseStage({
         }}
         style={styles.stage}
       >
-        <VoyageStage {...sceneProps} view={view} visitor={visitor === true} onUnavailable={onUnavailable} />
+        <VoyageStage
+          {...sceneProps}
+          view={view}
+          visitor={visitor === true}
+          onUnavailable={onUnavailable}
+          {...(search ? { search } : {})}
+        />
       </View>
     );
   return (

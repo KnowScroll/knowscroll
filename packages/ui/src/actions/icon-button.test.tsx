@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import { content, toggle } from '@knowscroll/design-tokens';
+import { content, space, toggle } from '@knowscroll/design-tokens';
 import { expectPressed, renderOn } from '../test-support/render';
 import { IconButton } from './icon-button';
 
@@ -22,6 +22,13 @@ describe('IconButton', () => {
     );
     expect(screen.getByRole('button', { name: 'Share' })).toHaveStyle({ width: 48, height: 48 });
     expect(screen.getByRole('button', { name: 'Like' })).toHaveStyle({ width: 44, height: 44 });
+  });
+
+  it('can be dark glass with a cream glyph, and reach past its 44 px edge for the finger', async () => {
+    await renderOn(<IconButton icon="search" label="Search" variant="onSpaceDark" size={44} hitSlop={2} />);
+    const search = screen.getByRole('button', { name: 'Search' });
+    expect(search).toHaveStyle({ width: 44, height: 44, backgroundColor: space.glass, borderColor: space.glassEdge });
+    expect(search).toHaveProp('hitSlop', 2);
   });
 
   it('is a toggle when it has a pressed state; pressed is cobalt on paper, never yellow (D-006 b)', async () => {
