@@ -528,14 +528,16 @@ float over it.
     under it fade away, and a ringed planet's rings and moon come back gradually as the camera leaves. A friend's
     planets wear every continent in colour and name nothing: a visit shares no regions. On the ground a third texture,
     a patch of the band round the place you land, is painted from the same loops at about 1.5 texels per point with
-    the prototype's coast widths in points (shelf 22, foam 7, ink 2, borders 1.8); it comes in as the camera nears the
-    ground and is not painted under reduced motion, where the ground keeps the whole-band texture.
+    the prototype's coast widths in points (a white shelf at 0.2, 22 wide; foam 7; ink 2; borders 1.8); it comes in as
+    the camera nears the ground and is not painted under reduced motion, where the ground keeps the whole-band texture.
+    A region's name, the point the camera comes down over and where the ship stands are one point well inside its land
+    near its middle (`region-centre.ts`, the prototype's `rg.c`), not the generator's label, which is often on the shore.
   - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky (hovering gently, still under reduced
     motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans; let
     it go within 70 pt of a place to go there, or of a station to open its room; while held, the place it would go to
     glows. A finger that moves less than 6 pt is a tap (it calls the ship home), and a second finger lets go of the
     ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
-    "X · you are here" pill.
+    cream "X · you are here" pill with the orange dot.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
     the whole universe only the star you are at is named, and no name sits on its sun; from the whole universe rooms
@@ -551,8 +553,8 @@ float over it.
     takes the new scene's shader programs while the old one still holds them, so none is linked again mid-flight; the
     globe's program is compiled ahead. The browser spec checks that no flight frees a program.
   - **Search from every stop, and the sky's answer** (`universe-header.tsx`, `voyage/search-sky.tsx`). Beside Back, at a
-    star, a planet and its ground, sits a small dark-glass search circle ("Search your universe": 44 px, a 48 px target
-    through `hitSlop`), which opens the same search card as the magnifier at the whole universe; `/` works everywhere as
+    star, a planet and its ground, sits a small dark-glass search circle ("Search your universe", 48 px, where the prototype
+    draws 44), which opens the same search card as the magnifier at the whole universe; `/` works everywhere as
     before, Escape closes the card wherever the focus is (typed in the field it is handled there, since a text field
     keeps the key from the screen's own listener), and choosing a result flies there. While search is open the stage, not the screen, dims the
     sky, so the matched stars can shine through it. With nothing typed the dim is flat (as the old map's). With a query,
@@ -563,8 +565,11 @@ float over it.
     over the canvas, takes no touch and is hidden from assistive technology (the results list is how a person
     chooses), and never animates, so reduced motion needs no change. With the switch off the old dim and the old
     header are unchanged; on a desktop Browse still carries search and no sky answer is drawn.
-  - Not yet: the stations' own look, landmark pennants on the globe, the crossing to a friend's Universe, desktop and
-    tablet layouts.
+  - **Landmark pennants** (`landmark-points.ts`, `Pennants` in `voyage-stage.tsx`): what you earned on a planet stands
+    on its globe as the old globe's pennant (`LandmarkMark`, gold or cream), on the same spots (`landmarkSpots`, the
+    first earned first), where the globe faces the camera, a little larger on the ground. Not a place: no button, no
+    target for the ship, hidden from a screen reader (the collection lists them). None on a friend's planet.
+  - Not yet: the stations' own look, the crossing to a friend's Universe, desktop and tablet layouts.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and

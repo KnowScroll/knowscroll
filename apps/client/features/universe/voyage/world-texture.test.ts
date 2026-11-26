@@ -13,6 +13,7 @@ import {
   type WorldTexture,
   type WorldTextureInput,
 } from './world-texture';
+import { centreOfCell } from './region-centre';
 
 const WIDTH = 512;
 const HEIGHT = 256;
@@ -336,14 +337,17 @@ describe('where a name goes', () => {
     expect(bandYOfLatitude(-1.5)).toBe(360);
   });
 
-  it('has one point for each formed region, from its cell, and none for land not reached', () => {
+  it('has one point for each formed region, well inside its land, and none for land not reached', () => {
     const points = labelPoints(chart);
     expect(points.map((point) => point.objectId)).toEqual(chart.charted.map((cell) => cell.objectId));
     expect(points).toHaveLength(FORMED.length);
     for (const [index, point] of points.entries()) {
-      const label = chart.charted[index]!.label;
-      expect(point.x).toBe(label.x);
-      expect(point.lat).toBe(latitudeOfBandY(label.y));
+      const cell = chart.charted[index]!;
+      const centre = centreOfCell(cell, BAND_WIDTH);
+      expect(point.x).toBeCloseTo(((centre.x % BAND_WIDTH) + BAND_WIDTH) % BAND_WIDTH, 9);
+      expect(point.x).toBeGreaterThanOrEqual(0);
+      expect(point.x).toBeLessThan(BAND_WIDTH);
+      expect(point.lat).toBe(latitudeOfBandY(centre.y));
     }
   });
 });
@@ -363,9 +367,9 @@ describe('where a name goes', () => {
  */
 describe('the painter output, pinned', () => {
   const PINNED = {
-    lush: 'a0e445748179753b487832a38e57ceea9f018cb7',
-    gas: 'fb60830f0949440b6c64512e44a753bec7b0614c',
-    scorched: '53f3c989662652f1e10f048fef4b45406628314c',
+    lush: 'f72578df7ad86c85b9785fbb12302c76d183025f',
+    gas: '7c1208ccd489004fc3524d794f6da1533dba0a83',
+    scorched: '5819f21ca3301b8209d62559c174e3308f14b4d0',
   } as const;
   it.each(Object.keys(PINNED) as (keyof typeof PINNED)[])('paints %s at 1024 by 512 to the pinned bytes', (type) => {
     const texture = paint({ palette: paletteOf(type, 0), width: 1024, height: 512 });

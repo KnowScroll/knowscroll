@@ -16,7 +16,7 @@ import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
 import { LandmarkMark } from '../collection/landmark-mark';
-import { BodyTarget, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from '../scene-parts';
+import { BodyTarget, HERE_DOT_ROOM, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from '../scene-parts';
 import { layOutUniverse, looksById, looksOfState } from '../space/space-model';
 import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
 import { CROWDED_TARGET, separateTargets } from '../space/separate-targets';
@@ -393,7 +393,7 @@ function placeNames(
           : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
     width:
       anchor.id === hereId
-        ? labelWidth(writtenName(anchor, hereId), PILL_PADDING)
+        ? labelWidth(writtenName(anchor, hereId), PILL_PADDING + HERE_DOT_ROOM)
         : labelWidth(writtenName(anchor, hereId)),
     height: LABEL_HEIGHT,
     priority: (anchor.id === hereId ? 8 : 0) + (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
@@ -486,7 +486,8 @@ function VoyageOverlay({
               testID={`voyage-dust-${anchor.id}`}
             />
           );
-        const kind = anchor.kind === 'station' ? undefined : anchor.kind;
+        // Stations and pennants are not bodies: a station is a room, a pennant is never in this list (`Pennants`).
+        const kind = anchor.kind === 'station' || anchor.kind === 'landmark' ? undefined : anchor.kind;
         const name = names.get(anchor.id);
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>

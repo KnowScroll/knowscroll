@@ -60,7 +60,10 @@ export function UniverseSearchPanel({
     } else session.focus(result.id);
   };
   const searched = query.trim().length > 0;
-  const litSystems = searched ? systemsOfResults(results, session.places(), rooms) : null;
+  // The sky lights every system that holds a match, not only those of the results the card has room for.
+  const litSystems = searched
+    ? systemsOfResults(searchUniverse(session.places(), rooms, query, Infinity), session.places(), rooms)
+    : null;
   useEffect(() => onLit?.(litSystems));
   useEffect(() => () => onLit?.(null), [onLit]);
   return (

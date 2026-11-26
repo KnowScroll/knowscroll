@@ -24,11 +24,10 @@ describe('IconButton', () => {
     expect(screen.getByRole('button', { name: 'Like' })).toHaveStyle({ width: 44, height: 44 });
   });
 
-  it('can be dark glass with a cream glyph, and reach past its 44 px edge for the finger', async () => {
-    await renderOn(<IconButton icon="search" label="Search" variant="onSpaceDark" size={44} hitSlop={2} />);
+  it('can be dark glass with a cream glyph', async () => {
+    await renderOn(<IconButton icon="search" label="Search" variant="onSpaceDark" />);
     const search = screen.getByRole('button', { name: 'Search' });
-    expect(search).toHaveStyle({ width: 44, height: 44, backgroundColor: space.glass, borderColor: space.glassEdge });
-    expect(search).toHaveProp('hitSlop', 2);
+    expect(search).toHaveStyle({ width: 48, height: 48, backgroundColor: space.glass, borderColor: space.glassEdge });
   });
 
   it('is a toggle when it has a pressed state; pressed is cobalt on paper, never yellow (D-006 b)', async () => {
