@@ -175,6 +175,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   return {
     attach(space) {
       attachedTo = space;
+      // The stage draws the rooms' stations itself, flat over the canvas (`station-layer.tsx`); the scene's own are not.
+      space.showStations(false);
       closeUp.attach(space);
     },
     pose(t, space, size) {
