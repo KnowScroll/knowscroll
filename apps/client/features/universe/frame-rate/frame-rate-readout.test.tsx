@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react-native';
 import { useEffect } from 'react';
-import { FrameRateReadout, useFrameTimeRecorder } from './frame-rate-readout';
+import { FrameRateReadout, useFrameTimeRecorder, useGestureRecorder } from './frame-rate-readout';
 
 /** Stands in for the drawing loop: reports a steady 30 fps for a second, or says nobody listens. */
 function Loop({ onRecorder }: { readonly onRecorder: (present: boolean) => void }) {
@@ -10,6 +10,13 @@ function Loop({ onRecorder }: { readonly onRecorder: (present: boolean) => void 
     const now = performance.now();
     for (let index = 0; index < 30; index += 1) record?.({ atMs: now - 1000 + index * 33.3, drawMs: 3 });
   }, [record, onRecorder]);
+  return null;
+}
+
+/** Stands in for the camera: says what the fingers did. */
+function Fingers({ line }: { readonly line: string }) {
+  const record = useGestureRecorder();
+  useEffect(() => record?.(line), [record, line]);
   return null;
 }
 
@@ -38,5 +45,16 @@ describe('the frame-rate readout', () => {
     expect(heard).toHaveBeenLastCalledWith(true);
     await act(() => jest.advanceTimersByTimeAsync(500));
     expect(screen.getByTestId('universe-frame-rate')).toHaveTextContent(/fps · 100% on time\s*longest 33 ms/);
+  });
+
+  it('says what the fingers did last, so one screenshot shows which part of a gesture went wrong', async () => {
+    await render(
+      <FrameRateReadout on>
+        <Loop onRecorder={() => undefined} />
+        <Fingers line="pinch ×1.62 → in" />
+      </FrameRateReadout>,
+    );
+    await act(() => jest.advanceTimersByTimeAsync(500));
+    expect(screen.getByTestId('universe-frame-rate')).toHaveTextContent(/touch: pinch ×1\.62 → in/);
   });
 });

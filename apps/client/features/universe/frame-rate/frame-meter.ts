@@ -72,6 +72,10 @@ export interface FrameMeter {
   readonly recordLeg: (leg: FlightLeg) => void;
   /** The last {@link LEGS_KEPT} flights, the newest first. */
   legs(): readonly LegSummary[];
+  /** Notes what the fingers on the Universe did last, in the camera's own words ("pinch ×1.62 → in"). */
+  readonly recordGesture: (line: string) => void;
+  /** The last line {@link recordGesture} noted, or null before any touch. */
+  gesture(): string | null;
 }
 
 /** The middle value of a non-empty list (the mean of the two middle ones when the count is even). */
@@ -99,6 +103,7 @@ function loopStamps(frames: readonly FrameTime[]): number[] {
 export function createFrameMeter(): FrameMeter {
   let frames: FrameTime[] = [];
   let legs: readonly LegSummary[] = [];
+  let gesture: string | null = null;
   /** The gaps of a flight: from the last frame before it was asked for, to the last frame before it landed. */
   const legGaps = (leg: FlightLeg): number[] => {
     const all = loopStamps(frames);
@@ -141,6 +146,10 @@ export function createFrameMeter(): FrameMeter {
       legs = [{ label: leg.label, frames, programsLinked: leg.programsLinked }, ...legs].slice(0, LEGS_KEPT);
     },
     legs: () => legs,
+    recordGesture(line) {
+      gesture = line;
+    },
+    gesture: () => gesture,
   };
 }
 

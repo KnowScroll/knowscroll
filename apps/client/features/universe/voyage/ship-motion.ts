@@ -105,7 +105,7 @@ const MAX_STEP_SECONDS = 0.1;
 /** A target this close to the finger pulls the ship toward it and is marked as the candidate: prototype `bd = 64` (line 1901). */
 const CATCH_RADIUS = 64;
 /** Lifting the finger this close to the candidate sends the ship there: prototype `< 70` on release (line 2075). */
-const RELEASE_RADIUS = 70;
+export const RELEASE_RADIUS = 70;
 /** A finger this close to the drawn ship takes it: the prototype's hit radius for the ship, `r: 26` (line 1924). */
 const PICK_RADIUS = 26;
 /**
