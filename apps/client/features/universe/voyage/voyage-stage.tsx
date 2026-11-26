@@ -29,6 +29,8 @@ import { STOPS, targetOf } from './ladder';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
 import { SearchSky, type SearchAnswer } from './search-sky';
+import { StationLayer } from './station-layer';
+import { stationLookOf, stationSize, type StationLook } from './station-look';
 import { labelPoints } from './world-texture';
 import { landmarkPoints, type LandmarkPoint } from './landmark-points';
 
@@ -108,6 +110,12 @@ export function VoyageStage({
     [index, looks, stations, state.dust.cues, state.lately],
   );
   const planet = usePlanetSurface(session, state, index, view, visitor, landmarksByPlanet);
+  // What each room's station is drawn from, by room id. The scene's laid-out stations carry the accent, the sky and what is
+  // live that `stations` holds, so the picture and the scene read one answer.
+  const stationLooks = useMemo(
+    () => new Map((space.definition.stations ?? []).map((station) => [station.id, stationLookOf(station)])),
+    [space],
+  );
   const recordFlight = useFlightRecorder();
   const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
@@ -181,6 +189,8 @@ export function VoyageStage({
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
+          stationLooks={stationLooks}
+          reducedMotion={state.reducedMotion}
           landmarks={planet?.landmarks ?? NO_PENNANTS}
           pennantScale={stop === 'ground' ? GROUND_PENNANT_SCALE : 1}
           {...(search
@@ -189,7 +199,21 @@ export function VoyageStage({
         />
       );
     },
-    [controller, session, onStation, onDust, stop, systemId, size, focusId, hereId, search, planet],
+    [
+      controller,
+      session,
+      onStation,
+      onDust,
+      stop,
+      systemId,
+      size,
+      focusId,
+      hereId,
+      search,
+      planet,
+      stationLooks,
+      state.reducedMotion,
+    ],
   );
 
   const stage = useRef<ComponentRef<typeof View>>(null);
@@ -374,6 +398,12 @@ const LABEL_BANDS = {
 } as const;
 const DESKTOP_WIDTH = 900;
 
+/** The square a station's picture covers. */
+const stationBox = (anchor: SpaceAnchor): Box => {
+  const width = stationSize(anchor.radiusPx);
+  return { x: anchor.x - width / 2, y: anchor.y - width / 2, width, height: width };
+};
+
 /**
  * The names of the places on screen, placed so that none covers another or the header and chips: each tries below,
  * above, right and left of its place, and a name with no free spot is left out until the camera comes closer (its
@@ -396,7 +426,9 @@ function placeNames(
         ? HERE_GAP
         : anchor.kind === 'region'
           ? REGION_NAME_GAP
-          : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
+          : anchor.kind === 'station'
+            ? stationSize(anchor.radiusPx) / 2 + BODY_NAME_GAP
+            : Math.max(anchor.radiusPx, MIN_BODY_RADIUS) + BODY_NAME_GAP,
     width:
       anchor.id === hereId
         ? labelWidth(writtenName(anchor, hereId), PILL_PADDING + HERE_DOT_ROOM)
@@ -433,6 +465,8 @@ function VoyageOverlay({
   onDust,
   search,
   stars = [],
+  stationLooks,
+  reducedMotion,
   landmarks,
   pennantScale,
 }: {
@@ -454,6 +488,9 @@ function VoyageOverlay({
   readonly search?: SearchAnswer;
   /** The stars this stop draws, named or not: the whole sky from the whole universe, only the star you are at below it. */
   readonly stars?: readonly SpaceAnchor[];
+  /** What each room's station is drawn from, by room id. */
+  readonly stationLooks: ReadonlyMap<string, StationLook>;
+  readonly reducedMotion: boolean;
   /** The pennants of the planet in view, by key, for their finish. */
   readonly landmarks: readonly LandmarkPoint[];
   readonly pennantScale: number;
@@ -461,12 +498,14 @@ function VoyageOverlay({
   useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
   const shown = anchors.filter((anchor) => anchor.visible && anchor.kind !== 'landmark');
   const pennants = anchors.filter((anchor) => anchor.visible && anchor.kind === 'landmark');
+  const stations = shown.filter((anchor) => anchor.kind === 'station');
   const names = placeNames(
     shown.filter((anchor) => written.includes(anchor.kind)),
     size,
     focusId,
     hereId,
-    keepOff,
+    // A name is kept off the stations' pictures too, which are larger than the bodies they stand beside.
+    [...keepOff, ...stations.map(stationBox)],
   );
   // Bodies orbit and pass close: crowded targets shrink and step apart so each stays a target of its own.
   const targets = new Map(
@@ -476,6 +515,9 @@ function VoyageOverlay({
   );
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {stations.length > 0 ? (
+        <StationLayer anchors={stations} looks={stationLooks} reducedMotion={reducedMotion} />
+      ) : null}
       {pennants.length > 0 ? <Pennants anchors={pennants} landmarks={landmarks} scale={pennantScale} /> : null}
       {shown.map((anchor) => {
         const box = targets.get(anchor.id)!;

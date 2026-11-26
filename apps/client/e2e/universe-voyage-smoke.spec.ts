@@ -5,7 +5,9 @@ import {
   frameLine,
   frameStamps,
   landed,
+  MEMBER_ROOM_ID,
   openVoyage,
+  OUTSIDER_ROOM_ID,
   programCounts,
   readoutOf,
   shot,
@@ -734,4 +736,55 @@ test.describe('a desktop, 1440 x 900', () => {
     await expect(page.getByTestId('universe-key-hints')).toHaveCount(0);
     await shot(page, 'sizes-1440-old-look');
   });
+});
+
+test('a room’s station is drawn flat over the canvas, its named button stays, and it opens the room', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await openVoyage(page, [], { rooms: true, calm: true });
+  const member = page.getByRole('button', { name: 'CI room, a room', exact: true });
+  const outsider = page.getByRole('button', { name: 'CI outsider room, a room', exact: true });
+  await expect(member).toBeVisible({ timeout: 60_000 });
+  await expect(outsider).toBeVisible();
+  // One picture for each station, on a layer that is hidden from assistive technology and takes no touch.
+  const layer = page.getByTestId('voyage-stations');
+  await expect(layer).toBeAttached();
+  await expect(layer).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.getByTestId(`voyage-station-drawn-${MEMBER_ROOM_ID}`)).toBeAttached();
+  await expect(page.getByTestId(`voyage-station-drawn-${OUTSIDER_ROOM_ID}`)).toBeAttached();
+  await shot(page, 'stations-1-universe');
+
+  // At the star the stations are as large as the design draws them: the member's room wears its seven lights (three
+  // lit), the outsider's room none.
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  const sky = page.getByTestId('voyage-station-sky');
+  await expect(sky).toHaveCount(1);
+  await expect(
+    page.getByTestId(`voyage-station-drawn-${MEMBER_ROOM_ID}`).getByTestId('voyage-station-sky'),
+  ).toHaveCount(1);
+  await shot(page, 'stations-2-star');
+
+  // The button, not the picture, is the tap: it opens the room.
+  await member.click();
+  await expect(page).toHaveURL(new RegExp(MEMBER_ROOM_ID));
+});
+
+test('with the trial switch off the old map draws the stations itself and the new layer is not there', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await openVoyage(page, [], { trial: false, rooms: true, calm: true });
+  // The old map names stations at a system, not from afar: search takes it there.
+  await page.getByRole('button', { name: 'Search your universe', exact: true }).click({ timeout: 60_000 });
+  await page.getByLabel('Search your universe').fill('system 0');
+  await page.getByRole('button', { name: /^CI system 0, system/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  // The old map names a member's station with its sky ("3 of 7"); an outsider's has no caption.
+  await expect(page.getByRole('button', { name: 'CI outsider room, a room station', exact: true })).toBeVisible();
+  await expect(page.getByTestId('voyage-stations')).toHaveCount(0);
+  await shot(page, 'stations-3-old-map');
 });

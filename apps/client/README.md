@@ -569,14 +569,34 @@ float over it.
     on its globe as the old globe's pennant (`LandmarkMark`, gold or cream), on the same spots (`landmarkSpots`, the
     first earned first), where the globe faces the camera, a little larger on the ground. Not a place: no button, no
     target for the ship, hidden from a screen reader (the collection lists them). None on a friend's planet.
+  - **Room stations** (`station-look.ts` pure, `station-layer.tsx`, `StationLayer` in `voyage-stage.tsx`): a room's
+    station is the prototype's picture (`STATION_SVG`: cream hub, dark visor with three yellow lights, blue panels, a ring
+    and an antenna, tilted 14 degrees) drawn flat over the canvas at its anchor, under the buttons, with a soft warm glow
+    1.5 widths across. The scene's own three.js station is not drawn in this look (`BuiltSpace.showStations(false)`, which
+    the camera driver calls on every scene it is attached to; the group stays so its anchor, name and button do not
+    change). It is as wide as its anchor's radius on screen times 2.6, between 18 and 150 points (the prototype's
+    `clamp(46 * s, 18, 150)`): about 62 points at a star, as at the prototype's room stop, and smaller from the whole
+    universe. The station still sits beside its one system and its 48 point button, named "Name, a room", opens the room.
+    The room's own face stays: its accent colours the ring (a near-black accent is lifted so it can be seen). A station
+    with a `sky` (a member's, D-174) shows the prototype's seven lights round it, lit as many as the room has, once it is
+    34 points wide or more (they fade in to 70); an outsider's station shows none, and no count or score. A live
+    station's antenna light is red and swells (steady under reduced motion), a calm one (Lately) is dimmer with no
+    blinking. Motion is the prototype's: the antenna light blinks while `sin(2.6 t + phase)` is over 0.2 and the
+    station hovers 1.5 points on `sin(1.1 t + phase)`; under reduced motion the light is steady on and the station does
+    not hover. These run as three looping `Animated` clocks for the whole layer (blink, hover, pulse; native-driven on
+    a phone, and only started when a station on screen needs them), read through keyframes sampled per station, so a
+    screenful of stations costs three animations and no render; the layer is not rebuilt by a timer. The layer takes no
+    touch and is hidden from assistive technology. Not drawn: the prototype's turning and twinkling of the seven lights,
+    the room's emblem (too small to read on the hub). With the switch off the old map draws its own stations as before.
   - **Sizes** (`features/universe/README.md`, "Sizes"). The product's own breakpoints decide, so a tablet takes the phone
     layout and a desktop (1024 px and over) its own: the ship parks lower and leans from further down, the key hints
     name the new keys in a column bottom right (arrows turn, `+`/`-` one stop, `/` search, Esc back up, drag your ship to fly), the zoom buttons
     are not drawn (they changed a scale the new look never reads), the planet's caption stands under the globe, and
     the frame-rate readout stands under the header instead of over it. On the smallest phone (320 x 568) the caption
     still meets the globe: a known gap. With the switch off every size is as before.
-  - Not yet: the stations' own look, the crossing to a friend's Universe, the prototype's desktop board in full (its
-    rail and search card at the left, the camera held at the middle of the screen), moving the ship by keyboard.
+  - Not yet: wiring the crossing to a friend's Universe (its film is in the developer gallery, `crossing/`), the
+    prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
+    screen), moving the ship by keyboard.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and

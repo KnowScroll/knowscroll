@@ -140,6 +140,77 @@ test('with reduced motion it draws one frame and starts no loop', async ({ page 
   });
 });
 
+/** The colour of one pixel of the page's WebGL canvas, read back through a 2D copy (the gallery keeps the drawing buffer). */
+const canvasPixel = (page: Page, x: number, y: number): Promise<number[]> =>
+  page.evaluate(
+    ([px, py]) => {
+      const source = document.querySelector('canvas')!;
+      const copy = document.createElement('canvas');
+      copy.width = source.width;
+      copy.height = source.height;
+      const context = copy.getContext('2d')!;
+      context.drawImage(source, 0, 0);
+      const scale = source.width / source.clientWidth;
+      return Array.from(context.getImageData(Math.round(px! * scale), Math.round(py! * scale), 1, 1).data);
+    },
+    [x, y],
+  );
+
+async function openCrossing(page: Page, query: string): Promise<void> {
+  await page.goto(`/gallery-space?scene=crossing&${query}`);
+  await expect(page.getByTestId('ks-crossing-ready')).toBeAttached({ timeout: 30_000 });
+}
+
+test.describe('the crossing', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+  });
+
+  test('draws the way through opening at film time 0.30, shader and marks', async ({ page }, testInfo) => {
+    await openCrossing(page, 'q=0.30');
+    await expect(page.getByTestId('ks-crossing-label-opens')).toBeVisible();
+    await expect(page.getByTestId('ks-crossing-label-course')).toHaveCount(0);
+    await expect(page.getByTestId('ks-crossing-ring')).toHaveCount(0);
+    // The shader's ball is lit at the screen's centre line, 0.43 down; the corner is the black sky.
+    const [red, green, blue] = await canvasPixel(page, 195, Math.round(844 * 0.43));
+    expect(green! + blue! + red!).toBeGreaterThan(150);
+    const [cornerRed, cornerGreen, cornerBlue] = await canvasPixel(page, 4, 4);
+    expect(cornerRed! + cornerGreen! + cornerBlue!).toBeLessThan(150);
+    await page.screenshot({ path: testInfo.outputPath('crossing-q0.30.png') });
+  });
+
+  test('draws the course, the ring and the two bubbles at 0.10, and the shared names at 0.64', async ({ page }) => {
+    await openCrossing(page, 'q=0.10&name=Ravi');
+    await expect(page.getByTestId('ks-crossing-label-course')).toContainText('Setting course for Ravi’s universe');
+    await expect(page.getByTestId('ks-crossing-ring')).toBeVisible();
+    await expect(page.getByTestId('ks-crossing-behind')).toBeVisible();
+    await expect(page.getByTestId('ks-crossing-ahead')).toBeVisible();
+    await openCrossing(page, 'q=0.64&shared=Attention,Stars');
+    await expect(page.getByTestId('ks-crossing-name-0')).toContainText('Attention');
+    await expect(page.getByTestId('ks-crossing-name-1')).toContainText('Stars');
+    await expect(page.getByTestId('ks-crossing-label-common')).toBeVisible();
+  });
+
+  test('the way home swaps the words and has no names in common', async ({ page }) => {
+    await openCrossing(page, 'q=0.10&dir=home');
+    await expect(page.getByTestId('ks-crossing-label-course')).toContainText('Setting course for home');
+    await openCrossing(page, 'q=0.64&dir=home&shared=Attention,Stars');
+    await expect(page.getByTestId('ks-crossing-name-0')).toHaveCount(0);
+  });
+
+  test('plays the film to its white flash', async ({ page }) => {
+    await openCrossing(page, 'play=1&seen=1');
+    await expect(page.getByTestId('ks-crossing-flash')).toBeVisible({ timeout: 45_000 });
+  });
+
+  test('with reduced motion it plays no film', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/gallery-space?scene=crossing&play=1');
+    await expect(page.getByTestId('ks-crossing-reduced')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('canvas')).toHaveCount(0);
+  });
+});
+
 test.describe('without WebGL', () => {
   test('the plain lists replace the scene when WebGL cannot be created', async ({ page }) => {
     await page.addInitScript(() => {

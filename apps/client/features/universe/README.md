@@ -10,6 +10,7 @@ What a person has read, shown as places: regions on planets, planets round stars
 4. **The stage** draws the view:
    - `universe-stage.tsx`: the map as it ships, the 3D map and system (`space/`, three.js written by hand), a planet's globe and landed map as SVG (`planet/`), and the animated steps between them (`animation/`).
    - `voyage/`: the Round 7.3 look on trial, behind "Try the new Universe" (`universe-trial.ts`). One camera flies along a ladder of stops over the same three.js scene; a planet is one textured sphere from orbit to the ground; a ship the person can drag. See "The ladder" below.
+   - `crossing/`: the film of the crossing to a friend's Universe (Round 7.3): one pure function of film time (`crossing-frame.ts`), one fragment shader in a lazily loaded three.js pass, and the 2D marks over it. Frames only, not wired into a visit yet; seen only at `/gallery-space?scene=crossing&q=0.30` (see "Looking at it locally").
    - `simple/`: the plain lists, when 3D is off (Simple drawing), fails, or the device is short of memory. Always kept: it is also how a screen reader reaches every place.
 5. **Taps are buttons, not raycasts.** Every place on screen is a named button of at least 48 points laid over the canvas at the place's projected point; the canvas is hidden from assistive technology. Land not reached yet is drawn grey and is never named, counted, tapped or read out.
 
@@ -24,6 +25,9 @@ The camera driver (`voyage-driver.ts`) is loaded on demand with three.js (`voyag
 - `voyage-view.ts`: which way the camera looks and where it stands.
 - `planet-close-up.ts`: the planet as one world (`globe.ts`, painted by `world-texture.ts`), with a sharp patch of the map round the place you land.
 - `ship-motion.ts` (pure) and `ship-layer.ts`: the ship.
+- `station-look.ts` (pure) and `station-layer.tsx`: a room's station, drawn flat over the canvas at its anchor in place of the scene's own mesh (`showStations`, called by the driver on attach), with the prototype's lights, glow and hover.
+
+Search: the Back row of a star, a planet and its ground carries a small search circle (`universe-header.tsx`), and while the card is open the stage draws the sky's answer (`search-sky.tsx`): a dim, with a glow and a ring on each system the card reports as holding a match (`universe-search.ts` `systemsOfResults`, handed up by the card's `onLit`). The screen skips its flat dim in this look. `search-sky.tsx` is drawn from the overlay's anchors, over the canvas and under the buttons' touches.
 
 Search: the Back row of a star, a planet and its ground carries a small search circle (`universe-header.tsx`), and while the card is open the stage draws the sky's answer (`search-sky.tsx`): a dim, with a glow and a ring on each system the card reports as holding a match (`universe-search.ts` `systemsOfResults`, handed up by the card's `onLit`). The screen skips its flat dim in this look. `search-sky.tsx` is drawn from the overlay's anchors, over the canvas and under the buttons' touches.
 
@@ -43,7 +47,7 @@ The frame loop (`space/space-view.tsx`, `space/render-loop.ts`) draws at most on
 
 ## Looking at it locally
 
-Build the web export and the developer gallery (`pnpm --filter @knowscroll/client build` and `build:gallery`; a new worktree first needs `pnpm --filter "@knowscroll/client^..." build`). The gallery page `/gallery-space?scene=voyage` draws the trial look over labelled sample places, with no account. The browser specs open `/universe` over authored fixtures (`universe.fixture.ts`, `e2e/voyage-fixture.ts`).
+Build the web export and the developer gallery (`pnpm --filter @knowscroll/client build` and `build:gallery`; a new worktree first needs `pnpm --filter "@knowscroll/client^..." build`). The gallery page `/gallery-space?scene=voyage` draws the trial look over labelled sample places, with no account. `/gallery-space?scene=crossing&q=0.30&dir=out&name=Ravi&shared=Attention,Stars` draws one still of the crossing at film time `q` (`&play=1` plays it). The browser specs open `/universe` over authored fixtures (`universe.fixture.ts`, `e2e/voyage-fixture.ts`).
 
 ## Tests
 
