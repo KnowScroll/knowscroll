@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
-import { content, highlightRing, space, target } from '@knowscroll/design-tokens';
+import { content, highlightRing, space, target, universe } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
 import type { UniverseIndex, Size, PlacedLabel } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
@@ -25,6 +25,8 @@ const LAND_HALO = '#FFFDF2';
 /** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */
 export const labelWidth = (text: string, padding = 8) => Math.ceil(text.length * 7.3) + padding;
 export const LABEL_HEIGHT = 20;
+/** The "you are here" pill's dot and the gap after it: a pill that holds one is this much wider. */
+export const HERE_DOT_ROOM = 12;
 
 /** The kind word a screen reader hears after a place's name: "Machine learning, a system". */
 export const KIND_PHRASE = { system: 'a system', star: 'a star', planet: 'a planet', region: 'a region' } as const;
@@ -104,9 +106,11 @@ export function MapLabel({
         styles.label,
         { left: label.x, top: label.y, width: label.width, height: label.height },
         pill ? styles.pill : null,
-        variant === 'selected' || variant === 'here' ? styles.selectedPill : null,
+        variant === 'selected' ? styles.selectedPill : null,
+        variant === 'here' ? styles.herePill : null,
       ]}
     >
+      {variant === 'here' ? <View style={styles.hereDot} /> : null}
       <Text
         variant="spaceLabel"
         color={
@@ -140,6 +144,9 @@ const styles = StyleSheet.create({
   label: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   pill: { backgroundColor: space.labelChip, borderRadius: 13, paddingHorizontal: 6 },
   selectedPill: { backgroundColor: space.focus },
+  /** Where the ship stands, as the prototype marks it: a cream pill with the orange "you were here" dot. */
+  herePill: { backgroundColor: universe.paper, flexDirection: 'row', gap: HERE_DOT_ROOM - 7 },
+  hereDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: universe.orange },
   plainText: { textShadowColor: space.s0, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } },
   landText: { textShadowColor: LAND_HALO, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } },
 });
