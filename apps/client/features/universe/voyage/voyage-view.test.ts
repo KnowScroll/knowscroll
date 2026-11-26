@@ -60,6 +60,12 @@ describe('where the subject is held', () => {
       expect(heldOffset(null, stop, 1, HEIGHT)).toBeCloseTo((0.5 - STOPS[stop].heldAt) * HEIGHT);
   });
 
+  it('holds a planet where the screen fitted its globe, and the other stops where they are', () => {
+    expect(heldOffset(null, 'planet', 1, HEIGHT, 0.3)).toBeCloseTo(0.2 * HEIGHT);
+    expect(heldOffset(null, 'star', 1, HEIGHT, 0.3)).toBeCloseTo((0.5 - STOPS.star.heldAt) * HEIGHT);
+    expect(heldOffset('star', 'planet', 1, HEIGHT, 0.3)).toBeCloseTo(0.2 * HEIGHT);
+  });
+
   it('in flight moves from the stop left to the stop ahead without a jump at either end', () => {
     expect(heldOffset('universe', 'planet', 0, HEIGHT)).toBeCloseTo(heldOffset(null, 'universe', 1, HEIGHT));
     expect(heldOffset('universe', 'planet', 1, HEIGHT)).toBeCloseTo(heldOffset(null, 'planet', 1, HEIGHT));

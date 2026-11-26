@@ -85,11 +85,19 @@ export function viewDirection(input: ViewInput, out: THREE.Vector3): THREE.Vecto
  * How far below the middle the camera aims, in layout points, so the subject sits at its stop's height. In flight the
  * height moves from the stop left to the stop ahead with the flight, so the view never jumps when a flight starts.
  */
-export function heldOffset(leaving: Stop | null, going: Stop, q: number, height: number): number {
+export function heldOffset(
+  leaving: Stop | null,
+  going: Stop,
+  q: number,
+  height: number,
+  /** Where the planet stop holds its globe, as a share of the height, when the screen fitted it to a room. */
+  planetHeldAt: number = STOPS.planet.heldAt,
+): number {
+  const heldAtStop = (stop: Stop) => (stop === 'planet' ? planetHeldAt : STOPS[stop].heldAt);
   const heldAt =
     leaving === null
-      ? STOPS[going].heldAt
-      : THREE.MathUtils.lerp(STOPS[leaving].heldAt, STOPS[going].heldAt, smooth(0, 1, q));
+      ? heldAtStop(going)
+      : THREE.MathUtils.lerp(heldAtStop(leaving), heldAtStop(going), smooth(0, 1, q));
   return (0.5 - heldAt) * height;
 }
 

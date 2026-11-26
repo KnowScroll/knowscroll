@@ -29,16 +29,24 @@ import {
 } from './ship-motion';
 import { createStageTouches, type Finger, type StageGesture } from './stage-touches';
 import type { VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
+import { GLOBE_NAMED_FROM_PX, namedFromPxOf, type GlobeRoom } from './voyage-chains';
 import { loadVoyageRenderer } from './voyage-loader';
 
 /** A drag has to move this far before it turns the view; a shorter press is a tap on whatever is under it. */
 const DRAG_START = 8;
-/** Where the ship may go on a phone: clear of the header above and the chips below (the prototype's margins). */
-const SHIP_MARGINS = { side: 26, top: 150, bottom: 204 } as const;
+/**
+ * Where the ship parks, where the view leans from and how far it may go, for each layout (the prototype's `DESK`
+ * branches in its ship code). A phone keeps it clear of the header above and the chips below; a desktop has neither.
+ */
+export const SHIP_LAYOUT = {
+  phone: { parkAt: 0.675, leanCentre: 0.56, margins: { side: 26, top: 150, bottom: 204 } },
+  desktop: { parkAt: 0.8, leanCentre: 0.6, margins: { side: 26, top: 70, bottom: 60 } },
+} as const;
+
+/** The ship's layout: the desktop's when the screen is on the product's desktop layout. */
+export const shipLayoutOf = (desktop: boolean) => (desktop ? SHIP_LAYOUT.desktop : SHIP_LAYOUT.phone);
 /** A wheel moves one stop, then waits this long before it moves another (the prototype's 260 ms `settle` timer). */
 const WHEEL_REST_MS = 260;
-/** Where the ship parks when none of its places is on screen: a share of the view's height down (the prototype's `H * 0.675`). */
-const PARK_AT = 0.675;
 /** The ship's size parked low in the sky, in points (the prototype's `hs = 32`). */
 const PARKED_SIZE = 32;
 /** The ship's size going round a globe, in points (the prototype's 26 for a planet in orbit). */
@@ -47,8 +55,6 @@ const ORBIT_SIZE = 26;
 const REGION_SIZE = 30;
 /** How far above a region's name point the ship stands, in points. */
 const REGION_RISE = 22;
-/** The ship goes round a globe whose radius on screen is over this (pixels): the same as the driver's `NAMED_FROM_PX`. */
-const ORBIT_FROM_PX = 90;
 /** ... and under this: nearer than that the globe fills the view, and the ship parks instead. */
 const ORBIT_TO_PX = 400;
 /** The ship's orbit round a globe turns this fast, in radians per second (the prototype's `a = T * 0.5`). */
@@ -61,8 +67,6 @@ const ORBIT_HEIGHT = 0.34;
 const ORBIT_RISE = 0.1;
 /** A parked ship steps clear of a named place by at least this much, in points. */
 const PARK_CLEARANCE = 24;
-/** The view leans from this far down, as a share of its height (the prototype's `ay = H * 0.56`). */
-const LEAN_CENTRE = 0.56;
 /** The view leans by at most this share of its short side (the prototype's `LM = min(W, H) * 0.3`). */
 const LEAN_LIMIT = 0.3;
 /** A parked ship hovers up and down by this much (points), at {@link BOB_RATE} (the prototype's `sin(1.3 T) * 2.5`). */
@@ -83,6 +87,10 @@ export interface VoyageInputs {
   readonly planet: VoyagePlanet | null;
   readonly siblings: readonly string[];
   readonly reducedMotion: boolean;
+  /** The screen is on the product's desktop layout: the ship parks lower and may go nearer the edges. Default: a phone. */
+  readonly desktop?: boolean;
+  /** Where a planet's globe seen from orbit must lie, when the screen's caption and chips leave less than its usual place. */
+  readonly room?: GlobeRoom;
   readonly universeFocus: Extract<RigFocus, { kind: 'universe' }>;
   readonly systemFocus: (systemId: string) => Extract<RigFocus, { kind: 'system' }> | undefined;
   /** Opens a room: what a tap on its station does, and what letting the ship go over it does. */
@@ -170,12 +178,15 @@ export function homeOf(
   regionId: string | null,
   seconds: number,
   reducedMotion = false,
+  desktop = false,
+  /** The globe's radius on screen from which the ship goes round it: a fitted globe's is smaller. */
+  orbitFromPx = GLOBE_NAMED_FROM_PX,
 ): ShipHome {
   const { width, height } = frame.size;
   const globe = frame.globe;
   const region = anchors.find((anchor) => anchor.kind === 'region' && anchor.visible && anchor.id === regionId);
   if (region) return { x: region.x, y: region.y - REGION_RISE, size: REGION_SIZE, heading: 0 };
-  if (globe !== null && globe.radiusPx > ORBIT_FROM_PX && globe.radiusPx < ORBIT_TO_PX) {
+  if (globe !== null && globe.radiusPx > orbitFromPx && globe.radiusPx < ORBIT_TO_PX) {
     const angle = seconds * ORBIT_RATE;
     return {
       x: globe.x + Math.cos(angle) * globe.radiusPx * ORBIT_WIDTH,
@@ -189,7 +200,7 @@ export function homeOf(
     .map((anchor) => ({ x: anchor.x, y: anchor.y, r: Math.max(PARK_CLEARANCE, anchor.radiusPx) }));
   // Low in the sky the ship hovers gently, as the prototype's does; with reduced motion it holds still.
   const bob = reducedMotion ? 0 : Math.sin(seconds * BOB_RATE) * BOB_HEIGHT;
-  const spot = parkingSpot({ anchor: { x: width / 2, y: height * PARK_AT }, avoid });
+  const spot = parkingSpot({ anchor: { x: width / 2, y: height * shipLayoutOf(desktop).parkAt }, avoid });
   return { ...spot, y: spot.y + bob, size: PARKED_SIZE, heading: 0 };
 }
 
@@ -225,7 +236,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   let origin = { x: 0, y: 0 };
   let ship: ShipState = initialShip({
     x: first.size.width / 2,
-    y: first.size.height * PARK_AT,
+    y: first.size.height * shipLayoutOf(first.desktop === true).parkAt,
     size: PARKED_SIZE,
     heading: 0,
   });
@@ -241,6 +252,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     planet: first.planet,
     siblings: first.siblings,
     reducedMotion: first.reducedMotion,
+    room: first.room,
     universeFocus: first.universeFocus,
     systemFocus: first.systemFocus,
     lean: { x: 0, y: 0 },
@@ -250,22 +262,32 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       seconds += frame.dt;
       pinch.frame(frame.dt, frame.flying);
       const { width, height } = frame.size;
+      const desktop = inputs.desktop === true;
+      const layout = shipLayoutOf(desktop);
       ship = stepShip(
         ship,
         {
-          home: homeOf(frame, anchors, standsOn(inputs), seconds, inputs.reducedMotion),
+          home: homeOf(
+            frame,
+            anchors,
+            standsOn(inputs),
+            seconds,
+            inputs.reducedMotion,
+            desktop,
+            namedFromPxOf(inputs.room === undefined ? frame.size : { ...frame.size, room: inputs.room }),
+          ),
           drag: held,
           targets: shipTargets(anchors),
           // A pinch moves the camera under the ship, so it goes, as it does for a flight (the prototype's `zoomBusy`).
           away: frame.flying || pinch.pinching(),
           bounds: {
-            left: SHIP_MARGINS.side,
-            right: width - SHIP_MARGINS.side,
-            top: Math.min(SHIP_MARGINS.top, height * 0.25),
-            bottom: height - Math.min(SHIP_MARGINS.bottom, height * 0.3),
+            left: layout.margins.side,
+            right: width - layout.margins.side,
+            top: Math.min(layout.margins.top, height * 0.25),
+            bottom: height - Math.min(layout.margins.bottom, height * 0.3),
           },
           reducedMotion: inputs.reducedMotion,
-          viewCentre: { x: width / 2, y: height * LEAN_CENTRE },
+          viewCentre: { x: width / 2, y: height * layout.leanCentre },
           leanLimit: Math.min(width, height) * LEAN_LIMIT,
         },
         frame.dt,
@@ -440,6 +462,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       control.planet = next.planet;
       control.siblings = next.siblings;
       control.reducedMotion = next.reducedMotion;
+      control.room = next.room;
       control.universeFocus = next.universeFocus;
       control.systemFocus = next.systemFocus;
     },

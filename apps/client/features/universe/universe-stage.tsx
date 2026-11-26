@@ -25,6 +25,7 @@ import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 import type { SearchAnswer } from './voyage/search-sky';
+import type { GlobeRoom } from './voyage/voyage-chains';
 import { VoyageStage } from './voyage/voyage-stage';
 
 const KEY_PAN = 60;
@@ -103,6 +104,8 @@ export function UniverseStage({
   coveredBottom,
   voyage = false,
   search,
+  desktop = false,
+  room,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -131,6 +134,10 @@ export function UniverseStage({
   readonly voyage?: boolean;
   /** The new look only: search is open and the sky answers it (the old map is dimmed by the screen). */
   readonly search?: SearchAnswer;
+  /** The new look only: the screen is on the desktop layout, where the ship parks lower. */
+  readonly desktop?: boolean;
+  /** The new look only: where a planet's globe seen from orbit must lie, when its usual place would not clear its caption. */
+  readonly room?: GlobeRoom;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -199,6 +206,8 @@ export function UniverseStage({
           view={view}
           visitor={visitor === true}
           onUnavailable={onUnavailable}
+          desktop={desktop}
+          {...(room ? { room } : {})}
           {...(search ? { search } : {})}
         />
       </View>

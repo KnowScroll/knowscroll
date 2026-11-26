@@ -1,8 +1,15 @@
 import type { Vec3 } from '../space/camera-rig';
 import {
+  captionBelowGlobe,
+  CAPTION_BELOW_GLOBE,
   chainOf,
   focalOf,
+  GLOBE_NAMED_FROM_PX,
+  globeRoomOf,
   increasing,
+  MIN_GLOBE_RADIUS_PX,
+  namedFromPxOf,
+  orbitGlobeOf,
   peakOf,
   planetDistances,
   UNIVERSE_ID,
@@ -107,5 +114,68 @@ describe('the distances of a planet', () => {
     expect(big.planet).toBeCloseTo(2 * small.planet);
     expect(big.ground).toBeCloseTo(2 * small.ground);
     expect(small.ground).toBeLessThan(small.planet);
+  });
+});
+
+describe('where a globe stands from orbit', () => {
+  const phone = { width: 390, height: 844 };
+  const small = { width: 320, height: 568 };
+
+  it('is the prototype’s without a room: 0.415 of the height down, 0.36 of the short side in radius', () => {
+    expect(orbitGlobeOf(phone)).toEqual({ centreY: 0.415 * 844, radius: 0.36 * 390 });
+  });
+
+  it('keeps its usual place when the room holds it', () => {
+    const usual = orbitGlobeOf(phone);
+    const room = { top: usual.centreY - usual.radius, bottom: usual.centreY + usual.radius };
+    expect(orbitGlobeOf({ ...phone, room })).toEqual(usual);
+  });
+
+  it('is as big as a smaller room allows, in the middle of it, when the usual place would leave it', () => {
+    const globe = orbitGlobeOf({ ...small, room: { top: 60, bottom: 280 } });
+    expect(globe.radius).toBeCloseTo(110);
+    expect(globe.centreY).toBeCloseTo(170);
+  });
+
+  it('is never smaller than the floor, which is where the close up is fully drawn, and then stands on the room’s bottom edge', () => {
+    const globe = orbitGlobeOf({ ...small, room: { top: 60, bottom: 160 } });
+    expect(globe.radius).toBe(MIN_GLOBE_RADIUS_PX);
+    expect(globe.centreY + globe.radius).toBe(160);
+  });
+
+  it('is named from 90 px as ever, and from a little under its own radius only where the room made it smaller', () => {
+    expect(namedFromPxOf(phone)).toBe(GLOBE_NAMED_FROM_PX);
+    const usual = orbitGlobeOf(phone);
+    expect(
+      namedFromPxOf({ ...phone, room: { top: usual.centreY - usual.radius, bottom: usual.centreY + usual.radius } }),
+    ).toBe(GLOBE_NAMED_FROM_PX);
+    const fitted = orbitGlobeOf({ ...small, room: { top: 60, bottom: 160 } });
+    expect(namedFromPxOf({ ...small, room: { top: 60, bottom: 160 } })).toBeLessThan(fitted.radius);
+    expect(namedFromPxOf({ ...small, room: { top: 60, bottom: 160 } })).toBeLessThan(GLOBE_NAMED_FROM_PX);
+  });
+
+  it('is the size the camera draws it: the planet’s camera distance follows the fitted radius', () => {
+    const room = { top: 60, bottom: 280 };
+    const fitted = { ...small, room };
+    const radiusPx = (focalOf(small) * 0.5) / planetDistances(0.5, fitted).planet;
+    expect(radiusPx).toBeCloseTo(orbitGlobeOf(fitted).radius);
+    expect(planetDistances(0.5, fitted).ground).toBeCloseTo(planetDistances(0.5, small).ground);
+  });
+});
+
+describe('the caption under a globe', () => {
+  it('stands a target’s reach and a gap below the globe’s edge', () => {
+    const size = { width: 820 - 76, height: 1180 };
+    const { centreY, radius } = orbitGlobeOf(size);
+    expect(captionBelowGlobe(size)).toBeCloseTo(centreY + radius + CAPTION_BELOW_GLOBE);
+    expect(captionBelowGlobe(size)).toBeGreaterThan(0.62 * size.height);
+  });
+
+  it('is just under the prototype’s 0.62 of the height on a 390 x 844 phone, so the phone is as it was', () => {
+    expect(captionBelowGlobe({ width: 390, height: 844 })).toBeLessThanOrEqual(0.62 * 844);
+  });
+
+  it('gives the globe the room from the header to a target’s reach above the caption', () => {
+    expect(globeRoomOf(300, 60)).toEqual({ top: 60, bottom: 300 - CAPTION_BELOW_GLOBE });
   });
 });

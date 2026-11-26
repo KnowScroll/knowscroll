@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION, type AccountScope } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
-import { content, layer, layout, space, spacing } from '@knowscroll/design-tokens';
+import { content, layer, layout, radius, space, spacing, target as controlTarget } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { Reveal, type Rising } from './animation/animated';
 import type { AnimationPlayer } from './animation/player';
@@ -13,6 +13,7 @@ import { useUniverseAnimation } from './animation/use-universe-animation';
 import { CollectionSection, CollectionSheet, LandmarkCard } from './collection/collection-parts';
 import { collectionViewOf } from './collection/collection-view';
 import { OrbitDial } from './dial/orbit-dial';
+import { FrameRateFigure } from './frame-rate/frame-rate-readout';
 import { SimpleUniverse } from './simple/simple-universe';
 import { UniverseBackdrop } from './universe-backdrop';
 import { PlanetCard, RegionCard, SystemCard } from './universe-cards';
@@ -25,6 +26,7 @@ import { sameSystems } from './universe-search';
 import { SpaceChip } from './space-chip';
 import { SystemFindsSheet } from './system-finds-sheet';
 import { UniverseStage } from './universe-stage';
+import { captionBelowGlobe, globeRoomOf } from './voyage/voyage-chains';
 import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
 import { planPlanet } from './planet/planet-plan';
@@ -47,6 +49,9 @@ const CAPTION_TOP_SHARE = 0.62;
 const CAPTION_FULL_ROOM = 112;
 /** The air kept between the caption and the chips under it. */
 const CAPTION_GAP = 8;
+
+/** A visit's bar stands above the header: its pill is at least this tall (`visitor-bar.tsx`), with the gap under it. */
+const VISITOR_BAR_ROOM = 68;
 
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
@@ -341,17 +346,25 @@ export function UniverseSurface({
   // when even that does not leave room they stand on the chips (D-392).
   const captionRoom = stageSize.height * (1 - CAPTION_TOP_SHARE) - bottomStackHeight;
   const compactCaption = bottomStackHeight > 0 && captionRoom < CAPTION_FULL_ROOM;
-  const captionTop = Math.min(
+  // The new look's globe is larger than the old one's: its caption stands under it, never over it (the prototype's rule).
+  const usualCaptionTop = Math.max(
     stageSize.height * CAPTION_TOP_SHARE,
-    stageSize.height - bottomStackHeight - CAPTION_GAP - captionHeight,
+    voyage && !wide ? captionBelowGlobe(stageSize) : 0,
   );
+  const captionTop = Math.min(usualCaptionTop, stageSize.height - bottomStackHeight - CAPTION_GAP - captionHeight);
+  // Where the chips and a notice leave the globe less than its usual place, it is drawn to fit between the header and
+  // the caption (see `orbitGlobeOf`): measured, so only once the caption and the stack have been.
+  const globeRoom =
+    voyage && !wide && globe && captionHeight > 0 && bottomStackHeight > 0
+      ? globeRoomOf(captionTop, insets.top + spacing[3] + (visitor ? VISITOR_BAR_ROOM : 0) + controlTarget.comfortable)
+      : undefined;
   const captionOf = (shown: UniverseView): ReactNode =>
     shown.kind === 'planet' && !shown.landed && !simple ? (
       <View
         style={[
           styles.caption,
           compactCaption ? styles.captionCompact : null,
-          captionHeight > 0 ? { top: captionTop } : null,
+          captionHeight > 0 ? { top: captionTop } : voyage && !wide ? { top: usualCaptionTop } : null,
         ]}
         pointerEvents="none"
         onLayout={(event) => setCaptionHeight(event.nativeEvent.layout.height)}
@@ -526,6 +539,8 @@ export function UniverseSurface({
             animation={animation}
             onSize={setStageSize}
             voyage={voyage}
+            desktop={wide}
+            {...(globeRoom ? { room: globeRoom } : {})}
             {...(searchAnswer ? { search: searchAnswer } : {})}
           />
           {/* The new look's stage dims the sky itself, so the matched systems can shine through the dim. */}
@@ -546,6 +561,8 @@ export function UniverseSurface({
                 <Tag label={status} variant="onDark" />
               </View>
             ) : null}
+            {/* The new look's readout stands in the column under the header, so it covers none of it at any size. */}
+            {voyage ? <FrameRateFigure /> : null}
           </View>
           <ChromeSlot
             player={animation.player}
@@ -584,8 +601,9 @@ export function UniverseSurface({
               out={chrome?.chipsOut}
             />
           </View>
-          {/* The search card opens over the same corner; the keys + and - still zoom while it is open. */}
-          {wide && !globe && !searching ? (
+          {/* The search card opens over the same corner; the keys + and - still zoom while it is open. The new look has
+          no zoom to drive: `+` and `-` move one stop, which the wheel, the names and Back do as well. */}
+          {wide && !voyage && !globe && !searching ? (
             <View pointerEvents="box-none" testID="universe-zoom" style={styles.zoomControls}>
               <IconButton
                 icon="plus"
@@ -601,7 +619,7 @@ export function UniverseSurface({
               />
             </View>
           ) : null}
-          {wide ? <KeyHints globe={globe} /> : null}
+          {wide ? <KeyHints globe={globe} voyage={voyage} /> : null}
         </>
       )}
     </View>
@@ -741,7 +759,7 @@ function DustNote({ onClose }: { onClose: () => void }) {
   );
 }
 
-function KeyHints({ globe }: { globe: boolean }) {
+function KeyHints({ globe, voyage }: { globe: boolean; voyage: boolean }) {
   const hint = (keys: string, action: string) => (
     <View key={action} style={styles.hint}>
       <Text variant="metaS" color={space.label} style={styles.key}>
@@ -752,6 +770,23 @@ function KeyHints({ globe }: { globe: boolean }) {
       </Text>
     </View>
   );
+  // The new look: arrows turn, + and - move one stop (at every stop: from a globe + lands), and the ship is dragged. A
+  // column, not the prototype's one line: that line is wider than the room beside the notice on a 1024 px desktop.
+  if (voyage)
+    return (
+      <View pointerEvents="none" style={[styles.hints, styles.voyageHints]} testID="universe-key-hints">
+        <Text variant="meta" color={space.label2}>
+          Drag turns
+        </Text>
+        <Text variant="meta" color={space.label2}>
+          Drag your ship to fly
+        </Text>
+        {hint('← → ↑ ↓', 'turn')}
+        {hint('+ −', 'one stop')}
+        {hint('/', 'search')}
+        {hint('Esc', 'back up')}
+      </View>
+    );
   return (
     <View pointerEvents="none" style={styles.hints}>
       {hint('← → ↑ ↓', globe ? 'Turn' : 'Pan')}
@@ -831,6 +866,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing[4],
     zIndex: layer.mediaOverlay,
+  },
+  /**
+   * The new look's hints are a column in the bottom right corner, narrow enough to stand clear of the notice that is
+   * centred above the chips on a 1024 px desktop. Their ground is light land, so they have a dark backing, as the
+   * frame-rate readout has.
+   */
+  voyageHints: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    rowGap: spacing[1],
+    bottom: spacing[3],
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(2, 3, 8, 0.6)',
   },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   key: { paddingHorizontal: spacing[2], paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: space.edge },

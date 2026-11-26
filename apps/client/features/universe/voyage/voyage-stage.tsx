@@ -24,6 +24,7 @@ import { placeLabels, type LabelRequest, type UniverseView } from '../universe-l
 import type { UniverseMapSession } from '../universe-session';
 import { STOPS, targetOf } from './ladder';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
+import type { GlobeRoom } from './voyage-chains';
 import type { VoyagePlanet } from './voyage-control';
 import { SearchSky, type SearchAnswer } from './search-sky';
 import { labelPoints } from './world-texture';
@@ -67,6 +68,8 @@ export function VoyageStage({
   onUnavailable,
   visitor = false,
   search,
+  desktop = false,
+  room,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
@@ -74,6 +77,10 @@ export function VoyageStage({
   readonly visitor?: boolean;
   /** Search is open: the sky dims, and the systems that hold a match keep their light and wear a ring. */
   readonly search?: SearchAnswer;
+  /** The screen is on the product's desktop layout (not a width of this stage): the ship parks and leans as on a desktop. */
+  readonly desktop?: boolean;
+  /** Where a planet's globe seen from orbit must lie, when its usual place would not clear the caption under it. */
+  readonly room?: GlobeRoom;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -107,6 +114,8 @@ export function VoyageStage({
         (sibling) => sibling.objectId,
       ) ?? [],
     reducedMotion: state.reducedMotion,
+    desktop,
+    ...(room ? { room } : {}),
     universeFocus: space.universeFocus,
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),
@@ -130,7 +139,7 @@ export function VoyageStage({
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
   // you are, of what you turned or of the planet's world must be one. `redraw` only changes the camera's identity when
   // any of those does; the driver does not read it.
-  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
+  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}|${room === undefined ? '' : `${String(room.top)},${String(room.bottom)}`}`;
   const camera = useMemo(
     () => ({
       focus: (systemId === null ? undefined : space.systemFocus(systemId)) ?? space.universeFocus,
