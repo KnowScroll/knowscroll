@@ -551,8 +551,8 @@ float over it.
     takes the new scene's shader programs while the old one still holds them, so none is linked again mid-flight; the
     globe's program is compiled ahead. The browser spec checks that no flight frees a program.
   - **Search from every stop, and the sky's answer** (`universe-header.tsx`, `voyage/search-sky.tsx`). Beside Back, at a
-    star, a planet and its ground, sits a small dark-glass search circle ("Search your universe": 44 px, a 48 px target
-    through `hitSlop`), which opens the same search card as the magnifier at the whole universe; `/` works everywhere as
+    star, a planet and its ground, sits a small dark-glass search circle ("Search your universe", 48 px, where the prototype
+    draws 44), which opens the same search card as the magnifier at the whole universe; `/` works everywhere as
     before, Escape closes the card wherever the focus is (typed in the field it is handled there, since a text field
     keeps the key from the screen's own listener), and choosing a result flies there. While search is open the stage, not the screen, dims the
     sky, so the matched stars can shine through it. With nothing typed the dim is flat (as the old map's). With a query,

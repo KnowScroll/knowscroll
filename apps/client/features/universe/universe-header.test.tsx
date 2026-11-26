@@ -46,11 +46,10 @@ describe('search from every stop in the new look', () => {
     expect(onSearch).toHaveBeenCalledTimes(1);
   });
 
-  it('is a 44 px circle with a 48 px target', async () => {
+  it('is a 48 px target (the prototype draws 44; the web has no touch slop to make up the rest)', async () => {
     await header(views[0]![1], { voyage: true });
     const circle = screen.getByRole('button', { name: 'Search your universe' });
-    expect(circle).toHaveStyle({ width: 44, height: 44 });
-    expect(circle).toHaveProp('hitSlop', 2);
+    expect(circle).toHaveStyle({ width: 48, height: 48 });
   });
 
   it('names a friend’s universe on a visit', async () => {

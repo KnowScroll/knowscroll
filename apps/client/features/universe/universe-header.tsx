@@ -1,15 +1,12 @@
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { space, spacing, target } from '@knowscroll/design-tokens';
+import { space, spacing } from '@knowscroll/design-tokens';
 import { AccountButton, IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountInitial } from '../../providers/account-scope';
 import { SpaceChip } from './space-chip';
 import type { UniverseView } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 import { climbOneStop, climbsToGlobe } from './voyage/ladder';
-
-/** The small search circle is 44 px; this much round it makes it the repo's 48 px target. */
-const MINI_SEARCH_SLOP = (target.comfortable - target.minimum) / 2;
 
 /**
  * What the header says for each view (U01, U02, U03): the screen title with search and the Lately
@@ -120,8 +117,6 @@ export function UniverseHeader({
         icon="search"
         label={visitor ? `Search ${visitor.ownerName}’s universe` : 'Search your universe'}
         variant="onSpaceDark"
-        size={44}
-        hitSlop={MINI_SEARCH_SLOP}
         onPress={onSearch}
         testID="universe-search"
       />

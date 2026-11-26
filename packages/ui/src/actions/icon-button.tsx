@@ -42,8 +42,6 @@ export interface IconButtonProps {
   readonly variant?: IconButtonVariant;
   /** 48 by default; 44 for compact and landscape layouts. Never smaller (D-006 n). */
   readonly size?: 48 | 44;
-  /** Room added round the control for the finger, so a 44 px circle can still be a 48 px target. */
-  readonly hitSlop?: number;
   /**
    * A two-state control (Like, Save). Pressed is never yellow (continuation only, D-006 b as
    * amended): filled cobalt with a filled cream glyph on paper; filled cream with a filled ink
@@ -67,7 +65,6 @@ export function IconButton({
   onPress,
   variant = 'paper',
   size = target.comfortable,
-  hitSlop,
   pressed,
   disabled = false,
   busy = false,
@@ -97,7 +94,6 @@ export function IconButton({
       }}
       {...toggleProps}
       testID={testID}
-      hitSlop={hitSlop}
       onPress={inert ? undefined : onPress}
       disabled={disabled}
       pointerEvents={inert ? 'none' : 'auto'}

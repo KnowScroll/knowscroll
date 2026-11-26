@@ -80,6 +80,17 @@ describe('the systems the sky lights for a search', () => {
     expect(lit('zzz')).toEqual([]);
   });
 
+  it('lights a system whose match is past the results the card has room for', () => {
+    // Twelve regions of s1 fill the card; the planet of s2 that also matches comes after them.
+    const crowded = [
+      ...places,
+      ...Array.from({ length: 12 }, (_, n) => place(`r-many-${n}`, 'region', `Zenith ${n}`, 'p1')),
+      place('p-late', 'planet', 'Zenith way', 's2'),
+    ];
+    expect(searchUniverse(crowded, [], 'zenith')).toHaveLength(12);
+    expect(systemsOfResults(searchUniverse(crowded, [], 'zenith', Infinity), crowded, [])).toEqual(['s2', 's1']);
+  });
+
   it('lights nothing for a result it cannot follow up to a system', () => {
     const orphan = [place('p9', 'planet', 'Lost', 'gone')];
     expect(systemsOfResults(searchUniverse(orphan, [], 'lost'), orphan, [])).toEqual([]);

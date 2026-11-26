@@ -88,7 +88,8 @@ interface Candidate {
 /**
  * Searches what the person already has by name: the places of their map and, when it is their own,
  * the rooms beside it (D-111). Best match first, then systems before planets before regions before
- * rooms. It runs on the places and stations already on this device, never calls the server and never
+ * rooms, at most `limit` of them (the card lists {@link SEARCH_LIMIT}; the sky lights every match).
+ * It runs on the places and stations already on this device, never calls the server and never
  * keeps or logs the query. Stars are not results: they are the system's own light. A place that has
  * not formed is not in `places`, so it cannot be found.
  */
@@ -96,6 +97,7 @@ export function searchUniverse(
   places: readonly UniversePlace[],
   rooms: readonly SearchRoom[],
   rawQuery: string,
+  limit = SEARCH_LIMIT,
 ): readonly SearchResult[] {
   const query = normaliseQuery(rawQuery);
   if (!query) return [];
@@ -144,7 +146,7 @@ export function searchUniverse(
         KIND_ORDER[a.candidate.kind] - KIND_ORDER[b.candidate.kind] ||
         a.candidate.name.localeCompare(b.candidate.name),
     )
-    .slice(0, SEARCH_LIMIT)
+    .slice(0, limit)
     .map(({ candidate, match }) => {
       const trail: string[] = [];
       for (let parent = byId.get(candidate.parentId); parent && trail.length < 3; parent = byId.get(parent.parentId))

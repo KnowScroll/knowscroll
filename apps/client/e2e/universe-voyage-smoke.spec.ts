@@ -408,9 +408,10 @@ test('the search circle opens search at a star, a planet and its ground, and Esc
     await arrive();
     const circle = searchCircle(page);
     await expect(circle, `the search circle at ${stop}`).toBeVisible();
-    // A small circle that is still a 48 px target.
+    // A 48 px target, as every control on the map.
     const box = await circle.boundingBox();
-    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(48);
+    expect(box?.height).toBeGreaterThanOrEqual(48);
     await circle.click();
     await expect(searchField(page)).toBeVisible();
     await expect(page.getByTestId('universe-search-panel')).toBeVisible();
