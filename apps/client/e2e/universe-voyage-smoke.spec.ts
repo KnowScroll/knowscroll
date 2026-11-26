@@ -314,6 +314,39 @@ test.describe('on a touch screen', () => {
     await expect(system).toBeVisible({ timeout: 30_000 });
     expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1);
   });
+
+  test('fingers that come down during a flight are heard to the end of the touch', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openVoyage(page, []);
+    const system = page.getByRole('button', { name: 'CI system 2, a system', exact: true });
+    await expect(system).toBeVisible({ timeout: 60_000 });
+    await system.tap();
+    await expect(page.getByTestId('voyage-flight')).toBeVisible();
+    // A browser sends the rest of a touch to the element it began on, so the flight's tap target must outlive the
+    // flight: had it gone on landing, fingers put down mid-flight would never be heard to move or lift.
+    const target = await page.getByTestId('voyage-skip').elementHandle();
+    if (target === null) throw new Error('The flight has no tap target');
+    const cdp = await page.context().newCDPSession(page);
+    const fingers = (spread: number) => [
+      { x: 195 - spread / 2, y: 422, id: 0 },
+      { x: 195 + spread / 2, y: 422, id: 1 },
+    ];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(220) });
+    await landed(page);
+    expect(await target.evaluate((element) => element.isConnected)).toBe(true);
+    // Between flights it lets every touch through and is out of the accessibility tree.
+    await expect(page.getByRole('button', { name: /tap to skip/ })).toHaveCount(0);
+
+    // Closing the fingers after the landing is heard, and so is lifting them: the pinch climbs one stop.
+    for (let step = 1; step <= 8; step += 1)
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(220 - step * 20) });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+    await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toHaveCount(0, {
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId('universe-frame-rate')).toContainText('→ out', { timeout: 10_000 });
+  });
 });
 
 test('with the trial switch off the Universe is the one that ships', async ({ page }) => {

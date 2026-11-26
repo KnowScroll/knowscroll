@@ -86,4 +86,12 @@ describe('the frame meter', () => {
       '29 fps · 97% on time\nlongest 66 ms · draw 4.3 ms',
     );
   });
+
+  it('keeps the last line about the fingers, and has none before any touch', () => {
+    const meter = createFrameMeter();
+    expect(meter.gesture()).toBeNull();
+    meter.recordGesture('ship held');
+    meter.recordGesture('ship let go → CI system 2');
+    expect(meter.gesture()).toBe('ship let go → CI system 2');
+  });
 });

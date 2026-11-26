@@ -9,7 +9,7 @@ import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle }
 import { chartWorld } from '@knowscroll/scene-core';
 import { space, spacing, target } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
-import { useFlightRecorder, useFrameTimeRecorder } from '../frame-rate/frame-rate-readout';
+import { useFlightRecorder, useFrameTimeRecorder, useGestureRecorder } from '../frame-rate/frame-rate-readout';
 import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
@@ -89,6 +89,7 @@ export function VoyageStage({
   );
   const planet = usePlanetSurface(session, state, index, view, visitor);
   const recordFlight = useFlightRecorder();
+  const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
   const inputs: VoyageInputs = {
     session,
@@ -106,6 +107,7 @@ export function VoyageStage({
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),
     ...(recordFlight ? { onFlight: recordFlight } : {}),
+    ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
   };
   const [controller] = useState(() => createVoyageController(inputs));
@@ -218,6 +220,13 @@ const destinationOf = (view: UniverseView, visitor: boolean): string => {
   return view.selectedRegion?.label ?? view.planet.label;
 };
 
+/** Out of reach of assistive technology: the skip target between flights. */
+const HIDDEN = {
+  'aria-hidden': true,
+  importantForAccessibility: 'no-hide-descendants',
+  accessibilityElementsHidden: true,
+} as const;
+
 /** How far down the flight line sits: the prototype's 226 points on a phone, a fifth of the height on a desktop. */
 const FLIGHT_LINE_TOP = { phone: 226, desktopShare: 0.2 } as const;
 
@@ -225,6 +234,10 @@ const FLIGHT_LINE_TOP = { phone: 226, desktopShare: 0.2 } as const;
  * While the camera flies (`to` is where; null between flights): one line saying where it is going, read out once, and a
  * tap anywhere skips to the end of the flight (the prototype's `skip`). The places are moving under the finger then, so
  * a tap is never taken for one of them. The tap target is named by the line itself, which is all a person sees of it.
+ *
+ * The tap target stays mounted between flights, letting every touch through and hidden from assistive technology. A
+ * browser sends the rest of a touch to the element it started on: had the target gone on landing, fingers that came
+ * down during a flight (a second pinch, a grab at the ship) would never be heard to move or lift again.
  */
 function FlightLine({
   to,
@@ -239,17 +252,18 @@ function FlightLine({
   const line = to === null ? null : `Going to ${to} · tap to skip`;
   return (
     <>
-      {line === null ? null : (
-        // Not in the keyboard's tab order: it goes away on landing, and focus on it would fall to the page.
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          accessibilityRole="button"
-          accessibilityLabel={line}
-          focusable={false}
-          onPress={onSkip}
-          testID="voyage-skip"
-        />
-      )}
+      {/* Not in the keyboard's tab order: it goes quiet on landing, and focus on it would fall to the page. Its role never
+      changes: on the web the role picks the element, and a new element is the one thing the target must not become. */}
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        pointerEvents={line === null ? 'none' : 'auto'}
+        focusable={false}
+        accessibilityRole="button"
+        {...(line === null ? HIDDEN : { accessibilityLabel: line })}
+        onPress={line === null ? undefined : onSkip}
+        testID="voyage-skip"
+      />
+
       {/* Always there, so a screen reader hears the line when it appears, once; empty between flights. */}
       <View
         pointerEvents="none"

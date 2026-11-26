@@ -46,9 +46,22 @@ export function useFlightRecorder(): ((leg: FlightLeg) => void) | undefined {
   return useContext(MeterContext)?.recordLeg;
 }
 
-/** What the figure says now: the last two seconds, then a line for each of the last flights. */
-const describe = (meter: FrameMeter): string =>
-  [describeFrames(meter.summary(performance.now())), describeLegs(meter.legs())].filter(Boolean).join('\n');
+/** Where the camera reports what the fingers did, or undefined when nobody is reading. */
+export function useGestureRecorder(): ((line: string) => void) | undefined {
+  return useContext(MeterContext)?.recordGesture;
+}
+
+/** What the figure says now: the last two seconds, a line for each of the last flights, and what the fingers did last. */
+const describe = (meter: FrameMeter): string => {
+  const gesture = meter.gesture();
+  return [
+    describeFrames(meter.summary(performance.now())),
+    describeLegs(meter.legs()),
+    gesture === null ? '' : `touch: ${gesture}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
 
 /** The figures, refreshed every {@link REFRESH_MS}. */
 function Figure({ meter }: { readonly meter: FrameMeter }) {

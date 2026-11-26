@@ -12,7 +12,7 @@ import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { createFlightLegs } from './flight-legs';
-import { createPinchGesture } from './pinch-gesture';
+import { createPinchGesture, PINCH_STEP } from './pinch-gesture';
 import { climbOneStop, targetKey, type VoyageTarget } from './ladder';
 import {
   drawn,
@@ -24,8 +24,10 @@ import {
   type DrawnShip,
   type ShipHome,
   recentreShip,
+  RELEASE_RADIUS,
   type ShipState,
 } from './ship-motion';
+import { createStageTouches, type Finger, type StageGesture } from './stage-touches';
 import type { VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
 import { loadVoyageRenderer } from './voyage-loader';
 
@@ -89,6 +91,11 @@ export interface VoyageInputs {
   readonly onFlight?: (leg: FlightLeg) => void;
   /** Told when a flight starts and when it lands, so the screen can say where it is going. */
   readonly onFlying?: (flying: boolean) => void;
+  /**
+   * Told what the fingers did, in one short line, whenever it changes ("pinch ×1.62 → in"), when the frame-rate readout
+   * is on: one screenshot from a phone then shows which part of a gesture went wrong.
+   */
+  readonly onGesture?: (line: string) => void;
 }
 
 /** The nearest visible anchor of one of `kinds` to a point on screen. */
@@ -241,7 +248,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     skips: 0,
     afterFrame: (frame): DrawnShip => {
       seconds += frame.dt;
-      pinch.frame(frame.dt);
+      pinch.frame(frame.dt, frame.flying);
       const { width, height } = frame.size;
       ship = stepShip(
         ship,
@@ -270,99 +277,148 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       }
       const landed = legs.frame(frame.flying, frame.programs, performance.now());
       if (landed !== null) inputs.onFlight?.(landed);
+      if (held !== null)
+        tell(ship.candidate === null ? 'ship held · nothing near' : `ship held · pulled to ${nameOf(ship.candidate)}`);
+      else if (pinch.pinching() && frame.flying) tell('pinch · hurrying the flight to its stop');
       const caught = ship.candidate === null ? undefined : anchors.find((anchor) => anchor.id === ship.candidate);
       return drawn(ship, caught === undefined ? null : { x: caught.x, y: caught.y });
     },
   };
   const pinch = createPinchGesture(control);
+  const touches = createStageTouches();
 
-  let mode: 'ship' | 'turn' | 'pinch' = 'turn';
-  /** The held ship moved: letting go is a drop, not a tap. */
-  let shipMoved = false;
+  /** The line last told through `onGesture`. */
+  let gestureLine = '';
+  const tell = (line: string) => {
+    if (line === gestureLine) return;
+    gestureLine = line;
+    inputs.onGesture?.(line);
+  };
+  const nameOf = (id: string | null): string =>
+    (id === null ? undefined : anchors.find((anchor) => anchor.id === id)?.name) ?? 'nothing';
+  const times = (ratio: number) => `×${ratio.toFixed(2)}`;
+
   let startTurn = { x: 0, y: 0 };
   /**
    * Where a pinch in would go: what was under the fingers when they came down. It is chosen then, because the camera
    * zooms toward it as they spread and everything else moves on screen.
    */
   let pinchDescent: ReturnType<typeof descentOf> = null;
+  const centre = () => ({ x: inputs.size.width / 2, y: inputs.size.height / 2 });
   const local = (event: GestureResponderEvent) => ({
     x: event.nativeEvent.pageX - origin.x,
     y: event.nativeEvent.pageY - origin.y,
   });
-  const spread = (event: GestureResponderEvent) => {
-    const [one, two] = event.nativeEvent.touches;
-    return one && two ? Math.hypot(one.pageX - two.pageX, one.pageY - two.pageY) : 0;
-  };
-  const centre = () => ({ x: inputs.size.width / 2, y: inputs.size.height / 2 });
-  const beginPinch = (event: GestureResponderEvent) => {
-    const [one, two] = event.nativeEvent.touches;
-    mode = 'pinch';
-    const between =
-      one && two
-        ? { x: (one.pageX + two.pageX) / 2 - origin.x, y: (one.pageY + two.pageY) / 2 - origin.y }
-        : local(event);
-    pinchDescent = descentOf(inputs.view, anchors, between.x, between.y);
-    pinch.begin(spread(event), pinchDescent !== null && pinchDescent !== 'land' ? pinchDescent.focus : null);
+  const fingersOf = (event: GestureResponderEvent): Finger[] =>
+    event.nativeEvent.touches.map((touch) => ({
+      id: String(touch.identifier),
+      x: touch.pageX - origin.x,
+      y: touch.pageY - origin.y,
+    }));
+
+  /** Letting go of the held ship: a tap calls it home, a drop near a place goes there, anywhere else it stays. */
+  const letGoOfShip = (moved: boolean) => {
+    held = null;
+    if (!moved) {
+      ship = recentreShip(ship);
+      tell('ship tapped → home');
+      return;
+    }
+    const candidate = ship.candidate;
+    const reach = candidate === null ? null : anchors.find((anchor) => anchor.id === candidate);
+    const released = releaseShip(ship, shipTargets(anchors));
+    ship = released.state;
+    const goTo = released.goTo;
+    // A station is a room, not a place on the map: letting the ship go over it opens the room, as a tap does.
+    if (goTo !== null && anchors.some((anchor) => anchor.id === goTo && anchor.kind === 'station')) {
+      tell(`ship let go → opens ${nameOf(goTo)}`);
+      inputs.onStation?.(goTo);
+    } else if (goTo !== null) {
+      tell(`ship let go → ${nameOf(goTo)}`);
+      void inputs.session.focus(goTo);
+    } else if (reach)
+      tell(
+        `ship let go ${Math.round(Math.hypot(reach.x - ship.x, reach.y - ship.y))} pt from ${reach.name} (needs < ${RELEASE_RADIUS}) → stays`,
+      );
+    else tell('ship let go in empty sky → stays');
   };
 
+  const act = (gesture: StageGesture) => {
+    switch (gesture.kind) {
+      case 'ship-take':
+        held = gesture.at;
+        tell('ship held');
+        return;
+      case 'ship-move':
+        held = gesture.at;
+        return;
+      case 'ship-let-go':
+        letGoOfShip(gesture.moved);
+        return;
+      case 'ship-home':
+        // A second finger (or the system) took the touch: the ship is no longer held, and goes home.
+        held = null;
+        ship = recentreShip(ship);
+        tell('ship → home: a second finger came');
+        return;
+      case 'turn-begin':
+        startTurn = { x: inputs.turn.x, y: inputs.turn.y };
+        return;
+      case 'turn':
+        inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });
+        return;
+      case 'pinch-begin':
+        // A pinch a finger landed again on carries on toward the place it was going to.
+        if (!gesture.resumes) pinchDescent = descentOf(inputs.view, anchors, gesture.between.x, gesture.between.y);
+        pinch.begin(gesture.spread, pinchDescent !== null && pinchDescent !== 'land' ? pinchDescent.focus : null);
+        tell(`pinch ${times(pinch.ratio())}`);
+        return;
+      case 'pinch-move':
+        // The camera follows the fingers (the prototype's `zoomTo`); with reduced motion it only moves on release.
+        pinch.move(gesture.spread, !inputs.reducedMotion);
+        tell(`pinch ${times(pinch.ratio())}`);
+        return;
+      case 'pinch-pause':
+        tell(`pinch ${times(pinch.ratio())} · a finger lifted`);
+        return;
+      case 'pinch-end': {
+        const ratio = pinch.ratio();
+        const outcome = pinch.end((direction) =>
+          direction === 'in' ? goDown(inputs.session, pinchDescent) : climbOneStop(inputs.session, inputs.view),
+        );
+        tell(`pinch ${times(ratio)} → ${outcome} (a stop is ${times(PINCH_STEP)})`);
+        return;
+      }
+      case 'pinch-cancel':
+        pinch.cancel();
+        tell('pinch taken away');
+        return;
+    }
+  };
+  const feed = (fingers: readonly Finger[], movedSoFar?: { x: number; y: number }) => {
+    for (const gesture of touches.update(fingers, (at) => pickShip(ship, at.x, at.y), movedSoFar)) act(gesture);
+  };
+
+  // Every change of fingers goes to `touches`, which follows each finger by its id: a finger landing (grant, start),
+  // moving, or lifting (end; release once the last one has).
   const responder = PanResponder.create({
-    // A finger on the ship takes it at once, before a button under it can.
+    // A finger on the ship takes it at once, before a button under it can; so does a second finger, for a pinch.
     onStartShouldSetPanResponderCapture: (event) => {
+      if (event.nativeEvent.touches.length >= 2) return true;
       const at = local(event);
       return pickShip(ship, at.x, at.y);
     },
     onMoveShouldSetPanResponderCapture: (event, gesture) =>
-      spread(event) > 0 || Math.abs(gesture.dx) + Math.abs(gesture.dy) > DRAG_START,
-    onPanResponderGrant: (event) => {
-      const at = local(event);
-      if (spread(event) > 0) beginPinch(event);
-      else if (pickShip(ship, at.x, at.y)) {
-        mode = 'ship';
-        held = at;
-        shipMoved = false;
-      } else mode = 'turn';
-      startTurn = { x: inputs.turn.x, y: inputs.turn.y };
-    },
-    onPanResponderMove: (event, gesture) => {
-      const now = spread(event);
-      if (now > 0) {
-        if (mode !== 'pinch') beginPinch(event);
-        // The camera follows the fingers (the prototype's `zoomTo`); with reduced motion it only moves on release.
-        pinch.move(now, !inputs.reducedMotion);
-        return;
-      }
-      if (mode === 'ship') {
-        held = local(event);
-        shipMoved = true;
-      } else if (mode === 'turn')
-        inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });
-    },
-    onPanResponderRelease: () => {
-      if (mode === 'ship') {
-        held = null;
-        // A tap on the ship calls it home; a drop over a place goes there.
-        const released = shipMoved
-          ? releaseShip(ship, shipTargets(anchors))
-          : { state: recentreShip(ship), goTo: null };
-        ship = released.state;
-        // A station is a room, not a place on the map: letting the ship go over it opens the room, as a tap does.
-        const goTo = released.goTo;
-        if (goTo !== null && anchors.some((anchor) => anchor.id === goTo && anchor.kind === 'station'))
-          inputs.onStation?.(goTo);
-        else if (goTo !== null) void inputs.session.focus(goTo);
-      } else if (mode === 'pinch') {
-        pinch.end((direction) =>
-          direction === 'in' ? goDown(inputs.session, pinchDescent) : climbOneStop(inputs.session, inputs.view),
-        );
-      }
-      mode = 'turn';
-    },
+      event.nativeEvent.touches.length >= 2 || Math.abs(gesture.dx) + Math.abs(gesture.dy) > DRAG_START,
+    onPanResponderGrant: (event, gesture) => feed(fingersOf(event), { x: gesture.dx, y: gesture.dy }),
+    onPanResponderStart: (event) => feed(fingersOf(event)),
+    onPanResponderMove: (event) => feed(fingersOf(event)),
+    onPanResponderEnd: (event) => feed(fingersOf(event)),
+    onPanResponderRelease: () => feed([]),
     onPanResponderTerminate: () => {
-      held = null;
-      mode = 'turn';
-      pinch.cancel();
+      for (const gesture of touches.cancel()) act(gesture);
     },
-    onPanResponderTerminationRequest: () => mode !== 'ship',
+    onPanResponderTerminationRequest: () => touches.mode() !== 'ship',
   });
 
   let wheelResting = false;

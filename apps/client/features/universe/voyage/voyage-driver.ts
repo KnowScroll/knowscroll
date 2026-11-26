@@ -35,17 +35,31 @@ import { fieldOfView, heldOffset, placeCamera, vec, viewDirection } from './voya
 const ZOOM_RELAX_RATE = 6;
 /** A pinch never takes the camera nearer a planet's centre than this many of its radii. */
 const NEAREST_RADII = 1.15;
-/** Pinched out this far at a star, the camera shows the other stars as well, as the whole universe does. */
-const SHOW_ALL_FROM_ZOOM = 1.3;
 /** Pinched in to this share of its stop's distance, the camera aims wholly at the place under the fingers (1 / 1.4, the step). */
 const AIMED_AT_ZOOM = 0.714;
 /** An aim turned less than this toward a pinch's place is back on its stop. */
 const AIM_FORGOTTEN = 1e-3;
+/**
+ * Two fingers that come down mid-flight make the rest of the flight this many times faster, so the camera reaches its
+ * stop and the fingers take it from there. The prototype cancels the flight where it is (`zoomTo`); here a stop is the
+ * only place the camera can rest, so it hurries to one instead of standing still between two.
+ */
+const PINCH_HURRY = 4;
+/** How fast the hurry comes and goes, per second: a flight speeds up over a few frames, never in one. */
+const HURRY_RATE = 8;
+/**
+ * How fast the camera goes to where the fingers have taken the zoom, per second, when a flight they hurried lands: they
+ * may have spread or closed while it flew, and the camera must not jump there in one frame.
+ */
+const CATCH_UP_RATE = 10;
+/** The camera has caught up with the fingers once its zoom is within this share of theirs. */
+const CAUGHT_UP = 0.01;
 
-/** A flight under way: its plan, the time it started (set on its first frame) and the target it leaves. */
+/** A flight under way: its plan, how far through it is (seconds of flight, which a pinch can hurry) and the target it leaves. */
 interface Flight {
   readonly plan: FlightPlan;
-  startedAt: number | null;
+  /** Null until its first frame, which is its start. */
+  elapsed: number | null;
   readonly from: VoyageTarget;
 }
 
@@ -84,6 +98,10 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   let pinchedLastFrame = false;
   /** {@link VoyageControl.skips} as last seen: a larger count ends the flight under way. */
   let skipsSeen = 0;
+  /** How much faster than planned the flight under way runs: 1, or toward {@link PINCH_HURRY} while fingers pinch. */
+  let hurry = 1;
+  /** A flight landed under fingers that pinch: the zoom eases to theirs, at {@link CATCH_UP_RATE}, instead of jumping. */
+  let catchingUp = false;
   /** The last planet the screen gave: kept while a flight leaves it, so its globe does not drop to the painted body. */
   let lastPlanet: VoyagePlanet | null = null;
   /** The planet drawn as a world now: the screen's, or the one a flight is still leaving. */
@@ -148,7 +166,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         touchesGround: next.stop === 'ground' || leaving.stop === 'ground',
         fast: pinched,
       }),
-      startedAt: null,
+      elapsed: null,
       from: leaving,
     };
     return true;
@@ -176,8 +194,15 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       if (flight !== null || control.reducedMotion) {
         zoom = 1;
         aim = 0;
+        catchingUp = flight !== null && control.zoom !== null;
+      } else if (control.zoom !== null && catchingUp) {
+        zoom += (control.zoom.scale - zoom) * Math.min(1, dt * CATCH_UP_RATE);
+        catchingUp = Math.abs(zoom / control.zoom.scale - 1) > CAUGHT_UP;
       } else if (control.zoom !== null) zoom = control.zoom.scale;
-      else zoom = 1 + (zoom - 1) * Math.exp(-dt * ZOOM_RELAX_RATE);
+      else {
+        catchingUp = false;
+        zoom = 1 + (zoom - 1) * Math.exp(-dt * ZOOM_RELAX_RATE);
+      }
       if (flight === null && !control.reducedMotion && towardPoint !== null) {
         aimPoint = towardPoint;
         aim = smooth(1, AIMED_AT_ZOOM, zoom);
@@ -195,14 +220,16 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const leaving = flight?.from ?? null;
       let from: PlacedChain | null = null;
       if (flight !== null) {
-        flight.startedAt ??= t;
+        hurry += ((control.zoom === null ? 1 : PINCH_HURRY) - hurry) * Math.min(1, dt * HURRY_RATE);
+        flight.elapsed = flight.elapsed === null ? 0 : flight.elapsed + dt * hurry;
         from = chainOf(flight.from, places, size);
-        const frame = flightAt(flight.plan, t - flight.startedAt, from.chain, target.chain);
+        const frame = flightAt(flight.plan, flight.elapsed, from.chain, target.chain);
         focus = frame.focus;
         distance = frame.distance;
         q = frame.q;
         if (frame.done) flight = null;
       } else {
+        hurry = 1;
         // At rest the camera looks at the place itself: on the ground too, the planet's centre, from nearer.
         distance = Math.max(target.stopDistance * zoom, (target.planetRadius ?? 0) * NEAREST_RADII);
         const here = target.chain[0]!.point;
@@ -255,12 +282,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       space.script.shipScale(0);
 
       // A star or anything below it shows its own system alone once the camera has nearly arrived, and keeps it alone
-      // for the first part of a flight away, so the other systems come in as the camera climbs and not at once.
+      // for the first part of a flight away, so the other systems come in as the camera climbs and not at once. A
+      // pinch out from a star keeps it alone too, as the prototype's does: the other stars come with the flight it asks
+      // for. (They once came in at a fixed zoom, and a finger shaking about that zoom made the sky flicker.)
       const keptAlone = leaving !== null && leaving.stop !== 'universe' && q < 0.4 ? leaving.systemId : null;
-      const alone =
-        control.target.stop !== 'universe' && q > 0.6 && zoom < SHOW_ALL_FROM_ZOOM
-          ? control.target.systemId
-          : keptAlone;
+      const alone = control.target.stop !== 'universe' && q > 0.6 ? control.target.systemId : keptAlone;
       space.showOnly(alone);
       return camera;
     },
