@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Page } from '@playwright/test';
-import { COLLECTION_READS, fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
+import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 
 /**
@@ -35,6 +35,8 @@ export interface VoyageOptions {
   readonly programs?: boolean;
   /** Keep every line the flight line shows, for {@link flightLines}. */
   readonly flightLines?: boolean;
+  /** Two landmarks earned on CI planet 2 (a gold and a plain), so its pennants stand on its globe. */
+  readonly landmarks?: boolean;
 }
 
 /**
@@ -146,6 +148,14 @@ export async function shot(page: Page, name: string): Promise<void> {
 export async function openVoyage(page: Page, paths: string[], options: VoyageOptions = {}): Promise<void> {
   // Three systems, and a planet with four formed regions.
   const world = sceneFixture(5, 0, 3, 2);
+  if (options.landmarks === true) {
+    const earned = { revision: 1, earnedAt: '2026-11-01T00:00:00.000Z', topicId: 'earth.seasons' };
+    world.collection.landmarks = [
+      { ...earned, key: 'the-leaning-axis', name: 'The Leaning Axis', tier: 'gold', assetId: fixtureId(500) },
+      { ...earned, key: 'the-turning-halves', name: 'The Turning Halves', tier: 'plain', assetId: fixtureId(501) },
+    ];
+    world.collection.planets = [{ id: fixtureId(12), topicId: 'earth.seasons' }];
+  }
   await page.setViewportSize(options.size ?? { width: 390, height: 844 });
   if (options.calm === true) await page.emulateMedia({ reducedMotion: 'reduce' });
   const preferences = {

@@ -200,6 +200,7 @@ export function UniverseStage({
           visitor={visitor === true}
           onUnavailable={onUnavailable}
           {...(search ? { search } : {})}
+          {...(landmarksByPlanet ? { landmarksByPlanet } : {})}
         />
       </View>
     );

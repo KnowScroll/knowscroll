@@ -347,6 +347,22 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
           visible: facing > FACING_LEAST && point.z < 1,
         });
       }
+      for (const landmark of world.landmarks) {
+        const surface = globe.mesh.localToWorld(localPointOf(landmark.x, landmark.lat));
+        const normal = scratch.normal.copy(surface).sub(globe.mesh.position).normalize();
+        const facing = normal.dot(scratch.view.copy(space.camera.position).sub(surface).normalize());
+        const point = scratch.point.copy(surface).project(space.camera);
+        anchors.push({
+          id: landmark.key,
+          kind: 'landmark',
+          name: '',
+          systemId: control.target.systemId,
+          x: (point.x * 0.5 + 0.5) * size.width,
+          y: (-point.y * 0.5 + 0.5) * size.height,
+          radiusPx: 0,
+          visible: facing > FACING_LEAST && point.z < 1,
+        });
+      }
       return anchors;
     },
     compile(renderer, space) {

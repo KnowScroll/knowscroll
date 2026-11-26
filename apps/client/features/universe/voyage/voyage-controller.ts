@@ -148,10 +148,10 @@ export function descend(
   return goDown(session, descentOf(view, anchors, x, y));
 }
 
-/** Places the ship could be let go over: everything named on screen. */
+/** Places the ship could be let go over: everything named on screen (a landmark's pennant is not a place). */
 const shipTargets = (anchors: readonly SpaceAnchor[]) =>
   anchors
-    .filter((anchor) => anchor.visible && anchor.kind !== 'dust')
+    .filter((anchor) => anchor.visible && anchor.kind !== 'dust' && anchor.kind !== 'landmark')
     .map((anchor) => ({ id: anchor.id, x: anchor.x, y: anchor.y }));
 
 /**

@@ -36,8 +36,8 @@ export interface StopSpec {
 export const STOPS: Readonly<Record<Stop, StopSpec>> = {
   universe: { heldAt: 0.455, names: ['system', 'station', 'dust'], written: ['system'] },
   star: { heldAt: 0.5, names: ['planet', 'station', 'dust'], written: ['planet', 'station'] },
-  planet: { heldAt: 0.415, names: ['region'], written: ['region'] },
-  ground: { heldAt: 0.45, names: ['region'], written: ['region'] },
+  planet: { heldAt: 0.415, names: ['region', 'landmark'], written: ['region'] },
+  ground: { heldAt: 0.45, names: ['region', 'landmark'], written: ['region'] },
 };
 
 /** Where the person is going: a stop of the ladder and the places that make it. */

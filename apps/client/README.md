@@ -565,8 +565,11 @@ float over it.
     over the canvas, takes no touch and is hidden from assistive technology (the results list is how a person
     chooses), and never animates, so reduced motion needs no change. With the switch off the old dim and the old
     header are unchanged; on a desktop Browse still carries search and no sky answer is drawn.
-  - Not yet: the stations' own look, landmark pennants on the globe, the crossing to a friend's Universe, desktop and
-    tablet layouts.
+  - **Landmark pennants** (`landmark-points.ts`, `Pennants` in `voyage-stage.tsx`): what you earned on a planet stands
+    on its globe as the old globe's pennant (`LandmarkMark`, gold or cream), on the same spots (`landmarkSpots`, the
+    first earned first), where the globe faces the camera, a little larger on the ground. Not a place: no button, no
+    target for the ship, hidden from a screen reader (the collection lists them). None on a friend's planet.
+  - Not yet: the stations' own look, the crossing to a friend's Universe, desktop and tablet layouts.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and
