@@ -124,6 +124,8 @@ export const SpaceOverlay = memo(function SpaceOverlay(props: SpaceOverlayProps)
               onPress={() => props.onStation(anchor.id)}
             />
           );
+        // Only the trial's driver gives pennants; this map never draws them.
+        if (anchor.kind === 'landmark') return null;
         const descriptor = index.byId.get(anchor.id);
         if (descriptor === undefined) return null;
         return (

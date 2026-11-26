@@ -350,6 +350,24 @@ test.describe('on a touch screen', () => {
   });
 });
 
+test('the landmarks earned on a planet stand on its globe as pennants, never as places to tap', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openVoyage(page, [], { landmarks: true, calm: true });
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click({ timeout: 30_000 });
+  const pennants = page.getByTestId('voyage-pennants');
+  // The gold one and the plain one, standing where the old globe put them, on the side the camera faces.
+  await expect(pennants.locator('[data-testid="landmark-mark-gold"]')).toHaveCount(1, { timeout: 30_000 });
+  await expect(pennants.locator('[data-testid="landmark-mark-plain"]')).toHaveCount(1);
+  // A pennant is not a place: no button for it on the map, and hidden from a screen reader, which reads it in the
+  // collection (the screen's "Latest landmark" chip is the collection's, outside the map).
+  await expect(pennants).toHaveAttribute('aria-hidden', 'true');
+  await expect(
+    page.getByTestId('voyage-stage').getByRole('button', { name: /Leaning Axis|Turning Halves/ }),
+  ).toHaveCount(0);
+  await shot(page, 'voyage-pennants');
+});
+
 test('with the trial switch off the Universe is the one that ships', async ({ page }) => {
   await openVoyage(page, [], { trial: false });
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({

@@ -565,15 +565,18 @@ float over it.
     over the canvas, takes no touch and is hidden from assistive technology (the results list is how a person
     chooses), and never animates, so reduced motion needs no change. With the switch off the old dim and the old
     header are unchanged; on a desktop Browse still carries search and no sky answer is drawn.
+  - **Landmark pennants** (`landmark-points.ts`, `Pennants` in `voyage-stage.tsx`): what you earned on a planet stands
+    on its globe as the old globe's pennant (`LandmarkMark`, gold or cream), on the same spots (`landmarkSpots`, the
+    first earned first), where the globe faces the camera, a little larger on the ground. Not a place: no button, no
+    target for the ship, hidden from a screen reader (the collection lists them). None on a friend's planet.
   - **Sizes** (`features/universe/README.md`, "Sizes"). The product's own breakpoints decide, so a tablet takes the phone
     layout and a desktop (1024 px and over) its own: the ship parks lower and leans from further down, the key hints
     name the new keys in a column bottom right (arrows turn, `+`/`-` one stop, `/` search, Esc back up, drag your ship to fly), the zoom buttons
     are not drawn (they changed a scale the new look never reads), the planet's caption stands under the globe, a
     short phone fits the globe between the header and the caption, and the frame-rate readout stands under the header
     instead of over it. With the switch off every size is as before.
-  - Not yet: the stations' own look, landmark pennants on the globe, the crossing to a friend's Universe, the
-    prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
-    screen), moving the ship by keyboard.
+  - Not yet: the stations' own look, the crossing to a friend's Universe, the prototype's desktop board in full (its
+    rail and search card at the left, the camera held at the middle of the screen), moving the ship by keyboard.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and

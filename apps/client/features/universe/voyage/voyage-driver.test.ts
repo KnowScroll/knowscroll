@@ -34,6 +34,7 @@ const voyagePlanet: VoyagePlanet = {
   palette: paletteOf('lush', 0),
   labels: labelPoints(chart),
   names: new Map(sites.map((site) => [`region-${site}`, `Region ${site}`])),
+  landmarks: [],
 };
 
 const target = (stop: VoyageTarget['stop'], systemId: string | null, planetId: string | null = null): VoyageTarget => ({
@@ -341,6 +342,35 @@ describe('the globe of a planet', () => {
     r.settle();
     r.step();
     expect(r.bodyVisible(PLANET)).toBe(true);
+    expect(r.driver.anchors(r.space, size)).toEqual([]);
+  });
+});
+
+describe('the pennants of a planet', () => {
+  it('gives each landmark back as an anchor on the globe, beside the regions, and none once the camera leaves', () => {
+    const r = rig(target('star', base.id));
+    r.step();
+    r.control.target = target('planet', base.id, PLANET);
+    r.control.planet = {
+      ...voyagePlanet,
+      landmarks: [
+        { key: 'gold-1', tier: 'gold', x: voyagePlanet.labels[0]!.x, lat: voyagePlanet.labels[0]!.lat },
+        { key: 'plain-1', tier: 'plain', x: voyagePlanet.labels[0]!.x + 240, lat: 0 },
+      ],
+    };
+    r.control.siblings = ['sample-planet-one', 'sample-planet-two'];
+    r.settle();
+    r.step();
+    const pennants = r.driver.anchors(r.space, size).filter((anchor) => anchor.kind === 'landmark');
+    expect(pennants.map((anchor) => anchor.id).sort()).toEqual(['gold-1', 'plain-1']);
+    // One stands where the camera came down (it faces the camera); the other is on the far side of the world.
+    expect(pennants.find((anchor) => anchor.id === 'gold-1')!.visible).toBe(true);
+    expect(pennants.find((anchor) => anchor.id === 'plain-1')!.visible).toBe(false);
+
+    r.control.target = target('universe', null);
+    r.control.planet = null;
+    r.settle();
+    r.step();
     expect(r.driver.anchors(r.space, size)).toEqual([]);
   });
 });

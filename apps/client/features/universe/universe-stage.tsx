@@ -209,6 +209,7 @@ export function UniverseStage({
           desktop={desktop}
           {...(room ? { room } : {})}
           {...(search ? { search } : {})}
+          {...(landmarksByPlanet ? { landmarksByPlanet } : {})}
         />
       </View>
     );

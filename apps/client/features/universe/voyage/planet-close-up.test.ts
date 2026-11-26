@@ -44,6 +44,7 @@ const planetOf = (key: string): VoyagePlanet => ({
   palette: paletteOf('lush', 0),
   labels: labelPoints(chart),
   names: new Map(),
+  landmarks: [],
 });
 const target = (stop: VoyageTarget['stop'], regionId: string | null = null): VoyageTarget => ({
   stop,

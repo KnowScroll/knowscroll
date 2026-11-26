@@ -6,6 +6,8 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
+import Svg from 'react-native-svg';
+import type { CollectionLandmark } from '@knowscroll/client-core';
 import { chartWorld } from '@knowscroll/scene-core';
 import { space, spacing, target } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
@@ -13,6 +15,7 @@ import { useFlightRecorder, useFrameTimeRecorder, useGestureRecorder } from '../
 import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
+import { LandmarkMark } from '../collection/landmark-mark';
 import { BodyTarget, HERE_DOT_ROOM, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from '../scene-parts';
 import { layOutUniverse, looksById, looksOfState } from '../space/space-model';
 import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
@@ -28,6 +31,13 @@ import type { GlobeRoom } from './voyage-chains';
 import type { VoyagePlanet } from './voyage-control';
 import { SearchSky, type SearchAnswer } from './search-sky';
 import { labelPoints } from './world-texture';
+import { landmarkPoints, type LandmarkPoint } from './landmark-points';
+
+/** A planet with nothing earned on it. */
+const NO_LANDMARKS: readonly CollectionLandmark[] = [];
+const NO_PENNANTS: readonly LandmarkPoint[] = [];
+/** A pennant on the ground stands this much larger than on a globe seen from orbit (the landed map's 1.3). */
+const GROUND_PENNANT_SCALE = 1.3;
 
 /** How far below a region's point its name sits, in points. */
 const REGION_NAME_GAP = 14;
@@ -67,6 +77,7 @@ export function VoyageStage({
   onStation,
   onUnavailable,
   visitor = false,
+  landmarksByPlanet,
   search,
   desktop = false,
   room,
@@ -75,6 +86,8 @@ export function VoyageStage({
   readonly onUnavailable: (reason: SpaceFailure) => void;
   /** A friend's Universe: their planets are drawn with every continent in colour and no region named or tappable. */
   readonly visitor?: boolean;
+  /** What the person has earned on each planet: its pennants stand on the globe. */
+  readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
   /** Search is open: the sky dims, and the systems that hold a match keep their light and wear a ring. */
   readonly search?: SearchAnswer;
   /** The screen is on the product's desktop layout (not a width of this stage): the ship parks and leans as on a desktop. */
@@ -98,7 +111,7 @@ export function VoyageStage({
       }),
     [index, looks, stations, state.dust.cues, state.lately],
   );
-  const planet = usePlanetSurface(session, state, index, view, visitor);
+  const planet = usePlanetSurface(session, state, index, view, visitor, landmarksByPlanet);
   const recordFlight = useFlightRecorder();
   const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
@@ -139,7 +152,9 @@ export function VoyageStage({
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
   // you are, of what you turned or of the planet's world must be one. `redraw` only changes the camera's identity when
   // any of those does; the driver does not read it.
-  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}|${room === undefined ? '' : `${String(room.top)},${String(room.bottom)}`}`;
+  // The pennants are not in the planet's key (they do not repaint its texture) but a still frame must show a new one.
+  const pennantsDrawn = planet?.landmarks.map((landmark) => `${landmark.key}:${landmark.tier}`).join(',') ?? '';
+  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${pennantsDrawn}|${String(inputs.turn.x)},${String(inputs.turn.y)}|${room === undefined ? '' : `${String(room.top)},${String(room.bottom)}`}`;
   const camera = useMemo(
     () => ({
       focus: (systemId === null ? undefined : space.systemFocus(systemId)) ?? space.universeFocus,
@@ -171,13 +186,15 @@ export function VoyageStage({
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
+          landmarks={planet?.landmarks ?? NO_PENNANTS}
+          pennantScale={stop === 'ground' ? GROUND_PENNANT_SCALE : 1}
           {...(search
             ? { search, stars: info.anchors.filter((anchor) => anchor.kind === 'system' && own(anchor)) }
             : {})}
         />
       );
     },
-    [controller, session, onStation, onDust, stop, systemId, size, focusId, hereId, search],
+    [controller, session, onStation, onDust, stop, systemId, size, focusId, hereId, search, planet],
   );
 
   const stage = useRef<ComponentRef<typeof View>>(null);
@@ -306,9 +323,11 @@ function usePlanetSurface(
   index: SceneProps['index'],
   view: UniverseView,
   visitor: boolean,
+  landmarksByPlanet: ReadonlyMap<string, readonly CollectionLandmark[]> | undefined,
 ): VoyagePlanet | null {
   const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
+  const earned = (planet === undefined ? undefined : landmarksByPlanet?.get(planet.objectId)) ?? NO_LANDMARKS;
   const plan = useMemo(
     () => (planet ? planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)) : undefined),
     [planet, index, looks],
@@ -334,8 +353,10 @@ function usePlanetSurface(
       palette: paletteOf(plan.spec.type, hueShift),
       labels: visitor ? [] : labelPoints(chart),
       names,
+      // A friend's planet shows nothing they earned (a visit shares no regions and no landmarks).
+      landmarks: visitor ? [] : landmarkPoints(earned, plan.spec, globe.world, chart),
     };
-  }, [planet, plan, globe, index, visitor]);
+  }, [planet, plan, globe, index, visitor, earned]);
 }
 
 /** A box no name may cover: the square round a body, `share` of its radius out from its middle. */
@@ -417,6 +438,8 @@ function VoyageOverlay({
   onDust,
   search,
   stars = [],
+  landmarks,
+  pennantScale,
 }: {
   readonly anchors: readonly SpaceAnchor[];
   /** The kinds whose names are written beside them at this stop; the others are named for a screen reader only. */
@@ -436,9 +459,13 @@ function VoyageOverlay({
   readonly search?: SearchAnswer;
   /** The stars this stop draws, named or not: the whole sky from the whole universe, only the star you are at below it. */
   readonly stars?: readonly SpaceAnchor[];
+  /** The pennants of the planet in view, by key, for their finish. */
+  readonly landmarks: readonly LandmarkPoint[];
+  readonly pennantScale: number;
 }) {
   useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
-  const shown = anchors.filter((anchor) => anchor.visible);
+  const shown = anchors.filter((anchor) => anchor.visible && anchor.kind !== 'landmark');
+  const pennants = anchors.filter((anchor) => anchor.visible && anchor.kind === 'landmark');
   const names = placeNames(
     shown.filter((anchor) => written.includes(anchor.kind)),
     size,
@@ -454,6 +481,7 @@ function VoyageOverlay({
   );
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {pennants.length > 0 ? <Pennants anchors={pennants} landmarks={landmarks} scale={pennantScale} /> : null}
       {shown.map((anchor) => {
         const box = targets.get(anchor.id)!;
         if (anchor.kind === 'dust')
@@ -469,7 +497,8 @@ function VoyageOverlay({
               testID={`voyage-dust-${anchor.id}`}
             />
           );
-        const kind = anchor.kind === 'station' ? undefined : anchor.kind;
+        // Stations and pennants are not bodies: a station is a room, a pennant is never in this list (`Pennants`).
+        const kind = anchor.kind === 'station' || anchor.kind === 'landmark' ? undefined : anchor.kind;
         const name = names.get(anchor.id);
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -494,6 +523,37 @@ function VoyageOverlay({
         );
       })}
       {search ? <SearchSky answer={search} anchors={stars} size={size} /> : null}
+    </View>
+  );
+}
+
+/**
+ * The pennants of what the person earned on the planet in view, where the globe faces the camera: the old globe's
+ * `LandmarkMark`, standing on its spot. Not a place: never tapped, never a target for the ship, and hidden from
+ * assistive technology, which reads the landmarks in the collection's list. It does not move, so reduced motion changes
+ * nothing about it.
+ */
+function Pennants({
+  anchors,
+  landmarks,
+  scale,
+}: {
+  readonly anchors: readonly SpaceAnchor[];
+  readonly landmarks: readonly LandmarkPoint[];
+  readonly scale: number;
+}) {
+  const tiers = new Map(landmarks.map((landmark) => [landmark.key, landmark.tier]));
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} {...HIDDEN} testID="voyage-pennants">
+      <Svg width="100%" height="100%">
+        {anchors.map((anchor) => {
+          // An anchor of a landmark the planet no longer holds (a frame older than the read) is not drawn.
+          const tier = tiers.get(anchor.id);
+          return tier === undefined ? null : (
+            <LandmarkMark key={anchor.id} at={{ x: anchor.x, y: anchor.y }} tier={tier} scale={scale} />
+          );
+        })}
+      </Svg>
     </View>
   );
 }
