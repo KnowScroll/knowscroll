@@ -143,7 +143,9 @@ export function VoyageStage({
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
   // you are, of what you turned or of the planet's world must be one. `redraw` only changes the camera's identity when
   // any of those does; the driver does not read it.
-  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
+  // The pennants are not in the planet's key (they do not repaint its texture) but a still frame must show a new one.
+  const pennantsDrawn = planet?.landmarks.map((landmark) => `${landmark.key}:${landmark.tier}`).join(',') ?? '';
+  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${pennantsDrawn}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
   const camera = useMemo(
     () => ({
       focus: (systemId === null ? undefined : space.systemFocus(systemId)) ?? space.universeFocus,
@@ -535,14 +537,13 @@ function Pennants({
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} {...HIDDEN} testID="voyage-pennants">
       <Svg width="100%" height="100%">
-        {anchors.map((anchor) => (
-          <LandmarkMark
-            key={anchor.id}
-            at={{ x: anchor.x, y: anchor.y }}
-            tier={tiers.get(anchor.id) ?? 'plain'}
-            scale={scale}
-          />
-        ))}
+        {anchors.map((anchor) => {
+          // An anchor of a landmark the planet no longer holds (a frame older than the read) is not drawn.
+          const tier = tiers.get(anchor.id);
+          return tier === undefined ? null : (
+            <LandmarkMark key={anchor.id} at={{ x: anchor.x, y: anchor.y }} tier={tier} scale={scale} />
+          );
+        })}
       </Svg>
     </View>
   );
