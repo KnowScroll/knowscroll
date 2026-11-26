@@ -320,12 +320,12 @@ test.describe('on a touch screen', () => {
     await openVoyage(page, []);
     const system = page.getByRole('button', { name: 'CI system 2, a system', exact: true });
     await expect(system).toBeVisible({ timeout: 60_000 });
+    // A browser sends the rest of a touch to the element it began on, so the flight's tap target must be there before
+    // the flight and outlive it: had it gone on landing, fingers put down mid-flight would never be heard again.
+    const target = await page.getByTestId('voyage-skip').elementHandle({ timeout: 5_000 });
+    if (target === null) throw new Error('The stage has no tap target for a flight');
     await system.tap();
-    await expect(page.getByTestId('voyage-flight')).toBeVisible();
-    // A browser sends the rest of a touch to the element it began on, so the flight's tap target must outlive the
-    // flight: had it gone on landing, fingers put down mid-flight would never be heard to move or lift.
-    const target = await page.getByTestId('voyage-skip').elementHandle();
-    if (target === null) throw new Error('The flight has no tap target');
+    await expect(page.getByRole('heading', { level: 1, name: 'CI system 2', exact: true })).toBeVisible();
     const cdp = await page.context().newCDPSession(page);
     const fingers = (spread: number) => [
       { x: 195 - spread / 2, y: 422, id: 0 },
