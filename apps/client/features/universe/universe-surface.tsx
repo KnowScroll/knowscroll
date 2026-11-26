@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_COLLECTION, type AccountScope } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
-import { content, layer, layout, radius, space, spacing, target as controlTarget } from '@knowscroll/design-tokens';
+import { content, layer, layout, radius, space, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { Reveal, type Rising } from './animation/animated';
 import type { AnimationPlayer } from './animation/player';
@@ -26,7 +26,7 @@ import { sameSystems } from './universe-search';
 import { SpaceChip } from './space-chip';
 import { SystemFindsSheet } from './system-finds-sheet';
 import { UniverseStage } from './universe-stage';
-import { captionBelowGlobe, globeRoomOf } from './voyage/voyage-chains';
+import { captionBelowGlobe } from './voyage/voyage-chains';
 import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
 import { planPlanet } from './planet/planet-plan';
@@ -49,9 +49,6 @@ const CAPTION_TOP_SHARE = 0.62;
 const CAPTION_FULL_ROOM = 112;
 /** The air kept between the caption and the chips under it. */
 const CAPTION_GAP = 8;
-
-/** A visit's bar stands above the header: its pill is at least this tall (`visitor-bar.tsx`), with the gap under it. */
-const VISITOR_BAR_ROOM = 68;
 
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
@@ -346,18 +343,13 @@ export function UniverseSurface({
   // when even that does not leave room they stand on the chips (D-392).
   const captionRoom = stageSize.height * (1 - CAPTION_TOP_SHARE) - bottomStackHeight;
   const compactCaption = bottomStackHeight > 0 && captionRoom < CAPTION_FULL_ROOM;
-  // The new look's globe is larger than the old one's: its caption stands under it, never over it (the prototype's rule).
+  // The new look's globe is larger than the old one's: its caption stands under it (the prototype's rule), where the chips
+  // leave room. On a short phone they do not: the caption then stands on the chips as ever and still meets the globe.
   const usualCaptionTop = Math.max(
     stageSize.height * CAPTION_TOP_SHARE,
     voyage && !wide ? captionBelowGlobe(stageSize) : 0,
   );
   const captionTop = Math.min(usualCaptionTop, stageSize.height - bottomStackHeight - CAPTION_GAP - captionHeight);
-  // Where the chips and a notice leave the globe less than its usual place, it is drawn to fit between the header and
-  // the caption (see `orbitGlobeOf`): measured, so only once the caption and the stack have been.
-  const globeRoom =
-    voyage && !wide && globe && captionHeight > 0 && bottomStackHeight > 0
-      ? globeRoomOf(captionTop, insets.top + spacing[3] + (visitor ? VISITOR_BAR_ROOM : 0) + controlTarget.comfortable)
-      : undefined;
   const captionOf = (shown: UniverseView): ReactNode =>
     shown.kind === 'planet' && !shown.landed && !simple ? (
       <View
@@ -540,7 +532,6 @@ export function UniverseSurface({
             onSize={setStageSize}
             voyage={voyage}
             desktop={wide}
-            {...(globeRoom ? { room: globeRoom } : {})}
             {...(searchAnswer ? { search: searchAnswer } : {})}
           />
           {/* The new look's stage dims the sky itself, so the matched systems can shine through the dim. */}

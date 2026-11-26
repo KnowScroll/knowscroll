@@ -22,7 +22,6 @@ import { createShipLayer } from './ship-layer';
 import {
   chainOf,
   focalOf,
-  orbitGlobeOf,
   peakOf,
   planetDistances,
   type ChainPlaces,
@@ -185,17 +184,15 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       lastT = t;
       lastDt = dt;
       const places = placesOf(space);
-      // What the camera's distances are worked out from: the view, and the room a planet's globe has when it has one.
-      const layout: ViewSize = control.room === undefined ? size : { ...size, room: control.room };
       // A tap during a flight skips to its end (the prototype's `skip`): the camera is where it was going.
       if (control.skips !== skipsSeen) {
         skipsSeen = control.skips;
         flight = null;
       }
       // A new flight leaves from where the camera stands and looks, a pinch's zoom included, and carries it from there.
-      if (retarget(places, layout, pinchedLastFrame || control.zoom !== null)) zoom = 1;
+      if (retarget(places, size, pinchedLastFrame || control.zoom !== null)) zoom = 1;
       pinchedLastFrame = control.zoom !== null;
-      const towardPoint = control.zoom === null ? null : aimOf(control.zoom.toward, places, layout);
+      const towardPoint = control.zoom === null ? null : aimOf(control.zoom.toward, places, size);
       if (flight !== null || control.reducedMotion) {
         zoom = 1;
         aim = 0;
@@ -217,7 +214,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         aim = 0;
         aimPoint = null;
       }
-      const target = chainOf(control.target, places, layout);
+      const target = chainOf(control.target, places, size);
       let focus: Vec3;
       let distance: number;
       let q = 1;
@@ -227,14 +224,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       if (flight !== null) {
         hurry += ((control.zoom === null ? 1 : PINCH_HURRY) - hurry) * Math.min(1, dt * HURRY_RATE);
         flight.elapsed = flight.elapsed === null ? 0 : flight.elapsed + elapsed * hurry;
-        from = chainOf(flight.from, places, layout);
-        // The room may arrive after the flight left (the caption is measured once the view has changed): fly to where
-        // the stop is now, so the camera lands without a jump.
-        const plan =
-          flight.plan.toDistance === target.stopDistance
-            ? flight.plan
-            : { ...flight.plan, toDistance: target.stopDistance };
-        const frame = flightAt(plan, flight.elapsed, from.chain, target.chain);
+        from = chainOf(flight.from, places, size);
+        const frame = flightAt(flight.plan, flight.elapsed, from.chain, target.chain);
         focus = frame.focus;
         distance = frame.distance;
         q = frame.q;
@@ -268,7 +259,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         direction,
       );
       // Falling from a planet to its ground the lens lengthens, so the land is seen nearly from above.
-      const groundDistance = planet === undefined ? null : planetDistances(planet.radius, layout).ground;
+      const groundDistance = planet === undefined ? null : planetDistances(planet.radius, size).ground;
       const fov = fieldOfView(planetChain, groundDistance, distance);
       const focal = focalOf(size, fov);
       const camera = placeCamera(
@@ -277,13 +268,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
           direction,
           distance,
           lean: control.lean,
-          held: heldOffset(
-            leaving?.stop ?? null,
-            control.target.stop,
-            q,
-            size.height,
-            orbitGlobeOf(layout).centreY / size.height,
-          ),
+          held: heldOffset(leaving?.stop ?? null, control.target.stop, q, size.height),
           fov,
           focal,
         },

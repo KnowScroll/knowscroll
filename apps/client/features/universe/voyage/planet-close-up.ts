@@ -11,7 +11,7 @@ import type { BuiltSpace } from '../space/scene/build-scene';
 import type { SpaceAnchor } from '../space/space-surface';
 import { wrapAngle } from './flight';
 import { createGlobe, localPointOf } from './globe';
-import { namedFromPxOf, type ViewSize } from './voyage-chains';
+import type { ViewSize } from './voyage-chains';
 import type { GlobeOnScreen, VoyageControl, VoyagePlanet } from './voyage-control';
 import {
   BAND_WIDTH,
@@ -65,6 +65,8 @@ const ORIENT_RATE = 3.2;
 const LIGHT_FROM_PX = 200;
 /** ... and is full at this one. */
 const LIGHT_TO_PX = 430;
+/** The regions of a globe are named from this on-screen radius (pixels); the controller parks the ship from the same one. */
+const NAMED_FROM_PX = 90;
 /** A region's name point is shown while its surface faces the camera at least this much (cosine of the angle). */
 const FACING_LEAST = 0.25;
 /** The sun starts to shrink away once the globe shows this much (its opacity), and is gone when it is whole. */
@@ -325,13 +327,7 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
     },
     onScreen: () => onScreen,
     anchors(space, size, world) {
-      if (
-        world === null ||
-        !globe.mesh.visible ||
-        onScreen === null ||
-        onScreen.radiusPx < namedFromPxOf(control.room === undefined ? size : { ...size, room: control.room })
-      )
-        return [];
+      if (world === null || !globe.mesh.visible || onScreen === null || onScreen.radiusPx < NAMED_FROM_PX) return [];
       space.camera.updateMatrixWorld();
       globe.mesh.updateMatrixWorld();
       const anchors: SpaceAnchor[] = [];

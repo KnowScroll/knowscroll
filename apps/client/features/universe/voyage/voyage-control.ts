@@ -8,7 +8,6 @@ import type { PlanetPalette } from '../planet/planet-palette';
 import type { RigFocus } from '../space/camera-rig';
 import type { VoyageTarget } from './ladder';
 import type { LandmarkPoint } from './landmark-points';
-import type { GlobeRoom } from './voyage-chains';
 import type { DrawnShip } from './ship-motion';
 import type { LabelPoint } from './world-texture';
 
@@ -45,8 +44,6 @@ export interface VoyageControl {
   universeFocus: Extract<RigFocus, { kind: 'universe' }>;
   /** What a star's stop looks at, as the map's rig takes it; undefined for a star the map does not hold. */
   systemFocus: (systemId: string) => Extract<RigFocus, { kind: 'system' }> | undefined;
-  /** The band a planet's globe seen from orbit must lie in, when its usual place would not clear the caption; else undefined. */
-  room?: GlobeRoom | undefined;
   /** How far the view leans with the ship, in layout points (0, 0 when it does not). */
   lean: { readonly x: number; readonly y: number };
   /**

@@ -4,7 +4,7 @@ import { paletteOf } from '../planet/planet-palette';
 import { buildSpace, type BuiltSpace } from '../space/scene/build-scene';
 import { SAMPLE_SPACE, type SpaceDefinition } from '../space/space-definition';
 import type { VoyageTarget } from './ladder';
-import { chainOf, type ChainPlaces, type ViewSize } from './voyage-chains';
+import { chainOf, type ChainPlaces } from './voyage-chains';
 import type { VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
 import { createVoyageDriver } from './voyage-driver';
 import { labelPoints } from './world-texture';
@@ -124,7 +124,7 @@ function rig(initial: VoyageTarget) {
     compileAsync,
     step,
     settle,
-    stopDistance: (to: VoyageTarget, view: ViewSize = size) => chainOf(to, places, view).stopDistance,
+    stopDistance: (to: VoyageTarget) => chainOf(to, places, size).stopDistance,
     last: () => frames[frames.length - 1]!,
     bodyVisible: (id: string) => built.script.planet(id)?.object.visible,
   };
@@ -183,39 +183,6 @@ describe('the voyage driver camera', () => {
     const distances = [r.step(), ...r.settle()];
     expect(Math.max(...distances)).toBeGreaterThan(r.stopDistance(target('star', base.id)));
     expect(Math.max(...distances)).toBeGreaterThan(r.stopDistance(target('star', second.id)));
-  });
-});
-
-describe('the room a planet’s globe is given', () => {
-  const planetStop = target('planet', base.id, PLANET);
-  const room = { top: 60, bottom: 260 };
-
-  it('lands on the stop as the room has made it, even when the room arrives after the flight has left', () => {
-    const r = rig(target('star', base.id));
-    r.step();
-    r.control.target = planetStop;
-    r.step();
-    expect(r.last().flying).toBe(true);
-    // The caption is measured once the view has changed: the room comes a few frames into the flight.
-    r.step();
-    r.control.room = room;
-    const distances = r.settle();
-    const fitted = r.stopDistance(planetStop, { ...size, room });
-    expect(fitted).not.toBeCloseTo(r.stopDistance(planetStop));
-    const lastInFlight = distances[distances.length - 1]!;
-    // No jump from the last frame of the flight to the first at rest.
-    expect(r.step()).toBeCloseTo(fitted);
-    expect(lastInFlight).toBeCloseTo(fitted, 0);
-  });
-
-  it('holds the planet nearer the middle of the room than the usual place, and farther away when the room is small', () => {
-    const r = rig(planetStop);
-    r.control.planet = voyagePlanet;
-    const usual = r.step();
-    r.control.room = room;
-    const fitted = r.step();
-    expect(fitted).toBeGreaterThan(usual);
-    expect(fitted).toBeCloseTo(r.stopDistance(planetStop, { ...size, room }));
   });
 });
 

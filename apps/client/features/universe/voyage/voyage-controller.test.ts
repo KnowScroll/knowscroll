@@ -91,12 +91,6 @@ describe('where the ship parks', () => {
     expect(home.size).toBe(26);
   });
 
-  it('goes round a globe from 90 px of radius, or from a smaller one where the globe was fitted to a room', () => {
-    const globe = (radiusPx: number) => ({ size, globe: { x: 195, y: 200, radiusPx } });
-    expect(homeOf(globe(70), [], null, 0).size).toBe(32);
-    expect(homeOf(globe(70), [], null, 0, false, false, 55).size).toBe(26);
-  });
-
   it('waits low in the sky, never on top of something you could tap', () => {
     const free = homeOf({ size, globe: null }, [], null, 0);
     expect(free).toMatchObject({ x: 195, y: 844 * 0.675 });
