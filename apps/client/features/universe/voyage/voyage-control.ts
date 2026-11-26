@@ -7,6 +7,7 @@ import type { Chart, GlobeWorld } from '@knowscroll/scene-core';
 import type { PlanetPalette } from '../planet/planet-palette';
 import type { RigFocus } from '../space/camera-rig';
 import type { VoyageTarget } from './ladder';
+import type { LandmarkPoint } from './landmark-points';
 import type { DrawnShip } from './ship-motion';
 import type { LabelPoint } from './world-texture';
 
@@ -21,6 +22,8 @@ export interface VoyagePlanet {
   /** Each formed region's name point, and its name. */
   readonly labels: readonly LabelPoint[];
   readonly names: ReadonlyMap<string, string>;
+  /** Where the landmarks earned on it stand: none on a friend's planet. */
+  readonly landmarks: readonly LandmarkPoint[];
 }
 
 /**

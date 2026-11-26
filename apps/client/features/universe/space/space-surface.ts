@@ -34,8 +34,11 @@ export interface SpaceProbe {
 /** A named point of the scene in layout pixels, for the labels and tap targets drawn over it. */
 export interface SpaceAnchor {
   readonly id: string;
-  /** A region only comes from the trial's camera driver, which draws the planet as one world. */
-  readonly kind: 'system' | 'planet' | 'station' | 'dust' | 'region';
+  /**
+   * A region only comes from the trial's camera driver, which draws the planet as one world; so does a landmark, the
+   * pennant of something earned on that planet (its id is the landmark's key; it has no name and is never tapped).
+   */
+  readonly kind: 'system' | 'planet' | 'station' | 'dust' | 'region' | 'landmark';
   /** Empty for dust, which has no name. */
   readonly name: string;
   /** A station's sky in words ("6 of 7 · The Lantern"), shown with its name; absent for anything else. */
