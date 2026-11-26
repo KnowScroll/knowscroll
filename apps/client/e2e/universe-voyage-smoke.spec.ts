@@ -334,8 +334,9 @@ test.describe('on a touch screen', () => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(220) });
     await landed(page);
     expect(await target.evaluate((element) => element.isConnected)).toBe(true);
-    // Between flights it lets every touch through and is out of the accessibility tree.
+    // Between flights it lets every touch through, is out of the accessibility tree and is no keyboard stop.
     await expect(page.getByRole('button', { name: /tap to skip/ })).toHaveCount(0);
+    await expect(page.getByTestId('voyage-skip')).toHaveAttribute('tabindex', '-1');
 
     // Closing the fingers after the landing is heard, and so is lifting them: the pinch climbs one stop.
     for (let step = 1; step <= 8; step += 1)

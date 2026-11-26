@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import type { Vec3 } from '../space/camera-rig';
-import { clamp, smooth } from '../space/paint';
+import { smooth } from '../space/paint';
 import type { BuiltSpace } from '../space/scene/build-scene';
 import type { SpaceCameraDriver } from '../space/space-renderer';
 import { flightAt, planFlight, type FlightPlan } from './flight';
@@ -178,7 +178,9 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       closeUp.attach(space);
     },
     pose(t, space, size) {
-      const dt = lastT === null ? 0 : clamp(t - lastT, 0, 0.1);
+      /** Since the last frame: a flight keeps to the clock, as it always has; easing steps at most 0.1 s. */
+      const elapsed = lastT === null ? 0 : Math.max(0, t - lastT);
+      const dt = Math.min(elapsed, 0.1);
       lastT = t;
       lastDt = dt;
       const places = placesOf(space);
@@ -221,7 +223,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       let from: PlacedChain | null = null;
       if (flight !== null) {
         hurry += ((control.zoom === null ? 1 : PINCH_HURRY) - hurry) * Math.min(1, dt * HURRY_RATE);
-        flight.elapsed = flight.elapsed === null ? 0 : flight.elapsed + dt * hurry;
+        flight.elapsed = flight.elapsed === null ? 0 : flight.elapsed + elapsed * hurry;
         from = chainOf(flight.from, places, size);
         const frame = flightAt(flight.plan, flight.elapsed, from.chain, target.chain);
         focus = frame.focus;

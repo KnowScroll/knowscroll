@@ -67,10 +67,9 @@ const SHIP_TAP_ALLOWANCE = 6;
 export interface StageTouches {
   /**
    * The fingers down now, after any finger landed, moved or lifted (none: all have lifted). `picksShip` says whether a
-   * point takes the ship. `movedSoFar` is how far the first finger had already moved when the stage took the touch,
-   * so a turn counts from where it came down.
+   * point takes the ship.
    */
-  update(fingers: readonly Finger[], picksShip: (at: Point) => boolean, movedSoFar?: Point): StageGesture[];
+  update(fingers: readonly Finger[], picksShip: (at: Point) => boolean): StageGesture[];
   /** The touch was taken away from the stage: everything under way stops. */
   cancel(): StageGesture[];
   mode(): TouchMode;
@@ -100,7 +99,7 @@ export function createStageTouches(): StageTouches {
   };
 
   return {
-    update(fingers, picksShip, movedSoFar = { x: 0, y: 0 }) {
+    update(fingers, picksShip) {
       if (fingers.length === 0) {
         const ended: StageGesture[] =
           mode === 'ship'
@@ -137,19 +136,16 @@ export function createStageTouches(): StageTouches {
           return [{ kind: 'ship-move', at: { x: only.x, y: only.y } }];
         case 'turn':
           return [{ kind: 'turn', dx: only.x - start.x, dy: only.y - start.y }];
-        case 'idle': {
-          start = { x: only.x - movedSoFar.x, y: only.y - movedSoFar.y };
+        case 'idle':
+          // A turn counts from where the stage took the touch: React Native's PanResponder measures from there too.
+          start = { x: only.x, y: only.y };
           if (picksShip(only)) {
             mode = 'ship';
             shipMoved = false;
             return [{ kind: 'ship-take', at: { x: only.x, y: only.y } }];
           }
           mode = 'turn';
-          const moved = only.x !== start.x || only.y !== start.y;
-          return moved
-            ? [{ kind: 'turn-begin' }, { kind: 'turn', dx: only.x - start.x, dy: only.y - start.y }]
-            : [{ kind: 'turn-begin' }];
-        }
+          return [{ kind: 'turn-begin' }];
       }
     },
     cancel() {

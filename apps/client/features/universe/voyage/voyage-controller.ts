@@ -395,8 +395,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         return;
     }
   };
-  const feed = (fingers: readonly Finger[], movedSoFar?: { x: number; y: number }) => {
-    for (const gesture of touches.update(fingers, (at) => pickShip(ship, at.x, at.y), movedSoFar)) act(gesture);
+  const feed = (fingers: readonly Finger[]) => {
+    for (const gesture of touches.update(fingers, (at) => pickShip(ship, at.x, at.y))) act(gesture);
   };
 
   // Every change of fingers goes to `touches`, which follows each finger by its id: a finger landing (grant, start),
@@ -410,7 +410,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     },
     onMoveShouldSetPanResponderCapture: (event, gesture) =>
       event.nativeEvent.touches.length >= 2 || Math.abs(gesture.dx) + Math.abs(gesture.dy) > DRAG_START,
-    onPanResponderGrant: (event, gesture) => feed(fingersOf(event), { x: gesture.dx, y: gesture.dy }),
+    onPanResponderGrant: (event) => feed(fingersOf(event)),
     onPanResponderStart: (event) => feed(fingersOf(event)),
     onPanResponderMove: (event) => feed(fingersOf(event)),
     onPanResponderEnd: (event) => feed(fingersOf(event)),

@@ -85,15 +85,6 @@ describe('the fingers on the stage', () => {
     expect(touches.update([], onShip)).toEqual([]);
   });
 
-  it('turn from where a finger first moved, when the stage only took the touch once it had moved', () => {
-    const touches = createStageTouches();
-    expect(touches.update([finger(0, 110, 300)], onShip, { x: 10, y: 0 })).toEqual([
-      { kind: 'turn-begin' },
-      { kind: 'turn', dx: 10, dy: 0 },
-    ]);
-    expect(touches.update([finger(0, 130, 300)], onShip)).toEqual([{ kind: 'turn', dx: 30, dy: 0 }]);
-  });
-
   it('forget everything when the gesture is taken away', () => {
     const touches = createStageTouches();
     touches.update([finger(0, 100, 400), finger(1, 160, 400)], onShip);

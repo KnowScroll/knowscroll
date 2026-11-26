@@ -252,18 +252,20 @@ function FlightLine({
   const line = to === null ? null : `Going to ${to} · tap to skip`;
   return (
     <>
-      {/* Not in the keyboard's tab order: it goes quiet on landing, and focus on it would fall to the page. Its role never
-      changes: on the web the role picks the element, and a new element is the one thing the target must not become. */}
+      {/* Never in the keyboard's tab order: between flights it is invisible, and during one focus on it would fall to the
+      page on landing (React Native Web's Pressable makes itself a tab stop unless told `tabIndex={-1}`; `focusable` alone
+      is ignored). Its role never changes: on the web the role picks the element, and a new element is the one thing
+      the target must not become. */}
       <Pressable
         style={StyleSheet.absoluteFill}
         pointerEvents={line === null ? 'none' : 'auto'}
         focusable={false}
+        tabIndex={-1}
         accessibilityRole="button"
         {...(line === null ? HIDDEN : { accessibilityLabel: line })}
         onPress={line === null ? undefined : onSkip}
         testID="voyage-skip"
       />
-
       {/* Always there, so a screen reader hears the line when it appears, once; empty between flights. */}
       <View
         pointerEvents="none"
