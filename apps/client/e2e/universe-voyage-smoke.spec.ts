@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { tapOrbitingTarget } from './orbiting-target';
 import {
   flightLines,
@@ -544,6 +544,198 @@ test('choosing a search result flies there, with the flight line, and the sky is
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2.3', exact: true })).toBeVisible();
   await expect(page.getByTestId('voyage-search-sky')).toHaveCount(0);
   await expect(rings(page)).toHaveCount(0);
+});
+
+/**
+ * The new look at other sizes (#811, desktop and tablet pass). The sizes are those of the Universe's reflow checks: a
+ * desktop (the product's 1024 px layout), a tablet (the phone layout beside the shell's rail) and the smallest phone.
+ * Boxes are compared as the browser lays them out; every wait is on a state the screen reports.
+ */
+type Box = { x: number; y: number; width: number; height: number };
+/** Two boxes share no pixel. */
+const apart = (one: Box, other: Box) =>
+  one.y >= other.y + other.height ||
+  one.y + one.height <= other.y ||
+  one.x >= other.x + other.width ||
+  one.x + one.width <= other.x;
+
+/**
+ * The screen's own controls and words, not the sky's: every button that is not a place on the map, every heading, the
+ * key hints and the notice's card. (The sky's targets are the `voyage-` ones: the readout is a dark pill over the
+ * sky and lets every touch through, so it may lie over them.)
+ */
+async function chrome(page: Page): Promise<{ name: string; box: Box }[]> {
+  return page.evaluate(() => {
+    const found: { name: string; box: Box }[] = [];
+    const wanted = document.querySelectorAll(
+      'button, [role="button"], h1, [data-testid="universe-key-hints"], [data-testid="formation-notice"] > *',
+    );
+    for (const element of wanted) {
+      const id = element.getAttribute('data-testid') ?? '';
+      const rect = element.getBoundingClientRect();
+      // The stage itself is a focusable button over the whole screen; places on the map are the sky's.
+      const wholeScreen = rect.width >= window.innerWidth * 0.9 && rect.height >= window.innerHeight * 0.9;
+      if (id.startsWith('voyage-') || wholeScreen || rect.width === 0 || rect.height === 0) continue;
+      const name = element.getAttribute('aria-label') ?? element.textContent ?? id;
+      found.push({ name: name.slice(0, 40), box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } });
+    }
+    return found;
+  });
+}
+
+const boxOf = async (locator: Locator): Promise<Box> => (await locator.boundingBox())!;
+
+/** The frame-rate readout lies over no control, heading, hint or notice, and inside the screen. */
+async function expectReadoutClear(page: Page, size: { width: number; height: number }, where: string) {
+  const readout = await boxOf(page.getByTestId('universe-frame-rate'));
+  expect(readout.x, where).toBeGreaterThanOrEqual(0);
+  expect(readout.x + readout.width, where).toBeLessThanOrEqual(size.width);
+  expect(readout.y + readout.height, where).toBeLessThanOrEqual(size.height);
+  for (const { name, box } of await chrome(page))
+    expect(apart(readout, box), `${where}: readout over ${name}`).toBe(true);
+}
+
+/** The planet's name and hint stand clear of the globe's regions (each a 48 px target), of the notice and of every control. */
+async function expectCaptionClear(page: Page, size: { width: number; height: number }, where: string) {
+  const parts = [
+    page.getByText('A planet in CI system 0', { exact: true }),
+    page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true }),
+    page.getByText('Drag to rotate · tap to land', { exact: true }),
+  ];
+  const regions = await page.locator('[data-testid^="voyage-region-"]').evaluateAll((all) =>
+    all.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    }),
+  );
+  // Not vacuous: the globe is drawn with regions to choose from at this size.
+  expect(regions.length, `${where}: regions on the globe`).toBeGreaterThan(0);
+  const notice = await boxOf(page.getByTestId('formation-notice').getByRole('status'));
+  const others = await chrome(page);
+  for (const part of parts) {
+    const box = await boxOf(part);
+    expect(box.y + box.height, `${where}: caption inside the screen`).toBeLessThanOrEqual(size.height);
+    expect(apart(box, notice), `${where}: caption over the notice`).toBe(true);
+    for (const region of regions) expect(apart(box, region), `${where}: caption over a region's target`).toBe(true);
+    for (const { name, box: other } of others) {
+      if (other.width >= size.width * 0.9 && other.height >= size.height * 0.9) continue;
+      // The caption's own heading is one of the parts.
+      if (name === 'CI planet 2') continue;
+      expect(apart(box, other), `${where}: caption over ${name}`).toBe(true);
+    }
+  }
+}
+
+/** Flies the whole universe, a star, a planet and its ground, checking the readout at each; `atPlanet` runs on the globe. */
+async function visitAllStops(
+  page: Page,
+  size: { width: number; height: number },
+  atPlanet: () => Promise<void>,
+): Promise<void> {
+  await openVoyage(page, [], { size, flightLines: true });
+  const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('universe-frame-rate')).toBeVisible();
+  await expectReadoutClear(page, size, 'whole universe');
+  await system.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  const planet = page.getByRole('button', { name: 'CI planet 2, a planet', exact: true });
+  await expect(planet).toBeVisible({ timeout: 30_000 });
+  // The flight has said where it goes (so it has begun) and then landed: the view changes before the flight starts.
+  await expect.poll(() => flightLines(page), { timeout: 30_000 }).toHaveLength(1);
+  await landed(page);
+  await expectReadoutClear(page, size, 'star');
+  await tapOrbitingTarget(planet);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+  await expect.poll(() => flightLines(page), { timeout: 30_000 }).toHaveLength(2);
+  await landed(page);
+  await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({ timeout: 30_000 });
+  await expectReadoutClear(page, size, 'planet');
+  await atPlanet();
+  await page.getByTestId('voyage-stage').focus();
+  await page.keyboard.press('+');
+  await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
+  await landed(page);
+  await expectReadoutClear(page, size, 'ground');
+}
+
+const SIZES = [
+  { name: 'a desktop', width: 1440, height: 900 },
+  { name: 'a tablet', width: 820, height: 1180 },
+  { name: 'the smallest phone', width: 320, height: 568 },
+] as const;
+
+for (const size of SIZES)
+  test(`${size.name} (${String(size.width)} x ${String(size.height)}): the readout covers no control at any stop${size.width === 820 ? ', and the planet’s caption clears the globe’s targets and the notice' : ''}`, async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    await visitAllStops(page, size, async () => {
+      // On the desktop the caption stands at the left, beside the globe; the tablet's stands under it. On the smallest phone
+      // the chips and the notice leave it no room under the globe: a known gap, not asserted.
+      if (size.width === 820) await expectCaptionClear(page, size, 'planet');
+      await shot(page, `sizes-${String(size.width)}-planet`);
+    });
+  });
+
+test.describe('a desktop, 1440 x 900', () => {
+  const size = { width: 1440, height: 900 };
+
+  test('the key hints name the keys the new look listens to, and there are no zoom buttons to do nothing', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await openVoyage(page, [], { size, flightLines: true });
+    await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    const hints = page.getByTestId('universe-key-hints');
+    for (const words of ['Drag turns', 'Drag your ship to fly', 'turn', 'one stop', 'search', 'back up'])
+      await expect(hints).toContainText(words);
+    await expect(hints).not.toContainText('Pan');
+    await expect(hints).not.toContainText('Zoom');
+    await expect(page.getByTestId('universe-zoom')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Zoom (in|out)$/ })).toHaveCount(0);
+    // The hints stand clear of every control at every stop they are shown at.
+    const hintBox = await boxOf(hints);
+    for (const { name, box } of await chrome(page))
+      if (box.x !== hintBox.x || box.y !== hintBox.y) expect(apart(hintBox, box), `hints over ${name}`).toBe(true);
+
+    // + goes one stop in and - one stop out, as the hints say.
+    await page.getByTestId('voyage-stage').focus();
+    await page.keyboard.press('+');
+    await expect(page.getByRole('heading', { level: 1, name: /^CI system \d$/ })).toBeVisible();
+    await expect.poll(() => flightLines(page), { timeout: 30_000 }).toHaveLength(1);
+    await landed(page);
+    await page.keyboard.press('-');
+    await expect(page.getByRole('heading', { level: 1, name: 'Your universe', exact: true })).toBeVisible();
+  });
+
+  test('on the narrowest desktop (1024 x 768) the hints stand clear of the notice and of every control', async ({
+    page,
+  }) => {
+    const narrow = { width: 1024, height: 768 };
+    await openVoyage(page, [], { size: narrow });
+    await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    const hints = await boxOf(page.getByTestId('universe-key-hints'));
+    expect(hints.x + hints.width).toBeLessThanOrEqual(narrow.width);
+    expect(hints.y + hints.height).toBeLessThanOrEqual(narrow.height);
+    for (const { name, box } of await chrome(page))
+      if (box.x !== hints.x || box.y !== hints.y) expect(apart(hints, box), `hints over ${name}`).toBe(true);
+  });
+
+  test('with the switch off the desktop keeps its zoom buttons and its own hints', async ({ page }) => {
+    await openVoyage(page, [], { size, trial: false });
+    await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByTestId('universe-zoom')).toBeVisible();
+    await expect(page.getByText('Zoom', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('universe-key-hints')).toHaveCount(0);
+    await shot(page, 'sizes-1440-old-look');
+  });
 });
 
 test('a room’s station is drawn flat over the canvas, its named button stays, and it opens the room', async ({

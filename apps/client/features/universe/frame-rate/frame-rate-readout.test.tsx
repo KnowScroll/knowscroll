@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react-native';
 import { useEffect } from 'react';
-import { FrameRateReadout, useFrameTimeRecorder, useGestureRecorder } from './frame-rate-readout';
+import { StyleSheet, View } from 'react-native';
+import { FrameRateFigure, FrameRateReadout, useFrameTimeRecorder, useGestureRecorder } from './frame-rate-readout';
 
 /** Stands in for the drawing loop: reports a steady 30 fps for a second, or says nobody listens. */
 function Loop({ onRecorder }: { readonly onRecorder: (present: boolean) => void }) {
@@ -56,5 +57,38 @@ describe('the frame-rate readout', () => {
     );
     await act(() => jest.advanceTimersByTimeAsync(500));
     expect(screen.getByTestId('universe-frame-rate')).toHaveTextContent(/touch: pinch ×1\.62 → in/);
+  });
+
+  it('stands in the corner unless the screen below places it, and then only where the screen puts the figure', async () => {
+    await render(
+      <FrameRateReadout on>
+        <Loop onRecorder={() => undefined} />
+      </FrameRateReadout>,
+    );
+    expect(StyleSheet.flatten(screen.getByTestId('universe-frame-rate').props.style)).toMatchObject({
+      position: 'absolute',
+    });
+    await screen.unmount();
+
+    await render(
+      <FrameRateReadout on placed>
+        <Loop onRecorder={() => undefined} />
+        <View testID="column">
+          <FrameRateFigure />
+        </View>
+      </FrameRateReadout>,
+    );
+    expect(screen.getAllByTestId('universe-frame-rate')).toHaveLength(1);
+    expect(screen.getByTestId('column')).toContainElement(screen.getByTestId('universe-frame-rate'));
+    expect(StyleSheet.flatten(screen.getByTestId('universe-frame-rate').props.style)).not.toHaveProperty('position');
+  });
+
+  it('draws no placed figure when nobody is reading', async () => {
+    await render(
+      <FrameRateReadout on={false} placed>
+        <FrameRateFigure />
+      </FrameRateReadout>,
+    );
+    expect(screen.queryByTestId('universe-frame-rate')).toBeNull();
   });
 });

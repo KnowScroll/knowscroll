@@ -2,7 +2,7 @@ import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { climbOneStop } from './ladder';
-import { createVoyageController, descend, homeOf, type VoyageInputs } from './voyage-controller';
+import { createVoyageController, descend, homeOf, shipLayoutOf, type VoyageInputs } from './voyage-controller';
 
 const descriptor = (objectId: string, parentId = 'system') => ({ objectId, parentId }) as never;
 
@@ -107,6 +107,48 @@ describe('where the ship parks', () => {
   });
 });
 
+describe('where the ship parks on a desktop', () => {
+  const size = { width: 1352, height: 900 };
+
+  it('uses the prototype’s desktop numbers: parked at 0.8 of the height, leaning from 0.6, free from 70 to H - 60', () => {
+    expect(shipLayoutOf(true)).toEqual({ parkAt: 0.8, leanCentre: 0.6, margins: { side: 26, top: 70, bottom: 60 } });
+    expect(shipLayoutOf(false)).toEqual({
+      parkAt: 0.675,
+      leanCentre: 0.56,
+      margins: { side: 26, top: 150, bottom: 204 },
+    });
+  });
+
+  it('waits at 0.8 of the height on a desktop and at 0.675 on a phone, on the same view', () => {
+    expect(homeOf({ size, globe: null }, [], null, 0, true, true)).toMatchObject({ x: 676, y: 900 * 0.8 });
+    expect(homeOf({ size, globe: null }, [], null, 0, true)).toMatchObject({ x: 676, y: 900 * 0.675 });
+  });
+
+  it('is where a finger takes it: the ship drawn at 0.8 of the height is picked up, an empty 0.675 is not', () => {
+    const { session } = recordingSession();
+    const lines: string[] = [];
+    const controller = createVoyageController({
+      session,
+      view: { kind: 'universe' },
+      target: { stop: 'universe', systemId: null, planetId: null, regionId: null },
+      size,
+      desktop: true,
+      turn: { x: 0, y: 0 },
+      planet: null,
+      siblings: [],
+      reducedMotion: false,
+      universeFocus: {} as VoyageInputs['universeFocus'],
+      systemFocus: () => undefined,
+      onGesture: (line) => lines.push(line),
+    });
+    const handlers = controller.responder.panHandlers as unknown as Record<string, (event: unknown) => unknown>;
+    const grant = (x: number, y: number) =>
+      handlers['onStartShouldSetResponderCapture']!(touchEvent([{ id: 0, x, y }], 16));
+    expect(grant(676, 900 * 0.675)).toBe(false);
+    expect(grant(676, 900 * 0.8)).toBe(true);
+  });
+});
+
 describe('keys', () => {
   it('turns by every arrow press, even several before the screen renders again', () => {
     const turns: { x: number; y: number }[] = [];
@@ -136,6 +178,33 @@ describe('keys', () => {
       { x: 120, y: 0 },
       { x: 120, y: -60 },
     ]);
+  });
+});
+
+describe('one stop by key, the same as the wheel and the Back pill', () => {
+  const universe: UniverseView = { kind: 'universe' };
+  const inputsFor = (session: UniverseMapSession, view: UniverseView): VoyageInputs => ({
+    session,
+    view,
+    target: { stop: 'universe', systemId: null, planetId: null, regionId: null },
+    size: { width: 1352, height: 900 },
+    desktop: true,
+    turn: { x: 0, y: 0 },
+    planet: null,
+    siblings: [],
+    reducedMotion: false,
+    universeFocus: {} as VoyageInputs['universeFocus'],
+    systemFocus: () => undefined,
+  });
+
+  it('goes one stop in on + and = toward what is in the middle, and one stop out on -', () => {
+    const { session, calls } = recordingSession();
+    const controller = createVoyageController(inputsFor(session, universe));
+    controller.setAnchors([anchor('far', 'system', 20, 20), anchor('middle', 'system', 700, 440)]);
+    expect(controller.key('+')).toBe(true);
+    expect(controller.key('=')).toBe(true);
+    expect(controller.key('-')).toBe(true);
+    expect(calls).toEqual(['focus middle', 'focus middle', 'up']);
   });
 });
 

@@ -80,6 +80,7 @@ export function VoyageStage({
   visitor = false,
   landmarksByPlanet,
   search,
+  desktop = false,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
@@ -89,6 +90,8 @@ export function VoyageStage({
   readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
   /** Search is open: the sky dims, and the systems that hold a match keep their light and wear a ring. */
   readonly search?: SearchAnswer;
+  /** The screen is on the product's desktop layout (not a width of this stage): the ship parks and leans as on a desktop. */
+  readonly desktop?: boolean;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -128,6 +131,7 @@ export function VoyageStage({
         (sibling) => sibling.objectId,
       ) ?? [],
     reducedMotion: state.reducedMotion,
+    desktop,
     universeFocus: space.universeFocus,
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),

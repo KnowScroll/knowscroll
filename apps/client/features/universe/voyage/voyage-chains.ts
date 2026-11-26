@@ -6,7 +6,7 @@
  */
 import { distanceOf, FIELD_OF_VIEW, rigPose, type RigFocus, type Vec3 } from '../space/camera-rig';
 import type { Chain } from './flight';
-import type { VoyageTarget } from './ladder';
+import { STOPS, type VoyageTarget } from './ladder';
 
 /** A width and a height, in layout points. */
 export interface ViewSize {
@@ -59,6 +59,22 @@ export function planetDistances(radius: number, size: ViewSize): { readonly plan
     ground: (focalOf(size, GROUND_FIELD_OF_VIEW) * radius) / ground,
   };
 }
+
+/**
+ * How far below a globe seen from orbit its caption stands (the prototype's `+ 30`): a region's 48 px target reaches 24
+ * below its point, so none of them lies under the caption.
+ */
+export const CAPTION_BELOW_GLOBE = 30;
+
+/**
+ * The height from the top at which a planet's caption stands under the globe seen from orbit: the globe's bottom edge
+ * (`heldAt` of the height down, {@link ORBIT_RADIUS_SHARE} of the short side in radius, as the camera places it) and
+ * {@link CAPTION_BELOW_GLOBE}. Reads where the camera puts the globe; it does not move it.
+ */
+export const captionBelowGlobe = (size: ViewSize): number => {
+  const short = Math.min(size.width, SHORT_SIDE_OF_HEIGHT * size.height);
+  return STOPS.planet.heldAt * size.height + ORBIT_RADIUS_SHARE * short + CAPTION_BELOW_GLOBE;
+};
 
 /** The id of the whole universe in a chain's `ids`: the last place of every chain. */
 export const UNIVERSE_ID = 'universe';

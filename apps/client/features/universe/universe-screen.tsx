@@ -117,7 +117,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   if (!snapshot && read.status !== 'empty')
     return gated(<Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />);
   return gated(
-    <FrameRateReadout on={trial.frameRate}>
+    <FrameRateReadout on={trial.frameRate} placed={trial.on}>
       <UniverseSurface
         session={session}
         state={state}

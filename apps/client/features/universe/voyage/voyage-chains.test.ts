@@ -1,5 +1,7 @@
 import type { Vec3 } from '../space/camera-rig';
 import {
+  captionBelowGlobe,
+  CAPTION_BELOW_GLOBE,
   chainOf,
   focalOf,
   increasing,
@@ -107,5 +109,23 @@ describe('the distances of a planet', () => {
     expect(big.planet).toBeCloseTo(2 * small.planet);
     expect(big.ground).toBeCloseTo(2 * small.ground);
     expect(small.ground).toBeLessThan(small.planet);
+  });
+});
+
+describe('the caption under a globe', () => {
+  it('stands the prototype’s 30 points below the globe’s edge: 0.415 of the height down plus 0.36 of the short side', () => {
+    const size = { width: 820 - 76, height: 1180 };
+    const radius = 0.36 * Math.min(size.width, 0.62 * size.height);
+    expect(captionBelowGlobe(size)).toBeCloseTo(0.415 * size.height + radius + CAPTION_BELOW_GLOBE);
+    expect(captionBelowGlobe(size)).toBeGreaterThan(0.62 * size.height);
+  });
+
+  it('is under the old 0.62 of the height on a 390 x 844 phone, so that phone’s caption is where it was', () => {
+    expect(captionBelowGlobe({ width: 390, height: 844 })).toBeLessThan(0.62 * 844);
+  });
+
+  it('puts the globe at the distance the prototype does: its radius on screen is 0.36 of the short side', () => {
+    const phone = { width: 390, height: 844 };
+    expect((focalOf(phone) * 0.5) / planetDistances(0.5, phone).planet).toBeCloseTo(0.36 * 390);
   });
 });
