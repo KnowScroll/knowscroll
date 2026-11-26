@@ -11,6 +11,7 @@ import { SpaceSimpleLists } from '../universe/space/space-simple-lists';
 import type { SpaceChoice, SpaceFailure } from '../universe/space/space-surface';
 import { SpaceView } from '../universe/space/space-view';
 import { SpaceGalleryRecorder, type SpaceGalleryStats } from './space-gallery-recorder';
+import { CrossingGalleryPage } from './crossing-gallery-page';
 import { VoyageGalleryPage } from './voyage-gallery-page';
 
 /** Marker the web smoke and the Android flow look for; it is never in a production export. */
@@ -40,7 +41,12 @@ export function SpaceGalleryScreen() {
   const { motion, scene } = useLocalSearchParams<{ motion?: string; scene?: string }>();
   return (
     <DisplayProvider value={motion === 'full' ? { reducedMotion: false } : {}}>
-      {scene === 'voyage' ? (
+      {scene === 'crossing' ? (
+        // The crossing to a friend's Universe (#811): one still frame at a film time, or the film playing, full screen.
+        <View testID={spaceGalleryMarker} style={styles.voyage}>
+          <CrossingGalleryPage />
+        </View>
+      ) : scene === 'voyage' ? (
         // The Round 7.3 stage over the sample universe (#811), full screen: it needs no scroll, so the marker sits on a plain view.
         <View testID={spaceGalleryMarker} style={styles.voyage}>
           <VoyageGalleryPage />
