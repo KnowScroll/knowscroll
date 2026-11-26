@@ -13,7 +13,7 @@ import {
   type WorldTexture,
   type WorldTextureInput,
 } from './world-texture';
-import { regionCentre } from './region-centre';
+import { centreOfCell } from './region-centre';
 
 const WIDTH = 512;
 const HEIGHT = 256;
@@ -343,7 +343,7 @@ describe('where a name goes', () => {
     expect(points).toHaveLength(FORMED.length);
     for (const [index, point] of points.entries()) {
       const cell = chart.charted[index]!;
-      const centre = regionCentre(cell.loops, cell.label);
+      const centre = centreOfCell(cell, BAND_WIDTH);
       expect(point.x).toBeCloseTo(((centre.x % BAND_WIDTH) + BAND_WIDTH) % BAND_WIDTH, 9);
       expect(point.x).toBeGreaterThanOrEqual(0);
       expect(point.x).toBeLessThan(BAND_WIDTH);
@@ -367,9 +367,9 @@ describe('where a name goes', () => {
  */
 describe('the painter output, pinned', () => {
   const PINNED = {
-    lush: '05b8f429a0868146888dcb1a29f60d1939b8c10e',
-    gas: 'dacb798e898f3865f01d893bb9e7b5c9c7250157',
-    scorched: '44f80080c10491071ae39fa40ea7633ea8d91c3c',
+    lush: 'f72578df7ad86c85b9785fbb12302c76d183025f',
+    gas: '7c1208ccd489004fc3524d794f6da1533dba0a83',
+    scorched: '5819f21ca3301b8209d62559c174e3308f14b4d0',
   } as const;
   it.each(Object.keys(PINNED) as (keyof typeof PINNED)[])('paints %s at 1024 by 512 to the pinned bytes', (type) => {
     const texture = paint({ palette: paletteOf(type, 0), width: 1024, height: 512 });

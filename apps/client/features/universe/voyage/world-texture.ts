@@ -14,7 +14,7 @@ import {
   type Rgba,
 } from './fill-loops';
 import { focalOf, GROUND_FIELD_OF_VIEW, planetDistances, type ViewSize } from './voyage-chains';
-import { regionCentre } from './region-centre';
+import { centreOfCell } from './region-centre';
 
 /**
  * The planet's surface as pixels. The planet you fly to is one sphere that wears this texture, so
@@ -220,8 +220,9 @@ export interface LabelPoint {
  * name and so no point.
  */
 export function labelPoints(chart: Chart): readonly LabelPoint[] {
-  return chart.charted.map(({ objectId, loops, label }) => {
-    const centre = regionCentre(loops, label);
+  return chart.charted.map((cell) => {
+    const { objectId } = cell;
+    const centre = centreOfCell(cell, BAND_WIDTH);
     return {
       objectId,
       // A region that crosses the band's seam has loops past its edges; its column wraps like the band.
@@ -407,8 +408,8 @@ function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
   const chartedEdges = chart.charted.flatMap((cell) => cell.loops);
   // Each name's place on the band ({@link labelPoints}), with its copies a whole turn either side so a name by the
   // seam is kept clear too.
-  const places = chart.charted.flatMap(({ loops, label }) => {
-    const centre = regionCentre(loops, label);
+  const places = chart.charted.flatMap((cell) => {
+    const centre = centreOfCell(cell, BAND_WIDTH);
     return [-BAND_WIDTH, 0, BAND_WIDTH].map((turn) => ({ x: centre.x + turn, y: centre.y }));
   });
   return rowTasks(target, (rows) => {
