@@ -211,6 +211,94 @@ test.describe('the crossing', () => {
   });
 });
 
+/** The two maps of a planet (#811): SVG over labelled sample data, nothing to draw with WebGL. */
+test.describe('the maps of a planet', () => {
+  const open = async (page: Page, query: string): Promise<void> => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/gallery-space?scene=maps&${query}`);
+    await expect(page.getByTestId('flat-planet')).toBeAttached({ timeout: 30_000 });
+  };
+
+  test('map 1 names only the formed regions, hides its drawing and offers every region as a button', async ({
+    page,
+  }, testInfo) => {
+    await open(page, 'map=1&regions=4');
+    await expect(page.getByRole('heading', { name: 'Map of Sample planet' })).toBeVisible();
+    await expect(page.getByTestId('map-region-count')).toHaveText('4 regions');
+    await expect(page.getByRole('button', { name: /, a region$/ })).toHaveCount(4);
+    // The drawing is out of the accessibility tree and is not a tab stop; the rows are.
+    const drawing = page.getByTestId('flat-planet');
+    await expect(drawing).toHaveAttribute('aria-hidden', 'true');
+    expect(await drawing.locator('a, button, input, select, textarea, [tabindex]').count()).toBe(0);
+    // Nothing on the page says anything about land that is not reached.
+    const text =
+      (await page.locator('body').innerText()) +
+      (await page
+        .locator('[aria-label]')
+        .evaluateAll((all) => all.map((one) => one.getAttribute('aria-label')).join(' ')));
+    expect(text).not.toMatch(/uncharted|not reached|unreached|locked|grey|gray|left to|more to|under cloud| of \d+/i);
+    expect(new Set(text.match(/Sample region \d+/g))).toEqual(
+      new Set(['Sample region 1', 'Sample region 2', 'Sample region 3', 'Sample region 4']),
+    );
+    await page.screenshot({ path: testInfo.outputPath('maps-map1-390x844.png') });
+  });
+
+  test('Tab goes to Back, then to the regions in order, and never into the drawing', async ({ page }) => {
+    await open(page, 'map=1&regions=4');
+    const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
+    await page.keyboard.press('Shift+Tab');
+    expect(await focused()).toBe('Back to Sample planet');
+    const seen: string[] = [];
+    for (let step = 0; step < 4; step++) {
+      await page.keyboard.press('Tab');
+      seen.push(await focused());
+    }
+    expect(seen).toEqual([
+      'Sample region 1, a region',
+      'Sample region 2, a region',
+      'Sample region 3, a region',
+      'Sample region 4, a region',
+    ]);
+    await page.keyboard.press('Tab');
+    expect(await focused()).toBe('');
+  });
+
+  test('a region opens its own map, Open stays on the page, and Back returns to the map', async ({
+    page,
+  }, testInfo) => {
+    await open(page, 'map=1&regions=4');
+    await page.getByRole('button', { name: 'Sample region 2, a region' }).click();
+    await expect(page.getByRole('heading', { name: 'Sample region 2' })).toBeVisible();
+    await expect(page.getByText('Next from here')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Watch as a Reel' })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('maps-map2-390x844.png') });
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(page.getByTestId('ks-maps-last')).toHaveAttribute('aria-label', 'Open encounter');
+    await expect(page.getByRole('heading', { name: 'Sample region 2' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back to Map of Sample planet' }).click();
+    await expect(page.getByRole('heading', { name: 'Map of Sample planet' })).toBeVisible();
+  });
+
+  test('a region across the seam draws whole on its own map, and the screen is pinned to the Light values', async ({
+    page,
+  }) => {
+    await open(page, 'map=2&regions=4&seam=1');
+    await expect(page.getByRole('heading', { name: 'Sample region 4' })).toBeVisible();
+    // The Universe looks the same in Light and Dark: the screen is a printed surface.
+    await expect(page.getByTestId('map-screen')).toHaveAttribute('data-ks-appearance', 'light');
+  });
+
+  test('at 1440 px the list stands beside the drawing, not over it', async ({ page }) => {
+    await open(page, 'map=1&regions=4');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.getByTestId('map-regions')).toBeVisible();
+    const drawing = (await page.getByTestId('flat-planet').boundingBox())!;
+    const list = (await page.getByTestId('map-regions').boundingBox())!;
+    expect(list.x).toBeGreaterThanOrEqual(drawing.x + drawing.width);
+    expect(drawing.y + drawing.height).toBeLessThanOrEqual(900);
+  });
+});
+
 test.describe('without WebGL', () => {
   test('the plain lists replace the scene when WebGL cannot be created', async ({ page }) => {
     await page.addInitScript(() => {

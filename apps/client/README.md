@@ -657,7 +657,8 @@ token; reduced motion stops drift and plays the formation as one still.
 `features/universe/space/` draws the space views with three.js. The Universe tab uses it for the Overview, Far, a
 system and the Empty, loading and Offline sky; a planet's globe and map are SVG (D-108). It is also reached through the
 developer gallery page `/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; `?scene=universe` draws the
-tab's own layout of a labelled sample universe, for the frame numbers).
+tab's own layout of a labelled sample universe, for the frame numbers; `?scene=maps` draws the two maps of a planet over
+labelled sample data, see `features/universe/README.md`).
 
 | Capability | Status |
 | --- | --- |
