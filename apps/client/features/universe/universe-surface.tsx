@@ -793,6 +793,7 @@ function KeyHints({ globe, voyage }: { globe: boolean; voyage: boolean }) {
           Drag your ship to fly
         </Text>
         {hint('← → ↑ ↓', 'turn')}
+        {hint('W A S D', 'fly the ship')}
         {hint('+ −', 'one stop')}
         {hint('/', 'search')}
         {hint('Esc', 'back up')}
