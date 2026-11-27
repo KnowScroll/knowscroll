@@ -80,7 +80,8 @@ function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readon
   useDocumentTitle('Visiting a friend');
   const router = useRouter();
   const { reducedMotion } = useDisplay();
-  // What this screen was opened with decides about its film for good: a switch or a setting changed under it changes nothing here.
+  // Whether there is a film, and whether it is a cut, is decided when the screen mounts. Switching the new look on or off
+  // under it is a different screen (the keys above), which decides afresh; the other settings change nothing here.
   const [withFilm] = useState(trial.on);
   const [cut] = useState(reducedMotion);
   const [director] = useState(() => createCrossingDirector());
@@ -104,9 +105,10 @@ function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readon
     (end: CrossingEnd) => {
       // Home ends on your own Universe (the visit is left, not stacked over); going out ends where the visit already is, which the film was drawn over.
       if (end.direction === 'home') router.dismissTo('/universe');
-      else if (!end.cut) markCrossingSeen(scope, handle);
+      // Seen means the friend's universe was reached: a film that ended over a "not shared" screen leaves the long one to come.
+      else if (!end.cut && visit?.getState().status === 'ready') markCrossingSeen(scope, handle);
     },
-    [router, scope, handle],
+    [router, scope, handle, visit],
   );
   const leaveHome = useCallback(
     () => director.start({ direction: 'home', seconds: crossingSeconds('home', false), cut }),

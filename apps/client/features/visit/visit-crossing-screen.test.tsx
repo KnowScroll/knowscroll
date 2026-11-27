@@ -1,11 +1,11 @@
 import type * as React from 'react';
-import type { EffectCallback } from 'react';
+import { useEffect, type EffectCallback } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AppState, Platform, View as MockView } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { visitServer } from '@knowscroll/client-core/visit-fixture';
 import { DisplayProvider } from '@knowscroll/ui';
-import { DevicePreferencesProvider } from '../../providers/device-preferences';
+import { DevicePreferencesProvider, useDevicePreferences } from '../../providers/device-preferences';
 import { defaultDevicePreferences, type DevicePreferences } from '../account/device-preferences';
 import type { CrossingFrame } from '../universe/crossing/crossing-frame';
 import { FrameRateFigure as MockFrameRateFigure } from '../universe/frame-rate/frame-rate-readout';
@@ -46,7 +46,26 @@ jest.mock('../../platform/device-preferences-store', () => ({
   devicePreferencesStore: { read: () => null, write: () => undefined },
 }));
 let mockOwnLabels: readonly string[] | undefined;
-jest.mock('./use-own-system-labels', () => ({ useOwnSystemLabels: () => mockOwnLabels }));
+/** Every `enabled` the screen asked the own-names reader with (the reader creates and reads nothing when it is false). */
+let mockOwnAsked: boolean[] = [];
+jest.mock('./use-own-system-labels', () => ({
+  useOwnSystemLabels: (_scope: unknown, enabled: boolean) => {
+    mockOwnAsked.push(enabled);
+    return mockOwnLabels;
+  },
+}));
+/** How many times the visit screen has been mounted: a rebuilt screen mounts this again, a kept one does not. */
+let mockScreenMounts = 0;
+jest.mock('../../platform/document-title', () => {
+  const { useEffect } = jest.requireActual<typeof React>('react');
+  return {
+    useDocumentTitle: () => {
+      useEffect(() => {
+        mockScreenMounts += 1;
+      }, []);
+    },
+  };
+});
 
 interface StageProps {
   frame: CrossingFrame;
@@ -88,6 +107,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockStage = null;
   mockOwnLabels = undefined;
+  mockOwnAsked = [];
+  mockScreenMounts = 0;
   mockCanGoBack = true;
   pending = new Map();
   nextHandle = 1;
@@ -123,8 +144,18 @@ const preferences = (over: Partial<DevicePreferences> = {}): DevicePreferences =
   ...defaultDevicePreferences,
   ...over,
 });
+/** The way a test changes this device's settings under a mounted screen (the provider reads `initial` once). */
+let mockChangeSetting: (change: Partial<DevicePreferences>) => void = () => undefined;
+function GrabSettings() {
+  const { update } = useDevicePreferences();
+  useEffect(() => {
+    mockChangeSetting = update;
+  }, [update]);
+  return null;
+}
 const tree = (handle = 'fixture.ravi', over: Partial<DevicePreferences> = {}, reducedMotion = false) => (
   <DevicePreferencesProvider initial={preferences(over)}>
+    <GrabSettings />
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion }}>
       <VisitScreen handle={handle} />
     </DisplayProvider>
@@ -239,7 +270,7 @@ describe('with the new look on: the crossing to a friend', () => {
     expect(screen.getByRole('button', { name: 'Leave this visit' })).toBeOnTheScreen();
   });
 
-  it('starts only on the first mount: not again when the screen is drawn again, nor when a switch changes under it', async () => {
+  it('starts only on the first mount: not again when the screen is drawn again, nor when another setting changes', async () => {
     const server = visitServer();
     mockScope = server.scope;
     const rendered = await render(tree('fixture.ravi', NEW_LOOK));
@@ -248,12 +279,32 @@ describe('with the new look on: the crossing to a friend', () => {
     await play(9);
     expect(screen.queryByTestId('visit-crossing-film')).toBeNull();
     await rendered.rerender(tree('fixture.ravi', NEW_LOOK));
-    await rendered.rerender(tree('fixture.ravi', { ...NEW_LOOK, universeFrameRate: true }));
+    await act(() => mockChangeSetting({ universeFrameRate: true }));
     await play(1);
     expect(screen.queryByTestId('visit-crossing-film')).toBeNull();
     expect(screen.queryByTestId('visit-crossing-cut')).toBeNull();
+    expect(mockScreenMounts).toBe(1);
     await rendered.unmount();
     server.scope.end();
+  });
+
+  it('is decided afresh when the new look itself is switched under the screen: on plays a film, off has none', async () => {
+    const server = visitServer();
+    mockScope = server.scope;
+    await render(tree('fixture.ravi'));
+    await settle();
+    expect(screen.queryByTestId('visit-crossing')).toBeNull();
+    await act(() => mockChangeSetting({ universeTrial: true }));
+    await settle();
+    await lay();
+    await play(0.2);
+    expect(mockScreenMounts).toBe(2);
+    expect(screen.getByTestId('visit-crossing-film')).toBeOnTheScreen();
+    await act(() => mockChangeSetting({ universeTrial: false }));
+    await settle();
+    expect(mockScreenMounts).toBe(3);
+    expect(screen.queryByTestId('visit-crossing')).toBeNull();
+    expect(screen.queryByTestId('visit-crossing-film')).toBeNull();
   });
 
   it('is a new film for another friend', async () => {
@@ -268,6 +319,7 @@ describe('with the new look on: the crossing to a friend', () => {
     await settle();
     await lay();
     await play(0.2);
+    expect(mockScreenMounts).toBe(2);
     expect(screen.getByTestId('visit-crossing-film')).toBeOnTheScreen();
     expect(mockStage).toMatchObject({ aheadSeed: 'friend:fixture.meera' });
   });
@@ -317,6 +369,21 @@ describe('with the new look on: the crossing to a friend', () => {
       await settle();
       await lay();
       await play(1);
+      expect(mockScope.storage.get('universe.crossing-seen.v1')).toBeUndefined();
+    });
+
+    it('does not count a film that ended over a "not shared" screen as seen', async () => {
+      const server = visitServer();
+      server.setAllowed(false);
+      mockScope = server.scope;
+      const letGo = holdTheRead(server);
+      await render(tree('fixture.ravi', NEW_LOOK));
+      await lay();
+      await play(2.4);
+      await letGo();
+      await play(6);
+      expect(screen.queryByTestId('visit-crossing-film')).toBeNull();
+      expect(screen.getByText('This universe isn’t shared with you')).toBeOnTheScreen();
       expect(mockScope.storage.get('universe.crossing-seen.v1')).toBeUndefined();
     });
 
@@ -598,7 +665,7 @@ describe('with the new look on: the crossing to a friend', () => {
 });
 
 describe('with the switch off: no film, ever, and Leave as it always was', () => {
-  it('draws no film, no cut, no white and no skip target, and reads nothing of your own', async () => {
+  it('draws no film, no cut, no white and no skip target, and never asks for your own names', async () => {
     const server = visitServer();
     mockScope = server.scope;
     const rendered = await render(tree('fixture.ravi'));
@@ -609,6 +676,10 @@ describe('with the switch off: no film, ever, and Leave as it always was', () =>
     expect(screen.queryByTestId('visit-crossing-skip')).toBeNull();
     expect(screen.queryByTestId('visit-crossing-line')).toBeNull();
     expect(screen.getByLabelText('old look')).toBeOnTheScreen();
+    // The own-names reader is asked with `enabled` false every time, which creates no session and sends no read.
+    expect(mockOwnAsked.length).toBeGreaterThan(0);
+    expect(mockOwnAsked.every((enabled) => !enabled)).toBe(true);
+    expect(server.requests.map((request) => request.path)).toEqual([READ]);
     expect(pending.size).toBe(0);
     expect(mockScope.storage.get('universe.crossing-seen.v1')).toBeUndefined();
     await rendered.unmount();
@@ -623,6 +694,25 @@ describe('with the switch off: no film, ever, and Leave as it always was', () =>
     await play(1);
     expect(screen.queryByTestId('visit-crossing-cut')).toBeNull();
     expect(screen.queryByTestId('visit-crossing')).toBeNull();
+  });
+
+  it('keeps the screen it had across a change of friend: the new look’s per-friend rebuild is not done', async () => {
+    const server = visitServer();
+    mockScope = server.scope;
+    const rendered = await render(tree('fixture.ravi'));
+    await screen.findByRole('button', { name: 'Leave this visit' });
+    expect(mockScreenMounts).toBe(1);
+    await rendered.rerender(tree('fixture.meera'));
+    await settle();
+    // The other friend was read (a new data session), but the screen itself was not rebuilt.
+    expect(mockScreenMounts).toBe(1);
+    const handles = server.requests
+      .filter((request) => request.path === READ)
+      .map((request) => (request.body['target'] as { handle: string }).handle);
+    expect(handles).toEqual(['fixture.ravi', 'fixture.meera']);
+    expect(screen.queryByTestId('visit-crossing')).toBeNull();
+    await rendered.unmount();
+    server.scope.end();
   });
 
   it('Leave goes back, or to Friends when there is nothing to go back to, and never to your Universe', async () => {
