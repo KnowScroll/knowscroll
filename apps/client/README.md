@@ -546,7 +546,9 @@ float over it.
     glows, faint at the edge of a pull and full where letting go would go there. The springs step at most 1/120 s, so
     the ship moves the same at any frame rate, and it is told where places are as each frame is projected
     (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the
-    ship home), and a second finger lets go of the ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
+    ship home), and a second finger lets go of the ship and pinches. W A S D fly the ship from the keyboard (22 pt a
+    press; the arrows turn the view): it is held while they are pressed, so places pull it, and let go 0.7 s after the
+    last, as a lifted finger lets it go. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
     cream "X · you are here" pill with the orange dot.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
