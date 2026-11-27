@@ -65,9 +65,10 @@ function fold(name: string): Folded {
 }
 
 /**
- * A name with its accents and case taken off and its spaces made single: what a query and a name are compared as. A
- * friend's Universe uses it too, to find the names you share (`features/visit/in-common.ts`), so the two screens can
- * never disagree about whether "Café" and "cafe" are one name.
+ * A name with its accents and case taken off, its runs of spaces made one and its ends trimmed: what a query is
+ * compared as. A friend's Universe also uses it on names (`features/visit/in-common.ts`), so "Café" and "cafe" are
+ * the same name there as in search. Search folds a name letter by letter and leaves its spaces alone, so "A  B" (two
+ * spaces) is one name for the chip but is not found by typing "a b".
  */
 export const foldName = (name: string) =>
   name.normalize('NFKD').replaceAll(/\p{M}/gu, '').toLowerCase().replaceAll(/\s+/g, ' ').trim();

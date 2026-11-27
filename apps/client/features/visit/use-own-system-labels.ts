@@ -36,7 +36,8 @@ export function useOwnSystemLabels(scope: AccountScope, enabled: boolean): reado
     () => IDLE,
   );
   const held = useMemo(() => labelsOfRead(read), [read]);
-  const [fetched, setFetched] = useState<readonly string[]>();
+  // Kept with the scope it was read for: another account's names are never compared, whatever the next read does.
+  const [fetched, setFetched] = useState<{ readonly scope: AccountScope; readonly labels: readonly string[] }>();
   const needsRead = enabled && read.status === 'idle';
   useEffect(() => {
     if (!needsRead) return;
@@ -44,8 +45,9 @@ export function useOwnSystemLabels(scope: AccountScope, enabled: boolean): reado
     const answered = () => {
       const read = reader.getState();
       const labels = labelsOfRead(read);
-      if (labels !== undefined) setFetched(labels);
-      // An answer, or a failure that will not mend itself: either way the one read is done.
+      if (labels !== undefined) setFetched({ scope, labels });
+      // An answer or a failed read: either way the one read is done. A failed read is not retried: there is no chip for
+      // the rest of this visit, which is better than a chip that finds nothing, and the next visit tries again.
       if (labels !== undefined || read.status === 'unavailable' || read.status === 'unsupported') reader.dispose();
     };
     const stop = reader.subscribe(answered);
@@ -55,5 +57,5 @@ export function useOwnSystemLabels(scope: AccountScope, enabled: boolean): reado
       reader.dispose();
     };
   }, [needsRead, scope]);
-  return enabled ? (held ?? fetched) : undefined;
+  return enabled ? (held ?? (fetched?.scope === scope ? fetched.labels : undefined)) : undefined;
 }

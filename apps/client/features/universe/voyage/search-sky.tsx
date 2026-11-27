@@ -35,9 +35,9 @@ export function ringOf(radiusPx: number): { readonly ring: number; readonly glow
   const ring = Math.max(RING_RADIUS, radiusPx + RING_GAP);
   return { ring, glow: Math.max(GLOW_SIZE, (ring * GLOW_SIZE) / RING_RADIUS) };
 }
-/** "What we have in common" (U:1394): a star that is not shared drops to 25 % of its light, so black at 75 % lies over the sky. */
+/** "What we have in common": a star that is not shared drops to 25 % of its light, so black at 75 % lies over the sky. */
 const COMMON_DIM = 'rgba(2,3,8,0.75)';
-/** A shared star wears a 2 px ring of radius 9 (U:1402), in the focus yellow; a star drawn larger is ringed just outside its edge. */
+/** A shared star wears a 2 px ring of radius 9, in the focus yellow; a star drawn larger is ringed just outside its edge. */
 const COMMON_RING = 9;
 const COMMON_RING_WIDTH = 2;
 const COMMON_RING_GAP = 3;
@@ -180,18 +180,36 @@ export function CommonSky({
           </Mask>
         </Defs>
         <Rect x={0} y={0} width={size.width} height={size.height} fill={COMMON_DIM} mask="url(#ks-common-dim)" />
-        {rings.map((anchor) => (
-          <Circle
-            key={anchor.id}
-            cx={anchor.x}
-            cy={anchor.y}
-            r={commonRingOf(anchor.radiusPx)}
-            fill="none"
-            stroke={space.focus}
-            strokeWidth={COMMON_RING_WIDTH}
-          />
-        ))}
       </Svg>
+      {rings.map((anchor) => {
+        // One element per ring, so a test (and a reader of the DOM) can tell which systems are ringed.
+        const radius = commonRingOf(anchor.radiusPx);
+        const side = 2 * (radius + COMMON_RING_WIDTH);
+        return (
+          <View
+            key={anchor.id}
+            testID={`voyage-common-ring-${anchor.id}`}
+            style={{
+              position: 'absolute',
+              width: side,
+              height: side,
+              left: anchor.x - side / 2,
+              top: anchor.y - side / 2,
+            }}
+          >
+            <Svg width={side} height={side}>
+              <Circle
+                cx={side / 2}
+                cy={side / 2}
+                r={radius}
+                fill="none"
+                stroke={space.focus}
+                strokeWidth={COMMON_RING_WIDTH}
+              />
+            </Svg>
+          </View>
+        );
+      })}
     </View>
   );
 }

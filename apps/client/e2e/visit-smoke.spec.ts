@@ -74,6 +74,8 @@ interface VisitOptions {
   readonly own?: boolean;
   /** Every `/v1` path the page sends, in order. */
   readonly paths?: string[];
+  /** Every `/v1` path whose answer the page has received, in order: what a test waits on before it asserts an absence. */
+  readonly answered?: string[];
 }
 
 async function openVisit(page: Page, size: { width: number; height: number }, options: VisitOptions = {}) {
@@ -89,6 +91,8 @@ async function openVisit(page: Page, size: { width: number; height: number }, op
       JSON.stringify(preferences),
     );
   const world = sceneFixture(5, 0, 3, 2);
+  const answered = options.answered;
+  if (answered) page.on('response', (response) => answered.push(new URL(response.url()).pathname));
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );
@@ -183,7 +187,12 @@ test('a friend’s universe in the new look: their systems and planets, every co
   await expectNoSeriousViolations(page);
 });
 
-const chip = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
+/** The chip keeps one accessible name; its pressed state says whether it is on, and its words change with it. */
+const inCommon = (page: Page) => page.getByRole('button', { name: 'What we have in common', exact: true });
+
+/** Two frames of the page have run since the last answer arrived, so what the answer changes is on screen. */
+const settled = (page: Page) =>
+  page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
 
 test('a friend’s universe in the new look: “What we have in common” marks the systems you share, and starts off', async ({
   page,
@@ -196,9 +205,10 @@ test('a friend’s universe in the new look: “What we have in common” marks 
   await expect(plain).toBeVisible({ timeout: 60_000 });
 
   // It is off when you arrive: the chip says what it does, and nothing is dimmed or marked.
-  const off = chip(page, 'What we have in common');
+  const off = inCommon(page);
   await expect(off).toBeVisible({ timeout: 30_000 });
   await expect(off).toHaveAttribute('aria-pressed', 'false');
+  await expect(off).toContainText('What we have in common');
   await expect(page.getByTestId('voyage-common-sky')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /you have this too/ })).toHaveCount(0);
   // react-native-web ignores `hitSlop`: the pill itself is the 48 px target.
@@ -209,10 +219,20 @@ test('a friend’s universe in the new look: “What we have in common” marks 
   await off.focus();
   await expect(off).toBeFocused();
   await page.keyboard.press('Enter');
-  const on = chip(page, 'Showing what you share');
-  await expect(on).toBeVisible();
+  const on = inCommon(page);
   await expect(on).toHaveAttribute('aria-pressed', 'true');
+  await expect(on).toContainText('Showing what you share');
   await expect(page.getByTestId('voyage-common-sky')).toBeVisible();
+  // Exactly the shared systems are ringed, and the names of the others keep 0.4 of their light.
+  for (const shared of [fixtureId(220), fixtureId(230)]) {
+    await expect(page.getByTestId(`voyage-common-ring-${shared}`)).toHaveCount(1);
+    await expect(page.getByTestId(`voyage-name-${shared}`)).toHaveCSS('opacity', '1');
+  }
+  for (const unshared of [fixtureId(200), fixtureId(210)]) {
+    await expect(page.getByTestId(`voyage-common-ring-${unshared}`)).toHaveCount(0);
+    await expect(page.getByTestId(`voyage-name-${unshared}`)).toHaveCSS('opacity', '0.4');
+  }
+  await expect(page.locator('[data-testid^="voyage-common-ring-"]')).toHaveCount(2);
   // The shared systems say so; the others do not. The canvas stays hidden: these buttons are how a screen reader knows.
   await expect(
     page.getByRole('button', { name: 'ci SYSTEM 0, a system, you have this too', exact: true }),
@@ -228,15 +248,16 @@ test('a friend’s universe in the new look: “What we have in common” marks 
 
   // Off again: everything is as it was.
   await on.click();
-  await expect(chip(page, 'What we have in common')).toHaveAttribute('aria-pressed', 'false');
+  await expect(inCommon(page)).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByTestId('voyage-common-sky')).toHaveCount(0);
+  await expect(page.locator('[data-testid^="voyage-name-"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /you have this too/ })).toHaveCount(0);
 
   // Switched on, a shared system still opens as one; below the whole universe the chip is not there.
-  await chip(page, 'What we have in common').click();
+  await inCommon(page).click();
   await page.getByRole('button', { name: 'ci SYSTEM 0, a system, you have this too', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Orbit, a planet', exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: /^(What we have in common|Showing what you share)$/ })).toHaveCount(0);
+  await expect(inCommon(page)).toHaveCount(0);
   await expect(page.getByTestId('voyage-common-sky')).toHaveCount(0);
 
   // Knowing your own names took one read of your own map, as the Universe tab makes it (the sky, then its three systems
@@ -259,12 +280,12 @@ test('a friend’s universe in the new look at a desktop width: the chip and the
   await expect(page.getByRole('button', { name: 'Machine learning, a system', exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  await chip(page, 'What we have in common').click();
-  await expect(chip(page, 'Showing what you share')).toHaveAttribute('aria-pressed', 'true');
+  await inCommon(page).click();
+  await expect(inCommon(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: /you have this too/ })).toHaveCount(2);
   await expect(page.getByTestId('voyage-common-sky')).toBeVisible();
   await shot(page, 'visit-common-on-1440x900');
-  await chip(page, 'Showing what you share').click();
+  await inCommon(page).click();
   await shot(page, 'visit-common-off-1440x900');
 });
 
@@ -274,8 +295,9 @@ test('a friend with none of your names: the chip says so plainly and dims nothin
   await expect(page.getByRole('button', { name: 'Machine learning, a system', exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  await chip(page, 'What we have in common').click();
-  await expect(chip(page, 'Nothing in common yet')).toHaveAttribute('aria-pressed', 'true');
+  await inCommon(page).click();
+  await expect(inCommon(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(inCommon(page)).toContainText('Nothing in common yet');
   await expect(page.getByTestId('voyage-common-sky')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /you have this too/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^(Machine learning|Baking), a system$/ })).toHaveCount(2);
@@ -284,11 +306,14 @@ test('a friend with none of your names: the chip says so plainly and dims nothin
 test('no chip when your own universe is not in hand to compare with', async ({ page }) => {
   test.setTimeout(180_000);
   // The own reads are not answered (404): nothing to compare, so no chip.
-  await openVisit(page, { width: 390, height: 844 }, { trial: true, systems: sharedWithMe });
+  const answered: string[] = [];
+  await openVisit(page, { width: 390, height: 844 }, { trial: true, systems: sharedWithMe, answered });
   await expect(page.getByRole('button', { name: 'Machine learning, a system', exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  await page.waitForTimeout(1500);
+  // The refusal of your own map has come back, and the screen has drawn since: still no chip.
+  await expect.poll(() => answered.includes('/v1/universe/scenes/sky/read'), { timeout: 30_000 }).toBe(true);
+  await settled(page);
   await expect(page.getByTestId('visit-in-common')).toHaveCount(0);
 });
 
@@ -297,9 +322,12 @@ test('with the switch off the old map has no chip and the visit reads nothing of
 }) => {
   test.setTimeout(180_000);
   const paths: string[] = [];
-  await openVisit(page, { width: 390, height: 844 }, { own: true, systems: sharedWithMe, paths });
+  const answered: string[] = [];
+  await openVisit(page, { width: 390, height: 844 }, { own: true, systems: sharedWithMe, paths, answered });
   await expect(page.getByTestId('visitor-bar')).toBeVisible({ timeout: 60_000 });
-  await page.waitForTimeout(1500);
+  // The friend's list has been answered and drawn: what the new look would have asked for by now has been asked.
+  await expect.poll(() => answered.includes('/v1/social/visits/read'), { timeout: 30_000 }).toBe(true);
+  await settled(page);
   await expect(page.getByTestId('visit-in-common')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /What we have in common|Showing what you share/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /you have this too/ })).toHaveCount(0);
@@ -344,8 +372,8 @@ test('a friend’s universe in the new look looks the same in Light and in Dark 
       timeout: 60_000,
     });
     // The whole universe with the chip on (the chip, the dim and the rings are all painted), then a star, then its planet.
-    await chip(page, 'What we have in common').click();
-    await expect(chip(page, 'Showing what you share')).toBeVisible();
+    await inCommon(page).click();
+    await expect(inCommon(page)).toContainText('Showing what you share');
     stops.push(await paintedColours(page));
     await page.getByRole('button', { name: 'ci SYSTEM 0, a system, you have this too', exact: true }).click();
     const planet = page.getByRole('button', { name: 'Orbit, a planet', exact: true });

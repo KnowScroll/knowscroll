@@ -48,7 +48,7 @@ const NO_PENNANTS: readonly LandmarkPoint[] = [];
 /** A pennant on the ground stands this much larger than on a globe seen from orbit (the landed map's 1.3). */
 const GROUND_PENNANT_SCALE = 1.3;
 
-/** The light a name keeps when "What we have in common" is on and its system is not shared (U:1402). */
+/** The light a name keeps when "What we have in common" is on and its system is not shared. */
 const UNSHARED_NAME = { opacity: 0.4 } as const;
 
 /** How far below a region's point its name sits, in points. */
@@ -551,13 +551,18 @@ function VoyageOverlay({
         // Stations and pennants are not bodies: a station is a room, a pennant is never in this list (`Pennants`).
         const kind = anchor.kind === 'station' || anchor.kind === 'landmark' ? undefined : anchor.kind;
         const name = names.get(anchor.id);
-        // Common: the names of systems you do not share drop to 0.4 (U:1402); those you share are announced as such.
+        // Common: the names of systems you do not share drop to 0.4; those you share are announced as such.
         const shared = anchor.kind === 'system' && common?.has(anchor.id) === true;
         const unshared = anchor.kind === 'system' && common !== undefined && !shared;
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            {name === undefined ? null : unshared ? (
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, UNSHARED_NAME]}>
+            {name === undefined ? null : shared || unshared ? (
+              // While "What we have in common" is on, each system's name has a wrapper that says how much light it keeps.
+              <View
+                pointerEvents="none"
+                testID={`voyage-name-${anchor.id}`}
+                style={[StyleSheet.absoluteFill, unshared ? UNSHARED_NAME : null]}
+              >
                 <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" />
               </View>
             ) : (
