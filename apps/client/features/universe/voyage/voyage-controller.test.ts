@@ -218,6 +218,42 @@ describe('one stop by key, the same as the wheel and the Back pill', () => {
   });
 });
 
+describe('the key that opens the planet’s map', () => {
+  const ground: UniverseView = { kind: 'planet', planet: descriptor('p'), landed: true };
+  const inputsFor = (session: UniverseMapSession, onMap?: () => void): VoyageInputs => ({
+    session,
+    view: ground,
+    target: { stop: 'ground', systemId: 's', planetId: 'p', regionId: null },
+    size: { width: 1352, height: 900 },
+    desktop: true,
+    turn: { x: 0, y: 0 },
+    planet: null,
+    siblings: [],
+    reducedMotion: false,
+    universeFocus: {} as VoyageInputs['universeFocus'],
+    systemFocus: () => undefined,
+    ...(onMap ? { onMap } : {}),
+  });
+
+  it('opens it on M in either case, and says it acted', () => {
+    const { session, calls } = recordingSession();
+    const onMap = jest.fn();
+    const controller = createVoyageController(inputsFor(session, onMap));
+    expect(controller.key('m')).toBe(true);
+    expect(controller.key('M')).toBe(true);
+    expect(onMap).toHaveBeenCalledTimes(2);
+    expect(calls).toEqual([]);
+  });
+
+  it('does nothing where no map can open', () => {
+    const { session, calls } = recordingSession();
+    const controller = createVoyageController(inputsFor(session));
+    expect(controller.key('m')).toBe(false);
+    expect(controller.key('M')).toBe(false);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe('the wheel', () => {
   const landed: UniverseView = { kind: 'planet', planet: descriptor('p'), landed: true };
   const inputsFor = (session: UniverseMapSession): VoyageInputs => ({
@@ -336,6 +372,22 @@ describe('the fingers on the stage', () => {
     let granted = false;
     return { controller, calls, lines, fingers };
   }
+
+  it('says a gesture has just been made, for a moment, so a click after a drag is not a tap on bare ground', () => {
+    const now = jest.spyOn(performance, 'now').mockReturnValue(1000);
+    const { controller, fingers } = stage();
+    expect(controller.justGestured()).toBe(false);
+    fingers('start', [
+      { id: 0, x: 170, y: 380 },
+      { id: 1, x: 230, y: 380 },
+    ]);
+    expect(controller.justGestured()).toBe(true);
+    now.mockReturnValue(1349);
+    expect(controller.justGestured()).toBe(true);
+    now.mockReturnValue(1351);
+    expect(controller.justGestured()).toBe(false);
+    now.mockRestore();
+  });
 
   it('pause a pinch when one finger lifts, carry it on when a finger lands again, and decide when the last one lifts', () => {
     const { calls, lines, fingers } = stage();

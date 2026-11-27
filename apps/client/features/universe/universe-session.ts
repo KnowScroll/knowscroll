@@ -221,6 +221,13 @@ export function createUniverseViewSession(
         }
       : undefined;
   let coveredRegion: string | null = null;
+  // The planet's map (the new look's). Only its screen opens it, so with the switch off none of this is ever set.
+  // `mapOrigin`: the camera the map was opened from, which Back returns to. `mapPushed`: the region's own map in front
+  // of it (`state.mapBehind`) was reached by a step that added a Back step (a sibling region adds none). `coveredMap`:
+  // Search or Browse was opened over it, and Back returns to it.
+  let mapOrigin: CameraEntry | null = null;
+  let mapPushed = false;
+  let coveredMap = false;
   const readChanged = () => {
     const current = core.getState();
     const read =
@@ -232,6 +239,9 @@ export function createUniverseViewSession(
     if (read.status === 'ended' || read.reason === 'authority') {
       drawingSnapshot = undefined;
       coveredRegion = null;
+      mapOrigin = null;
+      mapPushed = false;
+      coveredMap = false;
       formation.dispose();
       history.clear();
       returnPoint = undefined;
@@ -246,6 +256,7 @@ export function createUniverseViewSession(
         landed: false,
         locator: undefined,
         overlay: null,
+        mapBehind: false,
         notice: undefined,
         selectedId: null,
       });
@@ -273,6 +284,9 @@ export function createUniverseViewSession(
     ended = true;
     drawingSnapshot = undefined;
     coveredRegion = null;
+    mapOrigin = null;
+    mapPushed = false;
+    coveredMap = false;
     foreground = false;
     history.clear();
     memory.stop();
@@ -302,14 +316,35 @@ export function createUniverseViewSession(
     listeners.clear();
   };
   scope.onEnd?.(end);
+  /** The planet's map opens over a landed planet or a region, and nowhere else. */
+  const mapAllowed = (): boolean => {
+    const focused = places().find((p) => p.id === state.focusId);
+    return (focused?.kind === 'planet' && state.landed) || focused?.kind === 'region';
+  };
+  /** Runs `change` as one step to the listeners: browser Back must never see the overlay empty between its two publishes. */
+  const asOneStep = <T>(change: () => T): T => {
+    notificationDepth++;
+    try {
+      return change();
+    } finally {
+      notificationDepth--;
+      if (!notificationDepth) publish({});
+    }
+  };
   const showOverlay = (overlay: UniverseViewState['overlay']) => {
     if (!live() || !foreground) return;
     const focused = places().find((p) => p.id === state.focusId);
     if (overlay === 'place' && focused?.kind !== 'region') return;
+    if (overlay === 'planet-map' && !mapAllowed()) return;
+    if (overlay === 'planet-map' && (state.overlay === null || state.overlay === 'place')) mapOrigin = here();
     if (overlay === 'outline' || overlay === 'search' || overlay === 'settings') {
       if (state.overlay === 'place') coveredRegion = state.focusId;
       else if (state.overlay === null) coveredRegion = null;
     } else coveredRegion = null;
+    if (overlay === 'outline' || overlay === 'search' || overlay === 'settings') {
+      if (state.overlay === 'planet-map') coveredMap = true;
+      else if (state.overlay === null || state.overlay === 'place') coveredMap = false;
+    } else coveredMap = false;
     cancelPreview();
     // Navigation and display surfaces must not dismiss the place picked on the map.
     publish({ overlay, ...(overlay === 'place' ? { selectedId: null } : {}) });
@@ -330,7 +365,7 @@ export function createUniverseViewSession(
     landed: state.landed,
   });
   /** Flies to a place. `land` on a planet goes straight to its map (Land on the desktop card, the orbit dial). */
-  const focus = (id: string, options?: { readonly land?: boolean }) => {
+  const focusPlace = (id: string, options?: { readonly land?: boolean }) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
     cancelPreview();
     formation.skip();
@@ -340,6 +375,9 @@ export function createUniverseViewSession(
     // Moving between regions of one planet replaces the view instead of stacking Back steps.
     const sibling = object?.kind === 'region' && current?.kind === 'region' && current.parentId === object.parentId;
     if (!sibling) history.push(here());
+    // Chosen on the planet's map: Back returns to it, popping the step pushed here (a sibling region pushed none).
+    const mapBehind = state.overlay === 'planet-map';
+    mapPushed = mapBehind && !sibling;
     const chunk = chunkOfObject(state.read, id);
     const place = places().find((p) => p.id === id)!;
     const frame = { ...INITIAL_FRAME };
@@ -352,6 +390,7 @@ export function createUniverseViewSession(
       notice: undefined,
       frame,
       overlay: null,
+      mapBehind,
       selectedId: null,
       absent: false,
       youWereHere: state.youWereHere === id ? null : state.youWereHere,
@@ -363,6 +402,9 @@ export function createUniverseViewSession(
     if (place.kind === 'region') showOverlay('place');
     return true;
   };
+  /** Flies to a place. From the planet's map its two publishes (the camera, then the region's map) reach the listeners as one. */
+  const focus = (id: string, options?: { readonly land?: boolean }) =>
+    state.overlay === 'planet-map' ? asOneStep(() => focusPlace(id, options)) : focusPlace(id, options);
   /** The camera on a region's planet, landed, at planet level: where the person comes back to from an encounter. */
   const planetMapCamera = (regionId: string): CameraEntry => {
     const planetId = places().find((place) => place.id === regionId)?.parentId ?? null;
@@ -382,11 +424,30 @@ export function createUniverseViewSession(
       return true;
     }
     if (state.overlay) {
+      // The region's map reached from the planet's map: back to the planet's map, and the camera it was opened from.
+      if (state.overlay === 'place' && state.mapBehind && mapOrigin !== null) {
+        const origin = mapOrigin;
+        asOneStep(() => {
+          cancelPreview();
+          if (mapPushed) history.pop();
+          mapPushed = false;
+          publishCamera(origin);
+          publish({ mapBehind: false });
+          showOverlay('planet-map');
+          memory.saveNow();
+        });
+        return true;
+      }
       if (coveredRegion !== null && state.focusId === coveredRegion && state.overlay !== 'place') {
         showOverlay('place');
         return true;
       }
+      if (coveredMap && state.overlay !== 'planet-map' && mapAllowed()) {
+        showOverlay('planet-map');
+        return true;
+      }
       cancelPreview();
+      coveredMap = false;
       publish({ overlay: null });
       // As Close does: with nothing over the map, a new place may present itself again.
       formation.setForeground(true);

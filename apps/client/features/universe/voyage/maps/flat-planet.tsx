@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useMemo, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import Svg, { ClipPath, Defs, G, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { fontFamily, universe } from '@knowscroll/design-tokens';
 import type { Chart, ChartedCell, GlobeWorld } from '@knowscroll/scene-core';
@@ -256,7 +256,8 @@ function HereMarker({ x, y, reducedMotion }: { x: number; y: number; reducedMoti
         toValue: 1,
         duration: 2600,
         easing: (t) => 1 - (1 - t) * (1 - t),
-        useNativeDriver: true,
+        // The web has no native driver: it warns and animates in JavaScript either way.
+        useNativeDriver: Platform.OS !== 'web',
       }),
     );
     loop.start();

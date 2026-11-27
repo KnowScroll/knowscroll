@@ -619,6 +619,15 @@ float over it.
     offline before film time 0.3 the film is stopped and the screens for those are shown. Leave plays the film home
     (3.8 s) and lands on your Universe. A screen reader hears one polite line ("Going to ...'s universe", "Going home").
     With the switch off there is no film and Leave goes back as before.
+  - **Maps of the planet** (`voyage/maps/`, `features/universe/README.md`, "The maps of a planet"; behind the switch only).
+    At the ground of your own planet a chip "Map of <planet>", the `M` key and a tap on bare ground open map 1, the
+    whole planet as a flat drawing of the ground's own world with its formed regions named and the list of them under
+    it. A region's row opens that region's own map (map 2: its land, its next Scroll or Reel and its other format with
+    Open, "you were here"); so does a region's name on the ground, which no longer opens the old region card in this
+    look. Land not reached yet is one grey shape with no name, count or press, and neither map says anything about what
+    is closed or how much is left. Back, Escape, the header's Back chip, hardware Back and the browser's Back each go
+    one step: map 2, map 1, the ground it was opened from. Looking at map 1 sends nothing; map 2 does the card's one
+    preview read. The stage under a map stays mounted but is unreachable. `e2e/universe-maps-smoke.spec.ts`.
   - Not yet: the camera's fall into a friend's Universe after the film (the map simply appears under the flash), the
     white of the way home fading over your own Universe, the prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.

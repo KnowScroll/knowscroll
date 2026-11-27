@@ -10,8 +10,8 @@ import { readMapsParams } from './maps-gallery-params';
 
 /**
  * `?scene=maps` of the developer space gallery: the two maps of a planet (`PlanetMapScreen`, `RegionMapScreen`) over
- * labelled sample data, full screen, with no account and no session. They are not part of the Universe yet; this page
- * is how they are looked at until they are wired in.
+ * labelled sample data, full screen, with no account and no session. The Universe's new look opens the same screens over
+ * the person's own planet (`universe-surface.tsx`); this page is how they are looked at without one.
  *
  * `map=1|2` picks the screen, `regions=1..12` how many have formed, `seam=1` puts a region across the band's seam (on
  * map 2 it is the one shown), `here=1` marks "you were here", `preview=scroll|reel|loading|offline|unavailable|blocked`

@@ -37,6 +37,8 @@ export interface RegionMapScreenProps {
   readonly onOpen: (displayed: AvailableRegionPreview, onReturn: () => void, choice: RegionChoice) => boolean;
   /** On the web, the `data-testid` to focus when this screen goes without an encounter opened (the chip that opened the map). */
   readonly restoreFocusTo?: string | undefined;
+  /** Whether the Universe is still live, so focus is not restored after it has ended (the session's `read.active`). */
+  readonly isLive?: (() => boolean) | undefined;
   /** Goes to `/explore` (the encounter) or `/universe`; the app's router when left out. Only the developer gallery passes one. */
   readonly navigate?: RegionEncounterOptions['navigate'];
 }
@@ -64,12 +66,13 @@ export function RegionMapScreen({
   onRefreshPreview,
   onOpen,
   restoreFocusTo,
+  isLive,
   navigate,
 }: RegionMapScreenProps) {
   const { reducedMotion } = useDisplay();
   const state = useFlatPlanet(session, planet, regions, looks);
   const cell = state.flat?.chart.charted.find((candidate) => candidate.objectId === region.objectId);
-  const encounter = useRegionEncounter(preview.preview, onOpen, { restoreFocusTo, navigate });
+  const encounter = useRegionEncounter(preview.preview, onOpen, { restoreFocusTo, isLive, navigate });
   return (
     <MapFrame
       label={`${region.label}, a region of ${planet.label}`}
