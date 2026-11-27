@@ -231,9 +231,13 @@ export function SpaceView({
               live.current.diagnostics !== undefined && frames.current % PROBE_EVERY === 1
                 ? created.probe()
                 : undefined;
-            const projected = created.anchors();
-            live.current.onAnchors?.(projected);
-            setAnchors((previous) => reuseUnchangedAnchors(previous, projected));
+            const onAnchors = live.current.onAnchors;
+            if (onAnchors === undefined) setAnchors((previous) => reuseUnchangedAnchors(previous, created.anchors()));
+            else {
+              const projected = created.anchors();
+              onAnchors(projected);
+              setAnchors((previous) => reuseUnchangedAnchors(previous, projected));
+            }
             setFar(created.isFar());
             live.current.onFrameTime?.({ atMs, drawMs });
             live.current.diagnostics?.onFrame({ t, atMs, drawMs, probe });
