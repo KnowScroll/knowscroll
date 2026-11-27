@@ -36,6 +36,7 @@ import { visitorDescriptors, visitorLooks } from './visitor-scene';
 export function VisitScreen({ handle }: { readonly handle: string }) {
   const router = useRouter();
   const { state } = useAccountScope();
+  const trial = useUniverseTrial();
   if (state.status !== 'signed_in')
     return (
       <Ground>
@@ -56,8 +57,9 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
         </View>
       </Ground>
     );
-  // One visit, one crossing: another friend is a new screen with its own film.
-  return <SignedInVisit key={handle} scope={state.scope} handle={handle} />;
+  // In the new look one visit has one crossing: another friend is a new screen with its own film. The old look keeps
+  // the screen it had across a change of friend, as it always did.
+  return <SignedInVisit key={trial.on ? handle : undefined} scope={state.scope} handle={handle} />;
 }
 
 const noSubscribe = () => () => {};
@@ -74,9 +76,9 @@ const deviceOffline = (): boolean => typeof navigator !== 'undefined' && navigat
  */
 function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
   const sessions = useVisitSessions(scope, handle);
+  const trial = useUniverseTrial();
   useDocumentTitle('Visiting a friend');
   const router = useRouter();
-  const trial = useUniverseTrial();
   const { reducedMotion } = useDisplay();
   // What this screen was opened with decides about its film for good: a switch or a setting changed under it changes nothing here.
   const [withFilm] = useState(trial.on);
@@ -111,25 +113,31 @@ function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readon
     [director, cut],
   );
 
+  const visitTree = (
+    <VisitFrame>
+      {sessions ? (
+        // In the new look, one visit has one "What we have in common" switch: off when you arrive, and off again for
+        // another friend. The old look keeps the screen it had across a change of friend.
+        <Visit
+          key={trial.on ? handle : undefined}
+          visit={sessions.visit}
+          map={sessions.map}
+          ownLabels={ownLabels}
+          {...(withFilm ? { onLeaveToUniverse: leaveHome } : {})}
+        />
+      ) : (
+        <QuietGround label="Opening this universe" />
+      )}
+    </VisitFrame>
+  );
+  // With the switch off the screen is the one it always was: no film, no readout, nothing round it.
+  if (!withFilm) return visitTree;
   // The readout is the Universe's (Settings: "Show the Universe frame rate"); the film's frames are in it.
   return (
-    <FrameRateReadout on={trial.on && trial.frameRate} placed={trial.on}>
+    <FrameRateReadout on={trial.frameRate} placed>
       <View style={styles.root}>
-        <VisitFrame>
-          {sessions ? (
-            // One visit, one "What we have in common" switch: it is off when you arrive, and another friend starts it off again.
-            <Visit
-              key={handle}
-              visit={sessions.visit}
-              map={sessions.map}
-              ownLabels={ownLabels}
-              {...(withFilm ? { onLeaveToUniverse: leaveHome } : {})}
-            />
-          ) : (
-            <QuietGround label="Opening this universe" />
-          )}
-        </VisitFrame>
-        {withFilm ? <VisitCrossing director={director} handle={handle} onEnd={onEnd} /> : null}
+        {visitTree}
+        <VisitCrossing director={director} handle={handle} onEnd={onEnd} />
       </View>
     </FrameRateReadout>
   );
