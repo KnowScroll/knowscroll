@@ -381,6 +381,90 @@ test('with the trial switch off the Universe is the one that ships', async ({ pa
 });
 
 /**
+ * The new look's finishing (#811, phase 3), in a real browser: the List view chip wears a dark glass fill, Lately dims
+ * the written names of quiet systems to 0.7, and Back from a planet does not at once offer "Return to" that planet at its
+ * star. With the switch off none of it changes. The checks are soft, so one that fails does not hide the frames after it.
+ */
+const GLASS = 'rgba(10, 20, 28, 0.55)';
+const colourOf = (locator: Locator) => locator.evaluate((node) => getComputedStyle(node).color);
+const backgroundOf = (locator: Locator) => locator.evaluate((node) => getComputedStyle(node).backgroundColor);
+
+test('the List view chip has a glass fill, and Return waits for a planet you have left', async ({ page }) => {
+  test.setTimeout(240_000);
+  await openVoyage(page, [], { calm: true });
+  const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+  const list = page.getByTestId('universe-list');
+  expect.soft(await backgroundOf(list)).toBe(GLASS);
+  await shot(page, 'leftovers-1-universe');
+  await system.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  const planet = page.getByRole('button', { name: 'CI planet 2, a planet', exact: true });
+  await expect(planet).toBeVisible({ timeout: 30_000 });
+  await planet.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+  expect.soft(await backgroundOf(list)).toBe(GLASS);
+  await shot(page, 'leftovers-3-planet');
+  await page.getByTestId('voyage-stage').focus();
+  await page.keyboard.press('+');
+  await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(800);
+  expect.soft(await backgroundOf(list)).toBe(GLASS);
+  await shot(page, 'leftovers-4-ground');
+
+  // Back, Back: the star does not offer the planet you just left, and the whole universe does.
+  await page.getByRole('button', { name: 'Back to CI planet 2', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to CI system 0', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toBeVisible();
+  await expect(page.getByTestId('universe-list')).toBeVisible();
+  await page.waitForTimeout(800);
+  await shot(page, 'leftovers-5-star-after-back');
+  expect.soft(await page.getByTestId('universe-return').count()).toBe(0);
+  await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Return to CI planet 2', exact: true })).toBeVisible();
+  await shot(page, 'leftovers-6-universe-return');
+});
+
+test('Lately dims the written names of quiet systems to 0.7, and they are whole again when it goes off', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await openVoyage(page, [], { calm: true, quiet: true });
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  const name = page.getByText('CI system 0', { exact: true });
+  await expect(name).toBeVisible();
+  const cream = await colourOf(name);
+  await shot(page, 'leftovers-2a-universe');
+  await page.getByRole('button', { name: 'Lately', exact: true }).click();
+  await page.waitForTimeout(600);
+  await shot(page, 'leftovers-2b-lately');
+  expect.soft(await colourOf(name)).toBe('rgba(255, 251, 240, 0.72)');
+  await page.getByRole('button', { name: 'Lately', exact: true }).click();
+  await expect.poll(() => colourOf(name)).toBe(cream);
+});
+
+test('with the trial switch off the List view chip is still a bare ghost and Lately is as it was', async ({ page }) => {
+  await openVoyage(page, [], { trial: false, calm: true, quiet: true });
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  const list = page.getByTestId('universe-list');
+  await expect(list).toBeVisible();
+  expect(await backgroundOf(list)).not.toBe(GLASS);
+  await shot(page, 'leftovers-off-1-universe');
+  await page.getByRole('button', { name: 'Lately', exact: true }).click();
+  // The old look already dimmed the name of a quiet system under Lately.
+  await expect.poll(() => colourOf(page.getByText('CI system 0', { exact: true }))).toBe('rgba(255, 251, 240, 0.72)');
+});
+
+/**
  * Search in the new look (#811): the search circle beside Back at every stop, and the sky's answer to what is typed:
  * the systems that hold a match keep their light under a yellow ring, and the rest of the sky dims. Reduced motion
  * draws every stop at once, so nothing here waits on a moment inside a flight.

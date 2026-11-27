@@ -4,6 +4,8 @@ import { Icon, Text, toggleSemantics, useFocusRing, type IconName } from '@knows
 
 /** The accent of the Lately dot: teal, the "active" colour of the library. */
 const LATELY_DOT = '#14C79B';
+/** The new look's ghost fill (the prototype's `.ksu-ghost`): dark glass, so the label reads over pale land. */
+const GLASS_FILL = 'rgba(10,20,28,0.55)';
 
 /**
  * The pill controls drawn on the map (`pillsp` / `pillgh` in the artboards): cream and solid, or
@@ -17,6 +19,7 @@ export function SpaceChip({
   trailingIcon,
   dot,
   toggled,
+  glass,
   testID,
   accessibilityLabel,
 }: {
@@ -29,6 +32,8 @@ export function SpaceChip({
   readonly dot?: boolean;
   /** A two-state chip (the Lately lens). */
   readonly toggled?: boolean;
+  /** The new look's ghost chip: it takes a dark glass fill so it reads over pale land. Ignored on a solid chip. */
+  readonly glass?: boolean;
   readonly testID?: string;
   readonly accessibilityLabel?: string;
 }) {
@@ -42,7 +47,7 @@ export function SpaceChip({
       accessibilityLabel={accessibilityLabel ?? label}
       onPress={onPress}
       {...focus.props}
-      style={[styles.chip, solid ? styles.solid : styles.ghost, focus.style]}
+      style={[styles.chip, solid ? styles.solid : styles.ghost, glass && !solid ? styles.glass : null, focus.style]}
     >
       {icon ? <Icon name={icon} size={16} color={foreground} strokeWidth={2.2} /> : null}
       {dot === undefined ? null : (
@@ -77,6 +82,7 @@ const styles = StyleSheet.create({
   },
   solid: { backgroundColor: space.control },
   ghost: { borderWidth: borderWidth.hairline, borderColor: overlay.onDarkEdge },
+  glass: { backgroundColor: GLASS_FILL },
   /** A long name shortens with an ellipsis instead of leaving the screen; the accessible name stays whole. */
   label: { flexShrink: 1, minWidth: 0 },
   dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
