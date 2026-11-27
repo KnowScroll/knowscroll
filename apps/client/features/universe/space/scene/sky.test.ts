@@ -27,7 +27,8 @@ describe('the background stars', () => {
     expect(vertexOf(deep)).toBe(STAR_LENSED_VERTEX);
     bent.set([{ x: 100, y: 200, radius: 30 }], { width: 390, height: 844 });
     const uniforms = (shells[0]!.material as THREE.ShaderMaterial).uniforms;
-    expect((uniforms['lenses']!.value as THREE.Vector4[])[0]!.toArray()).toEqual([100, 200, 30, 0]);
+    // A body 200 pt down from the top of an 844 pt view sits 644 pt up from its bottom, where the shader measures.
+    expect((uniforms['lenses']!.value as THREE.Vector4[])[0]!.toArray()).toEqual([100, 644, 30, 0]);
     expect((uniforms['lenses']!.value as THREE.Vector4[])[1]!.z).toBe(0);
     expect((uniforms['view']!.value as THREE.Vector2).toArray()).toEqual([390, 844]);
     bent.dispose();

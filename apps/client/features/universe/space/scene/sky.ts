@@ -112,7 +112,7 @@ export function addSky(
   return shells;
 }
 
-/** A body that bends the stars behind it: where it is on screen and its lens radius, in layout points. */
+/** A body that bends the stars behind it: where it is on screen (y down, as layout is) and its lens radius, in layout points. */
 export interface SkyLens {
   readonly x: number;
   readonly y: number;
@@ -185,9 +185,11 @@ export function bendSky(shells: readonly THREE.Points[], group: THREE.Object3D, 
   return {
     set(next, size) {
       view.set(Math.max(1, size.width), Math.max(1, size.height));
+      // The shader measures from the bottom of the view (y up, as clip space is); layout measures from the top.
+      const height = Math.max(1, size.height);
       lenses.forEach((lens, index) => {
         const from = next[index];
-        lens.set(from?.x ?? 0, from?.y ?? 0, from?.radius ?? 0, 0);
+        lens.set(from?.x ?? 0, from === undefined ? 0 : height - from.y, from?.radius ?? 0, 0);
       });
     },
     dispose() {

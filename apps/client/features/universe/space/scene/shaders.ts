@@ -66,8 +66,8 @@ export const SKY_LENSES = 4;
 
 /**
  * The background stars of the trial look (`voyage/`), bent round the bodies in front of them: {@link STAR_VERTEX} plus
- * a point lens per body. `lenses[i]` is a body's place on screen and its lens radius, in layout points (`view` is the
- * view's size in the same points; a radius of 0 is no lens). A star at distance `d` from the body is drawn where a
+ * a point lens per body. `lenses[i]` is a body's place on screen, measured from the bottom left (y up, as clip space
+ * is), and its lens radius, in layout points (`view` is the view's size in the same points; a radius of 0 is no lens). A star at distance `d` from the body is drawn where a
  * point lens puts its outer image, `(d + sqrt(d² + 4r²)) / 2`: pushed outward, so no star is drawn within `r` of the
  * body and the stars thin out toward that edge, and magnified by that image's gain (bigger and brighter), most near
  * the edge. The bend fades to nothing between 3 and 6 radii, so a lens has no edge of its own. Kept apart from {@link STAR_VERTEX}, which the shipping
