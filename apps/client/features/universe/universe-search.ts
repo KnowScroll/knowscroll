@@ -64,8 +64,14 @@ function fold(name: string): Folded {
   return { text, from, to };
 }
 
-const normaliseQuery = (query: string) =>
-  query.normalize('NFKD').replaceAll(/\p{M}/gu, '').toLowerCase().replaceAll(/\s+/g, ' ').trim();
+/**
+ * A name with its accents and case taken off, its runs of spaces made one and its ends trimmed: what a query is
+ * compared as. A friend's Universe also uses it on names (`features/visit/in-common.ts`), so "Café" and "cafe" are
+ * the same name there as in search. Search folds a name letter by letter and leaves its spaces alone, so "A  B" (two
+ * spaces) is one name for the chip but is not found by typing "a b".
+ */
+export const foldName = (name: string) =>
+  name.normalize('NFKD').replaceAll(/\p{M}/gu, '').toLowerCase().replaceAll(/\s+/g, ' ').trim();
 
 /** 0 best: the whole name, then its start, then a word's start, then anywhere inside it. */
 function locate(name: Folded, query: string): { tier: number; at: number } | undefined {
@@ -99,7 +105,7 @@ export function searchUniverse(
   rawQuery: string,
   limit = SEARCH_LIMIT,
 ): readonly SearchResult[] {
-  const query = normaliseQuery(rawQuery);
+  const query = foldName(rawQuery);
   if (!query) return [];
   const byId = new Map(places.map((place) => [place.id, place]));
   const candidates: Candidate[] = [

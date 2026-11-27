@@ -75,6 +75,23 @@ describe('the crossing stage', () => {
     expect(onDrawn).toHaveBeenCalledWith(FRAME);
   });
 
+  it('reports each draw to the frame-rate readout: when it was drawn and how long draw took, not a failed draw', async () => {
+    const onFrameTime = jest.fn();
+    const screen = await render(view(FRAME, { onFrameTime }));
+    await release(0);
+    expect(onFrameTime).toHaveBeenCalledTimes(1);
+    const [drawn] = onFrameTime.mock.lastCall as [{ atMs: number; drawMs: number }];
+    expect(drawn.atMs).toBeGreaterThan(0);
+    expect(drawn.drawMs).toBeGreaterThanOrEqual(0);
+    await screen.rerender(view(LATER, { onFrameTime }));
+    expect(onFrameTime).toHaveBeenCalledTimes(2);
+    mockRenderers[0]!.draw.mockImplementation(() => {
+      throw new Error('lost');
+    });
+    await screen.rerender(view(FRAME, { onFrameTime }));
+    expect(onFrameTime).toHaveBeenCalledTimes(2);
+  });
+
   it('draws the next frame on the same renderer', async () => {
     const screen = await render(view(FRAME));
     await release(0);

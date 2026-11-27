@@ -71,6 +71,9 @@ const GLOW_SIZE = 64;
 const CATCH_GLOW = {
   size: 88,
   opacity: 0.95,
+  /** The share of that opacity at the edge of a pull's reach, and the pull strength (0..1) at which it is all there. */
+  faintest: 0.15,
+  fullAt: 0.6,
   colour: '#FFE44D',
   /** Alpha from the middle out: `rgba(255,228,77,0.55)`, then 0.3 at 0.45 of the way, then 0 (line 272). */
   stops: [
@@ -271,7 +274,10 @@ export function createShipLayer(): ShipLayer {
       catchGlow.visible = root.visible && catchAt !== null;
       if (catchAt !== null) {
         catchGlow.position.set(catchAt.x, catchAt.y, 0);
-        catchMaterial.opacity = CATCH_GLOW.opacity * ship.alpha;
+        // A far body's pull is faint and its glow with it, so the glow growing is the pull growing.
+        const pull = Math.min(1, (ship.pullStrength ?? 1) / CATCH_GLOW.fullAt);
+        catchMaterial.opacity =
+          CATCH_GLOW.opacity * ship.alpha * (CATCH_GLOW.faintest + (1 - CATCH_GLOW.faintest) * pull);
       }
       if (!root.visible) return;
       root.position.set(ship.x, ship.y, 0);

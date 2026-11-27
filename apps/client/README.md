@@ -533,10 +533,22 @@ float over it.
     A region's name, the point the camera comes down over and where the ship stands are one point well inside its land
     near its middle (`region-centre.ts`, the prototype's `rg.c`), not the generator's label, which is often on the shore.
   - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky (hovering gently, still under reduced
-    motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans; let
-    it go within 70 pt of a place to go there, or of a station to open its room; while held, the place it would go to
-    glows. A finger that moves less than 6 pt is a tap (it calls the ship home), and a second finger lets go of the
-    ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
+    motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans.
+    Stars and planets pull it (`ship-gravity.ts`, pure): each bends where the held ship is going toward it, a star from
+    farther (170 pt plus its size on screen) and harder than a planet (150 pt), fading to nothing at the edge with no
+    jolt, all together never more than 0.62 of the way, so the finger always wins; a ship dragged past one curves
+    toward it. Let go within 70 pt (plus the body's size) and it goes there; a little farther out (125 pt from a star,
+    110 from a planet) it is drawn in, seen to fall for about half a second, then goes; reduced motion goes at once.
+    Regions and rooms keep the prototype's pull (0.45 within 64 pt, caught within 70, never drawn in). Where letting
+    go would go is the place the finger is nearest (a body's edge, not its middle), so a room beside its star is still
+    the room. A fall ends where it is when a flight, a pinch or a turn takes the view, and a body past the edge of
+    the ship's room is reached at that edge. While held, the place it would go to
+    glows, faint at the edge of a pull and full where letting go would go there. The springs step at most 1/120 s, so
+    the ship moves the same at any frame rate, and it is told where places are as each frame is projected
+    (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the
+    ship home), and a second finger lets go of the ship and pinches. W A S D fly the ship from the keyboard (22 pt a
+    press; the arrows turn the view): it is held while they are pressed, so places pull it, and let go 0.7 s after the
+    last, as a lifted finger lets it go. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
     cream "X · you are here" pill with the orange dot.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
@@ -594,13 +606,26 @@ float over it.
     are not drawn (they changed a scale the new look never reads), the planet's caption stands under the globe, and
     the frame-rate readout stands under the header instead of over it. On the smallest phone (320 x 568) the caption
     still meets the globe: a known gap. With the switch off every size is as before.
-  - Not yet: wiring the crossing to a friend's Universe (its film is in the developer gallery, `crossing/`), the
-    prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
+  - **What we have in common** on a friend's Universe (`features/visit/`, behind the switch only): a chip at the whole-universe
+    stop dims the friend's systems whose names you do not have to 25 % and rings the ones you do in yellow. Names are
+    compared on the device, folded as search folds them (`systemsInCommon`); your own names come from the Universe session
+    already in memory, or one sky read of the kind the tab makes. It is off on arrival, shows no count, and is not shown when
+    your own universe is empty. A friend's map in the new look is pinned to the Light values, as your own Universe is.
+  - **The crossing to a friend** (`features/visit/`, `features/universe/crossing/`, behind the switch only). When
+    `/visit/<handle>` first mounts, whatever started the visit, the film plays full screen over the visit's loading
+    (7.5 s the first time for that friend on this device and account, 3.6 s after) while the visit read runs behind it. A
+    tap or Esc skips to the end; under reduced motion it is a 0.26 s dark cut. It names the friend and, only if the read
+    and your own names were back by film time 0.47, the names you have in common; if the visit says "not shared" or is
+    offline before film time 0.3 the film is stopped and the screens for those are shown. Leave plays the film home
+    (3.8 s) and lands on your Universe. A screen reader hears one polite line ("Going to ...'s universe", "Going home").
+    With the switch off there is no film and Leave goes back as before.
+  - Not yet: the camera's fall into a friend's Universe after the film (the map simply appears under the flash), the
+    white of the way home fading over your own Universe, the prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and
-    its skip; the search circle at a star, a planet and its ground, and the rings the sky draws for what is typed; the desktop's key hints and the absent zoom buttons; the readout clear of every control at 1440 x 900, 820 x 1180 and 320 x 568, and the planet's caption clear of the globe's targets and the notice at 820 x 1180; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look.
+    its skip; the search circle at a star, a planet and its ground, and the rings the sky draws for what is typed; the desktop's key hints and the absent zoom buttons; the readout clear of every control at 1440 x 900, 820 x 1180 and 320 x 568, and the planet's caption clear of the globe's targets and the notice at 820 x 1180; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look, with the in-common chip (its absence with the switch off), and checks Light against Dark.
   - Tracked on #806.
 - **Desktop D02** (`universe-panel.tsx`, D-395). From 1024 px the map uses the full available width.
   Browse opens a modal over it: search, selected-place details, Resume and Orbit when available, and the complete
