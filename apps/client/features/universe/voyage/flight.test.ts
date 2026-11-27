@@ -111,6 +111,7 @@ describe('a flight', () => {
     const plain = planFlight({ ...base, touchesGround: false }).seconds;
     expect(planFlight({ ...base, touchesGround: true }).seconds).toBeCloseTo(plain * 1.15);
     expect(planFlight({ ...base, touchesGround: false, fast: true }).seconds).toBeCloseTo(plain * 0.6);
+    expect(planFlight({ ...base, touchesGround: false, again: true }).seconds).toBeCloseTo(plain * 0.55);
   });
 });
 

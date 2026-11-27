@@ -6,6 +6,7 @@ import {
   STOP_BEFORE_Q,
   UNKNOWN_FRIEND,
   createCrossingDirector,
+  handedOver,
   type CrossingWorld,
 } from './crossing-director';
 
@@ -37,6 +38,36 @@ describe('the crossing director', () => {
     expect(director.getState()).toMatchObject({ mode: 'arrival', q: 1, ended: 'finished' });
     director.arrived();
     expect(director.getState()).toMatchObject({ mode: 'idle', announcement: null });
+  });
+
+  it('says a film handed over to the other universe from its last moments on, and a cut, a stopped film or home never did', () => {
+    const film = startOut();
+    expect(handedOver(film.getState())).toBeNull();
+    playTo(film, 0.9);
+    expect(handedOver(film.getState())).toBeNull();
+    film.advance(FIRST + 1);
+    expect(handedOver(film.getState())).toBe(1);
+    film.arrived();
+    expect(handedOver(film.getState())).toBe(1);
+    film.start({ direction: 'home', seconds: 3.8, cut: false });
+    expect(handedOver(film.getState())).toBeNull();
+
+    const skipped = startOut();
+    playTo(skipped, 0.2);
+    skipped.skip();
+    skipped.advance(FIRST);
+    expect(handedOver(skipped.getState())).toBe(1);
+
+    const cut = startOut(FIRST, true);
+    cut.advance(1);
+    expect(cut.getState().ended).toBe('finished');
+    expect(handedOver(cut.getState())).toBeNull();
+
+    const stopped = startOut();
+    playTo(stopped, 0.1);
+    stopped.world({ status: 'gone' });
+    expect(stopped.getState().ended).toBe('stopped');
+    expect(handedOver(stopped.getState())).toBeNull();
   });
 
   it('keeps the length it was given: 7.5 s the first time, 3.6 s after, 3.8 s home', () => {

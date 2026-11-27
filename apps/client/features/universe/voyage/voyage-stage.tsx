@@ -6,6 +6,7 @@
  */
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -43,6 +44,7 @@ import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { STOPS, targetOf, type Stop } from './ladder';
+import { FallInContext } from './fall-in';
 import { clampPan, type Point } from './outer/friend-field';
 import { OuterField } from './outer/outer-field';
 import { useOuterStop, useOuterStopState } from './outer/outer-stop';
@@ -168,6 +170,7 @@ export function VoyageStage({
           ),
     [friends, width, height],
   );
+  const fallIn = useContext(FallInContext);
   const inputs: VoyageInputs = {
     session,
     view,
@@ -188,6 +191,7 @@ export function VoyageStage({
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
     ...(outer === null ? {} : { outer, clampOuterPan }),
+    ...(fallIn ? { fallIn } : {}),
   };
   const [controller] = useState(() => createVoyageController(inputs));
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must

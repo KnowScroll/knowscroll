@@ -7,8 +7,11 @@ import { targetKey, type VoyageTarget } from './ladder';
 
 /** The flights of one screen. */
 export interface FlightLegs {
-  /** The person asked to go to `target` at `nowMs` (a tap, a key, a pinch let go). */
-  asked(target: VoyageTarget, nowMs: number): void;
+  /**
+   * The person asked to go to `target` at `nowMs` (a tap, a key, a pinch let go), or the screen began a fall into it.
+   * `label` names the leg in place of its stop's name.
+   */
+  asked(target: VoyageTarget, nowMs: number, label?: string): void;
   /**
    * A frame was drawn at `nowMs`, in flight or not, with `programs` shader programs held by three.js. Returns the flight
    * that has just landed, or null. Under reduced motion the first frame after the ask is at rest: a cut.
@@ -23,9 +26,9 @@ export function createFlightLegs(first: VoyageTarget): FlightLegs {
   let programs = 0;
   let open: { label: string; startMs: number; programs: number } | null = null;
   return {
-    asked(target, nowMs) {
+    asked(target, nowMs, label) {
       const key = targetKey(target);
-      open = { label: visited.has(key) ? `${target.stop} again` : target.stop, startMs: nowMs, programs };
+      open = { label: label ?? (visited.has(key) ? `${target.stop} again` : target.stop), startMs: nowMs, programs };
       visited.add(key);
     },
     frame(flying, programsNow, nowMs) {

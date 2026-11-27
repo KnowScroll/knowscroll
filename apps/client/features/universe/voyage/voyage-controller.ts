@@ -33,7 +33,7 @@ import {
   type ShipState,
 } from './ship-motion';
 import { createStageTouches, type Finger, type StageGesture } from './stage-touches';
-import type { UniverseOnScreen, VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
+import type { FallIn, UniverseOnScreen, VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
 import { loadVoyageRenderer } from './voyage-loader';
 
 /** A drag has to move this far before it turns the view; a shorter press is a tap on whatever is under it. */
@@ -158,6 +158,8 @@ export interface VoyageInputs {
    * identity when absent. Read each time the field is moved.
    */
   readonly clampOuterPan?: (pan: Point) => Point;
+  /** A fall into the stop to make (a friend's Universe after the crossing film): each id falls once. */
+  readonly fallIn?: FallIn | null;
 }
 
 /** The nearest visible anchor of one of `kinds` to a point on screen. */
@@ -308,7 +310,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   let held: { x: number; y: number } | null = null;
   let seconds = 0;
   const legs = createFlightLegs(first.target);
-  /** A flight was under way in the last frame. */
+  /** The screen was last told a flight is under way ({@link VoyageInputs.onFlying}). */
   let flying = false;
   /** The friends' field: how far it has been moved (a screen offset, points), what the ship's lean multiplies by, what is in its way. */
   let fieldPan: Point = { x: 0, y: 0 };
@@ -324,6 +326,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   };
   const atOuterStop = () => inputs.view.kind === 'universe' && inputs.outer?.getState().on === true;
   const clampField = (pan: Point): Point => inputs.clampOuterPan?.(pan) ?? pan;
+  /** The last frame was in a fall into the stop. */
+  let fell = false;
 
   const control: VoyageControl = {
     target: first.target,
@@ -336,6 +340,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     lean: { x: 0, y: 0 },
     zoom: null,
     skips: 0,
+    fallIn: first.fallIn ?? null,
     afterFrame: (frame): DrawnShip => {
       seconds += frame.dt;
       pinch.frame(frame.dt, frame.flying);
@@ -380,8 +385,14 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       }
       control.lean = leanOf(ship.lean, frame.dt);
       tellUniverse(frame.universe ?? null);
-      if (frame.flying !== flying) {
-        flying = frame.flying;
+      // A fall into the stop (a friend's Universe after the crossing film) is timed as a flight of its own, and the
+      // screen says nothing of it: the film has just said where you are going.
+      const falling = frame.falling === true;
+      if (falling && !fell) legs.asked(control.target, performance.now(), 'fall');
+      fell = falling;
+      const said = frame.flying && !falling;
+      if (said !== flying) {
+        flying = said;
         inputs.onFlying?.(flying);
       }
       const landed = legs.frame(frame.flying, frame.programs, performance.now());
@@ -698,6 +709,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       control.reducedMotion = next.reducedMotion;
       control.universeFocus = next.universeFocus;
       control.systemFocus = next.systemFocus;
+      control.fallIn = next.fallIn ?? null;
     },
     setAnchors(next) {
       anchors = next;
