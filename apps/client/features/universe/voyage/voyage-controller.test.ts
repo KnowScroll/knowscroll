@@ -2,7 +2,17 @@ import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { climbOneStop } from './ladder';
+import type { VoyageControl } from './voyage-control';
 import { createVoyageController, descend, homeOf, shipLayoutOf, type VoyageInputs } from './voyage-controller';
+
+/** The control the controller hands its renderer: the tests step its frames by hand. */
+let mockControl: VoyageControl | undefined;
+jest.mock('./voyage-loader', () => ({
+  loadVoyageRenderer: (control: VoyageControl) => {
+    mockControl = control;
+    return () => Promise.reject(new Error('no renderer in a unit test'));
+  },
+}));
 
 const descriptor = (objectId: string, parentId = 'system') => ({ objectId, parentId }) as never;
 
@@ -371,6 +381,62 @@ describe('the fingers on the stage', () => {
     expect(lines).toContain('ship → home: a second finger came');
     fingers('end', []);
     expect(lines.at(-1)).toBe('pinch ×1.00 → back (a stop is ×1.40)');
+    expect(calls).toEqual([]);
+  });
+
+  it('draw a ship let go near a star into it, then fly there', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    // 130 pt left of the star: today's pull never reached this far.
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30; step++) frame();
+    expect(lines.at(-1)).toMatch(/^ship held · pulled to star \((gently|firmly|strongly)\)$/);
+    fingers('end', []);
+    expect(lines.at(-1)).toBe('ship let go → drawn into star');
+    expect(calls).toEqual([]);
+    for (let step = 0; step < 60 && calls.length === 0; step++) frame();
+    expect(calls).toEqual(['focus star']);
+    expect(lines.at(-1)).toBe('ship drawn in → star');
+  });
+
+  it('stop drawing the ship in when a pinch begins: nothing flies but what the pinch asks for', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30; step++) frame();
+    fingers('end', []);
+    expect(lines.at(-1)).toBe('ship let go → drawn into star');
+    frame();
+    fingers('start', [
+      { id: 1, x: 170, y: 600 },
+      { id: 2, x: 230, y: 600 },
+    ]);
+    for (let step = 0; step < 60; step++) frame();
+    fingers('end', [{ id: 2, x: 230, y: 600 }]);
+    fingers('end', []);
+    for (let step = 0; step < 60; step++) frame();
     expect(calls).toEqual([]);
   });
 

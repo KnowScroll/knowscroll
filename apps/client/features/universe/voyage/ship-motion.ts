@@ -10,6 +10,7 @@
  */
 import { smootherstep } from '../animation/easing';
 import { wrapAngle } from './flight';
+import { onLettingGo, PLACE_PULL, pullGoal, type Pull } from './ship-gravity';
 
 /** A place on screen, in layout points, y down. */
 export interface Point {
@@ -20,6 +21,8 @@ export interface Point {
 /** A place the ship could be let go over, and what to call it when it is. */
 export interface ShipTarget extends Point {
   readonly id: string;
+  /** How it pulls the ship (`ship-gravity.ts`); a place given none pulls as the prototype's places all do. */
+  readonly pull?: Pull;
 }
 
 /** Where the ship parks when nothing holds it. */
@@ -58,6 +61,10 @@ export interface ShipState {
   readonly lean: Point;
   /** Id of the target it is bending toward, or null. */
   readonly candidate: string | null;
+  /** How hard the candidate pulls, 0 (the edge of its reach) to 1 (the finger on it): for the look of the pull. */
+  readonly pullStrength: number;
+  /** Id of the place a ship let go near it is being drawn into, or null. */
+  readonly falling: string | null;
 }
 
 /** What the screen tells the ship each frame. */
@@ -91,6 +98,8 @@ export interface DrawnShip {
    * would do (the prototype's `PICK` glow).
    */
   readonly catchAt?: Point | null;
+  /** How hard that place pulls, 0..1 (0 when nothing does). */
+  readonly pullStrength?: number;
 }
 
 /** What letting go of the ship does. */
@@ -102,10 +111,11 @@ export interface ShipRelease {
 
 /** The longest step one call advances, in seconds: a stalled frame does not throw the ship across the screen. */
 const MAX_STEP_SECONDS = 0.1;
-/** A target this close to the finger pulls the ship toward it and is marked as the candidate: prototype `bd = 64` (line 1901). */
-const CATCH_RADIUS = 64;
-/** Lifting the finger this close to the candidate sends the ship there: prototype `< 70` on release (line 2075). */
-export const RELEASE_RADIUS = 70;
+/**
+ * The longest single step of the springs, in seconds: a frame is cut into steps no longer than this, so the ship moves
+ * the same at 30, 60 or 120 frames a second.
+ */
+const MAX_SUBSTEP_SECONDS = 1 / 120;
 /** A finger this close to the drawn ship takes it: the prototype's hit radius for the ship, `r: 26` (line 1924). */
 const PICK_RADIUS = 26;
 /**
@@ -122,8 +132,9 @@ const FOLLOW_DAMPING_RATIO = 0.75;
 /** Spring that glides the ship home, same form (line 1908). */
 const HOME_STIFFNESS = 70;
 const HOME_DAMPING_RATIO = 0.9;
-/** How far toward a caught target the goal bends at the finger's very centre: `k = 0.45 * (1 - distance / catch radius)` (line 1904). */
-const MAX_BEND = 0.45;
+/** The spring that draws a ship let go near a body into it: softer than the finger's, so it is seen to fall in. */
+const FALL_STIFFNESS = 26;
+const FALL_DAMPING_RATIO = 0.8;
 /** Slower than this, in points per second, the ship stops turning its nose toward where it goes (line 1916). */
 const TURN_SPEED = 22;
 /** How fast the heading catches up while moving and while resting, per second (line 1917). */
@@ -174,6 +185,20 @@ const springCoefficients = (stiffness: number, ratio: number): { k: number; c: n
 });
 const FOLLOW = springCoefficients(FOLLOW_STIFFNESS, FOLLOW_DAMPING_RATIO);
 const HOME = springCoefficients(HOME_STIFFNESS, HOME_DAMPING_RATIO);
+const FALL = springCoefficients(FALL_STIFFNESS, FALL_DAMPING_RATIO);
+
+const pullOfTarget = (target: ShipTarget): Pull => target.pull ?? PLACE_PULL;
+const placesOf = (targets: readonly ShipTarget[]) =>
+  targets.map((target) => ({ id: target.id, x: target.x, y: target.y, pull: pullOfTarget(target) }));
+
+/** `point`, moved inside `bounds`. */
+const within = (point: Point, bounds: ShipBounds): Point => ({
+  x: clamp(point.x, bounds.left, bounds.right),
+  y: clamp(point.y, bounds.top, bounds.bottom),
+});
+
+/** A ship falling toward a body past the edge of its room has arrived once it is this near that edge, in points. */
+const ARRIVED_AT_EDGE = 10;
 
 /** A ship parked at `home`, fully present and not held. */
 export function initialShip(home: ShipHome): ShipState {
@@ -189,22 +214,14 @@ export function initialShip(home: ShipHome): ShipState {
     free: false,
     lean: { x: 0, y: 0 },
     candidate: null,
+    pullStrength: 0,
+    falling: null,
   };
 }
 
 interface Velocity {
   readonly vx: number;
   readonly vy: number;
-}
-
-/** The nearest target within the catch radius of the finger, with its distance. */
-function nearestCatch(finger: Point, targets: readonly ShipTarget[]): { target: ShipTarget; distance: number } | null {
-  let best: { target: ShipTarget; distance: number } | null = null;
-  for (const target of targets) {
-    const distance = Math.hypot(target.x - finger.x, target.y - finger.y);
-    if (distance < CATCH_RADIUS && (best === null || distance < best.distance)) best = { target, distance };
-  }
-  return best;
 }
 
 /** The velocity after one step of a damped spring pulling `from` toward `to`. */
@@ -226,17 +243,40 @@ function leanTarget(at: Point, input: ShipInput): Point {
 }
 
 /**
- * Advances the ship by `dt` seconds (at most {@link MAX_STEP_SECONDS}; no time at all returns `state` itself). While
- * held it follows the finger on a soft spring and bends toward a target within the catch radius; at rest it glides
- * home; let go in empty sky it drifts to a stop and stays. The view leans with a free ship and the ship is carried
- * back by the lean step, so it does not slide on screen. Reduced motion snaps and does not lean.
+ * Advances the ship by `dt` seconds (at most {@link MAX_STEP_SECONDS}; no time at all returns `state` itself), in
+ * steps of at most {@link MAX_SUBSTEP_SECONDS}. While held it follows the finger on a soft spring, its goal bent toward
+ * the places that pull it (`ship-gravity.ts`); let go near a body it is drawn in; at rest it glides home; let go in
+ * empty sky it drifts to a stop and stays. The view leans with a free ship and the ship is carried back by the lean
+ * step, so it does not slide on screen. Reduced motion snaps and does not lean.
  */
 export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number): ShipState {
   const dt = clamp(dtSeconds, 0, MAX_STEP_SECONDS);
   if (dt === 0) return state;
+  if (input.reducedMotion) return stepOnce(state, input, dt);
+  const steps = Math.ceil(dt / MAX_SUBSTEP_SECONDS - 1e-9);
+  const places = input.drag === null ? null : placesOf(input.targets);
+  let ship = state;
+  for (let step = 0; step < steps; step += 1) ship = stepOnce(ship, input, dt / steps, places);
+  return ship;
+}
+
+/** One step of {@link stepShip}, short enough for the springs. */
+function stepOnce(
+  state: ShipState,
+  input: ShipInput,
+  dt: number,
+  places: ReturnType<typeof placesOf> | null = input.drag === null ? null : placesOf(input.targets),
+): ShipState {
   const held = input.drag !== null;
-  const free = state.free || held;
   const snap = input.reducedMotion;
+  // A fall ends, the ship staying free where it is, when the place leaves the screen (the view turned away) or when a
+  // flight or a pinch takes the view: the person has asked for something else.
+  const fallingTo =
+    held || input.away || state.falling === null
+      ? undefined
+      : input.targets.find((target) => target.id === state.falling);
+  const falling = fallingTo === undefined ? null : state.falling;
+  const free = state.free || held || falling !== null;
 
   const vis = snap
     ? input.away
@@ -245,25 +285,26 @@ export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number):
     : state.vis +
       ((input.away ? 0 : 1) - state.vis) * Math.min(1, dt * (input.away ? VIS_LEAVE_RATE : VIS_ARRIVE_RATE));
 
-  let candidate: string | null = null;
+  let candidate: string | null = falling;
+  let pullStrength = 0;
   let velocity: Velocity = { vx: state.vx, vy: state.vy };
   let x = state.x;
   let y = state.y;
   if (input.drag !== null) {
-    const caught = nearestCatch(input.drag, input.targets);
-    let goal: Point = input.drag;
-    if (caught) {
-      candidate = caught.target.id;
-      const bend = MAX_BEND * (1 - caught.distance / CATCH_RADIUS);
-      goal = { x: goal.x + (caught.target.x - goal.x) * bend, y: goal.y + (caught.target.y - goal.y) * bend };
-    }
+    const pulled = pullGoal(input.drag, places ?? [], state.candidate);
+    candidate = pulled.candidate;
+    pullStrength = pulled.strength;
     if (snap) {
-      x = goal.x;
-      y = goal.y;
+      x = pulled.x;
+      y = pulled.y;
       velocity = { vx: 0, vy: 0 };
     } else {
-      velocity = spring(state, velocity, goal, FOLLOW, dt);
+      velocity = spring(state, velocity, pulled, FOLLOW, dt);
     }
+  } else if (fallingTo !== undefined) {
+    pullStrength = state.pullStrength;
+    // Toward the body, or as near it as the ship may go: a body past the edge of the ship's room is reached at that edge.
+    velocity = spring(state, velocity, within(fallingTo, input.bounds), FALL, dt);
   } else if (free) {
     const decay = Math.exp(-FREE_DRAG_RATE * dt);
     velocity = { vx: velocity.vx * decay, vy: velocity.vy * decay };
@@ -306,28 +347,74 @@ export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number):
   const presence = smootherstep(clamp(vis, 0, 1));
   const flame = Math.max(clamp(speed / FLAME_FULL_SPEED, 0, 1), (1 - presence) * LEAVE_FLAME, free ? HELD_FLAME : 0);
 
-  return { x, y, vx: velocity.vx, vy: velocity.vy, heading, flame, size, vis, free, lean, candidate };
+  return {
+    x,
+    y,
+    vx: velocity.vx,
+    vy: velocity.vy,
+    heading,
+    flame,
+    size,
+    vis,
+    free,
+    lean,
+    candidate,
+    pullStrength,
+    falling,
+  };
 }
 
 /**
- * The finger lifted. A candidate within the release radius of the ship is where it goes: the caller flies there as if
- * that place had been tapped. Anywhere else the ship stays free in the sky.
+ * The finger lifted. The candidate is where the ship goes when it is within the candidate's catch: the caller flies
+ * there as if that place had been tapped. A little farther from a body (its `fall`), the ship is drawn in first and
+ * {@link arrival} says when it is there; with reduced motion it goes at once. Anywhere else it stays free in the sky.
  */
-export function releaseShip(state: ShipState, targets: readonly ShipTarget[]): ShipRelease {
+export function releaseShip(state: ShipState, targets: readonly ShipTarget[], reducedMotion = false): ShipRelease {
   const candidate = targets.find((target) => target.id === state.candidate);
-  if (candidate && Math.hypot(candidate.x - state.x, candidate.y - state.y) < RELEASE_RADIUS) {
-    return { state: { ...state, candidate: null, free: false }, goTo: candidate.id };
+  if (candidate) {
+    const distance = Math.hypot(candidate.x - state.x, candidate.y - state.y);
+    const outcome = onLettingGo(pullOfTarget(candidate), distance);
+    if (outcome === 'go' || (outcome === 'fall' && reducedMotion))
+      return { state: { ...state, candidate: null, pullStrength: 0, falling: null, free: false }, goTo: candidate.id };
+    if (outcome === 'fall') return { state: { ...state, falling: candidate.id }, goTo: null };
   }
-  return { state: { ...state, candidate: null }, goTo: null };
+  return { state: { ...state, candidate: null, pullStrength: 0 }, goTo: null };
+}
+
+/**
+ * The place a falling ship has reached, once it is at the body's edge (its `core`), or, for a body past the edge of
+ * the ship's room, at that edge: the caller flies there and calls {@link landShip}. Null while it is still on its way,
+ * or not falling.
+ */
+export function arrival(state: ShipState, targets: readonly ShipTarget[], bounds: ShipBounds): string | null {
+  if (state.falling === null) return null;
+  const target = targets.find((candidate) => candidate.id === state.falling);
+  if (target === undefined) return null;
+  const reach = within(target, bounds);
+  const atEdge = reach.x !== target.x || reach.y !== target.y;
+  const left = Math.hypot(reach.x - state.x, reach.y - state.y);
+  return left <= (atEdge ? ARRIVED_AT_EDGE : pullOfTarget(target).core) ? target.id : null;
+}
+
+/** A ship that reached the place it fell into: it is no longer free, and goes home as the view flies. */
+export function landShip(state: ShipState): ShipState {
+  return { ...state, free: false, falling: null, candidate: null, pullStrength: 0 };
 }
 
 /** Puts a ship that was left in the sky back on its parking spot. */
 export function recentreShip(state: ShipState): ShipState {
-  return { ...state, free: false, candidate: null };
+  return { ...state, free: false, candidate: null, pullStrength: 0, falling: null };
 }
 
-/** The ship as it is painted: when it hides it rises, grows and fades (the prototype's `e`, lines 1916 and 1921). */
-export function drawn(state: ShipState, catchAt: Point | null = null): DrawnShip {
+/**
+ * The ship as it is painted: when it hides it rises, grows and fades (the prototype's `e`, lines 1916 and 1921).
+ * `catchStrength` is how strongly the place at `catchAt` is lit: its pull, or all of it where letting go would go there.
+ */
+export function drawn(
+  state: ShipState,
+  catchAt: Point | null = null,
+  catchStrength: number = state.pullStrength,
+): DrawnShip {
   const presence = smootherstep(clamp(state.vis, 0, 1));
   return {
     x: state.x,
@@ -337,6 +424,7 @@ export function drawn(state: ShipState, catchAt: Point | null = null): DrawnShip
     flame: state.flame,
     alpha: presence,
     catchAt,
+    pullStrength: catchAt === null ? 0 : catchStrength,
   };
 }
 
