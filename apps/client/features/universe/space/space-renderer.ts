@@ -36,6 +36,11 @@ export interface SpaceCameraDriver {
   attach(space: BuiltSpace): void;
   /** The camera at scene time `t`, once the scene is posed. It may show or hide systems (`showOnly`). */
   pose(t: number, space: BuiltSpace, size: { readonly width: number; readonly height: number }): CameraPose;
+  /**
+   * After the camera is put where `pose` said and before the scene is drawn: for what must follow the camera in this
+   * very frame (a still frame under reduced motion has no next one).
+   */
+  beforeDraw?(space: BuiltSpace, size: { readonly width: number; readonly height: number }): void;
   /** After the scene is drawn and before the frame is presented: drawing that sits over it. */
   render(renderer: THREE.WebGLRenderer, size: { readonly width: number; readonly height: number }): void;
   /** Named points of its own, laid over the canvas with the scene's. */
@@ -275,6 +280,7 @@ export function createSpaceRenderer(
         lastPose = driver.pose(t, space, size);
         far = false;
         space.setCamera(lastPose);
+        driver.beforeDraw?.(space, size);
         renderer.render(space.scene, space.camera);
         driver.render(renderer, size);
         surface.present?.();

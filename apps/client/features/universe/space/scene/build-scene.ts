@@ -12,7 +12,7 @@ import { makeNebula } from './nebula';
 import { makePlanet, type BuiltPlanet, type PlanetHandover } from './planet';
 import { makeShip, makeStation } from './props';
 import { makeRocket, type Rocket, type RocketPose } from './rocket';
-import { addSky } from './sky';
+import { addSky, bendSky, type BentSky } from './sky';
 import { makeSun, type BuiltSun } from './sun';
 
 /** A point of the scene that a label or tap target follows. */
@@ -70,6 +70,11 @@ export interface BuiltSpace {
    * change: only what three.js draws does, for a view that draws the stations itself (the trial look, `voyage/`).
    */
   readonly showStations: (visible: boolean) => void;
+  /**
+   * The background stars, drawn so they can bend round the bodies in front of them (the trial look's gravity). Made
+   * on the first call and kept; a view that never asks keeps the plain stars and their program.
+   */
+  readonly bentSky: () => BentSky;
   /** Pulses a warm glow around one system (picked on the Far level) or one planet (picked on the desktop), or none. */
   readonly highlight: (id: string | null) => void;
   /** What a camera script ("Enter a system", "Enter a planet") reads of the scene and changes in it. */
@@ -368,7 +373,8 @@ export function buildSpace(
   // The stars are shells around the middle of the map; for a map larger than they are, they travel with the camera.
   const skyGroup = new THREE.Group();
   scene.add(skyGroup);
-  addSky(skyGroup, 'sky', context, new THREE.Vector3(...definition.camera.position));
+  const skyShells = addSky(skyGroup, 'sky', context, new THREE.Vector3(...definition.camera.position));
+  let bent: BentSky | null = null;
 
   /** The system, station and dust ticks that pose the scene, by what owns them. */
   const live = new Map<string, LiveSystem>();
@@ -650,6 +656,10 @@ export function buildSpace(
         for (const object of objects) object.visible = systemId === null || id === systemId;
       if (far !== undefined) far.object.visible = systemId === null;
     },
+    bentSky() {
+      bent ??= bendSky(skyShells, skyGroup, context);
+      return bent;
+    },
     showStations(visible) {
       stationsDrawn = visible;
       for (const record of live.values()) for (const { built } of record.stations) drawMeshes(built.object, visible);
@@ -659,6 +669,8 @@ export function buildSpace(
       for (const { build } of live.values()) for (const [id, sprite] of build.picks) sprite.visible = id === pickedId;
     },
     dispose() {
+      // The bent stars put their own material back first, so the tree frees both.
+      bent?.dispose();
       disposeTree(scene, true);
       for (const texture of textures) texture.dispose();
       for (const record of live.values()) for (const texture of record.textures) texture.dispose();

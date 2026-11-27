@@ -19,6 +19,8 @@ import { flightAt, planFlight, type FlightPlan } from './flight';
 import { targetKey, type VoyageTarget } from './ladder';
 import { createPlanetCloseUp } from './planet-close-up';
 import { createShipLayer } from './ship-layer';
+import { createSkyBend } from './sky-bend';
+import type { LensPull } from './sky-lens';
 import {
   chainOf,
   focalOf,
@@ -71,6 +73,9 @@ interface Flight {
 export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   const closeUp = createPlanetCloseUp(control);
   const shipLayer = createShipLayer();
+  const skyBend = createSkyBend();
+  /** Where the ship was pulled to in the last frame, and how hard: the body there bends the sky more. */
+  let pull: LensPull | null = null;
   /** The scene the driver was last attached to, and the one whose globe program has been compiled. */
   let attachedTo: BuiltSpace | null = null;
   let compiledFor: BuiltSpace | null = null;
@@ -178,6 +183,10 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       // The stage draws the rooms' stations itself, flat over the canvas (`station-layer.tsx`); the scene's own are not.
       space.showStations(false);
       closeUp.attach(space);
+      skyBend.attach(space);
+    },
+    beforeDraw(space, size) {
+      skyBend.draw(space, { stop: control.target.stop, size, dt: lastDt, reducedMotion: control.reducedMotion, pull });
     },
     pose(t, space, size) {
       /** Since the last frame: a flight keeps to the clock, as it always has; easing steps at most 0.1 s. */
@@ -303,6 +312,11 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const ship =
         control.afterFrame?.({ dt: lastDt, flying: flight !== null, globe: closeUp.onScreen(), size, programs }) ??
         null;
+      const catchAt = ship?.catchAt ?? null;
+      pull =
+        ship !== null && catchAt !== null && (ship.pullStrength ?? 0) > 0
+          ? { x: catchAt.x, y: catchAt.y, strength: ship.pullStrength ?? 0 }
+          : null;
       // Too faint to see: the same threshold as `HIDDEN_ALPHA` in `ship-layer.ts`, which the layer also checks.
       if (ship === null || ship.alpha <= 0.02) return;
       // The ship sits over the scene in screen space, so it is drawn last on top of what is there.
