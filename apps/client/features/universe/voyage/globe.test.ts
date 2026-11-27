@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { paletteOf } from '../planet/planet-palette';
-import { createGlobe, localPointOf, type Globe } from './globe';
-import { BAND_WIDTH, worldLookOf } from './world-texture';
+import { buildGlobe, chartWorld } from '@knowscroll/scene-core';
+import { composeLand, createGlobe, localPointOf, type Globe, type Rgba4 } from './globe';
+import { BAND_WIDTH, createWorldPainter, worldLookOf } from './world-texture';
 
 const pixels = { width: 4, height: 2, data: new Uint8Array(4 * 2 * 4) };
 
@@ -283,6 +284,111 @@ describe('the mask and the weather of the whole-band texture on the globe', () =
     const freeLast = last.map((texture) => jest.spyOn(texture, 'dispose'));
     globe.dispose();
     for (const free of freeLast) expect(free).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * `composeLand` is the shader's two lines as numbers (premultiplied, 0 to 1); the shader's text is held to it above.
+ */
+describe('how the globe lays weather over land and recolours land not reached', () => {
+  const lush = paletteOf('lush', 0);
+  const { globe: globeGrey, ground: groundGrey } = worldLookOf(lush).closedGrey;
+  const shift = groundGrey.map((channel, at) => (channel - globeGrey[at]!) / 255) as [number, number, number];
+  const solid = (colour: readonly number[]): Rgba4 => [colour[0]! / 255, colour[1]! / 255, colour[2]! / 255, 1];
+  const NO_WEATHER: Rgba4 = [0, 0, 0, 0];
+  /** A cloud half there: premultiplied, so the colour is the cloud's times 0.5. */
+  const CLOUD: Rgba4 = [0.5 * 0.96, 0.5 * 0.98, 0.5, 0.5];
+  const close = (got: Rgba4, wanted: Rgba4) => got.forEach((value, at) => expect(value).toBeCloseTo(wanted[at]!, 9));
+
+  it('is the weather laid over the land, premultiplied, from orbit (groundNear 0): the picture the band had with its clouds in it', () => {
+    const land = solid(globeGrey);
+    // Over sea nothing is there but the cloud; over land the land shows through what the cloud lets by.
+    close(composeLand([0, 0, 0, 0], 0, CLOUD, shift, 0), CLOUD);
+    const over = composeLand(land, 1, CLOUD, shift, 0);
+    close(over, [CLOUD[0] + land[0] * 0.5, CLOUD[1] + land[1] * 0.5, CLOUD[2] + land[2] * 0.5, 1]);
+    // From orbit land not reached keeps the globe's grey: the shift does nothing.
+    close(composeLand(land, 1, NO_WEATHER, shift, 0), land);
+    // A texel that is all weather and all land is just the weather.
+    close(composeLand(land, 1, [1, 1, 1, 1], shift, 0), [1, 1, 1, 1]);
+  });
+
+  it('is the land alone on the ground (groundNear 1): no weather, and land not reached in the ground grey', () => {
+    const closed = composeLand(solid(globeGrey), 1, CLOUD, shift, 1);
+    close(closed, solid(groundGrey));
+    // Land that is not closed keeps its colour; so does the sea.
+    const open = solid([95, 211, 111]);
+    close(composeLand(open, 0, CLOUD, shift, 1), open);
+    close(composeLand([0, 0, 0, 0], 0, CLOUD, shift, 1), [0, 0, 0, 0]);
+  });
+
+  it('shifts only as much as the texel is land, so a coast stays premultiplied and never goes dark or past one', () => {
+    for (const alpha of [0, 0.2, 0.5, 0.9, 1]) {
+      const edge: Rgba4 = [
+        (globeGrey[0] / 255) * alpha,
+        (globeGrey[1] / 255) * alpha,
+        (globeGrey[2] / 255) * alpha,
+        alpha,
+      ];
+      const got = composeLand(edge, 1, NO_WEATHER, shift, 1);
+      close(got, [(groundGrey[0] / 255) * alpha, (groundGrey[1] / 255) * alpha, (groundGrey[2] / 255) * alpha, alpha]);
+      for (const channel of got.slice(0, 3)) {
+        expect(channel).toBeGreaterThanOrEqual(0);
+        expect(channel).toBeLessThanOrEqual(got[3] + 1e-12);
+      }
+    }
+  });
+
+  it('goes from the one to the other as the camera comes down, weather fading and grey shifting with the same factor', () => {
+    const land = solid(globeGrey);
+    const half = composeLand(land, 1, CLOUD, shift, 0.5);
+    const weather = CLOUD.map((value) => value * 0.5) as unknown as Rgba4;
+    const shifted: Rgba4 = [land[0] + shift[0] * 0.5, land[1] + shift[1] * 0.5, land[2] + shift[2] * 0.5, 1];
+    close(half, [
+      weather[0] + shifted[0] * (1 - weather[3]),
+      weather[1] + shifted[1] * (1 - weather[3]),
+      weather[2] + shifted[2] * (1 - weather[3]),
+      1,
+    ]);
+  });
+
+  it('shows land not reached in the ground grey and no weather over the whole of a band painted alone, as under reduced motion, which has no patch', () => {
+    const world = buildGlobe({ seed: '1234567890abcdef1234567890abcdef', type: 'lush', variant: 0, siteCount: 12 });
+    const chart = chartWorld(
+      world,
+      [0, 2, 3, 5, 8].map((site) => ({ objectId: `region-${site}`, site })),
+    );
+    const painter = createWorldPainter({ world, chart, palette: lush, width: 512, height: 256 });
+    while (!painter.step(Infinity));
+    const band = painter.result();
+    let closedTexels = 0;
+    let weatherTexels = 0;
+    for (let at = 0; at < 512 * 256; at++) {
+      const read = (data: Uint8Array): Rgba4 => [
+        data[at * 4]! / 255,
+        data[at * 4 + 1]! / 255,
+        data[at * 4 + 2]! / 255,
+        data[at * 4 + 3]! / 255,
+      ];
+      const land = read(band.data);
+      const weather = read(band.weather!.data);
+      const got = composeLand(land, band.closed![at]! / 255, weather, shift, 1);
+      // No weather: the texel is the band's own, and where land not reached is flat grey (its ink and a texel at its edge are
+      // not) it is the ground grey, to within a byte's rounding.
+      if (band.closed![at] === 255) {
+        const flat =
+          land[3] === 1 &&
+          [0, 1, 2].every((channel) => Math.round(land[channel]! * 255) === Math.round(globeGrey[channel]!));
+        if (!flat) continue;
+        got.forEach((value, channel) =>
+          expect(Math.abs(value - solid(groundGrey)[channel]!)).toBeLessThanOrEqual(1 / 255),
+        );
+        closedTexels += 1;
+      } else close(got, land);
+      if (weather[3] > 0) weatherTexels += 1;
+    }
+    // There was land not reached and weather to take off, so the checks above looked at something.
+    expect(closedTexels).toBeGreaterThan(1000);
+    expect(weatherTexels).toBeGreaterThan(1000);
   });
 });
 

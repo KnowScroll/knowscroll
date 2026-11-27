@@ -394,7 +394,9 @@ interface Masks {
   unreachedLand: Uint8Array;
   /**
    * The ground patch only: pixels where the pale shelf, glow and foam of a coast may go, which is everywhere but within
-   * half a shelf's width of land not reached, whose coast has the shadow instead. Empty on the whole band.
+   * half a shelf's width of land not reached, whose coast has the shadow instead. That includes the coast of a formed
+   * region within that reach of land not reached (where the two meet), so a gap in the foam there is this, not a bug.
+   * Empty on the whole band.
    */
   litCoast: Uint8Array;
 }

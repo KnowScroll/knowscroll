@@ -132,7 +132,7 @@ const FRAGMENT = /* glsl */ `
     vec4 land = texture2D(map, uv);
     // The whole-band texture holds the globe's drawing. On the ground land not reached takes the ground's grey (the patch
     // paints it so itself) and the weather, which has a layer of its own, goes (the patch has none), so the ground's
-    // drawing holds wherever the patch is not.
+    // drawing holds wherever the patch is not. (The next four lines are composeLand in TypeScript: keep them in step.)
     float groundNear = smoothstep(${PATCH_FROM_NEAR.toFixed(1)}, 1.0, near);
     land.rgb += closedShift * texture2D(closedMap, uv).r * closedOn * groundNear * land.a;
     vec4 weather = texture2D(weatherMap, uv) * weatherOn * (1.0 - groundNear);
@@ -162,6 +162,39 @@ const FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(colour, opacity);
   }
 `;
+
+/** Red, green, blue and alpha over 0..1, premultiplied: the texture as the shader reads it. */
+export type Rgba4 = readonly [number, number, number, number];
+
+/**
+ * The two lines of the fragment shader that lay the whole-band texture's weather over its land and recolour land not
+ * reached for the ground (`land.rgb += closedShift * closed * groundNear * land.a;` and `land = weather + land * (1.0 -
+ * weather.a)` with `weather` faded by `1.0 - groundNear`), as plain numbers, so the maths can be tested without a GPU.
+ * KEEP IT IN STEP WITH THE SHADER: a change to either line is a change to this, and `globe.test.ts` holds both.
+ *
+ * `land` and `weather` are premultiplied (colour times alpha), `closed` is the mask of land not reached (0 to 1),
+ * `shift` is the ground grey minus the globe's over 0..1, and `groundNear` is 0 from orbit and 1 on the ground. From
+ * orbit the result is the weather laid over the land, which is the picture the band had when it carried its clouds;
+ * on the ground it is the land alone with land not reached in the ground's grey.
+ */
+export function composeLand(
+  land: Rgba4,
+  closed: number,
+  weather: Rgba4,
+  shift: readonly [number, number, number],
+  groundNear: number,
+): Rgba4 {
+  const shifted = [0, 1, 2].map((at) => land[at]! + shift[at]! * closed * groundNear * land[3]);
+  const fade = 1 - groundNear;
+  const cloud = weather.map((value) => value * fade);
+  const cover = 1 - cloud[3]!;
+  return [
+    cloud[0]! + shifted[0]! * cover,
+    cloud[1]! + shifted[1]! * cover,
+    cloud[2]! + shifted[2]! * cover,
+    cloud[3]! + land[3] * cover,
+  ];
+}
 
 /**
  * The halo is a square that always faces the camera, centred on the planet and sized by how large the

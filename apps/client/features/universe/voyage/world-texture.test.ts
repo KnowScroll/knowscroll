@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { buildGlobe, chartWorld, type Chart, type GlobeWorld, type Loop, type WorldSpec } from '@knowscroll/scene-core';
-import { paletteOf } from '../planet/planet-palette';
-import { fillLoops, maskShapes, strokeLoops, type PixelTarget } from './fill-loops';
+import { paletteOf, type PlanetPalette } from '../planet/planet-palette';
+import { fillLoops, maskShapes, strokeLoops, type PixelTarget, type Rgba } from './fill-loops';
 import {
   BAND_HEIGHT,
   BAND_UNITS_PER_RADIAN,
@@ -431,32 +431,92 @@ describe('where a name goes', () => {
 });
 
 /**
- * Pins the painter's output: a tidy-up of the painter or of `fill-loops.ts` must not change a pixel.
- * One world with each of three palettes (lush, gas, scorched: the gas bands and the scorched coast
- * glow are layers the lush one lacks), SHA-1 of the whole RGBA array at 1024 by 512. A deliberate
- * change of look updates the hashes. 2048 by 1024 is not pinned: it costs about 13 s for the three.
- *
- * Re-pinned for the globe's new look (the pale-globe fix, #811). The pictures are now: open sea is not
- * painted but left transparent (0,0,0,0) for the globe's shader to fill with the prototype's ball and flat
- * sea (about 56% of a lush texture, 72% of an ocean one; a gas giant has none: its first band now runs up to
- * the top edge); everything is premultiplied (colour times alpha, so a coast filters without a dark
- * fringe); the world's own cloud lies over the sea as well as over land not reached, though never over formed
- * land, a coast line's width of it, or the places the names go. Land, lines and the shelf are as before.
- *
- * Re-pinned again (ground terrain, #811): the weather left the band's own pixels and has a layer of its own
- * (`WorldTexture.weather`), so that the globe can take it off on the ground and leave the coast and the sea's shelf
- * under it whole. The texture's pixels are the same as before with no cloud in them; the weather laid back over them,
- * as the globe does from orbit, is the old picture to within a unit of rounding in a channel (checked when it was
- * pinned: the largest difference was 2 and 2 channels in 524,288 were off by more than 1).
+ * Pins the painter's output: a tidy-up of the painter or of `fill-loops.ts` must not change a pixel. One world with
+ * each of three palettes (lush, gas, scorched: the gas bands and the scorched coast glow are layers the lush one lacks),
+ * SHA-1 at 1024 by 512 of two things: the band's own RGBA array (land, coast, the sea's shelf; open sea is transparent,
+ * and all of it is premultiplied) and the weather layer (the cloud stack, premultiplied, which the globe lays over the
+ * band from orbit). Neither includes the other, so the band's pixels hold no cloud. A deliberate change of look updates
+ * the hashes. 2048 by 1024 is not pinned: it costs about 13 s for the three.
  */
 describe('the painter output, pinned', () => {
   const PINNED = {
-    lush: 'dee7722df3e93ca6a9e1244bf5dbbc21e3fd4ca6',
-    gas: '59cb7c4c6eb2a6914e469b7cb7c7caac4ccb774e',
-    scorched: '74e8e35447c5053f127153fe498a5b09f68cbb87',
+    lush: { band: 'dee7722df3e93ca6a9e1244bf5dbbc21e3fd4ca6', weather: 'ddef60a0e80327a6fc5290bd237d8a3a4f6e92b5' },
+    gas: { band: '59cb7c4c6eb2a6914e469b7cb7c7caac4ccb774e', weather: '945f093fa82c1380b1e204d683bddacc0e67cf55' },
+    scorched: { band: '74e8e35447c5053f127153fe498a5b09f68cbb87', weather: '68dc5c75a4cb7e4b018cb697bb1a6452d2380fd6' },
   } as const;
+  const sha = (data: Uint8Array) => createHash('sha1').update(data).digest('hex');
   it.each(Object.keys(PINNED) as (keyof typeof PINNED)[])('paints %s at 1024 by 512 to the pinned bytes', (type) => {
     const texture = paint({ palette: paletteOf(type, 0), width: 1024, height: 512 });
-    expect(createHash('sha1').update(texture.data).digest('hex')).toBe(PINNED[type]);
+    expect(sha(texture.data)).toBe(PINNED[type].band);
+    expect(sha(texture.weather!.data)).toBe(PINNED[type].weather);
   });
+});
+
+/**
+ * The picture from orbit is the band with its weather laid over it, as the globe's shader does it (premultiplied, both).
+ * When the weather left the band's own pixels that picture had to stay what it was, which was one straight-alpha texture
+ * with the five cloud layers blended onto it before it was premultiplied. This is that old route, rebuilt here from the
+ * same loops, colours and alphas, so a change to the layer stack, the weather's premultiply or the composite shows.
+ * The two agree to within rounding: the largest difference measured was 1 in a channel for lush and gas and 2 for scorched
+ * (the straight-alpha texture is rebuilt from premultiplied bytes, which costs a unit where alpha is small).
+ */
+describe('the picture from orbit: the band with its weather over it', () => {
+  /** The largest difference measured in a channel, per palette (a unit, and two for scorched, whose low-alpha shallows are rebuilt from premultiplied bytes). */
+  const MEASURED_MAX = { lush: 1, gas: 1, scorched: 2 } as const;
+  const rgba = (colour: string, alpha: number): Rgba => {
+    const [red, green, blue] = [1, 3, 5].map((at) => Number.parseInt(colour.slice(at, at + 2), 16));
+    return [red!, green!, blue!, alpha];
+  };
+  const moved = (loops: readonly Loop[], dx: number, dy: number): Loop[] =>
+    loops.map((loop) => loop.map((value, at) => value + (at % 2 === 0 ? dx : dy)));
+
+  /** The band with the clouds blended onto its straight-alpha pixels and then premultiplied: how it was painted before. */
+  function oldSingleTexture(texture: WorldTexture, palette: PlanetPalette): Uint8Array {
+    const { width, height, data, weather } = texture;
+    const straight: PixelTarget = { width, height, data: new Uint8Array(data.length) };
+    const covered = new Uint8Array(width * height);
+    for (let at = 0; at < width * height; at++) {
+      const alpha = data[at * 4 + 3]!;
+      for (let channel = 0; channel < 3; channel++)
+        straight.data[at * 4 + channel] =
+          alpha === 0 ? 0 : Math.min(255, Math.round((data[at * 4 + channel]! * 255) / alpha));
+      straight.data[at * 4 + 3] = alpha;
+      covered[at] = weather!.data[at * 4 + 3] === 0 ? 0 : 1;
+    }
+    const { body, middle, core } = world.clouds;
+    const options = { scale: { x: width / BAND_WIDTH, y: height / BAND_HEIGHT }, clip: covered };
+    fillLoops(straight, moved(body, 4, 7), rgba('#06182a', 0.22), options);
+    fillLoops(straight, moved(body, 0, 2), rgba(palette.cloud[1], 0.9), options);
+    fillLoops(straight, body, rgba(palette.cloud[0], 1), options);
+    fillLoops(straight, moved(middle, -0.6, -1), rgba('#f6f9fd', 1), options);
+    fillLoops(straight, moved(core, -1.2, -2), rgba('#ffffff', 1), options);
+    const out = new Uint8Array(data.length);
+    for (let at = 0; at < out.length; at += 4) {
+      const alpha = straight.data[at + 3]!;
+      for (let channel = 0; channel < 3; channel++)
+        out[at + channel] =
+          alpha === 255 ? straight.data[at + channel]! : Math.round((straight.data[at + channel]! * alpha) / 255);
+      out[at + 3] = alpha;
+    }
+    return out;
+  }
+
+  it.each(['lush', 'gas', 'scorched'] as const)(
+    'lays %s weather over the band to the old picture, within the largest difference measured (1, 1 and 2 in a channel)',
+    (type) => {
+      const palette = paletteOf(type, 0);
+      const texture = paint({ palette, width: 1024, height: 512 });
+      const now = withWeather(texture).data;
+      const before = oldSingleTexture(texture, palette);
+      let most = 0;
+      let clouds = 0;
+      for (let at = 0; at < now.length; at++) {
+        most = Math.max(most, Math.abs(now[at]! - before[at]!));
+        if (at % 4 === 3 && texture.weather!.data[at] !== 0) clouds += 1;
+      }
+      // There is plenty of weather to compare, and it is the old picture to within rounding.
+      expect(clouds).toBeGreaterThan(2000);
+      expect(most).toBeLessThanOrEqual(MEASURED_MAX[type]);
+    },
+  );
 });
