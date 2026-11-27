@@ -434,6 +434,12 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });
         return;
       case 'pinch-begin':
+        // Two fingers take the view from the keys: the ship they held goes home, with no drop.
+        if (keyHeld) {
+          stopKeys();
+          held = null;
+          ship = recentreShip(ship);
+        }
         // A pinch a finger landed again on carries on toward the place it was going to.
         if (!gesture.resumes) pinchDescent = descentOf(inputs.view, anchors, gesture.between.x, gesture.between.y);
         pinch.begin(gesture.spread, pinchDescent !== null && pinchDescent !== 'land' ? pinchDescent.focus : null);
@@ -500,7 +506,9 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   /** Moves the ship one key step, taking it if it is free to take, and lets it go once the keys rest. */
   const flyShipBy = (dx: number, dy: number): boolean => {
     const at = drawn(ship);
-    if (!keyHeld && (held !== null || !pickShip(ship, at.x, at.y))) return false;
+    // Not while a pinch has the view or the ship is hidden (a flight), and not while a finger holds it.
+    if (pinch.pinching() || !pickShip(ship, at.x, at.y)) return false;
+    if (!keyHeld && held !== null) return false;
     const from = held ?? { x: ship.x, y: ship.y };
     const { width, height } = inputs.size;
     held = {

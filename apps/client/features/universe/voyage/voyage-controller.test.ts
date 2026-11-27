@@ -500,6 +500,95 @@ describe('the fingers on the stage', () => {
     }
   });
 
+  describe('the ship keys, against everything else', () => {
+    const keysStage = () => {
+      const { session, calls } = recordingSession();
+      const camera = jest.fn();
+      (session as unknown as { camera: typeof camera }).camera = camera;
+      const lines: string[] = [];
+      const controller = createVoyageController(inputsFor(session, (line) => lines.push(line)));
+      controller.setAnchors([anchor('star', 'system', 200, 380)]);
+      const handlers = controller.responder.panHandlers as unknown as Record<string, (event: unknown) => unknown>;
+      let time = 0;
+      const touchAt = (phase: 'grant' | 'start' | 'move' | 'end' | 'release', down: readonly Touch[]) => {
+        time += 16;
+        const name = {
+          grant: 'onResponderGrant',
+          start: 'onResponderStart',
+          move: 'onResponderMove',
+          end: 'onResponderEnd',
+          release: 'onResponderRelease',
+        }[phase];
+        handlers[name]!(touchEvent(down, time));
+      };
+      const frame = (flying = false) =>
+        mockControl!.afterFrame?.({ dt: 1 / 30, flying, globe: null, size: { width: 390, height: 844 }, programs: 0 });
+      const pressW = (times: number) => {
+        for (let press = 0; press < times; press++) {
+          controller.key('w');
+          for (let step = 0; step < 4; step++) frame();
+        }
+      };
+      return { controller, calls, lines, camera, touchAt, frame, pressW };
+    };
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('never turn the view', () => {
+      const { pressW, camera, frame } = keysStage();
+      frame();
+      pressW(3);
+      expect(camera).not.toHaveBeenCalled();
+    });
+
+    it('leave nothing behind when the stage goes: no let-go after it', () => {
+      const { controller, calls, frame, pressW } = keysStage();
+      frame();
+      pressW(8);
+      controller.dispose();
+      jest.advanceTimersByTime(2000);
+      for (let step = 0; step < 30; step++) frame();
+      expect(calls).toEqual([]);
+    });
+
+    it('do nothing while the ship is hidden for a flight, even once they hold it', () => {
+      const { controller, frame, pressW } = keysStage();
+      frame();
+      pressW(2);
+      for (let step = 0; step < 20; step++) frame(true);
+      expect(controller.key('w')).toBe(false);
+    });
+
+    it('give the ship up, with no drop, when two fingers begin a pinch', () => {
+      const { controller, calls, touchAt, frame, pressW } = keysStage();
+      frame();
+      pressW(8);
+      touchAt('grant', [
+        { id: 1, x: 120, y: 650 },
+        { id: 2, x: 260, y: 650 },
+      ]);
+      expect(controller.key('w')).toBe(false);
+      jest.advanceTimersByTime(2000);
+      for (let step = 0; step < 30; step++) frame();
+      touchAt('end', []);
+      touchAt('release', []);
+      expect(calls).toEqual([]);
+    });
+
+    it('give the ship to a finger that takes it: the keys no longer let it go', () => {
+      const { calls, touchAt, frame, pressW, lines } = keysStage();
+      frame();
+      pressW(2);
+      const at = { id: 0, x: 195, y: 526 };
+      touchAt('grant', [at]);
+      expect(lines.at(-1)).toBe('ship held');
+      jest.advanceTimersByTime(2000);
+      for (let step = 0; step < 10; step++) frame();
+      expect(calls).toEqual([]);
+      expect(lines.at(-1)).not.toMatch(/let go/);
+    });
+  });
+
   it('leave the ship keys to the ship: they never turn the view, and do nothing while a finger holds it', () => {
     const { controller, fingers } = stage();
     fingers('start', [{ id: 0, x: 195, y: 570 }]);
