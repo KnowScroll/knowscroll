@@ -5,17 +5,26 @@ import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope, FeedbackTarget, VisitSession, VisitState } from '@knowscroll/client-core';
 import { space, spacing } from '@knowscroll/design-tokens';
-import { Button, Skeleton, Text, useDisplay } from '@knowscroll/ui';
+import { Button, printedSurface, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
+import { createCrossingDirector } from '../universe/crossing/crossing-director';
+import { crossingSeconds } from '../universe/crossing/crossing-frame';
+import { FrameRateReadout } from '../universe/frame-rate/frame-rate-readout';
 import { UniverseBackdrop } from '../universe/universe-backdrop';
 import { indexUniverse } from '../universe/universe-layout';
 import { UniverseSurface } from '../universe/universe-surface';
 import { useUniverseBack } from '../universe/use-universe-back';
 import { useUniverseTrial } from '../universe/universe-trial';
+import { crossingSeen, markCrossingSeen } from './crossing-seen';
+import { crossingWorldOf } from './crossing-world';
 import type { VisitMapSession } from './visit-map-session';
 import { useVisitSessions } from './use-visit-sessions';
+import { InCommonChip } from './in-common-chip';
+import { systemsInCommon } from './in-common';
+import { useOwnSystemLabels } from './use-own-system-labels';
+import { VisitCrossing, type CrossingEnd } from './visit-crossing';
 import { VisitFrame } from './visit-frame';
 import { VisitorBar, VisitorPrivacy } from './visitor-bar';
 import { visitorDescriptors, visitorLooks } from './visitor-scene';
@@ -27,6 +36,7 @@ import { visitorDescriptors, visitorLooks } from './visitor-scene';
 export function VisitScreen({ handle }: { readonly handle: string }) {
   const router = useRouter();
   const { state } = useAccountScope();
+  const trial = useUniverseTrial();
   if (state.status !== 'signed_in')
     return (
       <Ground>
@@ -47,22 +57,107 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
         </View>
       </Ground>
     );
-  return (
+  // In the new look one visit has one crossing: another friend is a new screen with its own film. The old look keeps
+  // the screen it had across a change of friend, as it always did.
+  return <SignedInVisit key={trial.on ? handle : undefined} scope={state.scope} handle={handle} />;
+}
+
+const noSubscribe = () => () => {};
+const noState = () => undefined;
+
+/** The device says it has no connection (the web's `navigator.onLine`; native has no such answer, which is not "offline"). */
+const deviceOffline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/**
+ * One visit: its data session and its map session, made when the screen mounts and dropped when it leaves, under the
+ * primary navigation. With "Try the new Universe" on, the crossing film plays over all of it when the screen first
+ * mounts (every start of a visit lands here: a Friends row, the chat rail, a link), and Leave plays it home. With it off
+ * there is no film, ever, and Leave goes back as it always did.
+ */
+function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
+  const sessions = useVisitSessions(scope, handle);
+  const trial = useUniverseTrial();
+  useDocumentTitle('Visiting a friend');
+  const router = useRouter();
+  const { reducedMotion } = useDisplay();
+  // Whether there is a film, and whether it is a cut, is decided when the screen mounts. Switching the new look on or off
+  // under it is a different screen (the keys above), which decides afresh; the other settings change nothing here.
+  const [withFilm] = useState(trial.on);
+  const [cut] = useState(reducedMotion);
+  const [director] = useState(() => createCrossingDirector());
+  useEffect(() => {
+    // The first mount only (a second setup of the same screen is not a second visit); and not with no connection: the
+    // screen that says so is the answer, not a film that has to be stopped.
+    if (!withFilm || director.getState().runs > 0 || deviceOffline()) return;
+    director.start({ direction: 'out', seconds: crossingSeconds('out', crossingSeen(scope, handle)), cut });
+  }, [director, withFilm, cut, scope, handle]);
+
+  // Your own names, for "What we have in common" in the cards and the film: not read at all with the switch off.
+  const ownLabels = useOwnSystemLabels(scope, trial.on);
+  const visit = sessions?.visit;
+  const visitState = useSyncExternalStore(visit?.subscribe ?? noSubscribe, () => visit?.getState(), noState);
+  const world = useMemo(() => crossingWorldOf(visitState, ownLabels), [visitState, ownLabels]);
+  useEffect(() => {
+    director.world(world);
+  }, [director, world]);
+
+  const onEnd = useCallback(
+    (end: CrossingEnd) => {
+      // Home ends on your own Universe (the visit is left, not stacked over); going out ends where the visit already is, which the film was drawn over.
+      if (end.direction === 'home') router.dismissTo('/universe');
+      // Seen means the friend's universe was reached: a film that ended over a "not shared" screen leaves the long one to come.
+      else if (!end.cut && visit?.getState().status === 'ready') markCrossingSeen(scope, handle);
+    },
+    [router, scope, handle, visit],
+  );
+  const leaveHome = useCallback(
+    () => director.start({ direction: 'home', seconds: crossingSeconds('home', false), cut }),
+    [director, cut],
+  );
+
+  const visitTree = (
     <VisitFrame>
-      <SignedInVisit scope={state.scope} handle={handle} />
+      {sessions ? (
+        // In the new look, one visit has one "What we have in common" switch: off when you arrive, and off again for
+        // another friend. The old look keeps the screen it had across a change of friend.
+        <Visit
+          key={trial.on ? handle : undefined}
+          visit={sessions.visit}
+          map={sessions.map}
+          ownLabels={ownLabels}
+          {...(withFilm ? { onLeaveToUniverse: leaveHome } : {})}
+        />
+      ) : (
+        <QuietGround label="Opening this universe" />
+      )}
     </VisitFrame>
+  );
+  // With the switch off the screen is the one it always was: no film, no readout, nothing round it.
+  if (!withFilm) return visitTree;
+  // The readout is the Universe's (Settings: "Show the Universe frame rate"); the film's frames are in it.
+  return (
+    <FrameRateReadout on={trial.frameRate} placed>
+      <View style={styles.root}>
+        {visitTree}
+        <VisitCrossing director={director} handle={handle} onEnd={onEnd} />
+      </View>
+    </FrameRateReadout>
   );
 }
 
-/** One visit: its data session and its map session, made when the screen mounts and dropped when it leaves. */
-function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
-  const sessions = useVisitSessions(scope, handle);
-  useDocumentTitle('Visiting a friend');
-  if (!sessions) return <QuietGround label="Opening this universe" />;
-  return <Visit visit={sessions.visit} map={sessions.map} />;
-}
-
-function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: VisitMapSession }) {
+function Visit({
+  visit,
+  map,
+  ownLabels,
+  onLeaveToUniverse,
+}: {
+  readonly visit: VisitSession;
+  readonly map: VisitMapSession;
+  /** The names of your own systems, for "What we have in common" (the new look only); undefined when not in hand. */
+  readonly ownLabels: readonly string[] | undefined;
+  /** The new look's Leave: plays the film home and lands on your Universe. Absent: Leave goes back, as it always did. */
+  readonly onLeaveToUniverse?: () => void;
+}) {
   // The Universe's new look on trial (a switch on this device) draws a friend's Universe too.
   const trial = useUniverseTrial();
   const router = useRouter();
@@ -96,6 +191,12 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   const looks = useMemo(() => (ready ? visitorLooks(ready.systems) : []), [ready]);
   useLayoutEffect(() => map.setDescriptors(descriptors, looks), [map, descriptors, looks]);
   const index = useMemo(() => indexUniverse(descriptors, []), [descriptors]);
+  // "What we have in common" (the new look only): the friend's systems whose names you have too, compared on this device.
+  const shared = useMemo(
+    () => (ready && ownLabels ? systemsInCommon(ownLabels, ready.systems).map((system) => system.publicSystemId) : []),
+    [ready, ownLabels],
+  );
+  const [commonOn, setCommonOn] = useState(false);
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/friends'));
 
   if (state.status === 'loading' || state.status === 'ended') return <QuietGround label="Opening this universe" />;
@@ -104,31 +205,62 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   const { owner } = state;
   return (
     <>
-      <UniverseSurface
-        session={map}
-        state={mapState}
-        index={index}
-        voyage={trial.on}
-        status={state.stale ? 'Last list shown' : undefined}
-        visitor={{
-          ownerName: owner.displayName,
-          footer: <VisitorPrivacy ownerName={owner.displayName} />,
-          bar: (
-            <VisitorBar
-              ownerName={owner.displayName}
-              onLeave={leave}
-              onReport={() =>
-                setReporting({
-                  kind: 'person',
-                  person: { personId: owner.personId, displayName: owner.displayName, handle: owner.handle },
-                })
-              }
-            />
-          ),
-        }}
-      />
+      <PinnedLight pinned={trial.on}>
+        <UniverseSurface
+          session={map}
+          state={mapState}
+          index={index}
+          voyage={trial.on}
+          status={state.stale ? 'Last list shown' : undefined}
+          visitor={{
+            ownerName: owner.displayName,
+            footer: <VisitorPrivacy ownerName={owner.displayName} />,
+            // Nothing to compare with (your own universe is empty or not in hand): no chip, rather than a chip that finds nothing.
+            ...(trial.on && ownLabels && ownLabels.length > 0
+              ? {
+                  inCommon: {
+                    on: commonOn,
+                    shared,
+                    chip: (
+                      <InCommonChip
+                        on={commonOn}
+                        nothingShared={shared.length === 0}
+                        onToggle={() => setCommonOn((on) => !on)}
+                      />
+                    ),
+                  },
+                }
+              : {}),
+            bar: (
+              <VisitorBar
+                ownerName={owner.displayName}
+                onLeave={onLeaveToUniverse ?? leave}
+                onReport={() =>
+                  setReporting({
+                    kind: 'person',
+                    person: { personId: owner.personId, displayName: owner.displayName, handle: owner.handle },
+                  })
+                }
+              />
+            ),
+          }}
+        />
+      </PinnedLight>
       <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
     </>
+  );
+}
+
+/**
+ * The new look's map is as your own Universe: an authored sky with cream controls, the same in both appearances (D-400).
+ * The old look draws no wrapper and follows the appearance as it ever did; the tab bar or rail around it follow it in both.
+ */
+function PinnedLight({ pinned, children }: { readonly pinned: boolean; readonly children: React.ReactNode }) {
+  if (!pinned) return <>{children}</>;
+  return (
+    <View style={styles.surface} {...printedSurface()}>
+      {children}
+    </View>
   );
 }
 
@@ -209,7 +341,9 @@ function Offline({ onRetry, onLeave }: { readonly onRetry: () => void; readonly 
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: spacing[5] },
+  surface: { flex: 1 },
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
 });

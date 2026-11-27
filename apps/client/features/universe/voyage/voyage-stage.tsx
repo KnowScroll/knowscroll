@@ -16,7 +16,15 @@ import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
 import { LandmarkMark } from '../collection/landmark-mark';
-import { BodyTarget, HERE_DOT_ROOM, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from '../scene-parts';
+import {
+  BodyTarget,
+  HERE_DOT_ROOM,
+  KIND_PHRASE,
+  LABEL_HEIGHT,
+  labelWidth,
+  MapLabel,
+  type SceneProps,
+} from '../scene-parts';
 import { layOutUniverse, looksById, looksOfState } from '../space/space-model';
 import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
 import { CROWDED_TARGET, separateTargets } from '../space/separate-targets';
@@ -25,10 +33,10 @@ import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { STOPS, targetOf } from './ladder';
+import { STOPS, targetOf, type Stop } from './ladder';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
-import { SearchSky, type SearchAnswer } from './search-sky';
+import { CommonSky, SearchSky, type SearchAnswer } from './search-sky';
 import { StationLayer } from './station-layer';
 import { stationLookOf, stationSize, type StationLook } from './station-look';
 import { labelPoints } from './world-texture';
@@ -39,6 +47,9 @@ const NO_LANDMARKS: readonly CollectionLandmark[] = [];
 const NO_PENNANTS: readonly LandmarkPoint[] = [];
 /** A pennant on the ground stands this much larger than on a globe seen from orbit (the landed map's 1.3). */
 const GROUND_PENNANT_SCALE = 1.3;
+
+/** The light a name keeps when "What we have in common" is on and its system is not shared. */
+const UNSHARED_NAME = { opacity: 0.4 } as const;
 
 /** How far below a region's point its name sits, in points. */
 const REGION_NAME_GAP = 14;
@@ -166,26 +177,27 @@ export function VoyageStage({
     }),
     [systemId, space, redraw],
   );
+  // The ship and the gestures reach what this stop names, told as each frame is projected rather than after React has
+  // shown it: a list a few frames old catches the ship where a place was, above all while the view leans.
+  const shipAnchors = useCallback(
+    (anchors: readonly SpaceAnchor[]) => controller.setAnchors(anchors.filter(namedAt(stop, systemId))),
+    [controller, stop, systemId],
+  );
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {
-      const named = STOPS[stop].names;
-      // Below the whole universe only the star you are at is drawn: the other stars' bodies are hidden, but their
-      // anchors are still reported (a hidden parent leaves a child's own `visible` set).
-      const own = (anchor: SpaceAnchor) =>
-        stop === 'universe' || anchor.kind === 'dust' || anchor.systemId === systemId;
+      const own = ownAt(stop, systemId);
       const sun =
         stop === 'universe'
           ? undefined
           : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
       return (
         <VoyageOverlay
-          anchors={info.anchors.filter((anchor) => named.includes(anchor.kind) && own(anchor))}
+          anchors={info.anchors.filter(namedAt(stop, systemId))}
           written={STOPS[stop].written}
           keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
           size={size}
           focusId={focusId}
           hereId={hereId}
-          onAnchors={controller.setAnchors}
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
@@ -200,7 +212,6 @@ export function VoyageStage({
       );
     },
     [
-      controller,
       session,
       onStation,
       onDust,
@@ -258,12 +269,28 @@ export function VoyageStage({
         load={controller.load}
         overlay={overlay}
         fallback={(reason) => <Unavailable reason={reason} onUnavailable={onUnavailable} />}
+        onAnchors={shipAnchors}
         {...(recordFrame ? { onFrameTime: recordFrame } : {})}
       />
       <FlightLine to={flying ? destinationOf(view, visitor) : null} size={size} onSkip={controller.skip} />
     </View>
   );
 }
+
+/**
+ * The anchors of the star you are at, and dust: below the whole universe only that star is drawn, and the other stars'
+ * bodies are hidden, but their anchors are still reported (a hidden parent leaves a child's own `visible` set).
+ */
+const ownAt =
+  (stop: Stop, systemId: string | null) =>
+  (anchor: SpaceAnchor): boolean =>
+    stop === 'universe' || anchor.kind === 'dust' || anchor.systemId === systemId;
+
+/** What a stop names: its kinds of place, of the star you are at. */
+const namedAt = (stop: Stop, systemId: string | null) => {
+  const own = ownAt(stop, systemId);
+  return (anchor: SpaceAnchor): boolean => STOPS[stop].names.includes(anchor.kind) && own(anchor);
+};
 
 /** Where a flight to `view` goes, as the flight line says it. A visitor's whole universe is their friend's, not theirs. */
 const destinationOf = (view: UniverseView, visitor: boolean): string => {
@@ -459,7 +486,6 @@ function VoyageOverlay({
   size,
   focusId,
   hereId,
-  onAnchors,
   onPlace,
   onStation,
   onDust,
@@ -479,8 +505,6 @@ function VoyageOverlay({
   readonly focusId: string | null;
   /** The region the ship stands on, named "you are here" under it; null above the ground. */
   readonly hereId: string | null;
-  /** Told the places this stop names after each frame is shown: what the ship and the gestures can reach. */
-  readonly onAnchors: (anchors: readonly SpaceAnchor[]) => void;
   readonly onPlace: (id: string) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
@@ -495,7 +519,6 @@ function VoyageOverlay({
   readonly landmarks: readonly LandmarkPoint[];
   readonly pennantScale: number;
 }) {
-  useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
   const shown = anchors.filter((anchor) => anchor.visible && anchor.kind !== 'landmark');
   const pennants = anchors.filter((anchor) => anchor.visible && anchor.kind === 'landmark');
   const stations = shown.filter((anchor) => anchor.kind === 'station');
@@ -513,8 +536,11 @@ function VoyageOverlay({
       (box) => [box.id, box],
     ),
   );
+  // A friend's Universe answering "What we have in common": the shared systems, which the sky rings under the names.
+  const common = search?.shows === 'common' ? new Set(search.lit ?? []) : undefined;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {common ? <CommonSky shared={[...common]} anchors={stars} size={size} /> : null}
       {stations.length > 0 ? (
         <StationLayer anchors={stations} looks={stationLooks} reducedMotion={reducedMotion} />
       ) : null}
@@ -537,9 +563,21 @@ function VoyageOverlay({
         // Stations and pennants are not bodies: a station is a room, a pennant is never in this list (`Pennants`).
         const kind = anchor.kind === 'station' || anchor.kind === 'landmark' ? undefined : anchor.kind;
         const name = names.get(anchor.id);
+        // Common: the names of systems you do not share drop to 0.4; those you share are announced as such.
+        const shared = anchor.kind === 'system' && common?.has(anchor.id) === true;
+        const unshared = anchor.kind === 'system' && common !== undefined && !shared;
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            {name === undefined ? null : (
+            {name === undefined ? null : shared || unshared ? (
+              // While "What we have in common" is on, each system's name has a wrapper that says how much light it keeps.
+              <View
+                pointerEvents="none"
+                testID={`voyage-name-${anchor.id}`}
+                style={[StyleSheet.absoluteFill, unshared ? UNSHARED_NAME : null]}
+              >
+                <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" />
+              </View>
+            ) : (
               <MapLabel
                 label={name}
                 text={writtenName(anchor, hereId)}
@@ -551,15 +589,21 @@ function VoyageOverlay({
               y={box.y}
               size={box.size}
               floor={CROWDED_TARGET}
-              label={anchor.kind === 'station' ? `${anchor.name}, a room` : anchor.name}
-              {...(kind ? { kind } : {})}
+              label={
+                anchor.kind === 'station'
+                  ? `${anchor.name}, a room`
+                  : shared
+                    ? `${anchor.name}, ${KIND_PHRASE.system}, you have this too`
+                    : anchor.name
+              }
+              {...(kind && !shared ? { kind } : {})}
               onPress={() => (anchor.kind === 'station' ? onStation(anchor.id) : onPlace(anchor.id))}
               testID={`voyage-${anchor.kind}-${anchor.id}`}
             />
           </View>
         );
       })}
-      {search ? <SearchSky answer={search} anchors={stars} size={size} /> : null}
+      {search && common === undefined ? <SearchSky answer={search} anchors={stars} size={size} /> : null}
     </View>
   );
 }

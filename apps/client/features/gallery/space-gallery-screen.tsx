@@ -12,6 +12,7 @@ import type { SpaceChoice, SpaceFailure } from '../universe/space/space-surface'
 import { SpaceView } from '../universe/space/space-view';
 import { SpaceGalleryRecorder, type SpaceGalleryStats } from './space-gallery-recorder';
 import { CrossingGalleryPage } from './crossing-gallery-page';
+import { MapsGalleryPage } from './maps-gallery-page';
 import { VoyageGalleryPage } from './voyage-gallery-page';
 
 /** Marker the web smoke and the Android flow look for; it is never in a production export. */
@@ -41,7 +42,12 @@ export function SpaceGalleryScreen() {
   const { motion, scene } = useLocalSearchParams<{ motion?: string; scene?: string }>();
   return (
     <DisplayProvider value={motion === 'full' ? { reducedMotion: false } : {}}>
-      {scene === 'crossing' ? (
+      {scene === 'maps' ? (
+        // The two maps of a planet (#811), full screen over labelled sample data: not wired into the Universe yet.
+        <View testID={spaceGalleryMarker} style={styles.voyage}>
+          <MapsGalleryPage />
+        </View>
+      ) : scene === 'crossing' ? (
         // The crossing to a friend's Universe (#811): one still frame at a film time, or the film playing, full screen.
         <View testID={spaceGalleryMarker} style={styles.voyage}>
           <CrossingGalleryPage />
