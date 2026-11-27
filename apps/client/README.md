@@ -599,8 +599,16 @@ float over it.
     compared on the device, folded as search folds them (`systemsInCommon`); your own names come from the Universe session
     already in memory, or one sky read of the kind the tab makes. It is off on arrival, shows no count, and is not shown when
     your own universe is empty. A friend's map in the new look is pinned to the Light values, as your own Universe is.
-  - Not yet: wiring the crossing to a friend's Universe (its film is in the developer gallery, `crossing/`), the
-    prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
+  - **The crossing to a friend** (`features/visit/`, `features/universe/crossing/`, behind the switch only). When
+    `/visit/<handle>` first mounts, whatever started the visit, the film plays full screen over the visit's loading
+    (7.5 s the first time for that friend on this device and account, 3.6 s after) while the visit read runs behind it. A
+    tap or Esc skips to the end; under reduced motion it is a 0.26 s dark cut. It names the friend and, only if the read
+    and your own names were back by film time 0.47, the names you have in common; if the visit says "not shared" or is
+    offline before film time 0.3 the film is stopped and the screens for those are shown. Leave plays the film home
+    (3.8 s) and lands on your Universe. A screen reader hears one polite line ("Going to ...'s universe", "Going home").
+    With the switch off there is no film and Leave goes back as before.
+  - Not yet: the camera's fall into a friend's Universe after the film (the map simply appears under the flash), the
+    white of the way home fading over your own Universe, the prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks

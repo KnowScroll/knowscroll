@@ -9,16 +9,22 @@ import { Button, printedSurface, Skeleton, Text, useDisplay } from '@knowscroll/
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
+import { createCrossingDirector } from '../universe/crossing/crossing-director';
+import { crossingSeconds } from '../universe/crossing/crossing-frame';
+import { FrameRateReadout } from '../universe/frame-rate/frame-rate-readout';
 import { UniverseBackdrop } from '../universe/universe-backdrop';
 import { indexUniverse } from '../universe/universe-layout';
 import { UniverseSurface } from '../universe/universe-surface';
 import { useUniverseBack } from '../universe/use-universe-back';
 import { useUniverseTrial } from '../universe/universe-trial';
+import { crossingSeen, markCrossingSeen } from './crossing-seen';
+import { crossingWorldOf } from './crossing-world';
 import type { VisitMapSession } from './visit-map-session';
 import { useVisitSessions } from './use-visit-sessions';
 import { InCommonChip } from './in-common-chip';
 import { systemsInCommon } from './in-common';
 import { useOwnSystemLabels } from './use-own-system-labels';
+import { VisitCrossing, type CrossingEnd } from './visit-crossing';
 import { VisitFrame } from './visit-frame';
 import { VisitorBar, VisitorPrivacy } from './visitor-bar';
 import { visitorDescriptors, visitorLooks } from './visitor-scene';
@@ -50,30 +56,97 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
         </View>
       </Ground>
     );
-  return (
-    <VisitFrame>
-      <SignedInVisit scope={state.scope} handle={handle} />
-    </VisitFrame>
-  );
+  // One visit, one crossing: another friend is a new screen with its own film.
+  return <SignedInVisit key={handle} scope={state.scope} handle={handle} />;
 }
 
-/** One visit: its data session and its map session, made when the screen mounts and dropped when it leaves. */
+const noSubscribe = () => () => {};
+const noState = () => undefined;
+
+/** The device says it has no connection (the web's `navigator.onLine`; native has no such answer, which is not "offline"). */
+const deviceOffline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/**
+ * One visit: its data session and its map session, made when the screen mounts and dropped when it leaves, under the
+ * primary navigation. With "Try the new Universe" on, the crossing film plays over all of it when the screen first
+ * mounts (every start of a visit lands here: a Friends row, the chat rail, a link), and Leave plays it home. With it off
+ * there is no film, ever, and Leave goes back as it always did.
+ */
 function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
   const sessions = useVisitSessions(scope, handle);
   useDocumentTitle('Visiting a friend');
-  if (!sessions) return <QuietGround label="Opening this universe" />;
-  // One visit, one "What we have in common" switch: it is off when you arrive, and another friend starts it off again.
-  return <Visit key={handle} scope={scope} visit={sessions.visit} map={sessions.map} />;
+  const router = useRouter();
+  const trial = useUniverseTrial();
+  const { reducedMotion } = useDisplay();
+  // What this screen was opened with decides about its film for good: a switch or a setting changed under it changes nothing here.
+  const [withFilm] = useState(trial.on);
+  const [cut] = useState(reducedMotion);
+  const [director] = useState(() => createCrossingDirector());
+  useEffect(() => {
+    // The first mount only (a second setup of the same screen is not a second visit); and not with no connection: the
+    // screen that says so is the answer, not a film that has to be stopped.
+    if (!withFilm || director.getState().runs > 0 || deviceOffline()) return;
+    director.start({ direction: 'out', seconds: crossingSeconds('out', crossingSeen(scope, handle)), cut });
+  }, [director, withFilm, cut, scope, handle]);
+
+  // Your own names, for "What we have in common" in the cards and the film: not read at all with the switch off.
+  const ownLabels = useOwnSystemLabels(scope, trial.on);
+  const visit = sessions?.visit;
+  const visitState = useSyncExternalStore(visit?.subscribe ?? noSubscribe, () => visit?.getState(), noState);
+  const world = useMemo(() => crossingWorldOf(visitState, ownLabels), [visitState, ownLabels]);
+  useEffect(() => {
+    director.world(world);
+  }, [director, world]);
+
+  const onEnd = useCallback(
+    (end: CrossingEnd) => {
+      // Home ends on your own Universe (the visit is left, not stacked over); going out ends where the visit already is, which the film was drawn over.
+      if (end.direction === 'home') router.dismissTo('/universe');
+      else if (!end.cut) markCrossingSeen(scope, handle);
+    },
+    [router, scope, handle],
+  );
+  const leaveHome = useCallback(
+    () => director.start({ direction: 'home', seconds: crossingSeconds('home', false), cut }),
+    [director, cut],
+  );
+
+  // The readout is the Universe's (Settings: "Show the Universe frame rate"); the film's frames are in it.
+  return (
+    <FrameRateReadout on={trial.on && trial.frameRate} placed={trial.on}>
+      <View style={styles.root}>
+        <VisitFrame>
+          {sessions ? (
+            // One visit, one "What we have in common" switch: it is off when you arrive, and another friend starts it off again.
+            <Visit
+              key={handle}
+              visit={sessions.visit}
+              map={sessions.map}
+              ownLabels={ownLabels}
+              {...(withFilm ? { onLeaveToUniverse: leaveHome } : {})}
+            />
+          ) : (
+            <QuietGround label="Opening this universe" />
+          )}
+        </VisitFrame>
+        {withFilm ? <VisitCrossing director={director} handle={handle} onEnd={onEnd} /> : null}
+      </View>
+    </FrameRateReadout>
+  );
 }
 
 function Visit({
-  scope,
   visit,
   map,
+  ownLabels,
+  onLeaveToUniverse,
 }: {
-  readonly scope: AccountScope;
   readonly visit: VisitSession;
   readonly map: VisitMapSession;
+  /** The names of your own systems, for "What we have in common" (the new look only); undefined when not in hand. */
+  readonly ownLabels: readonly string[] | undefined;
+  /** The new look's Leave: plays the film home and lands on your Universe. Absent: Leave goes back, as it always did. */
+  readonly onLeaveToUniverse?: () => void;
 }) {
   // The Universe's new look on trial (a switch on this device) draws a friend's Universe too.
   const trial = useUniverseTrial();
@@ -109,7 +182,6 @@ function Visit({
   useLayoutEffect(() => map.setDescriptors(descriptors, looks), [map, descriptors, looks]);
   const index = useMemo(() => indexUniverse(descriptors, []), [descriptors]);
   // "What we have in common" (the new look only): the friend's systems whose names you have too, compared on this device.
-  const ownLabels = useOwnSystemLabels(scope, trial.on);
   const shared = useMemo(
     () => (ready && ownLabels ? systemsInCommon(ownLabels, ready.systems).map((system) => system.publicSystemId) : []),
     [ready, ownLabels],
@@ -152,7 +224,7 @@ function Visit({
             bar: (
               <VisitorBar
                 ownerName={owner.displayName}
-                onLeave={leave}
+                onLeave={onLeaveToUniverse ?? leave}
                 onReport={() =>
                   setReporting({
                     kind: 'person',
@@ -259,6 +331,7 @@ function Offline({ onRetry, onLeave }: { readonly onRetry: () => void; readonly 
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: spacing[5] },
   surface: { flex: 1 },
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
