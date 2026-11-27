@@ -60,10 +60,12 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
 /** One visit: its data session and its map session, made when the screen mounts and dropped when it leaves. */
 function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
   const sessions = useVisitSessions(scope, handle);
+  const trial = useUniverseTrial();
   useDocumentTitle('Visiting a friend');
   if (!sessions) return <QuietGround label="Opening this universe" />;
-  // One visit, one "What we have in common" switch: it is off when you arrive, and another friend starts it off again.
-  return <Visit key={handle} scope={scope} visit={sessions.visit} map={sessions.map} />;
+  // In the new look, one visit has one "What we have in common" switch: off when you arrive, and off again for another
+  // friend. The old look keeps the screen it had across a change of friend.
+  return <Visit key={trial.on ? handle : undefined} scope={scope} visit={sessions.visit} map={sessions.map} />;
 }
 
 function Visit({
