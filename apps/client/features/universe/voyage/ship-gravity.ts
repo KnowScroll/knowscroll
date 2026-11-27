@@ -28,11 +28,8 @@ export interface Pull {
   readonly fall: number;
   /** A ship being drawn in has reached the body when it is this near: the body's edge on screen and a little more. */
   readonly core: number;
-  /**
-   * A body (a star, a planet) pulls from afar. A place that is not one (a region, a room's station) is small and aimed
-   * at: with the finger on it, it is the candidate, whatever body pulls behind it.
-   */
-  readonly body: boolean;
+  /** The body's own radius on screen (0 for a place that is not a body): a finger on its disc is on it. */
+  readonly size: number;
 }
 
 /** Something on screen the ship could go to. */
@@ -48,7 +45,7 @@ export interface PullingPlace {
  * and the catch within 70 points on letting go (line 2075). A room is opened by dropping the ship on it, so it must
  * never draw the ship in by itself.
  */
-export const PLACE_PULL: Pull = { reach: 64, bend: 0.45, shape: 'even', capture: 70, fall: 0, core: 0, body: false };
+export const PLACE_PULL: Pull = { reach: 64, bend: 0.45, shape: 'even', capture: 70, fall: 0, core: 0, size: 0 };
 
 /** The kinds of place that are bodies: they pull with their size. A galaxy, when the map has one, pulls more than a star. */
 type Body = 'system' | 'planet';
@@ -59,14 +56,17 @@ type Body = 'system' | 'planet';
  * body's radius on screen is added.
  */
 const BODY_PULLS: Readonly<Record<Body, Pull>> = {
-  system: { reach: 170, bend: 0.6, shape: 'well', capture: 70, fall: 125, core: 20, body: true },
-  planet: { reach: 150, bend: 0.55, shape: 'well', capture: 70, fall: 110, core: 18, body: true },
+  system: { reach: 170, bend: 0.6, shape: 'well', capture: 70, fall: 125, core: 20, size: 0 },
+  planet: { reach: 150, bend: 0.55, shape: 'well', capture: 70, fall: 110, core: 18, size: 0 },
 };
 
 /** The most the goal may bend toward all the places together: always short of the whole way, so the finger wins. */
 export const MAX_TOTAL_BEND = 0.62;
-/** A new place takes over as the candidate only when it pulls this much harder than the one the ship is bending to. */
-const SWITCH_MARGIN = 1.25;
+/**
+ * A new place takes over as the candidate only when the finger is this much nearer it (in points) than the one the
+ * ship is bending to, so two places in reach do not make the glow flicker.
+ */
+const SWITCH_MARGIN = 12;
 
 const isBody = (kind: string): kind is Body => kind in BODY_PULLS;
 
@@ -81,6 +81,7 @@ export function pullOf(kind: string, radiusPx: number): Pull {
     capture: pull.capture + radius,
     fall: pull.fall + radius,
     core: pull.core + radius,
+    size: radius,
   };
 }
 
@@ -106,9 +107,10 @@ export interface Pulled {
 
 /**
  * Bends the goal of a held ship toward every place in reach of the finger, each by its own share, the shares together
- * capped at {@link MAX_TOTAL_BEND}. The candidate is the place pulling hardest, a place that is not a body first (a
- * room beside its star is aimed at, and must win over the star). The one already chosen stays chosen until another of
- * its rank pulls {@link SWITCH_MARGIN} times harder, so two places in reach do not make the glow flicker.
+ * capped at {@link MAX_TOTAL_BEND}. The candidate, where letting go would go, is the place the finger is nearest (to
+ * a body's edge, not its middle), as it was when only near places pulled: a star's wide pull bends the ship, but a
+ * room beside it under the finger is still the room. The one already chosen stays chosen until the finger is
+ * {@link SWITCH_MARGIN} nearer another.
  */
 export function pullGoal(
   finger: { readonly x: number; readonly y: number },
@@ -118,36 +120,26 @@ export function pullGoal(
   let total = 0;
   let dx = 0;
   let dy = 0;
-  // The strongest place of each rank, and the current candidate's own share.
-  let aimed: { place: PullingPlace; share: number } | null = null;
-  let body: { place: PullingPlace; share: number } | null = null;
-  let kept: { place: PullingPlace; share: number } | null = null;
+  let best: { place: PullingPlace; share: number; gap: number } | null = null;
+  let kept: { place: PullingPlace; share: number; gap: number } | null = null;
   for (const place of places) {
     const share = bendAt(place, finger);
     if (share <= 0) continue;
     total += share;
     dx += (place.x - finger.x) * share;
     dy += (place.y - finger.y) * share;
-    if (place.pull.body) {
-      if (body === null || share > body.share) body = { place, share };
-    } else if (aimed === null || share > aimed.share) aimed = { place, share };
-    if (place.id === current) kept = { place, share };
+    const gap = Math.max(0, Math.hypot(place.x - finger.x, place.y - finger.y) - place.pull.size);
+    if (best === null || gap < best.gap) best = { place, share, gap };
+    if (place.id === current) kept = { place, share, gap };
   }
-  if (total === 0) return { x: finger.x, y: finger.y, candidate: null, strength: 0 };
+  if (total === 0 || best === null) return { x: finger.x, y: finger.y, candidate: null, strength: 0 };
   const scale = total > MAX_TOTAL_BEND ? MAX_TOTAL_BEND / total : 1;
-  const best = aimed ?? body;
-  const chosen =
-    kept !== null &&
-    best !== null &&
-    kept.place.pull.body === best.place.pull.body &&
-    kept.share * SWITCH_MARGIN >= best.share
-      ? kept
-      : best;
+  const chosen = kept !== null && kept.gap <= best.gap + SWITCH_MARGIN ? kept : best;
   return {
     x: finger.x + dx * scale,
     y: finger.y + dy * scale,
-    candidate: chosen?.place.id ?? null,
-    strength: chosen === null ? 0 : chosen.share / chosen.place.pull.bend,
+    candidate: chosen.place.id,
+    strength: chosen.share / chosen.place.pull.bend,
   };
 }
 

@@ -410,6 +410,36 @@ describe('the fingers on the stage', () => {
     expect(lines.at(-1)).toBe('ship drawn in → star');
   });
 
+  it('stop drawing the ship in when a pinch begins: nothing flies but what the pinch asks for', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30; step++) frame();
+    fingers('end', []);
+    expect(lines.at(-1)).toBe('ship let go → drawn into star');
+    frame();
+    fingers('start', [
+      { id: 1, x: 170, y: 600 },
+      { id: 2, x: 230, y: 600 },
+    ]);
+    for (let step = 0; step < 60; step++) frame();
+    fingers('end', [{ id: 2, x: 230, y: 600 }]);
+    fingers('end', []);
+    for (let step = 0; step < 60; step++) frame();
+    expect(calls).toEqual([]);
+  });
+
   it('take a shaking finger on the ship for a tap, not a drop', () => {
     const { calls, lines, fingers } = stage();
     fingers('start', [{ id: 0, x: 195, y: 570 }]);

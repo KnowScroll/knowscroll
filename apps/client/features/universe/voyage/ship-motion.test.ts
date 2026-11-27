@@ -232,15 +232,48 @@ describe('the pull of a body', () => {
     expect(state.falling).toBe('sun');
     let falling = state;
     let frames = 0;
-    while (arrival(falling, [sun]) === null && frames < 120) {
+    while (arrival(falling, [sun], BASE.bounds) === null && frames < 120) {
       falling = stepShip(falling, { ...BASE, targets: [sun] }, FRAME);
       frames += 1;
     }
-    expect(arrival(falling, [sun])).toBe('sun');
+    expect(arrival(falling, [sun], BASE.bounds)).toBe('sun');
     // Seen to fall: it takes a good part of a second, not one frame.
     expect(frames).toBeGreaterThan(12);
     const landed = landShip(falling);
     expect(landed).toMatchObject({ free: false, falling: null, candidate: null });
+  });
+
+  it('reaches a body past the edge of its room at that edge, and does not fall for ever', () => {
+    // A star above the top of the ship's room (it may not rise above y 150).
+    const high: ShipTarget = { id: 'high', x: 200, y: 60, pull: pullOf('system', 12) };
+    const held = run(initialShip(HOME), { ...BASE, drag: { x: 200, y: 160 }, targets: [high] }, 1.5);
+    const { state } = releaseShip(held, [high]);
+    expect(state.falling).toBe('high');
+    let falling = state;
+    let frames = 0;
+    while (arrival(falling, [high], BASE.bounds) === null && frames < 240) {
+      falling = stepShip(falling, { ...BASE, targets: [high] }, FRAME);
+      frames += 1;
+    }
+    expect(arrival(falling, [high], BASE.bounds)).toBe('high');
+    expect(falling.y).toBeGreaterThanOrEqual(BASE.bounds.top);
+  });
+
+  it('stops falling when a flight or a pinch takes the view, and stays free where it is', () => {
+    const held = run(initialShip(HOME), { ...BASE, drag: { x: 70, y: 400 }, targets: [sun] }, 1.5);
+    const { state } = releaseShip(held, [sun]);
+    expect(state.falling).toBe('sun');
+    const after = stepShip(state, { ...BASE, targets: [sun], away: true }, FRAME);
+    expect(after.falling).toBeNull();
+    expect(after.free).toBe(true);
+    expect(arrival(after, [sun], BASE.bounds)).toBeNull();
+  });
+
+  it('lights the place it would go to by its pull, or in full where letting go would go there', () => {
+    const held = run(initialShip(HOME), { ...BASE, drag: { x: 70, y: 400 }, targets: [sun] }, 1.5);
+    expect(drawn(held, sun).pullStrength).toBeCloseTo(held.pullStrength);
+    expect(drawn(held, sun, 1).pullStrength).toBe(1);
+    expect(drawn(held).pullStrength).toBe(0);
   });
 
   it('goes at once with reduced motion, where it would otherwise be drawn in', () => {
