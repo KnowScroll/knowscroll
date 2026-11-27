@@ -26,6 +26,7 @@ import { sameSystems } from './universe-search';
 import { SpaceChip } from './space-chip';
 import { SystemFindsSheet } from './system-finds-sheet';
 import { UniverseStage } from './universe-stage';
+import { returnOffered, returnTarget, type ReturnTarget } from './voyage/return-chip';
 import { captionBelowGlobe } from './voyage/voyage-chains';
 import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
@@ -425,19 +426,18 @@ export function UniverseSurface({
         })
       : [];
   // The map as it ships offers the way back from the whole universe only. The new look offers it wherever the ship is
-  // parked somewhere other than the place in view (the prototype's "Return to"), never for where you already are.
-  const showsReturn = (shown: UniverseView, id: string): boolean => {
-    if (id === state.focusId) return false;
+  // parked somewhere other than the place in view (the prototype's "Return to"), never for where you already are, and
+  // never at the star of the parked planet: Back from a planet lands there, and must not offer the planet at once.
+  const showsReturn = (shown: UniverseView, target: ReturnTarget): boolean => {
+    if (target.id === state.focusId) return false;
     if (!voyage) return shown.kind === 'universe';
-    const here =
-      shown.kind === 'planet' ? shown.planet.objectId : shown.kind === 'system' ? shown.system.objectId : null;
-    return id !== here;
+    return returnOffered(shown, target);
   };
   const chipsOf = (shown: UniverseView): ReactNode =>
     !card && !sheet && !searching ? (
       <View style={styles.chips}>
         {voyage && shown.kind === 'universe' ? commonOf?.chip : null}
-        {returnTo && showsReturn(shown, returnTo.id) ? (
+        {returnTo && showsReturn(shown, returnTo) ? (
           <SpaceChip
             testID="universe-return"
             variant="solid"
@@ -470,6 +470,7 @@ export function UniverseSurface({
           <SpaceChip
             testID="universe-list"
             icon="list"
+            glass={voyage}
             label="List view"
             onPress={() => session.showOverlay('outline')}
           />
@@ -717,17 +718,6 @@ function usePlanetPlan(
   );
   const palette = useMemo(() => (plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined), [plan]);
   return { plan, palette };
-}
-
-/** Where the ship is parked: the last place, or the planet of a region. A system is its own place. */
-function returnTarget(
-  index: UniverseIndex,
-  lastPlace: UniverseViewState['lastPlace'],
-): { readonly id: string; readonly label: string } | undefined {
-  const place = lastPlace ? index.byId.get(lastPlace.id) : undefined;
-  if (!place) return undefined;
-  const target = place.kind === 'region' ? (index.byId.get(place.parentId) ?? place) : place;
-  return { id: target.objectId, label: target.label };
 }
 
 /** Every planet of the system is quiet: say so kindly and offer a way back in. */

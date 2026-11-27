@@ -84,6 +84,8 @@ export interface VoyageOptions {
   readonly rooms?: boolean | 'live';
   /** Two landmarks earned on CI planet 2 (a gold and a plain), so its pennants stand on its globe. */
   readonly landmarks?: boolean;
+  /** CI system 0 has had nothing new for a month: Lately calms it. */
+  readonly quiet?: boolean;
 }
 
 /**
@@ -203,6 +205,9 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
     ];
     world.collection.planets = [{ id: fixtureId(12), topicId: 'earth.seasons' }];
   }
+  if (options.quiet === true)
+    for (const place of world.descriptors)
+      if (place.kind === 'system') place.activity = { availability: 'available', state: 'quiet' };
   if (options.rooms !== undefined && options.rooms !== false) {
     const [member, outsider] = VOYAGE_ROOMS;
     const rooms = options.rooms === 'live' ? [{ ...member, live: 'reel' }, outsider] : [member, outsider];
