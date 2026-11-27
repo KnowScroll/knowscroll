@@ -107,6 +107,8 @@ export interface FlightRequest {
   readonly touchesGround: boolean;
   /** A step made by a pinch or a scroll: quicker, because the fingers already moved the camera part of the way. */
   readonly fast?: boolean;
+  /** The place was flown to before: quicker, as the prototype's flights are once a place is `seen`. */
+  readonly again?: boolean;
 }
 
 /** The prototype's duration: `0.9 + 0.36 * span` seconds, where `span` is the log-distance travelled plus the climb both ways. */
@@ -118,6 +120,8 @@ const LONGEST = { climb: 4.4, straight: 3.4 } as const;
 const GROUND_SLOWDOWN = 1.15;
 /** A pinch or scroll step lasts this much of what it would, since the fingers already moved the camera. */
 const PINCH_SPEEDUP = 0.6;
+/** A flight to a place flown to before takes this share of its length (the prototype's `seen`). */
+const AGAIN_SPEEDUP = 0.55;
 /** Going in to under this share of the distance falls with `gravity`; going out to over this multiple, with `release`. */
 const LONG_WAY_IN = 0.5;
 const LONG_WAY_OUT = 2;
@@ -134,6 +138,7 @@ export function planFlight(request: FlightRequest): FlightPlan {
   let seconds = Math.min(BASE_SECONDS + SECONDS_PER_LOG_UNIT * span, hump > 0 ? LONGEST.climb : LONGEST.straight);
   if (request.touchesGround) seconds *= GROUND_SLOWDOWN;
   if (request.fast === true) seconds *= PINCH_SPEEDUP;
+  if (request.again === true) seconds *= AGAIN_SPEEDUP;
   const curve: FlightCurve =
     hump > 0
       ? 'ease'

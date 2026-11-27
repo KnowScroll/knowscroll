@@ -4,7 +4,16 @@
  * world (`usePlanetSurface`), hands both to the controller, and puts the named buttons over the canvas. The camera, the
  * globe and the ship are the driver's (`voyage-driver.ts`); the gestures are the controller's.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+} from 'react';
 import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 import Svg from 'react-native-svg';
 import type { CollectionLandmark } from '@knowscroll/client-core';
@@ -34,6 +43,7 @@ import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { STOPS, targetOf, type Stop } from './ladder';
+import { FallInContext } from './fall-in';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
 import { CommonSky, SearchSky, type SearchAnswer } from './search-sky';
@@ -130,6 +140,7 @@ export function VoyageStage({
   const recordFlight = useFlightRecorder();
   const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
+  const fallIn = useContext(FallInContext);
   const inputs: VoyageInputs = {
     session,
     view,
@@ -149,6 +160,7 @@ export function VoyageStage({
     ...(recordFlight ? { onFlight: recordFlight } : {}),
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
+    ...(fallIn ? { fallIn } : {}),
   };
   const [controller] = useState(() => createVoyageController(inputs));
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must
