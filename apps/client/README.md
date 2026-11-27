@@ -519,10 +519,10 @@ float over it.
     anywhere skips to the end of the flight. The skip's tap target stays mounted between flights, letting touches
     through and hidden from assistive technology: a browser sends the rest of a touch to the element it began on, so a
     target removed on landing would cut off every touch that began mid-flight. Reduced motion cuts instead of flying.
-  - **The bent sky** (`sky-lens.ts`, `sky-bend.ts`): the background stars bend round each star, and more round the
-    body pulling the ship (up to 72 pt more), as a point lens bends them: a clear disc opens round the body and the
-    stars at its edge grow brighter and bigger. Planets bend it only while they pull; nothing bends at a planet or on
-    its ground. A faint deep field of 40,000 stars, in the trial look only, gives the bend something to show. The
+  - **The bent sky** (`sky-lens.ts`, `sky-bend.ts`): every sun and every planet on screen bends the background stars
+    behind it, all the time, a sun more than a planet, each by its size on screen, as a point lens bends them: a clear
+    disc opens round the body and the stars at its edge grow brighter and bigger. The bends move as the bodies and the
+    view move. The ship plays no part (it is only pulled). Nothing bends on a planet's ground. A faint deep field of 40,000 stars, in the trial look only, gives the bend something to show. The
     shipping map's stars and their shader program are untouched.
   - **The planet as one world** (`globe.ts`, `world-texture.ts`): a sphere wearing the `worldmap.v1` globe band,
     painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey

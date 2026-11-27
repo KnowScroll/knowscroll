@@ -35,12 +35,11 @@ function sceneWith(at: THREE.Vector3, radius = 4) {
   return { space, holder, camera, lens };
 }
 
-const frame = (dt: number, reducedMotion = false, stop: 'universe' | 'planet' = 'universe') => ({
+const frame = (dt: number, reducedMotion = false, stop: 'universe' | 'ground' = 'universe') => ({
   stop,
   size: SIZE,
   dt,
   reducedMotion,
-  pull: null,
 });
 
 describe('the bent sky, drawn', () => {
@@ -68,7 +67,7 @@ describe('the bent sky, drawn', () => {
     expect(eased.lens().z).toBeLessThan(still.lens().z);
   });
 
-  it('bends nothing round a body that is not drawn, and nothing at a planet', () => {
+  it('bends nothing round a body that is not drawn, and nothing on the ground', () => {
     const hidden = sceneWith(new THREE.Vector3(0, 0, 0));
     hidden.holder.visible = false;
     const bend = createSkyBend();
@@ -76,11 +75,11 @@ describe('the bent sky, drawn', () => {
     bend.draw(hidden.space, frame(1 / 30, true));
     expect(hidden.lens().z).toBe(0);
 
-    const atPlanet = sceneWith(new THREE.Vector3(0, 0, 0));
-    const planetBend = createSkyBend();
-    planetBend.attach(atPlanet.space);
-    planetBend.draw(atPlanet.space, frame(1 / 30, true, 'planet'));
-    expect(atPlanet.lens().z).toBe(0);
+    const onGround = sceneWith(new THREE.Vector3(0, 0, 0));
+    const groundBend = createSkyBend();
+    groundBend.attach(onGround.space);
+    groundBend.draw(onGround.space, frame(1 / 30, true, 'ground'));
+    expect(onGround.lens().z).toBe(0);
   });
 
   it('leaves alone a scene it is no longer attached to', () => {

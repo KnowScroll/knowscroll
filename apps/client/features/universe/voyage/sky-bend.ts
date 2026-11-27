@@ -3,14 +3,14 @@
  * and how much). Each frame, after the camera is placed and before the scene is drawn, the stars and planets of the
  * scene are projected from the scene itself, so a lens sits on its body in the very frame it is drawn, flight or
  * lean, and a still frame under reduced motion is bent too. Radii ease from frame to frame (under reduced motion they
- * are set at once), so a pull taken up or let go bends the sky in and out instead of snapping.
+ * are set at once), so a body coming into view bends the sky in instead of snapping.
  */
 import * as THREE from 'three';
 import type { BuiltSpace } from '../space/scene/build-scene';
 import { SKY_LENSES } from '../space/scene/shaders';
 import type { BentSky } from '../space/scene/sky';
 import type { Stop } from './ladder';
-import { lensRadii, strongestLenses, type LensBody, type LensPull } from './sky-lens';
+import { lensRadii, strongestLenses, type LensBody } from './sky-lens';
 
 /** How fast a lens radius follows what its body wants, per second. */
 const LENS_RATE = 7;
@@ -24,8 +24,6 @@ export interface SkyBendFrame {
   /** Seconds since the last frame. */
   readonly dt: number;
   readonly reducedMotion: boolean;
-  /** The body the ship is pulled to, from the last frame's ship; null when nothing pulls it. */
-  readonly pull: LensPull | null;
 }
 
 export interface SkyBend {
@@ -83,7 +81,7 @@ export function createSkyBend(): SkyBend {
     draw(space, frame) {
       if (sky === null || bentFor !== space) return;
       const bodies = bodiesOf(space, frame.size);
-      const wanted = lensRadii(frame.stop, bodies, frame.pull);
+      const wanted = lensRadii(frame.stop, bodies);
       const step = frame.reducedMotion ? 1 : Math.min(1, frame.dt * LENS_RATE);
       for (const id of new Set([...eased.keys(), ...wanted.keys()])) {
         const from = eased.get(id) ?? 0;

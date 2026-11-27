@@ -4,36 +4,26 @@ const sun = (id: string, x: number, radiusPx = 10): LensBody => ({ id, kind: 'sy
 const world = (id: string, x: number, radiusPx = 12): LensBody => ({ id, kind: 'planet', x, y: 300, radiusPx });
 
 describe('which bodies bend the stars behind them', () => {
-  it('bends round every star a little, from the whole universe and at a star', () => {
-    for (const stop of ['universe', 'star'] as const) {
-      const radii = lensRadii(stop, [sun('a', 100), sun('b', 200, 40)], null);
+  it('bends round every sun and every planet on screen, all the time, from the whole universe to a planet', () => {
+    for (const stop of ['universe', 'star', 'planet'] as const) {
+      const radii = lensRadii(stop, [sun('a', 100), world('p', 200)]);
       expect(radii.get('a')).toBeGreaterThan(0);
-      expect(radii.get('b')).toBeGreaterThan(radii.get('a')!);
+      expect(radii.get('p')).toBeGreaterThan(0);
     }
   });
 
-  it('bends nothing at a planet or on its ground, where the world fills the view', () => {
-    const bodies = [sun('a', 100), world('p', 200)];
-    const pull = { x: 200, y: 300, strength: 1 };
-    expect(lensRadii('planet', bodies, pull).size).toBe(0);
-    expect(lensRadii('ground', bodies, pull).size).toBe(0);
+  it('bends more round a sun than round a planet of the same size, and more round a bigger body', () => {
+    const radii = lensRadii('star', [sun('s', 100, 20), world('p', 200, 20), world('big', 300, 40)]);
+    expect(radii.get('s')).toBeGreaterThan(radii.get('p')!);
+    expect(radii.get('big')).toBeGreaterThan(radii.get('p')!);
   });
 
-  it('bends round a planet only while it pulls the ship, and round the body pulling more the harder it pulls', () => {
-    const bodies = [sun('a', 100), world('p', 260)];
-    expect(lensRadii('star', bodies, null).has('p')).toBe(false);
-    const gentle = lensRadii('star', bodies, { x: 262, y: 301, strength: 0.2 });
-    const strong = lensRadii('star', bodies, { x: 262, y: 301, strength: 1 });
-    expect(gentle.get('p')).toBeGreaterThan(0);
-    expect(strong.get('p')).toBeGreaterThan(gentle.get('p')!);
-    expect(strong.get('a')).toBe(lensRadii('star', bodies, null).get('a'));
+  it('still bends round a far sun that is only a dot on screen', () => {
+    expect(lensRadii('universe', [sun('far', 100, 0.5)]).get('far')).toBeGreaterThanOrEqual(10);
   });
 
-  it('gives the pull to the body under it, not to one far from it', () => {
-    const radii = lensRadii('universe', [sun('a', 100), sun('b', 300)], { x: 101, y: 300, strength: 1 });
-    expect(radii.get('a')).toBeGreaterThan(radii.get('b')!);
-    const none = lensRadii('universe', [sun('a', 100), sun('b', 300)], { x: 200, y: 300, strength: 1 });
-    expect(none.get('a')).toBe(none.get('b'));
+  it('bends nothing on the ground, where the land fills the view', () => {
+    expect(lensRadii('ground', [sun('a', 100), world('p', 200)]).size).toBe(0);
   });
 });
 

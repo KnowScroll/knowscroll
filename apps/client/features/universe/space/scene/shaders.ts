@@ -62,7 +62,7 @@ void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(tim
   float s = aSize * pr; if (atten > 0.0) s *= atten / -mv.z; gl_PointSize = s; gl_Position = projectionMatrix * mv; }`;
 
 /** How many bodies at most bend the stars behind them at once ({@link STAR_LENSED_VERTEX}). */
-export const SKY_LENSES = 4;
+export const SKY_LENSES = 6;
 
 /**
  * The background stars of the trial look (`voyage/`), bent round the bodies in front of them: {@link STAR_VERTEX} plus
