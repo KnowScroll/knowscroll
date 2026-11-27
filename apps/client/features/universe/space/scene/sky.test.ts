@@ -1,38 +1,44 @@
 import * as THREE from 'three';
 import { createSceneContext } from './build-scene';
-import { STAR_LENSED_VERTEX, STAR_VERTEX } from './shaders';
-import { addSky, bendSky } from './sky';
+import { STAR_VERTEX } from './shaders';
+import { addSky, BACKGROUND_LAYER, splitSky } from './sky';
 
 const skyOf = () => {
   const group = new THREE.Group();
   const { context } = createSceneContext([10, 100], 1);
-  const shells = addSky(group, 'sky', context, new THREE.Vector3(0, 0, 10));
-  return { group, context, shells };
+  addSky(group, 'sky', context, new THREE.Vector3(0, 0, 10));
+  return { group, context };
 };
-const vertexOf = (points: THREE.Points) => (points.material as THREE.ShaderMaterial).vertexShader;
+const stars = (group: THREE.Object3D) =>
+  group.children.filter((child): child is THREE.Points => child instanceof THREE.Points);
 
 describe('the background stars', () => {
-  it('are drawn straight unless a view asks for them bent: the shipping map keeps its program', () => {
-    const { group, shells } = skyOf();
-    expect(shells.length).toBeGreaterThan(0);
-    for (const points of shells) expect(vertexOf(points)).toBe(STAR_VERTEX);
+  it('are drawn with everything else, on the default layer, unless a view splits them off: the shipping map keeps its sky', () => {
+    const { group } = skyOf();
+    expect(stars(group).length).toBeGreaterThan(0);
+    for (const points of stars(group)) {
+      expect(points.layers.mask).toBe(1);
+      expect((points.material as THREE.ShaderMaterial).vertexShader).toBe(STAR_VERTEX);
+    }
     expect(group.getObjectByName('deep-field')).toBeUndefined();
   });
 
-  it('bend round the lenses they are given, with the deep field under them, and go back straight when let go', () => {
-    const { group, context, shells } = skyOf();
-    const bent = bendSky(shells, group, context);
-    for (const points of shells) expect(vertexOf(points)).toBe(STAR_LENSED_VERTEX);
-    const deep = group.getObjectByName('deep-field') as THREE.Points;
-    expect(vertexOf(deep)).toBe(STAR_LENSED_VERTEX);
-    bent.set([{ x: 100, y: 200, radius: 30 }], { width: 390, height: 844 });
-    const uniforms = (shells[0]!.material as THREE.ShaderMaterial).uniforms;
-    // A body 200 pt down from the top of an 844 pt view sits 644 pt up from its bottom, where the shader measures.
-    expect((uniforms['lenses']!.value as THREE.Vector4[])[0]!.toArray()).toEqual([100, 644, 30, 0]);
-    expect((uniforms['lenses']!.value as THREE.Vector4[])[1]!.z).toBe(0);
-    expect((uniforms['view']!.value as THREE.Vector2).toArray()).toEqual([390, 844]);
-    bent.dispose();
-    for (const points of shells) expect(vertexOf(points)).toBe(STAR_VERTEX);
-    expect(group.getObjectByName('deep-field')).toBeUndefined();
+  it('move to their own layer with the deep field when split, drawn as they were, and split only once', () => {
+    const { group, context } = skyOf();
+    const before = stars(group).length;
+    splitSky(group, context);
+    splitSky(group, context);
+    const after = stars(group);
+    // The deep field of faint stars, and its far smudges.
+    expect(after.length).toBe(before + 2);
+    // The near motes float among the bodies and stay with them.
+    for (const points of after) {
+      const motes = points.name === 'near-motes';
+      expect(points.layers.mask).toBe(motes ? 1 : 1 << BACKGROUND_LAYER);
+    }
+    for (const points of after.filter((points) => points.name !== 'deep-field' && points.name !== 'deep-smudges'))
+      expect((points.material as THREE.ShaderMaterial).vertexShader).toBe(STAR_VERTEX);
+    expect(group.getObjectByName('deep-field')).toBeDefined();
+    expect(group.getObjectByName('deep-smudges')).toBeDefined();
   });
 });

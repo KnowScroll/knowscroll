@@ -61,38 +61,21 @@ void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(tim
   vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = aCol; vA = .72 + .28 * sin(time * (.4 + aPh * 1.4) + aPh * 6.2831);
   float s = aSize * pr; if (atten > 0.0) s *= atten / -mv.z; gl_PointSize = s; gl_Position = projectionMatrix * mv; }`;
 
-/** How many bodies at most bend the stars behind them at once ({@link STAR_LENSED_VERTEX}). */
-export const SKY_LENSES = 6;
+export const STAR_FRAGMENT = /* glsl */ `uniform float opacity; varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = pow(smoothstep(.5, 0.0, d), 1.6); gl_FragColor = vec4(vC * a * vA * opacity * 1.35, 1.0); }`;
 
 /**
- * The background stars of the trial look (`voyage/`), bent round the bodies in front of them: {@link STAR_VERTEX} plus
- * a point lens per body. `lenses[i]` is a body's place on screen, measured from the bottom left (y up, as clip space
- * is), and its lens radius, in layout points (`view` is the view's size in the same points; a radius of 0 is no lens). A star at distance `d` from the body is drawn where a
- * point lens puts its outer image, `(d + sqrt(d² + 4r²)) / 2`: pushed outward, so no star is drawn within `r` of the
- * body and the stars thin out toward that edge, and magnified by that image's gain (bigger and brighter), most near
- * the edge. The bend fades to nothing between 3 and 6 radii, so a lens has no edge of its own. Kept apart from {@link STAR_VERTEX}, which the shipping
- * map draws with, so that look's program never changes.
+ * The deep field's far smudges (the trial look's bent sky only): faint soft ovals, each turned its own way, drawn as
+ * point sprites. Round stars bend into blurs; an oval is stretched round a mass into an arc, which is what the eye reads
+ * as a bend. `aPh` (0 to 1) is the oval's angle.
  */
-export const STAR_LENSED_VERTEX = /* glsl */ `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr; uniform float atten; uniform float wob;
-uniform vec4 lenses[${SKY_LENSES}]; uniform vec2 view;
-varying vec3 vC; varying float vA;
-void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(time * .11 + aPh * 7.0) * .6, sin(time * .09 + aPh * 5.0) * .4);
-  vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = aCol; vA = .72 + .28 * sin(time * (.4 + aPh * 1.4) + aPh * 6.2831);
-  float s = aSize * pr; if (atten > 0.0) s *= atten / -mv.z;
-  vec4 clip = projectionMatrix * mv; float gain = 1.0;
-  if (clip.w > 0.0) {
-    vec2 at = (clip.xy / clip.w * .5 + .5) * view;
-    for (int i = 0; i < ${SKY_LENSES}; i++) { vec4 l = lenses[i]; if (l.z <= 0.0) continue;
-      vec2 e = at - l.xy; float d = max(length(e), .5); float r = l.z;
-      float fade = 1.0 - smoothstep(3.0 * r, 6.0 * r, d);
-      float image = .5 * (d + sqrt(d * d + 4.0 * r * r));
-      at = l.xy + e / d * mix(d, image, fade);
-      float u = d / r, u2 = u * u; float mu = (u2 + 2.0) / (2.0 * u * sqrt(u2 + 4.0)) + .5;
-      gain *= mix(1.0, min(mu, 2.6), fade); }
-    clip.xy = (at / view * 2.0 - 1.0) * clip.w; }
-  vC *= min(gain, 1.8); gl_PointSize = s * min(gain, 2.6); gl_Position = clip; }`;
+export const SMUDGE_VERTEX = /* glsl */ `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr;
+varying vec3 vC; varying float vTurn;
+void main(){ vC = aCol; vTurn = aPh * 3.14159; gl_PointSize = aSize * pr; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
-export const STAR_FRAGMENT = /* glsl */ `uniform float opacity; varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = pow(smoothstep(.5, 0.0, d), 1.6); gl_FragColor = vec4(vC * a * vA * opacity * 1.35, 1.0); }`;
+export const SMUDGE_FRAGMENT = /* glsl */ `uniform float opacity; varying vec3 vC; varying float vTurn;
+void main(){ vec2 p = gl_PointCoord - .5; float c = cos(vTurn), s = sin(vTurn);
+  vec2 q = vec2(c * p.x + s * p.y, (-s * p.x + c * p.y) * 2.2); float a = pow(smoothstep(.5, 0.0, length(q)), 1.5);
+  gl_FragColor = vec4(vC * a * opacity, 1.0); }`;
 
 /** Cartoon nebula: crisp candy dots with a shine, spiralling inward along arms. */
 export const NEBULA_VERTEX = /* glsl */ `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; attribute vec3 aCol;

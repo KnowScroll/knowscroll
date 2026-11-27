@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { seededRandom, TAU } from '../paint';
 import { additive, type SceneContext } from './context';
-import { SKY_LENSES, STAR_FRAGMENT, STAR_LENSED_VERTEX, STAR_VERTEX } from './shaders';
+import { SMUDGE_FRAGMENT, SMUDGE_VERTEX, STAR_FRAGMENT, STAR_VERTEX } from './shaders';
 
 interface StarShell {
   readonly count: number;
@@ -10,6 +10,9 @@ interface StarShell {
   readonly maxSize: number;
   readonly brightness: number;
 }
+
+/** The name of the few near motes: they float among the bodies, so a view that splits the sky off leaves them with the bodies. */
+const NEAR_MOTES = 'near-motes';
 
 /** Three shells of stars that drift against each other as the camera breathes. */
 const SHELLS: readonly StarShell[] = [
@@ -28,7 +31,7 @@ function starPoints(
   samples: readonly StarSample[],
   random: () => number,
   uniforms: Record<string, THREE.IUniform>,
-  vertexShader: string = STAR_VERTEX,
+  shaders: { readonly vertex: string; readonly fragment: string } = { vertex: STAR_VERTEX, fragment: STAR_FRAGMENT },
 ): THREE.Points {
   const position = new Float32Array(samples.length * 3);
   const size = new Float32Array(samples.length);
@@ -47,23 +50,21 @@ function starPoints(
   geometry.setAttribute('aPh', new THREE.BufferAttribute(phase, 1));
   const points = new THREE.Points(
     geometry,
-    new THREE.ShaderMaterial({ vertexShader, fragmentShader: STAR_FRAGMENT, ...additive, uniforms }),
+    new THREE.ShaderMaterial({ vertexShader: shaders.vertex, fragmentShader: shaders.fragment, ...additive, uniforms }),
   );
   points.frustumCulled = false;
   return points;
 }
 
 /**
- * Adds the star shells and a few near motes around `cameraPosition` to `scene`. Returns the shells: the stars far
- * behind everything, which a view may bend round the bodies in front of them ({@link bendSky}).
+ * Adds the star shells and a few near motes around `cameraPosition` to `scene`.
  */
 export function addSky(
   scene: THREE.Object3D,
   seed: string,
   context: SceneContext,
   cameraPosition: THREE.Vector3,
-): readonly THREE.Points[] {
-  const shells: THREE.Points[] = [];
+): void {
   const random = seededRandom(seed);
   const uniforms = (extra: { atten?: number; wob?: number; opacity?: number }): Record<string, THREE.IUniform> => ({
     time: context.time,
@@ -91,9 +92,7 @@ export function addSky(
         colour: [red * brightness, green * brightness, blue * brightness],
       };
     });
-    const points = starPoints(samples, random, uniforms({}));
-    shells.push(points);
-    scene.add(points);
+    scene.add(starPoints(samples, random, uniforms({})));
   }
 
   const motes = Array.from({ length: 46 }, (): StarSample => {
@@ -108,52 +107,33 @@ export function addSky(
       colour: [0.55 * glow, 0.6 * glow, 0.8 * glow],
     };
   });
-  scene.add(starPoints(motes, random, uniforms({ atten: 6, wob: 0.8, opacity: 0.8 })));
-  return shells;
-}
-
-/** A body that bends the stars behind it: where it is on screen (y down, as layout is) and its lens radius, in layout points. */
-export interface SkyLens {
-  readonly x: number;
-  readonly y: number;
-  readonly radius: number;
-}
-
-/** The background stars, bent: tells them which bodies bend them this frame. */
-export interface BentSky {
-  /** At most `SKY_LENSES` lenses (the rest are dropped); `view` is the view's size in layout points. */
-  set(lenses: readonly SkyLens[], view: { readonly width: number; readonly height: number }): void;
-  /** Puts the shells' own straight material back and frees the bent one. */
-  dispose(): void;
+  const near = starPoints(motes, random, uniforms({ atten: 6, wob: 0.8, opacity: 0.8 }));
+  near.name = NEAR_MOTES;
+  scene.add(near);
 }
 
 /**
- * The deep field: many faint small stars far behind everything, as dense as the design's sky. Only the bent sky has it,
+ * The three.js layer of the background: the star shells and the deep field. A view that bends the sky
+ * ({@link splitSky}) draws this layer alone, apart from everything else; the shipping map never moves them off layer 0.
+ */
+export const BACKGROUND_LAYER = 1;
+
+/**
+ * The deep field: many faint small stars far behind everything, as dense as the design's sky. Only a split sky has it,
  * so the shipping map keeps the sky it has; it also gives a bend something to show, since the shells alone leave a few
  * stars round any one body.
  */
 const DEEP_FIELD = { count: 40000, distance: 1000, minSize: 1.1, maxSize: 2, brightness: 0.6 } as const;
+/** The deep field's far smudges: faint soft ovals, a few to a score of points long, which a bend stretches into arcs. */
+const SMUDGES = { count: 12000, distance: 1000, minSize: 7, maxSize: 22, brightness: 0.36 } as const;
 
 /**
- * Draws `shells` with {@link STAR_LENSED_VERTEX} instead of their own vertex shader, sharing their uniforms, and adds
- * the deep field under `group`, so the stars behind a body bend round it. Its program is linked on the next draw, so
- * call it when a view starts, never during a flight.
+ * Puts the star shells `group` holds ({@link addSky}; not the near motes, which float among the bodies) on {@link BACKGROUND_LAYER}, and adds the deep field there
+ * too: the sky becomes drawable alone, so a view can bend it without touching the bodies in front of it. It does not
+ * change how the stars are drawn. Calling it again changes nothing.
  */
-export function bendSky(shells: readonly THREE.Points[], group: THREE.Object3D, context: SceneContext): BentSky {
-  const lenses = Array.from({ length: SKY_LENSES }, () => new THREE.Vector4(0, 0, 0, 0));
-  const view = new THREE.Vector2(1, 1);
-  const bend = { lenses: { value: lenses }, view: { value: view } };
-  const swapped = shells.map((points) => {
-    const straight = points.material as THREE.ShaderMaterial;
-    const bent = new THREE.ShaderMaterial({
-      vertexShader: STAR_LENSED_VERTEX,
-      fragmentShader: STAR_FRAGMENT,
-      ...additive,
-      uniforms: { ...straight.uniforms, ...bend },
-    });
-    points.material = bent;
-    return { points, straight, bent };
-  });
+export function splitSky(group: THREE.Object3D, context: SceneContext): void {
+  if (group.getObjectByName('deep-field') !== undefined) return;
   const random = seededRandom('deep-field');
   const deep = starPoints(
     Array.from({ length: DEEP_FIELD.count }, (): StarSample => {
@@ -176,30 +156,29 @@ export function bendSky(shells: readonly THREE.Points[], group: THREE.Object3D, 
       atten: { value: 0 },
       wob: { value: 0 },
       opacity: { value: 1 },
-      ...bend,
     },
-    STAR_LENSED_VERTEX,
   );
   deep.name = 'deep-field';
   group.add(deep);
-  return {
-    set(next, size) {
-      view.set(Math.max(1, size.width), Math.max(1, size.height));
-      // The shader measures from the bottom of the view (y up, as clip space is); layout measures from the top.
-      const height = Math.max(1, size.height);
-      lenses.forEach((lens, index) => {
-        const from = next[index];
-        lens.set(from?.x ?? 0, from === undefined ? 0 : height - from.y, from?.radius ?? 0, 0);
-      });
-    },
-    dispose() {
-      for (const { points, straight, bent } of swapped) {
-        points.material = straight;
-        bent.dispose();
-      }
-      group.remove(deep);
-      deep.geometry.dispose();
-      (deep.material as THREE.Material).dispose();
-    },
-  };
+  const smudges = starPoints(
+    Array.from({ length: SMUDGES.count }, (): StarSample => {
+      const up = random() * 2 - 1;
+      const around = random() * TAU;
+      const ring = Math.sqrt(1 - up * up);
+      const reach = SMUDGES.distance * (0.95 + random() * 0.1);
+      const glow = (0.3 + random() * 0.7) * SMUDGES.brightness;
+      const warm = random() < 0.35;
+      return {
+        position: [ring * Math.cos(around) * reach, up * reach, ring * Math.sin(around) * reach],
+        size: SMUDGES.minSize + Math.pow(random(), 2) * (SMUDGES.maxSize - SMUDGES.minSize),
+        colour: warm ? [glow, 0.82 * glow, 0.62 * glow] : [0.7 * glow, 0.82 * glow, glow],
+      };
+    }),
+    random,
+    { time: context.time, pr: context.pixelRatio, opacity: { value: 1 } },
+    { vertex: SMUDGE_VERTEX, fragment: SMUDGE_FRAGMENT },
+  );
+  smudges.name = 'deep-smudges';
+  group.add(smudges);
+  for (const object of group.children) if (object.name !== NEAR_MOTES) object.layers.set(BACKGROUND_LAYER);
 }

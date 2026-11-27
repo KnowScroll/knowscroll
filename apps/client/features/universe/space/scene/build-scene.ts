@@ -12,7 +12,7 @@ import { makeNebula } from './nebula';
 import { makePlanet, type BuiltPlanet, type PlanetHandover } from './planet';
 import { makeShip, makeStation } from './props';
 import { makeRocket, type Rocket, type RocketPose } from './rocket';
-import { addSky, bendSky, type BentSky } from './sky';
+import { addSky, splitSky } from './sky';
 import { makeSun, type BuiltSun } from './sun';
 
 /** A point of the scene that a label or tap target follows. */
@@ -71,10 +71,11 @@ export interface BuiltSpace {
    */
   readonly showStations: (visible: boolean) => void;
   /**
-   * The background stars, drawn so they can bend round the bodies in front of them (the trial look's gravity). Made
-   * on the first call and kept; a view that never asks keeps the plain stars and their program.
+   * Puts the background stars on their own layer (`BACKGROUND_LAYER`, which the camera no longer draws by default) and
+   * adds the deep field there, so a view can draw the sky apart from the bodies and bend it (the trial look's gravity).
+   * The view must then draw that layer itself; a view that never asks keeps the plain stars drawn with everything else.
    */
-  readonly bentSky: () => BentSky;
+  readonly splitSky: () => void;
   /** Pulses a warm glow around one system (picked on the Far level) or one planet (picked on the desktop), or none. */
   readonly highlight: (id: string | null) => void;
   /** What a camera script ("Enter a system", "Enter a planet") reads of the scene and changes in it. */
@@ -120,6 +121,8 @@ export interface SceneScripting {
 
 /** How bright the flat haze under a system's sun is. */
 const HALO_STRENGTH = 0.6;
+/** The haze under a sun reaches this many times its system's outermost orbit (at least 1), in scene units. */
+export const HALO_REACH = 2.2;
 
 /** Angular speed of a planet: inner planets turn faster. */
 function orbitSpeed(system: SpaceSystemDefinition, orbitRadius: number): number {
@@ -174,7 +177,7 @@ export function buildSystem(
   group.position.set(system.position.x, 0, system.position.z);
   const sunPosition = group.position.clone();
   const outer = Math.max(1, ...system.planets.map((planet) => planet.orbitRadius));
-  const halo = makeHalo(outer * 2.2, system.family, scoped, HALO_STRENGTH);
+  const halo = makeHalo(outer * HALO_REACH, system.family, scoped, HALO_STRENGTH);
   group.add(halo);
   const sun = makeSun(system.sunRadius, scoped);
   group.add(sun.object);
@@ -373,8 +376,7 @@ export function buildSpace(
   // The stars are shells around the middle of the map; for a map larger than they are, they travel with the camera.
   const skyGroup = new THREE.Group();
   scene.add(skyGroup);
-  const skyShells = addSky(skyGroup, 'sky', context, new THREE.Vector3(...definition.camera.position));
-  let bent: BentSky | null = null;
+  addSky(skyGroup, 'sky', context, new THREE.Vector3(...definition.camera.position));
 
   /** The system, station and dust ticks that pose the scene, by what owns them. */
   const live = new Map<string, LiveSystem>();
@@ -656,9 +658,8 @@ export function buildSpace(
         for (const object of objects) object.visible = systemId === null || id === systemId;
       if (far !== undefined) far.object.visible = systemId === null;
     },
-    bentSky() {
-      bent ??= bendSky(skyShells, skyGroup, context);
-      return bent;
+    splitSky() {
+      splitSky(skyGroup, context);
     },
     showStations(visible) {
       stationsDrawn = visible;
@@ -669,8 +670,6 @@ export function buildSpace(
       for (const { build } of live.values()) for (const [id, sprite] of build.picks) sprite.visible = id === pickedId;
     },
     dispose() {
-      // The bent stars put their own material back first, so the tree frees both.
-      bent?.dispose();
       disposeTree(scene, true);
       for (const texture of textures) texture.dispose();
       for (const record of live.values()) for (const texture of record.textures) texture.dispose();

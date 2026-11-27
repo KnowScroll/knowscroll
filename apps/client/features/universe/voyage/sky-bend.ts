@@ -1,36 +1,42 @@
 /**
- * The look of gravity, drawn: the background stars bend round the bodies in front of them (`sky-lens.ts` says which
- * and how much). Each frame, after the camera is placed and before the scene is drawn, the stars and planets of the
- * scene are projected from the scene itself, so a lens sits on its body in the very frame it is drawn, flight or
- * lean, and a still frame under reduced motion is bent too. Radii ease from frame to frame (under reduced motion they
- * are set at once), so a body coming into view bends the sky in instead of snapping.
+ * The look of gravity, drawn: the background bends round the groups in front of it (`sky-lens.ts` says which and how),
+ * and the bodies stay as they are. Each frame, after the camera is placed, the suns and planets of the scene are
+ * projected from the scene itself, so a lens sits on its mass in the very frame it is drawn, flight or lean, and a still
+ * frame under reduced motion is bent too. A system's lens is centred on its sun and as wide as its planets' orbits (a
+ * lone star's, as its glow); a planet's, when it is alone at its stop, as its globe. Their weights ease from frame to
+ * frame (under reduced motion they are set at once), so a lens fades in and out and never pops. The drawing itself is
+ * `sky-pass.ts`.
  */
 import * as THREE from 'three';
-import type { BuiltSpace } from '../space/scene/build-scene';
-import { SKY_LENSES } from '../space/scene/shaders';
-import type { BentSky } from '../space/scene/sky';
-import type { Stop } from './ladder';
-import { lensRadii, strongestLenses, type LensBody } from './sky-lens';
+import { HALO_REACH, type BuiltSpace } from '../space/scene/build-scene';
+import type { LensTarget, LensMass } from './sky-lens';
+import { LENS_SLOTS, strongestLenses, wantedMasses } from './sky-lens';
+import { createSkyPass } from './sky-pass';
+import type { GlobeOnScreen } from './voyage-control';
 
-/** How fast a lens radius follows what its body wants, per second. */
+/** How fast a lens weight follows what its mass wants, per second. */
 const LENS_RATE = 7;
-/** An eased radius this small is dropped. */
-const LENS_GONE = 0.25;
+/** An eased weight this small is dropped. */
+const LENS_GONE = 0.01;
 
 /** What a frame of the bent sky needs. */
 export interface SkyBendFrame {
-  readonly stop: Stop;
+  readonly target: LensTarget;
   readonly size: { readonly width: number; readonly height: number };
   /** Seconds since the last frame. */
   readonly dt: number;
   readonly reducedMotion: boolean;
+  /** Where the planet's globe was drawn this frame, if it was: a planet alone at its stop bends round it. */
+  readonly globe: GlobeOnScreen | null;
 }
 
 export interface SkyBend {
-  /** Bends the sky of `space` from now on: links its program, so call it when the scene is attached. */
+  /** Splits the sky of `space` off its bodies, so it can be bent: call it when the scene is attached. */
   attach(space: BuiltSpace): void;
-  /** Sets this frame's lenses on the attached scene's stars. */
-  draw(space: BuiltSpace, frame: SkyBendFrame): void;
+  /** Draws `space` for this frame, its background bent. */
+  draw(renderer: THREE.WebGLRenderer, space: BuiltSpace, frame: SkyBendFrame): void;
+  /** Frees the pass. */
+  dispose(): void;
 }
 
 /** True when `object` and every parent it hangs from are drawn. */
@@ -40,48 +46,75 @@ function drawn(object: THREE.Object3D): boolean {
 }
 
 export function createSkyBend(): SkyBend {
-  let sky: BentSky | null = null;
-  let bentFor: BuiltSpace | null = null;
+  const pass = createSkyPass();
+  let attachedTo: BuiltSpace | null = null;
   const eased = new Map<string, number>();
   const point = new THREE.Vector3();
   const edge = new THREE.Vector3();
+  const sunPoint = new THREE.Vector3();
   const right = new THREE.Vector3();
 
-  /** The stars and planets drawn on screen now, with their radius on screen. */
-  const bodiesOf = (space: BuiltSpace, size: SkyBendFrame['size']): LensBody[] => {
+  /** Projects the point `point` (world) and returns its place and the radius, on screen, of `world` units at its depth. */
+  const project = (
+    camera: THREE.Camera,
+    world: number,
+    size: SkyBendFrame['size'],
+  ): { x: number; y: number; radiusPx: number } | null => {
+    edge.copy(point).addScaledVector(right, world);
+    point.project(camera);
+    edge.project(camera);
+    if (point.z >= 1 || Math.abs(point.x) > 1.6 || Math.abs(point.y) > 1.6) return null;
+    const x = (point.x * 0.5 + 0.5) * size.width;
+    return { x, y: (-point.y * 0.5 + 0.5) * size.height, radiusPx: Math.abs((edge.x * 0.5 + 0.5) * size.width - x) };
+  };
+
+  /** The systems' groups and the planets drawn on screen now. */
+  const massesOf = (space: BuiltSpace, frame: SkyBendFrame): LensMass[] => {
     const camera = space.camera;
     camera.updateMatrixWorld();
     right.setFromMatrixColumn(camera.matrixWorld, 0);
-    const bodies: LensBody[] = [];
+    const masses: LensMass[] = [];
     for (const anchor of space.anchors) {
-      if ((anchor.kind !== 'system' && anchor.kind !== 'planet') || !drawn(anchor.object)) continue;
+      if ((anchor.kind !== 'system' && anchor.kind !== 'planet') || anchor.systemId === null) continue;
+      // The planet the camera is at is drawn as its globe, which sets the painted body aside: the globe is its place.
+      const globe = anchor.kind === 'planet' && anchor.id === frame.target.planetId ? frame.globe : null;
+      if (globe !== null) {
+        masses.push({ id: anchor.id, kind: 'planet', systemId: anchor.systemId, ...globe });
+        continue;
+      }
+      if (!drawn(anchor.object)) continue;
       anchor.object.getWorldPosition(point);
-      edge.copy(point).addScaledVector(right, anchor.radius);
-      point.project(camera);
-      edge.project(camera);
-      if (point.z >= 1 || Math.abs(point.x) > 1.4 || Math.abs(point.y) > 1.4) continue;
-      const x = (point.x * 0.5 + 0.5) * size.width;
-      bodies.push({
-        id: anchor.id,
-        kind: anchor.kind,
-        x,
-        y: (-point.y * 0.5 + 0.5) * size.height,
-        radiusPx: Math.abs((edge.x * 0.5 + 0.5) * size.width - x),
-      });
+      if (anchor.kind === 'system') {
+        // The group reaches as far as its farthest planet's orbit, measured at the sun's depth; a star alone, its glow.
+        sunPoint.copy(point);
+        let reach = 0;
+        for (const other of space.anchors)
+          if (other.kind === 'planet' && other.systemId === anchor.systemId)
+            reach = Math.max(reach, other.object.getWorldPosition(edge).distanceTo(sunPoint));
+        point.copy(sunPoint);
+        const at = project(camera, reach > 0 ? reach : HALO_REACH, frame.size);
+        if (at !== null) masses.push({ id: anchor.id, kind: 'system', systemId: anchor.systemId, ...at });
+      } else {
+        const at = project(camera, anchor.radius, frame.size);
+        if (at !== null) masses.push({ id: anchor.id, kind: 'planet', systemId: anchor.systemId, ...at });
+      }
     }
-    return bodies;
+    return masses;
   };
 
   return {
     attach(space) {
-      sky = space.bentSky();
-      bentFor = space;
+      space.splitSky();
+      attachedTo = space;
       eased.clear();
     },
-    draw(space, frame) {
-      if (sky === null || bentFor !== space) return;
-      const bodies = bodiesOf(space, frame.size);
-      const wanted = lensRadii(frame.stop, bodies);
+    draw(renderer, space, frame) {
+      if (attachedTo !== space) {
+        renderer.render(space.scene, space.camera);
+        return;
+      }
+      const masses = massesOf(space, frame);
+      const wanted = wantedMasses(frame.target, masses);
       const step = frame.reducedMotion ? 1 : Math.min(1, frame.dt * LENS_RATE);
       for (const id of new Set([...eased.keys(), ...wanted.keys()])) {
         const from = eased.get(id) ?? 0;
@@ -89,7 +122,10 @@ export function createSkyBend(): SkyBend {
         if (next < LENS_GONE && !wanted.has(id)) eased.delete(id);
         else eased.set(id, next);
       }
-      sky.set(strongestLenses(bodies, eased, SKY_LENSES), frame.size);
+      pass.draw(renderer, space, strongestLenses(masses, eased, LENS_SLOTS), frame.size);
+    },
+    dispose() {
+      pass.dispose();
     },
   };
 }

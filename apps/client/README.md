@@ -519,11 +519,14 @@ float over it.
     anywhere skips to the end of the flight. The skip's tap target stays mounted between flights, letting touches
     through and hidden from assistive technology: a browser sends the rest of a touch to the element it began on, so a
     target removed on landing would cut off every touch that began mid-flight. Reduced motion cuts instead of flying.
-  - **The bent sky** (`sky-lens.ts`, `sky-bend.ts`): every sun and every planet on screen bends the background stars
-    behind it, all the time, a sun more than a planet, each by its size on screen, as a point lens bends them: a clear
-    disc opens round the body and the stars at its edge grow brighter and bigger. The bends move as the bodies and the
-    view move. The ship plays no part (it is only pulled). Nothing bends on a planet's ground. A faint deep field of 40,000 stars, in the trial look only, gives the bend something to show. The
-    shipping map's stars and their shader program are untouched.
+  - **The bent sky** (`sky-lens.ts`, `sky-bend.ts`, `sky-pass.ts`): the background bends round the masses in front of
+    it and the bodies never do. A solar system bends space as one mass round its planets' orbits, centred on its sun; a
+    star alone bends round its glow; a planet bends space only when it is alone at its own planet stop; nothing bends on
+    a planet's ground. The sky is on its own three.js layer; the trial's driver draws it alone into a render target,
+    draws that to the screen in one full-screen pass bent round up to six lenses (stretching the sky into arcs outside
+    a group and zooming it evenly inside, nothing mirrored; faint far smudges in the deep field give it arcs to draw), then draws the bodies and the ship over it unbent. The bend
+    moves as the masses and the view move and eases in and out. A faint deep field of 40,000 stars, in the trial look
+    only, gives it something to show. The shipping map's stars and its single pass are untouched.
   - **The planet as one world** (`globe.ts`, `world-texture.ts`): a sphere wearing the `worldmap.v1` globe band,
     painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey
     land not reached yet shows from orbit too, outlined as one shape, never named, counted or tappable. The sea is the

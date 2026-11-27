@@ -182,8 +182,15 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       closeUp.attach(space);
       skyBend.attach(space);
     },
-    beforeDraw(space, size) {
-      skyBend.draw(space, { stop: control.target.stop, size, dt: lastDt, reducedMotion: control.reducedMotion });
+    drawScene(renderer, space, size) {
+      const { stop, systemId, planetId } = control.target;
+      skyBend.draw(renderer, space, {
+        target: { stop, systemId, planetId },
+        size,
+        dt: lastDt,
+        reducedMotion: control.reducedMotion,
+        globe: closeUp.onScreen(),
+      });
     },
     pose(t, space, size) {
       /** Since the last frame: a flight keeps to the clock, as it always has; easing steps at most 0.1 s. */
@@ -327,6 +334,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     dispose() {
       closeUp.dispose();
       shipLayer.dispose();
+      skyBend.dispose();
     },
   };
 }
