@@ -793,10 +793,31 @@ test.describe('a desktop, 1440 x 900', () => {
     for (const { name, box } of await chrome(page))
       if (box.x !== hintBox.x || box.y !== hintBox.y) expect(apart(hintBox, box), `hints over ${name}`).toBe(true);
 
-    // W A S D fly the ship (the readout's touch line says so) and move no stop.
+    // W A S D fly the ship (the readout's touch line says so) and move no stop. The line lasts only while the keys hold
+    // the ship (0.7 s after the last press), so every line the readout shows is recorded as it is shown, and looked
+    // through after: a busy machine can draw the readout too late for a look at the page to catch it.
+    await page.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { ksTouchLines: string[] }).ksTouchLines = seen;
+      const readout = document.querySelector('[data-testid="universe-frame-rate"]');
+      if (readout !== null)
+        new MutationObserver(() => seen.push(readout.textContent ?? '')).observe(readout, {
+          subtree: true,
+          childList: true,
+          characterData: true,
+        });
+    });
     await page.getByTestId('voyage-stage').focus();
     for (let press = 0; press < 3; press++) await page.keyboard.press('w');
-    await expect(page.getByText(/touch: ship (flown by keys|held)/)).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (window as unknown as { ksTouchLines: string[] }).ksTouchLines.some((line) =>
+            /touch: ship (flown by keys|held)/.test(line),
+          ),
+        ),
+      )
+      .toBe(true);
     await expect(page.getByRole('heading', { level: 1, name: 'Your universe', exact: true })).toBeVisible();
 
     // + goes one stop in and - one stop out, as the hints say.
