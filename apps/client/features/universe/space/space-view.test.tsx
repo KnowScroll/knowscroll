@@ -5,7 +5,7 @@ import { DisplayProvider } from '@knowscroll/ui';
 import { SAMPLE_SPACE } from './space-definition';
 import { SpaceSimpleLists } from './space-simple-lists';
 import type { SpaceCanvasProps } from './space-canvas-props';
-import type { SpaceFailure } from './space-surface';
+import type { SpaceAnchor, SpaceFailure } from './space-surface';
 import { SpaceView } from './space-view';
 
 // The real SpaceView, render loop and clock. Only the GPU side is a stand-in (a canvas host that
@@ -110,6 +110,7 @@ async function mount(
     reducedMotion?: boolean;
     strict?: boolean;
     onDetail?: (systemIds: readonly string[]) => void;
+    onAnchors?: (anchors: readonly SpaceAnchor[]) => void;
     diagnostics?: boolean;
   } = {},
 ) {
@@ -120,6 +121,7 @@ async function mount(
         definition={SAMPLE_SPACE}
         fallback={() => <SpaceSimpleLists definition={SAMPLE_SPACE} />}
         {...(options.onDetail === undefined ? {} : { onDetail: options.onDetail })}
+        {...(options.onAnchors === undefined ? {} : { onAnchors: options.onAnchors })}
         {...(options.diagnostics === false
           ? {}
           : { diagnostics: { onFrame: () => undefined, onFailure: (reason: SpaceFailure) => failures.push(reason) } })}
@@ -254,6 +256,23 @@ describe('the space view', () => {
     expect(screen.getByTestId('ks-space-simple')).toBeTruthy();
     expect(failures).toEqual(['low-memory']);
     expect(mockRenderers[0]!.dispose).toHaveBeenCalled();
+  });
+
+  it('hands each frame’s anchors to a view that asks, as the frame is drawn: on the loop and on a still frame', async () => {
+    const moving = jest.fn<void, [readonly SpaceAnchor[]]>();
+    await mount({ onAnchors: moving });
+    await runFrame(1000);
+    expect(moving).toHaveBeenCalledTimes(1);
+    expect(moving.mock.calls[0]![0]).toEqual([expect.objectContaining({ id: 'sample-system', x: 100, y: 100 })]);
+    await runFrame(1034);
+    expect(moving).toHaveBeenCalledTimes(2);
+  });
+
+  it('hands a still frame’s anchors over under reduced motion, where no loop runs', async () => {
+    const still = jest.fn<void, [readonly SpaceAnchor[]]>();
+    await mount({ reducedMotion: true, onAnchors: still });
+    expect(still).toHaveBeenCalled();
+    expect(still.mock.calls.at(-1)![0]).toEqual([expect.objectContaining({ id: 'sample-system' })]);
   });
 
   it('puts a label view over each projected point, a 44 px target', async () => {
