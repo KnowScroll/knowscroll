@@ -24,7 +24,6 @@ describe('where the ship stands on the ground', () => {
       // Facing the camera but past the edge of the ship's room: not on screen as far as the ship goes.
       [region('r', 500, 380)],
       [region('r', 195, 900)],
-      [],
     ]) {
       const { home, parked } = place(anchors, 'r');
       expect(parked).toBe(true);
@@ -59,7 +58,17 @@ describe('where the ship stands on the ground', () => {
   });
 
   it('with no region named, stands at its spot', () => {
-    expect(place([region('r', 195, 380)], null).parked).toBe(true);
+    expect(place([region('r', 195, 380)], null).home).toMatchObject({ x: 195, y: 570 });
+  });
+
+  it('waits at its spot without parking until its region is named, then stands on it (a reload onto the ground)', () => {
+    // The names come a frame after the first draw, or once the world is built.
+    const before = place([], 'r');
+    expect(before.home).toMatchObject({ x: 195, y: 570 });
+    expect(before.parked).toBe(false);
+    const named = place([region('r', 195, 380)], 'r', before.parked);
+    expect(named.parked).toBe(false);
+    expect(named.home.y).toBeLessThan(380);
   });
 });
 

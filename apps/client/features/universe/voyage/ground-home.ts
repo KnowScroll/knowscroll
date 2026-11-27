@@ -44,10 +44,15 @@ const inside = (point: Point, bounds: ShipBounds): boolean =>
  */
 export function groundHome(input: GroundHomeInput): { readonly home: ShipHome; readonly parked: boolean } {
   const { anchors, regionId, bounds } = input;
-  const region = anchors.find((anchor) => anchor.visible && anchor.id === regionId);
-  const stand = region === undefined ? null : { x: region.x, y: region.y - GROUND_SIZE * FOOT_SHARE };
   const spot = parkingSpot({ anchor: input.spot, avoid: input.avoid });
   const home = (at: Point): ShipHome => ({ x: at.x, y: at.y, size: GROUND_SIZE, heading: 0 });
+  const named = anchors.find((anchor) => anchor.id === regionId);
+  // Not named yet (the world is still being built, or the names come a frame after the first draw): the ship waits at
+  // its spot without parking, so it goes to its region as soon as the region is named. Only a region seen and then
+  // lost parks it.
+  if (named === undefined) return { home: home(spot), parked: false };
+  const region = named.visible ? named : undefined;
+  const stand = region === undefined ? null : { x: region.x, y: region.y - GROUND_SIZE * FOOT_SHARE };
   if (stand === null || !inside(stand, bounds)) return { home: home(spot), parked: true };
   if (input.parked && Math.hypot(stand.x - spot.x, stand.y - spot.y) > REATTACH_DISTANCE)
     return { home: home(spot), parked: true };
