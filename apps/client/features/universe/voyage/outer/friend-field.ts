@@ -21,6 +21,10 @@ export interface Point {
   readonly x: number;
   readonly y: number;
 }
+/** A disc on screen: where a bubble is and how much room it takes. */
+export interface Disc extends Point {
+  readonly r: number;
+}
 export interface Viewport {
   readonly width: number;
   readonly height: number;
@@ -306,6 +310,13 @@ export function layoutField(friends: readonly OuterFriend[], input: FieldInput):
   }
   return { cell, band, home, friends: shown, decorations };
 }
+
+/** The discs the bubbles take on screen, yours and the friends' and the unnamed ones: what the parked ship keeps off. */
+export const bubbleDiscs = (layout: FieldLayout): readonly Disc[] => [
+  { x: layout.home.x, y: layout.home.y, r: layout.home.radius },
+  ...layout.friends.map((spot) => ({ x: spot.x, y: spot.y, r: spot.radius })),
+  ...layout.decorations.map((spot) => ({ x: spot.x, y: spot.y, r: spot.radius })),
+];
 
 /**
  * `pan` held where the screen still shows at least `min(5, friends)` friends: inside `panLimit`, and, if the field has

@@ -619,6 +619,19 @@ float over it.
     offline before film time 0.3 the film is stopped and the screens for those are shown. Leave plays the film home
     (3.8 s) and lands on your Universe. A screen reader hears one polite line ("Going to ...'s universe", "Going home").
     With the switch off there is no film and Leave goes back as before.
+  - **Beyond your universe** (`voyage/outer/`, behind the switch only, your own Universe only). One more stop above the
+    whole universe: a pinch that closes the fingers, a wheel notch out or `-` flies the camera out to 3.3 times its
+    distance, and your friends' universes stand round yours as bubbles with their names (5 to 10 on screen, the rest
+    reached by panning the field with a drag, the arrows or the ship's lean) among seven unnamed decorative ones, which
+    are no button, no count and not in the accessibility tree. The header says "Beyond your universe" and "14 friends";
+    each friend on screen is a button "Ravi’s universe" that opens `/visit/<handle>` (the film is the visit's own); the
+    one chip, "All friends (14)", opens a list of every friend. A pinch spreading, a wheel notch in, `+`, the Back pill
+    "Your universe", Escape or the browser's Back come back (the list closes first); the stop is never kept: it is
+    dropped when the tab blurs, so Leave on a visit lands on your own universe. The roster is the Friends list's own
+    paged read, started when the flight out starts and dropped on leaving; "14 friends" is the order the roster gives
+    (oldest profile first, the owner's leaning A). With the switch off, and on a friend's Universe, none of it exists
+    and `-` and the wheel do what they did. Covered by `e2e/universe-outer-smoke.spec.ts` (390 x 844 and 1440 x 900,
+    the wheel, `-`, a pinch by CDP, the three ways back, a visit, the list, the accessibility scan).
   - Not yet: the camera's fall into a friend's Universe after the film (the map simply appears under the flash), the
     white of the way home fading over your own Universe, the prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.

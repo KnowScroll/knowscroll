@@ -13,6 +13,8 @@ import type { VoyageControl } from './voyage-control';
 export const PINCH_STEP = 1.4;
 /** How near and how far a pinch may take the camera, as a share of its stop's distance. */
 const ZOOM_RANGE = { least: 0.35, most: 3 } as const;
+/** At the outer stop nothing is farther out: the fingers may spread the camera only this much beyond it. */
+const OUTER_MOST = 1.15;
 /** Fingers closer than this (points) count as this far apart, so the zoom never runs away (the prototype's `max(20, d)`). */
 const SPREAD_FLOOR = 20;
 /** A pinch that asked for a flight lets go of the camera after this long (seconds) if no flight has started. */
@@ -52,8 +54,10 @@ export interface PinchGesture {
   readonly ratio: () => number;
 }
 
-/** Makes the pinch of a stage whose camera is told through `control.zoom`. */
-export function createPinchGesture(control: Pick<VoyageControl, 'zoom'>): PinchGesture {
+/** Makes the pinch of a stage whose camera is told through `control.zoom` (and which stop it is at, when `control` knows). */
+export function createPinchGesture(
+  control: Pick<VoyageControl, 'zoom'> & Partial<Pick<VoyageControl, 'target'>>,
+): PinchGesture {
   let pinching = false;
   /** The spread of the fingers down now when they came down, and their spread now. */
   let start = 0;
@@ -65,7 +69,11 @@ export function createPinchGesture(control: Pick<VoyageControl, 'zoom'>): PinchG
   const ratio = () => carried * (start > 0 ? last / start : 1);
   /** The camera's distance as a share of its stop's, for the fingers' spread now. */
   const scaleFor = (spread: number) =>
-    clamp(start / (carried * Math.max(SPREAD_FLOOR, spread)), ZOOM_RANGE.least, ZOOM_RANGE.most);
+    clamp(
+      start / (carried * Math.max(SPREAD_FLOOR, spread)),
+      ZOOM_RANGE.least,
+      control.target?.stop === 'outer' ? OUTER_MOST : ZOOM_RANGE.most,
+    );
   return {
     begin(spread, place) {
       if (pinching) carried = ratio();

@@ -7,6 +7,7 @@ import { SpaceChip } from './space-chip';
 import type { UniverseView } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 import { climbOneStop, climbsToGlobe } from './voyage/ladder';
+import { OUTER_TITLE, OWN_UNIVERSE_NAME } from './voyage/outer/outer-copy';
 
 /**
  * What the header says for each view (U01, U02, U03): the screen title with search and the Lately
@@ -23,6 +24,7 @@ export function UniverseHeader({
   systemFacts,
   desktop = false,
   voyage = false,
+  outer,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -37,6 +39,11 @@ export function UniverseHeader({
   readonly desktop?: boolean;
   /** This device is trying the new look: the Back pill climbs one stop at a time, from the ground to the planet's globe first. */
   readonly voyage?: boolean;
+  /**
+   * The person is past the rim of their universe, among their friends' (the outer stop): the title, the line under it
+   * ("14 friends") and the Back pill that returns. Only for the whole universe, never a friend's.
+   */
+  readonly outer?: { readonly line: string; readonly onLeave: () => void };
 }) {
   const router = useRouter();
   const initial = useAccountInitial();
@@ -67,6 +74,29 @@ export function UniverseHeader({
             />
           </View>
         ) : null}
+      </View>
+    );
+  if (view.kind === 'universe' && outer)
+    return (
+      <View style={styles.root}>
+        <View style={styles.row}>
+          <SpaceChip
+            testID="universe-up"
+            variant="solid"
+            icon="back"
+            label={OWN_UNIVERSE_NAME}
+            accessibilityLabel={`Back to ${OWN_UNIVERSE_NAME}`}
+            onPress={outer.onLeave}
+          />
+        </View>
+        <View style={styles.block}>
+          <Text variant="heading" heading={1} color={space.label}>
+            {OUTER_TITLE}
+          </Text>
+          <Text variant="label" color={space.label2} aria-live="polite" testID="outer-line">
+            {outer.line}
+          </Text>
+        </View>
       </View>
     );
   if (view.kind === 'universe')

@@ -5,6 +5,7 @@ import {
   chainOf,
   focalOf,
   increasing,
+  OUTER_SCALE,
   peakOf,
   planetDistances,
   UNIVERSE_ID,
@@ -61,6 +62,25 @@ describe('the chain of a target', () => {
     expect(lost.ids).toEqual(['s1', UNIVERSE_ID]);
     expect(lost.planetRadius).toBeNull();
     expect(chainOf(at('star', 'nowhere'), places, size).ids).toEqual([UNIVERSE_ID]);
+  });
+});
+
+describe('the chain of the outer stop', () => {
+  it('is the universe’s own link, stood at 3.3 times as far', () => {
+    const universe = chainOf(at('universe', null), places, size);
+    const outer = chainOf(at('outer', null), places, size);
+    expect(OUTER_SCALE).toBe(3.3);
+    expect(outer.ids).toEqual(universe.ids);
+    expect(outer.chain).toEqual(universe.chain);
+    expect(outer.stopDistance).toBeCloseTo(universe.chain[0]!.distance * 3.3, 9);
+    expect(universe.stopDistance).toBe(universe.chain[0]!.distance);
+  });
+
+  it('holds the universe and the stop beyond it on one chain, so a flight between them climbs no peak', () => {
+    const universe = chainOf(at('universe', null), places, size);
+    const outer = chainOf(at('outer', null), places, size);
+    expect(peakOf(universe, outer)).toBeNull();
+    expect(peakOf(outer, universe)).toBeNull();
   });
 });
 

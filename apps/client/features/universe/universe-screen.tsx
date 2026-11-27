@@ -22,8 +22,10 @@ import { FrameRateReadout } from './frame-rate/frame-rate-readout';
 import { UniverseSurface } from './universe-surface';
 import { useUniverseTrial } from './universe-trial';
 import { escapeOneStop } from './voyage/ladder';
+import { createOuterStop, OuterStopContext, type OuterStop } from './voyage/outer/outer-stop';
 import { useUniverseBack } from './use-universe-back';
 import { useUniverseSession } from './use-universe-session';
+import type { UniverseViewSession } from './universe-session';
 
 /** A quiet, honest word over the map while it catches up; never a percentage or a count. */
 function statusOf(state: ReturnType<typeof useUniverseSession>['state']): string | undefined {
@@ -35,6 +37,34 @@ function statusOf(state: ReturnType<typeof useUniverseSession>['state']): string
   return undefined;
 }
 
+/**
+ * The Back of the new look with an outer stop: the list of every friend first, then the stop, then the session's own. The
+ * web's history marker (`use-universe-back.web.ts`) follows `canBack`, so browser Back leaves the stop too. With the
+ * switch off none of this is made: the session is handed on as it is.
+ */
+function backWithOuter(session: UniverseViewSession, outer: OuterStop): UniverseViewSession {
+  const leaveFirst = (): boolean => {
+    const { on, listOpen } = outer.getState();
+    if (listOpen) outer.closeList();
+    else if (on) outer.leave();
+    return on;
+  };
+  return {
+    ...session,
+    canBack: () => outer.getState().on || session.canBack(),
+    back: () => leaveFirst() || session.back(),
+    escape: () => leaveFirst() || escapeOneStop(session),
+    subscribe: (listener) => {
+      const stopSession = session.subscribe(listener);
+      const stopOuter = outer.subscribe(listener);
+      return () => {
+        stopSession();
+        stopOuter();
+      };
+    },
+  };
+}
+
 export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   const { reducedMotion, breakpoint } = useDisplay(),
     { session, state } = useUniverseSession(scope, reducedMotion),
@@ -43,26 +73,43 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   const [foreground, setForeground] = useState(false);
   const stations = useRoomStationsOnMap(scope);
   const trial = useUniverseTrial();
+  // Made once for this screen; given to the tree only with the switch on. Nothing in it is stored.
+  const [outer] = useState(() => createOuterStop());
+  const outerHere = trial.on ? outer : null;
   useDocumentTitle('Universe · KnowScroll');
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('light');
-      const active = (value: boolean) => {
+      const hold = (value: boolean) => {
         session.setForeground(value);
         setForeground(value);
+      };
+      // The app goes to the background: the person is no longer past the rim.
+      const active = (value: boolean) => {
+        if (!value) outer.leave();
+        hold(value);
       };
       active(AppState.currentState === 'active');
       const listener = AppState.addEventListener('change', (value) => active(value === 'active'));
       return () => {
-        active(false);
+        hold(false);
         listener.remove();
+        // The screen blurs, and a visit is what blurs it: it pushes `/visit/<handle>`, so Leave on it lands on your universe,
+        // not out among the friends. The stop is left once the rest of this blur has run, after Back's own cleanup has
+        // stopped listening to it: the web's history marker would otherwise see Back become impossible and go back, taking
+        // the visit with it.
+        queueMicrotask(outer.leave);
       };
-    }, [session]),
+    }, [session, outer]),
   );
+  // Anything that moves to a place leaves the stop, so the flag never outlives the view it was set on.
+  useEffect(() => {
+    if (state.focusId !== null) outer.leave();
+  }, [state.focusId, outer]);
   // The new look's Escape climbs from the ground to the globe, as its Back pill does; with the switch off it is as ever.
   const backSession = useMemo(
-    () => (trial.on ? { ...session, escape: () => escapeOneStop(session) } : session),
-    [session, trial.on],
+    () => (outerHere === null ? session : backWithOuter(session, outerHere)),
+    [session, outerHere],
   );
   useUniverseBack(backSession, foreground);
   const { read } = state;
@@ -117,20 +164,23 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   if (!snapshot && read.status !== 'empty')
     return gated(<Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />);
   return gated(
-    <FrameRateReadout on={trial.frameRate} placed={trial.on}>
-      <UniverseSurface
-        session={session}
-        state={state}
-        index={index}
-        status={statusOf(state)}
-        stations={stations}
-        onStation={(roomId) => router.push(roomHref(roomId))}
-        notice={<FormationNotice session={session} />}
-        scope={scope}
-        voyage={trial.on}
-      />
-      <FormationPresentation session={session} />
-    </FrameRateReadout>,
+    <OuterStopContext value={outerHere}>
+      <FrameRateReadout on={trial.frameRate} placed={trial.on}>
+        <UniverseSurface
+          session={session}
+          state={state}
+          index={index}
+          status={statusOf(state)}
+          stations={stations}
+          onStation={(roomId) => router.push(roomHref(roomId))}
+          notice={<FormationNotice session={session} />}
+          scope={scope}
+          voyage={trial.on}
+          onFriend={(handle) => router.push(`/visit/${encodeURIComponent(handle)}`)}
+        />
+        <FormationPresentation session={session} />
+      </FrameRateReadout>
+    </OuterStopContext>,
   );
 }
 

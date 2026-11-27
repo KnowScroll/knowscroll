@@ -24,6 +24,7 @@ import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+import type { OuterFriends } from './voyage/outer/use-outer-friends';
 import type { SearchAnswer } from './voyage/search-sky';
 import { VoyageStage } from './voyage/voyage-stage';
 
@@ -104,6 +105,8 @@ export function UniverseStage({
   voyage = false,
   search,
   desktop = false,
+  outerFriends,
+  onFriend,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -134,6 +137,10 @@ export function UniverseStage({
   readonly search?: SearchAnswer;
   /** The new look only: the screen is on the desktop layout, where the ship parks lower. */
   readonly desktop?: boolean;
+  /** The new look only, on the person's own signed-in Universe: their friends, for the outer stop. */
+  readonly outerFriends?: OuterFriends;
+  /** ... and where a tap on a friend's universe goes. */
+  readonly onFriend?: (handle: string) => void;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -205,6 +212,8 @@ export function UniverseStage({
           desktop={desktop}
           {...(search ? { search } : {})}
           {...(landmarksByPlanet ? { landmarksByPlanet } : {})}
+          {...(outerFriends ? { outerFriends } : {})}
+          {...(onFriend ? { onFriend } : {})}
         />
       </View>
     );

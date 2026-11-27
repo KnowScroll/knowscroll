@@ -26,6 +26,10 @@ import { sameSystems } from './universe-search';
 import { SpaceChip } from './space-chip';
 import { SystemFindsSheet } from './system-finds-sheet';
 import { UniverseStage } from './universe-stage';
+import { AllFriendsChip, AllFriendsSheet } from './voyage/outer/all-friends-list';
+import { friendsLine } from './voyage/outer/outer-copy';
+import { useOuterStop, useOuterStopState } from './voyage/outer/outer-stop';
+import { useOuterFriends } from './voyage/outer/use-outer-friends';
 import { captionBelowGlobe } from './voyage/voyage-chains';
 import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
@@ -92,6 +96,7 @@ export function UniverseSurface({
   notice,
   scope,
   voyage = false,
+  onFriend,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -112,6 +117,8 @@ export function UniverseSurface({
    * up are not played. A friend's universe takes it too.
    */
   readonly voyage?: boolean;
+  /** A tap on a friend's universe at the outer stop (or its row in the list): the visit route. Own universe only. */
+  readonly onFriend?: (handle: string) => void;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
@@ -119,6 +126,14 @@ export function UniverseSurface({
   // Desktop navigation overlays the map; it never reserves a column.
   const wide = breakpoint === 'desktop';
   const view = viewFor(index, state.focusId, state.landed);
+  // The outer stop: past the rim among your friends' universes. Only the person's own signed-in Universe has one, and only
+  // in the new look; the screen gives no store otherwise.
+  const outerStore = useOuterStop();
+  const outer =
+    voyage && !visitor && outerStore !== null && onFriend !== undefined ? { store: outerStore, onFriend } : null;
+  const outerState = useOuterStopState(outer?.store ?? null);
+  const atOuter = outer !== null && outerState.on && view.kind === 'universe';
+  const outerFriends = useOuterFriends(scope, atOuter);
   const places = session.places();
   const panel = wide && (state.overlay === 'outline' || state.overlay === 'search');
   const settings = wide && state.overlay === 'settings';
@@ -289,7 +304,7 @@ export function UniverseSurface({
   // the list in front of it takes its place. It is one line wherever a long card would reach the picture: on a globe (under
   // Back, above the globe, clear of its name and hint, which fill the lower half) and on a short screen, where a full card
   // would reach the sun.
-  const landmarkAllowed = !visitor && !wide && !card && !sheet && !searching;
+  const landmarkAllowed = !visitor && !wide && !card && !sheet && !searching && !atOuter;
   const onGlobe = (shown: UniverseView) => shown.kind === 'planet' && !shown.landed && !simple;
   // See it and the close button both put the large card away for this landmark (#694). See it then shows the landmark
   // where it stands: its planet's globe, which paints the pennant. A landmark that waits has no place, so the list says so.
@@ -351,6 +366,14 @@ export function UniverseSurface({
           {...(systemFacts ? { systemFacts } : {})}
           desktop={wide}
           voyage={voyage}
+          {...(atOuter
+            ? {
+                outer: {
+                  line: friendsLine(outerFriends.friends.length, outerFriends.status),
+                  onLeave: outer.store.leave,
+                },
+              }
+            : {})}
         />
         {controls}
         {globeLandmarkOf(shown)}
@@ -434,7 +457,17 @@ export function UniverseSurface({
     return id !== here;
   };
   const chipsOf = (shown: UniverseView): ReactNode =>
-    !card && !sheet && !searching ? (
+    // Past the rim there is one chip, the way to every friend: nothing of your own universe is a place to go from here.
+    atOuter && shown.kind === 'universe' ? (
+      <View style={styles.chips}>
+        <AllFriendsChip
+          count={outerFriends.friends.length}
+          status={outerFriends.status}
+          complete={outerFriends.complete}
+          onPress={outer.store.openList}
+        />
+      </View>
+    ) : !card && !sheet && !searching ? (
       <View style={styles.chips}>
         {voyage && shown.kind === 'universe' ? commonOf?.chip : null}
         {returnTo && showsReturn(shown, returnTo.id) ? (
@@ -553,6 +586,7 @@ export function UniverseSurface({
             voyage={voyage}
             desktop={wide}
             {...(searchAnswer ? { search: searchAnswer } : {})}
+            {...(outer !== null ? { outerFriends, onFriend: outer.onFriend } : {})}
           />
           {/* The new look's stage dims the sky itself, so the matched systems can shine through the dim. */}
           {searching && !wide && !voyage ? (
@@ -591,7 +625,8 @@ export function UniverseSurface({
             {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
               <DormantNote session={session} index={index} systemId={view.system.objectId} />
             ) : null}
-            {notice}
+            {/* Past the rim the field takes the room: the notice is about your own map, and would stand on the friends. */}
+            {atOuter ? null : notice}
             {sheet}
             {panel || settings || !card ? null : (
               <View onLayout={(event) => setCardTopInStack(event.nativeEvent.layout.y)}>{card}</View>
@@ -630,7 +665,7 @@ export function UniverseSurface({
               />
             </View>
           ) : null}
-          {wide ? <KeyHints globe={globe} voyage={voyage} /> : null}
+          {wide ? <KeyHints globe={globe} voyage={voyage} outer={atOuter} /> : null}
         </>
       )}
     </View>
@@ -649,6 +684,18 @@ export function UniverseSurface({
           card={card}
           collection={collectionPanel}
           {...(onStation ? { onStation } : {})}
+        />
+      ) : null}
+      {/* The list of every friend stands outside the stage, whose wheel and touches would keep it from scrolling. */}
+      {outer !== null ? (
+        <AllFriendsSheet
+          visible={outerState.listOpen}
+          friends={outerFriends.friends}
+          status={outerFriends.status}
+          complete={outerFriends.complete}
+          onClose={outer.store.closeList}
+          onCross={outer.onFriend}
+          onRetry={outerFriends.retry}
         />
       ) : null}
       {settings ? (
@@ -770,7 +817,7 @@ function DustNote({ onClose }: { onClose: () => void }) {
   );
 }
 
-function KeyHints({ globe, voyage }: { globe: boolean; voyage: boolean }) {
+function KeyHints({ globe, voyage, outer }: { globe: boolean; voyage: boolean; outer: boolean }) {
   const hint = (keys: string, action: string) => (
     <View key={action} style={styles.hint}>
       <Text variant="metaS" color={space.label} style={styles.key}>
@@ -783,6 +830,14 @@ function KeyHints({ globe, voyage }: { globe: boolean; voyage: boolean }) {
   );
   // The new look: arrows turn, + and - move one stop (at every stop: from a globe + lands), and the ship is dragged. A
   // column, not the prototype's one line: that line is wider than the room beside the notice on a 1024 px desktop.
+  if (voyage && outer)
+    return (
+      <View pointerEvents="none" style={[styles.hints, styles.voyageHints]} testID="universe-key-hints">
+        {hint('← → ↑ ↓', 'look round')}
+        {hint('+', 'back to your universe')}
+        {hint('Esc', 'back to your universe')}
+      </View>
+    );
   if (voyage)
     return (
       <View pointerEvents="none" style={[styles.hints, styles.voyageHints]} testID="universe-key-hints">

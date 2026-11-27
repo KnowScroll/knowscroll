@@ -32,6 +32,11 @@ const SHORT_SIDE_OF_HEIGHT = 0.62;
 const GROUND_SHORT_SIDES = 1.25;
 /** ... or this share of the view's diagonal, whichever is more. */
 const GROUND_DIAGONALS = 0.54;
+/**
+ * The outer stop stands this many times as far from the whole universe as its own stop does (the prototype's `DMUL`),
+ * on the same link: it is only a distance, as the ground is.
+ */
+export const OUTER_SCALE = 3.3;
 /** Each link of a chain is at least this much farther than the one before it. */
 const LINK_GROWTH = 1.25;
 
@@ -118,8 +123,13 @@ export function chainOf(target: VoyageTarget, places: ChainPlaces, size: ViewSiz
   const universe = rigPose({ focus: places.universeFocus, frame: CENTRED, ...size });
   const universeLink = { distance: distanceOf(universe), point: universe.target };
   const systemFocus = target.systemId === null ? undefined : places.systemFocus(target.systemId);
-  if (target.stop === 'universe' || systemFocus === undefined || target.systemId === null)
-    return { ids: [UNIVERSE_ID], chain: [universeLink], stopDistance: universeLink.distance, planetRadius: null };
+  if (target.stop === 'outer' || target.stop === 'universe' || systemFocus === undefined || target.systemId === null)
+    return {
+      ids: [UNIVERSE_ID],
+      chain: [universeLink],
+      stopDistance: universeLink.distance * (target.stop === 'outer' ? OUTER_SCALE : 1),
+      planetRadius: null,
+    };
   const system = rigPose({ focus: systemFocus, frame: CENTRED, ...size });
   const systemLink = { distance: distanceOf(system) * STAR_DISTANCE_SCALE, point: system.target };
   const planet = target.planetId === null ? undefined : places.planetAt(target.planetId);

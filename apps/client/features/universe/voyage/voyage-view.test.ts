@@ -36,6 +36,17 @@ describe('the direction of the view', () => {
     expect(view(12).distanceTo(orbitDirection(0, new THREE.Vector3()))).toBeCloseTo(0);
   });
 
+  it('keeps the turn at the outer stop as it does at the universe, so the camera does not pop when the stop is entered', () => {
+    const turned = orbitDirection(50, new THREE.Vector3());
+    for (const stop of ['universe', 'outer'] as const)
+      expect(
+        viewDirection(
+          { stop, turnX: 50, planet: undefined, sun: undefined, planetChain: null, distance: 12 },
+          new THREE.Vector3(),
+        ).distanceTo(turned),
+      ).toBeCloseTo(0);
+  });
+
   it('turns fully to the planet day side at the planets own distance, and part way between', () => {
     const day = planetDirection(planet, sun, new THREE.Vector3());
     expect(view(3).distanceTo(day)).toBeCloseTo(0);

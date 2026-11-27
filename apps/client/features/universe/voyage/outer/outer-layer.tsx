@@ -1,4 +1,4 @@
-import { memo, useId, useMemo } from 'react';
+import { memo, useEffect, useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, G, Path, RadialGradient, Stop } from 'react-native-svg';
 import { space, spacing, universe as palette } from '@knowscroll/design-tokens';
@@ -18,11 +18,13 @@ import {
   type OuterStatus,
 } from './outer-copy';
 import {
+  bubbleDiscs,
   INITIAL_DISC,
   INITIAL_GAP,
   layoutField,
   TITLE_ROOM,
   type Bands,
+  type Disc,
   type DecorationSpot,
   type FriendSpot,
   type Point,
@@ -157,6 +159,13 @@ export interface OuterLayerProps {
   readonly bands?: Bands;
   /** The title's top, in px. Default: 14 above the free band's top, as the prototype hangs it. */
   readonly titleTop?: number;
+  /** Draw the title and the line under it. Off where the screen's header says them (the Universe's). Default on. */
+  readonly words?: boolean;
+  /**
+   * Told the discs the bubbles take whenever they move, and `[]` when the layer goes: the parked ship keeps off them.
+   * Pass a function that does not change from render to render.
+   */
+  readonly onBubbles?: (discs: readonly Disc[]) => void;
 }
 
 /** The boxes a name must stay clear of: every bubble's web, every initial disc, and the title. */
@@ -241,6 +250,8 @@ export function OuterLayer({
   ownWeb = true,
   bands,
   titleTop,
+  words = true,
+  onBubbles,
 }: OuterLayerProps) {
   const layout = useMemo(
     () =>
@@ -267,6 +278,10 @@ export function OuterLayer({
     );
     return namesOf(layout.home, layout.friends, blockers, viewport);
   }, [layout, top, viewport]);
+  useEffect(() => {
+    onBubbles?.(layout === null ? [] : bubbleDiscs(layout));
+  }, [layout, onBubbles]);
+  useEffect(() => () => onBubbles?.([]), [onBubbles]);
   if (layout === null || names === null || fade <= 0.001) return null;
   const { home } = layout;
   // An initial's disc is left out where it would sit on the title or its line (a short screen's field runs up to them).
@@ -311,14 +326,16 @@ export function OuterLayer({
           return named ? <MapLabel key={spot.handle} label={named.label} text={named.text} /> : null;
         })}
       </View>
-      <View pointerEvents="none" style={[styles.words, { top }]}>
-        <Text variant="heading" heading={1} color={space.label}>
-          {OUTER_TITLE}
-        </Text>
-        <Text variant="label" color={space.label2} aria-live="polite" testID="outer-line">
-          {friendsLine(friends.length, status)}
-        </Text>
-      </View>
+      {words ? (
+        <View pointerEvents="none" style={[styles.words, { top }]}>
+          <Text variant="heading" heading={1} color={space.label}>
+            {OUTER_TITLE}
+          </Text>
+          <Text variant="label" color={space.label2} aria-live="polite" testID="outer-line">
+            {friendsLine(friends.length, status)}
+          </Text>
+        </View>
+      ) : null}
       {failed && onRetry !== undefined ? (
         <View style={[styles.retry, { top: top + 66 }]}>
           <SpaceChip testID="outer-retry" variant="solid" icon="arrowRight" label="Try again" onPress={onRetry} />

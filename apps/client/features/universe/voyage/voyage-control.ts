@@ -66,6 +66,15 @@ export interface GlobeOnScreen {
   readonly radiusPx: number;
 }
 
+/**
+ * Where the whole universe was drawn on screen, in layout points, with how much of the friends' field it shows: `fade`
+ * is 0 from the universe's own stop in and 1 from well past it, so the field comes in as a pinch spreads past the
+ * universe. It carries the lean, so the field moves with the 3D universe.
+ */
+export interface UniverseOnScreen extends GlobeOnScreen {
+  readonly fade: number;
+}
+
 /** What the screen learns after each frame. */
 export interface VoyageFrame {
   /** Seconds since the last frame, at most 0.1. */
@@ -74,6 +83,11 @@ export interface VoyageFrame {
   readonly flying: boolean;
   /** Where the planet's globe is on screen, when it is drawn. */
   readonly globe: GlobeOnScreen | null;
+  /**
+   * Where the whole universe is on screen, when the camera is at or going to the universe or the outer stop, or a flight
+   * is leaving one of them; null from a star in (and absent where nothing asks for it).
+   */
+  readonly universe?: UniverseOnScreen | null;
   /** The size of the view, in layout points. */
   readonly size: { readonly width: number; readonly height: number };
   /** How many shader programs three.js holds now, for the frame-rate readout: a rise during a flight is a link. */

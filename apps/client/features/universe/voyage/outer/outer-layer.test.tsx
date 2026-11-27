@@ -122,4 +122,22 @@ describe('the outer layer', () => {
     expect(screen.queryByText(/^Friend 0/, hidden)).not.toBeNull();
     expect(screen.queryByText(/friend0/, hidden)).toBeNull();
   });
+
+  it('leaves the title and its line to the screen’s header when told not to draw them', async () => {
+    await render(<OuterLayer {...base({ words: false })} />);
+    expect(screen.queryByText('Beyond your universe')).toBeNull();
+    expect(screen.queryByTestId('outer-line')).toBeNull();
+    expect(screen.getAllByRole('button').length).toBeGreaterThan(0);
+  });
+
+  it('tells where its bubbles are, so a parked ship keeps off them, and that they are gone when it goes', async () => {
+    const told = jest.fn((_discs: readonly { x: number; y: number; r: number }[]) => undefined);
+    await render(<OuterLayer {...base({ friends: friends(3), onBubbles: told })} />);
+    const discs = told.mock.calls.at(-1)![0];
+    // Yours, the friends', and the unnamed ones in view.
+    expect(discs.length).toBeGreaterThanOrEqual(4);
+    expect(discs.some((disc) => Math.abs(disc.x - 218) < 1 && Math.abs(disc.y - 410) < 1)).toBe(true);
+    await screen.unmount();
+    expect(told.mock.calls.at(-1)).toEqual([[]]);
+  });
 });
