@@ -126,7 +126,8 @@ function FilmLabel({ label, testID }: { readonly label: CrossingLabel | Crossing
 /**
  * The 2D marks of the crossing laid over the shader: the two bubbles, the ring closing on the other one, the header
  * lines, the shared names drifting out of the far end, and the white flash. Pure drawing of one {@link CrossingFrame};
- * decorative, so hidden from assistive technology. (Wired into a visit, the screen would say where the person is going.)
+ * decorative, so hidden from assistive technology: the visit says where the person is going in a live region of its own
+ * (`features/visit/visit-crossing.tsx`).
  */
 export function CrossingMarks({
   frame,

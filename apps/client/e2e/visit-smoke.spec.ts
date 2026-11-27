@@ -1,3 +1,5 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
@@ -76,11 +78,15 @@ interface VisitOptions {
   readonly paths?: string[];
   /** Every `/v1` path whose answer the page has received, in order: what a test waits on before it asserts an absence. */
   readonly answered?: string[];
+  /** Motion on: the page is not asked to reduce motion, so the crossing film plays (every other test here reduces it). */
+  readonly motion?: boolean;
+  /** Do not wait for the visitor bar: the film is over the screen until it ends or is skipped. */
+  readonly bare?: boolean;
 }
 
 async function openVisit(page: Page, size: { width: number; height: number }, options: VisitOptions = {}) {
   await page.setViewportSize(size);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.emulateMedia({ reducedMotion: options.motion === true ? 'no-preference' : 'reduce' });
   const preferences = {
     ...(options.trial === true ? { universeTrial: true } : {}),
     ...(options.appearance ? { appearance: options.appearance } : {}),
@@ -111,11 +117,24 @@ async function openVisit(page: Page, size: { width: number; height: number }, op
       });
     if (isInboxPath(path)) return route.fulfill({ json: emptyInbox(path, body, fixtureAccount.accountId) });
     if (path === '/v1/social/visits/read') return route.fulfill({ json: visitAnswer(body, options.systems) });
+    // Your own Universe, which Leave lands on, also asks whether a formation is under way: none is.
+    if (options.own === true && path.endsWith('/formation/read'))
+      return route.fulfill({
+        json: {
+          ...body,
+          scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
+          recordedAt: '2026-10-22T00:00:00.000Z',
+          currentGeography: { revision: 3, structureRevision: 3, activityRevision: 0 },
+          sceneRevision: 7,
+          status: 'unavailable',
+          reason: 'temporarily_unavailable',
+        },
+      });
     if (options.own === true && VOYAGE_READS.has(path)) return route.fulfill({ json: world.reply(path, body) });
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/visit/fixture.ravi');
-  await expect(page.getByTestId('visitor-bar')).toBeVisible({ timeout: 60_000 });
+  if (options.bare !== true) await expect(page.getByTestId('visitor-bar')).toBeVisible({ timeout: 60_000 });
 }
 
 async function expectNoSeriousViolations(page: Page) {
@@ -389,4 +408,119 @@ test('a friend’s universe in the new look looks the same in Light and in Dark 
   for (const stop of seen['light'] ?? []) expect(stop.length).toBeGreaterThan(5);
   expect(seen['light']).toHaveLength(3);
   expect(seen['light']).toEqual(seen['dark']);
+});
+
+/**
+ * The crossing film over a visit (Round 7.3; the switch on, motion on). Nothing here waits on a moment inside the film:
+ * it waits on what the screen says (the live line, a label of the film, a button's name, the route) and skips the film
+ * to get past it. `KS_UNIVERSE_SHOTS` also saves the frames the owner looks at.
+ */
+const film = (page: Page) => page.getByTestId('visit-crossing-film');
+const announced = (page: Page) => page.getByTestId('visit-crossing-announcement');
+const mapSystem = (page: Page) => page.getByRole('button', { name: 'Machine learning, a system', exact: true });
+/** The film's frame, taken at once (a screenshot after a wait would show a later moment). */
+const frameShot = async (page: Page, name: string) => {
+  const folder = process.env['KS_UNIVERSE_SHOTS'];
+  if (folder === undefined) return;
+  mkdirSync(folder, { recursive: true });
+  await page.screenshot({ path: join(folder, `${name}.png`) });
+};
+
+test.describe('the crossing to a friend', () => {
+  test('with the switch on: the film plays over the loading, says where you are going once, a tap skips it, and the map is there', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await openVisit(page, { width: 390, height: 844 }, { trial: true, own: true, motion: true, bare: true });
+    await expect(film(page)).toBeVisible({ timeout: 60_000 });
+    // The live line is announced once; the friend's name is in it when the read was back at once, and "your friend" when not.
+    await expect(announced(page)).toHaveText(/^Going to (Ravi fixture|your friend)’s universe$/, { timeout: 30_000 });
+    await expect(page.getByTestId('visit-crossing-line')).toHaveAttribute('aria-live', 'polite');
+    await expect(page.getByRole('button', { name: 'Skip the crossing' })).toBeVisible();
+    await frameShot(page, 's5-01-start-390x844');
+    // A tap anywhere skips it.
+    await page.mouse.click(195, 420);
+    await expect(film(page)).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('visit-crossing-arrival')).toHaveCount(0, { timeout: 15_000 });
+    await expect(announced(page)).toHaveCount(0);
+    // The map is there, in the new look, with its buttons.
+    await expect(mapSystem(page)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('visitor-bar')).toBeVisible();
+    await frameShot(page, 's5-07-map-after-390x844');
+    // The skip target stays in the page, out of reach of a keyboard and a screen reader and of every touch.
+    const target = page.getByTestId('visit-crossing-skip');
+    await expect(target).toHaveAttribute('aria-hidden', 'true');
+    await expect(target).toHaveAttribute('tabindex', '-1');
+    await expect(target).toHaveCSS('pointer-events', 'none');
+    await expectNoSeriousViolations(page);
+  });
+
+  /**
+   * Frames only (`KS_UNIVERSE_SHOTS`): the beats of the film each last under a second, so waiting for them is a race a slow
+   * runner can lose. CI does not run this; the names in common are covered by the screen tests and the film's beats by
+   * the gallery's stills (`space-gallery.spec.ts`).
+   */
+  test('frames of the film: the course, the way opening, the names you share, the flash, and the way home', async ({
+    page,
+  }) => {
+    test.skip(process.env['KS_UNIVERSE_SHOTS'] === undefined, 'frames only');
+    test.setTimeout(180_000);
+    await openVisit(
+      page,
+      { width: 390, height: 844 },
+      { trial: true, own: true, motion: true, bare: true, systems: sharedWithMe },
+    );
+    await expect(page.getByTestId('ks-crossing-label-course')).toBeVisible({ timeout: 60_000 });
+    await frameShot(page, 's5-02-course-390x844');
+    await expect(page.getByTestId('ks-crossing-label-opens')).toBeVisible({ timeout: 30_000 });
+    await frameShot(page, 's5-03-way-opens-q0.3-390x844');
+    await expect(page.getByTestId('ks-crossing-label-common')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('ks-crossing-name-0')).toContainText(/ci SYSTEM 0|Cí system 2/);
+    await frameShot(page, 's5-04-names-q0.5-390x844');
+    await expect(page.getByTestId('ks-crossing-flash')).toBeVisible({ timeout: 30_000 });
+    await frameShot(page, 's5-05-flash-390x844');
+    await expect(film(page)).toHaveCount(0, { timeout: 30_000 });
+    await expect(mapSystem(page)).toBeVisible();
+    await page.getByTestId('visit-leave').click();
+    await expect(page.getByTestId('ks-crossing-label-course')).toContainText('Setting course for home');
+    await frameShot(page, 's5-06-home-390x844');
+  });
+
+  test('Escape skips it too; Leave plays the film home and lands on your Universe', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openVisit(page, { width: 390, height: 844 }, { trial: true, own: true, motion: true, bare: true });
+    await expect(film(page)).toBeVisible({ timeout: 60_000 });
+    await page.keyboard.press('Escape');
+    await expect(film(page)).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('visit-crossing-arrival')).toHaveCount(0, { timeout: 15_000 });
+    await expect(mapSystem(page)).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId('visit-leave').click();
+    // The line stays for the whole film home (3.8 s) and the white after it, so this is a state, not a beat.
+    await expect(announced(page)).toHaveText('Going home', { timeout: 15_000 });
+    // The film is left to play out: no click lands mid-film. Then your own Universe, in the new look, and none of the visit.
+    await expect(page).toHaveURL(/\/universe$/, { timeout: 60_000 });
+    await expect(page.getByTestId('voyage-stage')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('visitor-bar')).toHaveCount(0);
+    await expect(page.getByTestId('visit-crossing')).toHaveCount(0);
+  });
+
+  test('with the switch off: no film at all, and Leave goes to Friends as it always did', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openVisit(page, { width: 390, height: 844 }, { motion: true, own: true });
+    await expect(page.getByTestId('visitor-bar')).toBeVisible();
+    await expect(page.getByTestId('visit-crossing')).toHaveCount(0);
+    await expect(page.getByTestId('visit-crossing-skip')).toHaveCount(0);
+    await expect(page.getByTestId('visit-crossing-line')).toHaveCount(0);
+    await expect(page.getByTestId('ks-crossing-stage')).toHaveCount(0);
+    await page.getByTestId('visit-leave').click();
+    await expect(page).toHaveURL(/\/friends$/, { timeout: 30_000 });
+  });
+
+  test('under reduced motion with the switch on: no film, the map at once', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openVisit(page, { width: 390, height: 844 }, { trial: true });
+    await expect(film(page)).toHaveCount(0);
+    await expect(page.getByTestId('ks-crossing-stage')).toHaveCount(0);
+    await expect(mapSystem(page)).toBeVisible({ timeout: 60_000 });
+  });
 });
