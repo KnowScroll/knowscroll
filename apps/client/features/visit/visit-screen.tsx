@@ -5,7 +5,7 @@ import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope, FeedbackTarget, VisitSession, VisitState } from '@knowscroll/client-core';
 import { space, spacing } from '@knowscroll/design-tokens';
-import { Button, Skeleton, Text, useDisplay } from '@knowscroll/ui';
+import { Button, printedSurface, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
@@ -16,6 +16,9 @@ import { useUniverseBack } from '../universe/use-universe-back';
 import { useUniverseTrial } from '../universe/universe-trial';
 import type { VisitMapSession } from './visit-map-session';
 import { useVisitSessions } from './use-visit-sessions';
+import { InCommonChip } from './in-common-chip';
+import { systemsInCommon } from './in-common';
+import { useOwnSystemLabels } from './use-own-system-labels';
 import { VisitFrame } from './visit-frame';
 import { VisitorBar, VisitorPrivacy } from './visitor-bar';
 import { visitorDescriptors, visitorLooks } from './visitor-scene';
@@ -57,12 +60,23 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
 /** One visit: its data session and its map session, made when the screen mounts and dropped when it leaves. */
 function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
   const sessions = useVisitSessions(scope, handle);
+  const trial = useUniverseTrial();
   useDocumentTitle('Visiting a friend');
   if (!sessions) return <QuietGround label="Opening this universe" />;
-  return <Visit visit={sessions.visit} map={sessions.map} />;
+  // In the new look, one visit has one "What we have in common" switch: off when you arrive, and off again for another
+  // friend. The old look keeps the screen it had across a change of friend.
+  return <Visit key={trial.on ? handle : undefined} scope={scope} visit={sessions.visit} map={sessions.map} />;
 }
 
-function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: VisitMapSession }) {
+function Visit({
+  scope,
+  visit,
+  map,
+}: {
+  readonly scope: AccountScope;
+  readonly visit: VisitSession;
+  readonly map: VisitMapSession;
+}) {
   // The Universe's new look on trial (a switch on this device) draws a friend's Universe too.
   const trial = useUniverseTrial();
   const router = useRouter();
@@ -96,6 +110,13 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   const looks = useMemo(() => (ready ? visitorLooks(ready.systems) : []), [ready]);
   useLayoutEffect(() => map.setDescriptors(descriptors, looks), [map, descriptors, looks]);
   const index = useMemo(() => indexUniverse(descriptors, []), [descriptors]);
+  // "What we have in common" (the new look only): the friend's systems whose names you have too, compared on this device.
+  const ownLabels = useOwnSystemLabels(scope, trial.on);
+  const shared = useMemo(
+    () => (ready && ownLabels ? systemsInCommon(ownLabels, ready.systems).map((system) => system.publicSystemId) : []),
+    [ready, ownLabels],
+  );
+  const [commonOn, setCommonOn] = useState(false);
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/friends'));
 
   if (state.status === 'loading' || state.status === 'ended') return <QuietGround label="Opening this universe" />;
@@ -104,31 +125,62 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   const { owner } = state;
   return (
     <>
-      <UniverseSurface
-        session={map}
-        state={mapState}
-        index={index}
-        voyage={trial.on}
-        status={state.stale ? 'Last list shown' : undefined}
-        visitor={{
-          ownerName: owner.displayName,
-          footer: <VisitorPrivacy ownerName={owner.displayName} />,
-          bar: (
-            <VisitorBar
-              ownerName={owner.displayName}
-              onLeave={leave}
-              onReport={() =>
-                setReporting({
-                  kind: 'person',
-                  person: { personId: owner.personId, displayName: owner.displayName, handle: owner.handle },
-                })
-              }
-            />
-          ),
-        }}
-      />
+      <PinnedLight pinned={trial.on}>
+        <UniverseSurface
+          session={map}
+          state={mapState}
+          index={index}
+          voyage={trial.on}
+          status={state.stale ? 'Last list shown' : undefined}
+          visitor={{
+            ownerName: owner.displayName,
+            footer: <VisitorPrivacy ownerName={owner.displayName} />,
+            // Nothing to compare with (your own universe is empty or not in hand): no chip, rather than a chip that finds nothing.
+            ...(trial.on && ownLabels && ownLabels.length > 0
+              ? {
+                  inCommon: {
+                    on: commonOn,
+                    shared,
+                    chip: (
+                      <InCommonChip
+                        on={commonOn}
+                        nothingShared={shared.length === 0}
+                        onToggle={() => setCommonOn((on) => !on)}
+                      />
+                    ),
+                  },
+                }
+              : {}),
+            bar: (
+              <VisitorBar
+                ownerName={owner.displayName}
+                onLeave={leave}
+                onReport={() =>
+                  setReporting({
+                    kind: 'person',
+                    person: { personId: owner.personId, displayName: owner.displayName, handle: owner.handle },
+                  })
+                }
+              />
+            ),
+          }}
+        />
+      </PinnedLight>
       <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
     </>
+  );
+}
+
+/**
+ * The new look's map is as your own Universe: an authored sky with cream controls, the same in both appearances (D-400).
+ * The old look draws no wrapper and follows the appearance as it ever did; the tab bar or rail around it follow it in both.
+ */
+function PinnedLight({ pinned, children }: { readonly pinned: boolean; readonly children: React.ReactNode }) {
+  if (!pinned) return <>{children}</>;
+  return (
+    <View style={styles.surface} {...printedSurface()}>
+      {children}
+    </View>
   );
 }
 
@@ -210,6 +262,7 @@ function Offline({ onRetry, onLeave }: { readonly onRetry: () => void; readonly 
 
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: spacing[5] },
+  surface: { flex: 1 },
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
 });
