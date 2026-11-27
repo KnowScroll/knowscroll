@@ -82,6 +82,8 @@ interface VisitOptions {
   readonly motion?: boolean;
   /** Do not wait for the visitor bar: the film is over the screen until it ends or is skipped. */
   readonly bare?: boolean;
+  /** "Show the Universe frame rate" on: the readout times the film and the fall after it. */
+  readonly frameRate?: boolean;
 }
 
 async function openVisit(page: Page, size: { width: number; height: number }, options: VisitOptions = {}) {
@@ -89,6 +91,7 @@ async function openVisit(page: Page, size: { width: number; height: number }, op
   await page.emulateMedia({ reducedMotion: options.motion === true ? 'no-preference' : 'reduce' });
   const preferences = {
     ...(options.trial === true ? { universeTrial: true } : {}),
+    ...(options.frameRate === true ? { universeFrameRate: true } : {}),
     ...(options.appearance ? { appearance: options.appearance } : {}),
   };
   if (Object.keys(preferences).length > 0)
@@ -453,6 +456,30 @@ test.describe('the crossing to a friend', () => {
     await expect(target).toHaveAttribute('tabindex', '-1');
     await expect(target).toHaveCSS('pointer-events', 'none');
     await expectNoSeriousViolations(page);
+  });
+
+  test('after the film the camera falls into their Universe, timed on the readout as a fall, with no flight line', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await openVisit(
+      page,
+      { width: 390, height: 844 },
+      { trial: true, own: true, motion: true, bare: true, frameRate: true },
+    );
+    await expect(film(page)).toBeVisible({ timeout: 60_000 });
+    await page.mouse.click(195, 420);
+    await expect(film(page)).toHaveCount(0, { timeout: 15_000 });
+    // Frames of the fall for the owner, about every 0.15 s for 2.4 s (only when frames are asked for: never in CI).
+    for (let shot = 0; shot < 16 && process.env['KS_UNIVERSE_SHOTS'] !== undefined; shot += 1) {
+      await frameShot(page, `s6-fall-${String(shot).padStart(2, '0')}-390x844`);
+      await page.waitForTimeout(100);
+    }
+    // The fall has landed once the readout has timed it; nothing said "Going to …" over it.
+    await expect(page.getByTestId('universe-frame-rate')).toContainText(/fall · /, { timeout: 30_000 });
+    await expect(page.getByTestId('voyage-flight')).toHaveCount(0);
+    await expect(mapSystem(page)).toBeVisible({ timeout: 30_000 });
+    await frameShot(page, 's6-fall-landed-390x844');
   });
 
   /**

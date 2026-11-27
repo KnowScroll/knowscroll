@@ -27,6 +27,17 @@ export interface VoyagePlanet {
 }
 
 /**
+ * The camera falls into its stop from farther out instead of standing there: how a friend's Universe opens after the
+ * crossing film (the prototype's `go`). Each `id` falls once, from `fromScale` times the stop's distance, with no ship.
+ */
+export interface FallIn {
+  readonly id: number;
+  readonly fromScale: number;
+  /** This Universe was fallen into before: the fall is quicker. */
+  readonly again: boolean;
+}
+
+/**
  * What the screen tells the driver, by reference: it is read on every frame, so the screen changes it without
  * rebuilding the renderer.
  */
@@ -55,6 +66,8 @@ export interface VoyageControl {
   zoom: { readonly scale: number; readonly toward: string | null } | null;
   /** How many times the person asked to skip a flight: the driver ends the flight under way when this grows. */
   skips: number;
+  /** A fall into the stop to make, once per id; absent or null for none. Under reduced motion there is no fall. */
+  fallIn?: FallIn | null;
   /** Called after each frame drawn: the screen moves the ship with the frame and says where to draw it, if anywhere. */
   afterFrame?: (frame: VoyageFrame) => DrawnShip | null;
 }
@@ -72,6 +85,8 @@ export interface VoyageFrame {
   readonly dt: number;
   /** A flight is under way: the ship is not drawn. */
   readonly flying: boolean;
+  /** The flight under way is a fall into the stop ({@link VoyageControl.fallIn}): no flight line is shown for it. */
+  readonly falling?: boolean;
   /** Where the planet's globe is on screen, when it is drawn. */
   readonly globe: GlobeOnScreen | null;
   /** The size of the view, in layout points. */

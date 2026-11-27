@@ -61,6 +61,8 @@ interface Flight {
   /** Null until its first frame, which is its start. */
   elapsed: number | null;
   readonly from: VoyageTarget;
+  /** A fall into the stop the camera is at, not a flight between two ({@link VoyageControl.fallIn}). */
+  readonly fall?: boolean;
 }
 
 /**
@@ -98,6 +100,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   let pinchedLastFrame = false;
   /** {@link VoyageControl.skips} as last seen: a larger count ends the flight under way. */
   let skipsSeen = 0;
+  /** The {@link VoyageControl.fallIn} id last made (or passed over under reduced motion): each falls once. */
+  let fallSeen: number | null = null;
   /** How much faster than planned the flight under way runs: 1, or toward {@link PINCH_HURRY} while fingers pinch. */
   let hurry = 1;
   /** A flight landed under fingers that pinch: the zoom eases to theirs, at {@link CATCH_UP_RATE}, instead of jumping. */
@@ -172,6 +176,33 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     return true;
   };
 
+  /**
+   * Starts the fall the screen asked for, if it is a new one: a flight to the stop the camera is at, from `fromScale`
+   * times its distance. It may come on the first frame (the stage mounted under the film's last moments, or after it).
+   */
+  const fallIntoStop = (places: ChainPlaces, size: ViewSize) => {
+    const fall = control.fallIn;
+    if (fall === undefined || fall === null || fall.id === fallSeen) return;
+    fallSeen = fall.id;
+    if (control.reducedMotion) return;
+    const stop = chainOf(control.target, places, size);
+    flight = {
+      plan: planFlight({
+        fromDistance: stop.stopDistance * fall.fromScale,
+        toDistance: stop.stopDistance,
+        peakDistance: null,
+        launchFocus: stop.chain[0]!.point,
+        fromChain: stop.chain,
+        toChain: stop.chain,
+        touchesGround: false,
+        again: fall.again,
+      }),
+      elapsed: null,
+      from: control.target,
+      fall: true,
+    };
+  };
+
   return {
     attach(space) {
       attachedTo = space;
@@ -193,6 +224,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       }
       // A new flight leaves from where the camera stands and looks, a pinch's zoom included, and carries it from there.
       if (retarget(places, size, pinchedLastFrame || control.zoom !== null)) zoom = 1;
+      fallIntoStop(places, size);
       pinchedLastFrame = control.zoom !== null;
       const towardPoint = control.zoom === null ? null : aimOf(control.zoom.toward, places, size);
       if (flight !== null || control.reducedMotion) {
@@ -305,6 +337,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         control.afterFrame?.({
           dt: lastDt,
           flying: flight !== null,
+          falling: flight?.fall === true,
           globe: closeUp.onScreen(),
           size,
           programs,

@@ -67,3 +67,18 @@ describe('search from every stop in the new look', () => {
     expect(screen.queryByRole('button', { name: /^Search / })).toBeNull();
   });
 });
+
+describe('the Lately chip’s fill', () => {
+  it.each([
+    [true, 'rgba(10,20,28,0.55)'],
+    [false, undefined],
+  ])(
+    'with the new look %s, the chip while Lately is off has the glass fill only in the new look',
+    async (voyage, fill) => {
+      await header({ kind: 'universe' }, voyage ? { voyage: true } : {});
+      const chip = screen.getByTestId('universe-lately');
+      if (fill) expect(chip).toHaveStyle({ backgroundColor: fill });
+      else expect(chip).not.toHaveStyle({ backgroundColor: 'rgba(10,20,28,0.55)' });
+    },
+  );
+});

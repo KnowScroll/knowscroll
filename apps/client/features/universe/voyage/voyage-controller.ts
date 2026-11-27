@@ -33,7 +33,7 @@ import {
   type ShipState,
 } from './ship-motion';
 import { createStageTouches, type Finger, type StageGesture } from './stage-touches';
-import type { VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
+import type { FallIn, VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
 import { loadVoyageRenderer } from './voyage-loader';
 
 /** A drag has to move this far before it turns the view; a shorter press is a tap on whatever is under it. */
@@ -132,6 +132,8 @@ export interface VoyageInputs {
    * is on: one screenshot from a phone then shows which part of a gesture went wrong.
    */
   readonly onGesture?: (line: string) => void;
+  /** A fall into the stop to make (a friend's Universe after the crossing film): each id falls once. */
+  readonly fallIn?: FallIn | null;
 }
 
 /** The nearest visible anchor of one of `kinds` to a point on screen. */
@@ -283,8 +285,10 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   /** What the ship was last told to stand on, so the screen hears only a change. */
   let stands: Stands = NOWHERE;
   const legs = createFlightLegs(first.target);
-  /** A flight was under way in the last frame. */
+  /** The screen was last told a flight is under way ({@link VoyageInputs.onFlying}). */
   let flying = false;
+  /** The last frame was in a fall into the stop. */
+  let fell = false;
 
   const control: VoyageControl = {
     target: first.target,
@@ -297,6 +301,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     lean: { x: 0, y: 0 },
     zoom: null,
     skips: 0,
+    fallIn: first.fallIn ?? null,
     afterFrame: (frame): DrawnShip => {
       seconds += frame.dt;
       pinch.frame(frame.dt, frame.flying);
@@ -363,8 +368,14 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         go(reached, 'drawn in →');
       }
       control.lean = ship.lean;
-      if (frame.flying !== flying) {
-        flying = frame.flying;
+      // A fall into the stop (a friend's Universe after the crossing film) is timed as a flight of its own, and the
+      // screen says nothing of it: the film has just said where you are going.
+      const falling = frame.falling === true;
+      if (falling && !fell) legs.asked(control.target, performance.now(), 'fall');
+      fell = falling;
+      const said = frame.flying && !falling;
+      if (said !== flying) {
+        flying = said;
         inputs.onFlying?.(flying);
       }
       const landed = legs.frame(frame.flying, frame.programs, performance.now());
@@ -620,6 +631,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       control.reducedMotion = next.reducedMotion;
       control.universeFocus = next.universeFocus;
       control.systemFocus = next.systemFocus;
+      control.fallIn = next.fallIn ?? null;
     },
     setAnchors(next) {
       anchors = next;

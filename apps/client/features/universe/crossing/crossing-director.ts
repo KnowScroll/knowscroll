@@ -95,6 +95,15 @@ const IDLE: CrossingState = {
   runs: 0,
 };
 
+/**
+ * The run of the film that handed over to the other universe (it finished or was skipped), from its last moments on;
+ * null before, for a cut (reduced motion) or a film stopped short, and once going home has started.
+ */
+export const handedOver = (state: CrossingState): number | null =>
+  state.direction === 'out' && !state.cut && (state.ended === 'finished' || state.ended === 'skipped')
+    ? state.runs
+    : null;
+
 const playing = (state: CrossingState): boolean => state.mode === 'film' || state.mode === 'cut';
 
 /** The line a screen reader hears when the crossing starts. */

@@ -9,7 +9,7 @@ import { Button, printedSurface, Skeleton, Text, useDisplay } from '@knowscroll/
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
-import { createCrossingDirector } from '../universe/crossing/crossing-director';
+import { createCrossingDirector, handedOver } from '../universe/crossing/crossing-director';
 import { crossingSeconds } from '../universe/crossing/crossing-frame';
 import { FrameRateReadout } from '../universe/frame-rate/frame-rate-readout';
 import { UniverseBackdrop } from '../universe/universe-backdrop';
@@ -17,6 +17,7 @@ import { indexUniverse } from '../universe/universe-layout';
 import { UniverseSurface } from '../universe/universe-surface';
 import { useUniverseBack } from '../universe/use-universe-back';
 import { useUniverseTrial } from '../universe/universe-trial';
+import { CROSSING_FALL_SCALE, FallInContext } from '../universe/voyage/fall-in';
 import { crossingSeen, markCrossingSeen } from './crossing-seen';
 import { crossingWorldOf } from './crossing-world';
 import type { VisitMapSession } from './visit-map-session';
@@ -64,6 +65,7 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
 
 const noSubscribe = () => () => {};
 const noState = () => undefined;
+const noFall = () => null;
 
 /** The device says it has no connection (the web's `navigator.onLine`; native has no such answer, which is not "offline"). */
 const deviceOffline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -84,13 +86,22 @@ function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readon
   // under it is a different screen (the keys above), which decides afresh; the other settings change nothing here.
   const [withFilm] = useState(trial.on);
   const [cut] = useState(reducedMotion);
+  // Whether this friend's Universe was crossed into before, as of this visit: the film and the fall are quicker then.
+  const [seenBefore] = useState(() => withFilm && crossingSeen(scope, handle));
   const [director] = useState(() => createCrossingDirector());
   useEffect(() => {
     // The first mount only (a second setup of the same screen is not a second visit); and not with no connection: the
     // screen that says so is the answer, not a film that has to be stopped.
     if (!withFilm || director.getState().runs > 0 || deviceOffline()) return;
-    director.start({ direction: 'out', seconds: crossingSeconds('out', crossingSeen(scope, handle)), cut });
-  }, [director, withFilm, cut, scope, handle]);
+    director.start({ direction: 'out', seconds: crossingSeconds('out', seenBefore), cut });
+  }, [director, withFilm, cut, seenBefore]);
+  // Once the film hands over, the camera falls into their Universe from far out, under the white of the arrival. Kept
+  // after it, so a stage that mounts later (the read came after the film) falls in on its first frame.
+  const handedOverRun = useSyncExternalStore(director.subscribe, () => handedOver(director.getState()), noFall);
+  const fallIn = useMemo(
+    () => (handedOverRun === null ? null : { id: handedOverRun, fromScale: CROSSING_FALL_SCALE, again: seenBefore }),
+    [handedOverRun, seenBefore],
+  );
 
   // Your own names, for "What we have in common" in the cards and the film: not read at all with the switch off.
   const ownLabels = useOwnSystemLabels(scope, trial.on);
@@ -138,7 +149,7 @@ function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readon
   return (
     <FrameRateReadout on={trial.frameRate} placed>
       <View style={styles.root}>
-        {visitTree}
+        <FallInContext.Provider value={fallIn}>{visitTree}</FallInContext.Provider>
         <VisitCrossing director={director} handle={handle} onEnd={onEnd} />
       </View>
     </FrameRateReadout>
@@ -182,7 +193,14 @@ function Visit({
       };
     }, [map, visit]),
   );
-  useEffect(() => map.configure({ detail: mapState.detail, reducedMotion }), [map, mapState.detail, reducedMotion]);
+  // The map session ignores what it is told while the screen is not in front, and the screen comes in front after this
+  // first runs, so the session kept its opening "reduce motion" and every flight cut. In the new look it is told again
+  // once the screen is in front; with the switch off this is as it always was.
+  const inFrontForTrial = trial.on && foreground;
+  useEffect(
+    () => map.configure({ detail: mapState.detail, reducedMotion }),
+    [map, mapState.detail, reducedMotion, inFrontForTrial],
+  );
   useUniverseBack(map, foreground);
   const ready = state.status === 'ready' ? state : undefined;
   // The session keeps the same state object while a read finds the same list, so this redraws only
