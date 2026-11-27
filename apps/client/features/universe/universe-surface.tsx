@@ -64,6 +64,17 @@ export interface VisitorChrome {
   readonly bar: ReactNode;
   /** The row at the bottom of the map (U06's one lock chip). */
   readonly footer?: ReactNode;
+  /** The new look's "What we have in common" (Round 7.3). Never given in the old look or when your own names are not in hand. */
+  readonly inCommon?: VisitorInCommon;
+}
+
+/** "What we have in common" on a friend's whole-universe stop: the chip, and what the sky shows while it is on. */
+export interface VisitorInCommon {
+  /** The chip, drawn with the other chips at the whole-universe stop. */
+  readonly chip: ReactNode;
+  readonly on: boolean;
+  /** The friend's systems you also have, by public id. */
+  readonly shared: readonly string[];
 }
 
 /**
@@ -98,7 +109,7 @@ export function UniverseSurface({
   readonly scope?: AccountScope;
   /**
    * This device is trying the new look: the map is one camera that flies, so the animated steps down and the cross-fade
-   * up are not played. Never given on a friend's universe.
+   * up are not played. A friend's universe takes it too.
    */
   readonly voyage?: boolean;
 }) {
@@ -173,9 +184,17 @@ export function UniverseSurface({
     (next: readonly string[] | null) => setLitSystems((current) => (sameSystems(current, next) ? current : next)),
     [],
   );
+  // On a friend's whole-universe stop the sky can show the systems you share instead; with none shared there is nothing to show.
+  const commonOf = visitor?.inCommon;
+  const shared = voyage && commonOf?.on === true && view.kind === 'universe' ? commonOf.shared : undefined;
   const searchAnswer = useMemo(
-    () => (voyage && searching && !wide ? { lit: litSystems } : undefined),
-    [voyage, searching, wide, litSystems],
+    () =>
+      voyage && searching && !wide
+        ? { lit: litSystems }
+        : shared && shared.length > 0
+          ? { lit: shared, shows: 'common' as const }
+          : undefined,
+    [voyage, searching, wide, litSystems, shared],
   );
   // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
   const looks = looksOfState(state);
@@ -417,6 +436,7 @@ export function UniverseSurface({
   const chipsOf = (shown: UniverseView): ReactNode =>
     !card && !sheet && !searching ? (
       <View style={styles.chips}>
+        {voyage && shown.kind === 'universe' ? commonOf?.chip : null}
         {returnTo && showsReturn(shown, returnTo.id) ? (
           <SpaceChip
             testID="universe-return"
