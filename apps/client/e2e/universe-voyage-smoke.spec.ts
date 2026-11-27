@@ -79,6 +79,8 @@ test('flies from the whole universe to a star, a planet and its ground, and clim
   await shot(page, 'voyage-4-ground');
   // On the ground the camera has come down over the first formed region.
   await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeVisible();
+  // The ship is landed on that region, and the pill says so (the screen shows it once the ship has come back from the flight).
+  await expect(page.getByText('CI region 4 · you are here', { exact: true })).toBeVisible({ timeout: 30_000 });
 
   // Land not reached yet is drawn grey but never named, read out or given a button: the only regions are the formed ones.
   const tree = await page.locator('body').ariaSnapshot();

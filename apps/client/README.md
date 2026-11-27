@@ -555,12 +555,27 @@ float over it.
     (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the
     ship home), and a second finger lets go of the ship and pinches. W A S D fly the ship from the keyboard (22 pt a
     press; the arrows turn the view): it is held while they are pressed, so places pull it, and let go 0.7 s after the
-    last, as a lifted finger lets it go. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
-    cream "X · you are here" pill with the orange dot.
+    last, as a lifted finger lets it go. Hidden during a flight and a pinch.
+    **On the ground the ship is always landed** (`ship-ground.ts`, `ground-home.ts`, pure): upright on the land, flame
+    off, with a soft shadow under it (a radial gradient drawn under the ship in the same layer, never a line or a ring).
+    It stands on the region the camera came down over while that point is inside the ship's room on screen; once the
+    view turns away it stays landed at its spot near the bottom of the screen and the land moves under it, and it
+    goes back to its region only when the region has slid under it. Take it and it lifts off over 0.2 s (flame on,
+    a rise of a third of its size, a little larger, the shadow smaller, fainter and drifting away from the light); let
+    go and it settles over 0.3 s, the shadow returning, where it was let go (a tap sends it home; letting go over a
+    place or within its pull goes there, as at every other stop). Under reduced motion there is no tween: still when
+    landed, drawn lifted while held. The "X · you are here" pill names the **opened region under the ship's fins**,
+    found by ray from the camera to the globe and a point-in-loops test (`ground-hit.ts`, handed to the controller
+    through the frame's `regionAt`); over the sea or over land not reached it shows nothing, and only regions the
+    planet names count (never closed land, never anything that counts it, D-109). It rides its region's point while the
+    ship is over it, hangs under the ship elsewhere, and is not shown while the ship is held, lifting, settling or
+    flying (the controller's `onStands`).
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
     the whole universe only the star you are at is named, and no name sits on its sun; from the whole universe rooms
-    keep their buttons but not their written names. Names on a planet's land are ink with a cream halo.
+    keep their buttons but not their written names. Names on a planet's land are ink with a cream halo; on the
+    ground only they are heavier and larger (Bricolage 800 at 16 px, a second copy under the name for a stronger halo, a
+    box 24 high and 9 px a letter wide so no name is cut: `GROUND_LABEL`, `groundLabelWidth` in `scene-parts.tsx`).
   - **Return to X** shows at any stop when the ship is parked somewhere other than the place in view.
   - It drives the map's own scene through `SpaceView` with a camera driver (`voyage-driver.ts`, `SpaceCameraDriver`
     in `space-renderer.ts`); without the switch nothing of it runs and the animated steps down play as before. The

@@ -97,7 +97,7 @@ describe('the ship layer', () => {
     layer.dispose();
   });
 
-  it('makes no trail and no lines: only filled shapes, the flame glow and the catch glow', () => {
+  it('makes no trail and no lines: only filled shapes, the flame glow, the catch glow and the ground shadow', () => {
     const layer = createShipLayer();
     let lines = 0;
     layer.scene.traverse((node) => {
@@ -105,7 +105,7 @@ describe('the ship layer', () => {
     });
     expect(lines).toBe(0);
     expect(meshes(layer.scene)).toHaveLength(9);
-    expect(sprites(layer.scene)).toHaveLength(2);
+    expect(sprites(layer.scene)).toHaveLength(3);
     layer.dispose();
   });
 
@@ -122,6 +122,27 @@ describe('the ship layer', () => {
     expect(catchGlow.visible).toBe(false);
     layer.draw({ ...SHIP, alpha: 0, catchAt: { x: 140, y: 260 } });
     expect(catchGlow.visible).toBe(false);
+    layer.dispose();
+  });
+
+  it('lays a soft shadow on the land under a ship on the ground, below the ship, and none elsewhere', () => {
+    const layer = createShipLayer();
+    const shadow = layer.scene.children[2] as THREE.Sprite;
+    layer.draw(SHIP);
+    expect(shadow.visible).toBe(false);
+    layer.draw({ ...SHIP, shadow: { x: 104, y: 222, width: 30, height: 8, opacity: 0.4 } });
+    expect(shadow.visible).toBe(true);
+    expect([shadow.position.x, shadow.position.y]).toEqual([104, 222]);
+    expect([shadow.scale.x, shadow.scale.y]).toEqual([30, 8]);
+    expect(shadow.material.opacity).toBeCloseTo(0.4, 6);
+    // A soft ellipse from a gradient: a sprite of a radial texture, never a line or a ring, and under everything else.
+    expect(shadow.material.map).toBeTruthy();
+    expect(shadow.renderOrder).toBeLessThan(Math.min(...meshes(layer.scene).map((mesh) => mesh.renderOrder)));
+    expect(shadow.renderOrder).toBeLessThan((layer.scene.children[1] as THREE.Sprite).renderOrder);
+    // It does not turn or rise with the ship: it is placed on the ground, not under the ship's group.
+    expect(shadow.parent).toBe(layer.scene);
+    layer.draw({ ...SHIP, shadow: { x: 104, y: 222, width: 30, height: 8, opacity: 0 } });
+    expect(shadow.visible).toBe(false);
     layer.dispose();
   });
 

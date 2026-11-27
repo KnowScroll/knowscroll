@@ -13,8 +13,10 @@ import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { createFlightLegs } from './flight-legs';
 import { createPinchGesture, PINCH_STEP } from './pinch-gesture';
+import { groundHome, NOWHERE, standsOf, type Stands } from './ground-home';
 import { climbOneStop, targetKey, type VoyageTarget } from './ladder';
 import { PLACE_PULL, pullOf } from './ship-gravity';
+import { footOf } from './ship-ground';
 import {
   arrival,
   drawn,
@@ -92,6 +94,11 @@ const BOB_HEIGHT = 2.5;
 /** How fast a parked ship hovers (radians a second). */
 const BOB_RATE = 1.3;
 
+/** The ship is present enough to be named under (and so to be standing anywhere) above this share. */
+const PRESENT_VIS = 0.9;
+/** A pill that has moved less than this, in points, has not moved. */
+const STANDS_STEP = 2;
+
 /** A width and a height, in layout points. */
 type Size = { readonly width: number; readonly height: number };
 
@@ -115,6 +122,11 @@ export interface VoyageInputs {
   readonly onFlight?: (leg: FlightLeg) => void;
   /** Told when a flight starts and when it lands, so the screen can say where it is going. */
   readonly onFlying?: (flying: boolean) => void;
+  /**
+   * Told what the ship stands on whenever that changes, on the ground: the opened region under it, and where its pill
+   * goes (`ground-home.ts`). Nothing at every other stop, and while the ship is held, flying or hidden.
+   */
+  readonly onStands?: (stands: Stands) => void;
   /**
    * Told what the fingers did, in one short line, whenever it changes ("pinch ×1.62 → in"), when the frame-rate readout
    * is on: one screenshot from a phone then shows which part of a gesture went wrong.
@@ -190,7 +202,16 @@ export function standsOn(inputs: Pick<VoyageInputs, 'target' | 'planet'>): strin
   return inputs.target.regionId ?? inputs.planet?.labels[0]?.objectId ?? null;
 }
 
-/** Where the ship parks at each stop: standing on the region you landed on, round the globe, or low in the sky. */
+/** What a parked ship steps clear of: everything named on screen, with at least {@link PARK_CLEARANCE} round it. */
+const avoidOf = (anchors: readonly SpaceAnchor[]) =>
+  anchors
+    .filter((anchor) => anchor.visible)
+    .map((anchor) => ({ x: anchor.x, y: anchor.y, r: Math.max(PARK_CLEARANCE, anchor.radiusPx) }));
+
+/**
+ * Where the ship parks above the ground: standing on the region you landed on, round the globe, or low in the sky. (On
+ * the ground it is always landed, and `groundHome` says where.)
+ */
 export function homeOf(
   frame: Pick<VoyageFrame, 'globe' | 'size'>,
   anchors: readonly SpaceAnchor[],
@@ -212,9 +233,7 @@ export function homeOf(
       heading: Math.atan2(Math.cos(angle) * ORBIT_HEIGHT, -Math.sin(angle)) + Math.PI / 2,
     };
   }
-  const avoid = anchors
-    .filter((anchor) => anchor.visible)
-    .map((anchor) => ({ x: anchor.x, y: anchor.y, r: Math.max(PARK_CLEARANCE, anchor.radiusPx) }));
+  const avoid = avoidOf(anchors);
   // Low in the sky the ship hovers gently, as the prototype's does; with reduced motion it holds still.
   const bob = reducedMotion ? 0 : Math.sin(seconds * BOB_RATE) * BOB_HEIGHT;
   const spot = parkingSpot({ anchor: { x: width / 2, y: height * shipLayoutOf(desktop).parkAt }, avoid });
@@ -259,6 +278,10 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   });
   let held: { x: number; y: number } | null = null;
   let seconds = 0;
+  /** On the ground the ship has left its region and stands at its own spot on screen (`groundHome`). */
+  let parked = false;
+  /** What the ship was last told to stand on, so the screen hears only a change. */
+  let stands: Stands = NOWHERE;
   const legs = createFlightLegs(first.target);
   /** A flight was under way in the last frame. */
   let flying = false;
@@ -289,10 +312,27 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       };
       // A pinch moves the camera under the ship, so it goes, as it does for a flight (the prototype's `zoomBusy`).
       const away = frame.flying || pinch.pinching();
+      // On the ground the ship is always landed: it stands over its region while that is on screen, else at its spot.
+      const ground = inputs.target.stop === 'ground';
+      let home: ShipHome;
+      if (ground) {
+        const placed = groundHome({
+          anchors,
+          regionId: standsOn(inputs),
+          spot: { x: width / 2, y: height * layout.parkAt },
+          avoid: avoidOf(anchors),
+          bounds,
+          parked,
+        });
+        home = placed.home;
+        // While the view flies or is pinched the ship is hidden and the places move: it has parked nowhere, and when it is
+        // back it stands on its region again.
+        parked = !away && placed.parked;
+      } else home = homeOf(frame, anchors, standsOn(inputs), seconds, inputs.reducedMotion, desktop);
       ship = stepShip(
         ship,
         {
-          home: homeOf(frame, anchors, standsOn(inputs), seconds, inputs.reducedMotion, desktop),
+          home,
           drag: held,
           targets,
           away,
@@ -300,8 +340,22 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
           reducedMotion: inputs.reducedMotion,
           viewCentre: { x: width / 2, y: height * layout.leanCentre },
           leanLimit: Math.min(width, height) * LEAN_LIMIT,
+          ground,
         },
         frame.dt,
+      );
+      tellStands(
+        ground
+          ? standsOf({
+              busy: held !== null || ship.falling !== null || ship.lift > 0 || away || ship.vis <= PRESENT_VIS,
+              free: ship.free,
+              parked,
+              regionId: standsOn(inputs),
+              speed: Math.hypot(ship.vx, ship.vy),
+              foot: footOf(ship),
+              regionAt: frame.regionAt,
+            })
+          : NOWHERE,
       );
       const reached = away ? null : arrival(ship, targets, bounds);
       if (reached !== null) {
@@ -332,6 +386,18 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   };
   const pinch = createPinchGesture(control);
   const touches = createStageTouches();
+
+  /** Tells the screen what the ship stands on, when that has changed. */
+  const tellStands = (next: Stands) => {
+    const same =
+      next.id === stands.id &&
+      (next.at === null || stands.at === null
+        ? next.at === stands.at
+        : Math.hypot(next.at.x - stands.at.x, next.at.y - stands.at.y) < STANDS_STEP);
+    if (same) return;
+    stands = next;
+    inputs.onStands?.(next);
+  };
 
   /** The line last told through `onGesture`. */
   let gestureLine = '';
@@ -384,6 +450,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   const letGoOfShip = (moved: boolean) => {
     held = null;
     if (!moved) {
+      parked = false;
       ship = recentreShip(ship);
       tell('ship tapped → home');
       return;
@@ -419,6 +486,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       case 'ship-home':
         // A second finger (or the system) took the touch: the ship is no longer held, and goes home.
         held = null;
+        parked = false;
         ship = recentreShip(ship);
         tell('ship → home: a second finger came');
         return;
@@ -438,6 +506,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         if (keyHeld) {
           stopKeys();
           held = null;
+          parked = false;
           ship = recentreShip(ship);
         }
         // A pinch a finger landed again on carries on toward the place it was going to.
@@ -538,6 +607,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
           stopKeys();
           held = null;
         }
+        parked = false;
         ship = recentreShip(ship);
         pinch.targetChanged();
         legs.asked(next.target, performance.now());

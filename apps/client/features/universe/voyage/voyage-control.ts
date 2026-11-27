@@ -78,4 +78,10 @@ export interface VoyageFrame {
   readonly size: { readonly width: number; readonly height: number };
   /** How many shader programs three.js holds now, for the frame-rate readout: a rise during a flight is a link. */
   readonly programs: number;
+  /**
+   * The opened region whose land is under a point of the screen on the ground, or null for the sea, land not reached,
+   * and anything the screen does not name (`ground-hit.ts`). Absent when no world is drawn. It never says that closed
+   * land is there.
+   */
+  readonly regionAt?: (x: number, y: number) => string | null;
 }

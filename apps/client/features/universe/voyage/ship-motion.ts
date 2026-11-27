@@ -11,6 +11,7 @@
 import { smootherstep } from '../animation/easing';
 import { wrapAngle } from './flight';
 import { onLettingGo, PLACE_PULL, pullGoal, type Pull } from './ship-gravity';
+import { LIFT_GROWTH, LIFT_RISE_SHARE, liftedOf, liftStep, shadowOf, type Shadow } from './ship-ground';
 
 /** A place on screen, in layout points, y down. */
 export interface Point {
@@ -65,6 +66,10 @@ export interface ShipState {
   readonly pullStrength: number;
   /** Id of the place a ship let go near it is being drawn into, or null. */
   readonly falling: string | null;
+  /** The ship is on the ground (`ShipInput.ground`): landed, lifting only while it is held (`ship-ground.ts`). */
+  readonly ground: boolean;
+  /** How far a ground ship is lifted, 0 (landed) to 1, linear in time; the look eases it (`liftedOf`). 0 off the ground. */
+  readonly lift: number;
 }
 
 /** What the screen tells the ship each frame. */
@@ -83,6 +88,12 @@ export interface ShipInput {
   readonly viewCentre: Point;
   /** The most the view may lean, in points. */
   readonly leanLimit: number;
+  /**
+   * The ship is on the ground, where it is always landed: upright, flame off and a shadow under it, lifting off only
+   * while it is held or being drawn into a place, and settling again when it is let go (`ship-ground.ts`). Off, the
+   * ship is exactly as it is at every other stop.
+   */
+  readonly ground?: boolean;
 }
 
 /** The ship as it is painted: `vis` already turned into a lift, a growth and a fade. */
@@ -100,6 +111,8 @@ export interface DrawnShip {
   readonly catchAt?: Point | null;
   /** How hard that place pulls, 0..1 (0 when nothing does). */
   readonly pullStrength?: number;
+  /** The soft shadow on the land under a ship on the ground; absent at every other stop. */
+  readonly shadow?: Shadow;
 }
 
 /** What letting go of the ship does. */
@@ -216,6 +229,8 @@ export function initialShip(home: ShipHome): ShipState {
     candidate: null,
     pullStrength: 0,
     falling: null,
+    ground: false,
+    lift: 0,
   };
 }
 
@@ -277,6 +292,7 @@ function stepOnce(
       : input.targets.find((target) => target.id === state.falling);
   const falling = fallingTo === undefined ? null : state.falling;
   const free = state.free || held || falling !== null;
+  const onGround = input.ground === true;
 
   const vis = snap
     ? input.away
@@ -335,17 +351,32 @@ function stepOnce(
   x = clamp(x, input.bounds.left, input.bounds.right);
   y = clamp(y, input.bounds.top, input.bounds.bottom);
 
+  // On the ground the ship lifts only while it is held or being drawn into a place; let go, it settles where it is.
+  const lift = onGround ? liftStep(state.ground ? state.lift : 0, held || falling !== null, dt, snap) : 0;
+  const lifted = liftedOf(lift);
   const speed = Math.hypot(velocity.vx, velocity.vy);
   const moving = speed > TURN_SPEED;
-  const wanted = moving ? Math.atan2(velocity.vy, velocity.vx) + Math.PI / 2 : free ? 0 : input.home.heading;
+  // It stands upright from the moment it is let go, even if it is still coasting: it only tips toward where it goes while it is held.
+  const wanted =
+    onGround && !(moving && (held || falling !== null))
+      ? 0
+      : moving
+        ? Math.atan2(velocity.vy, velocity.vx) + Math.PI / 2
+        : free
+          ? 0
+          : input.home.heading;
   const turn = wrapAngle(wanted - state.heading);
   const heading =
     snap && !moving ? wanted : state.heading + turn * Math.min(1, dt * (moving ? FAST_TURN_RATE : SLOW_TURN_RATE));
 
-  const targetSize = free ? HELD_SIZE : input.home.size;
+  const targetSize = onGround ? input.home.size * (1 + LIFT_GROWTH * lifted) : free ? HELD_SIZE : input.home.size;
   const size = snap ? targetSize : state.size + (targetSize - state.size) * Math.min(1, dt * SIZE_RATE);
   const presence = smootherstep(clamp(vis, 0, 1));
-  const flame = Math.max(clamp(speed / FLAME_FULL_SPEED, 0, 1), (1 - presence) * LEAVE_FLAME, free ? HELD_FLAME : 0);
+  const speedFlame = clamp(speed / FLAME_FULL_SPEED, 0, 1);
+  // Landed the flame is off, however the ship got there; it comes on with the lift and goes as the ship settles.
+  const flame = onGround
+    ? Math.max(lifted * Math.max(speedFlame, HELD_FLAME), (1 - presence) * LEAVE_FLAME)
+    : Math.max(speedFlame, (1 - presence) * LEAVE_FLAME, free ? HELD_FLAME : 0);
 
   return {
     x,
@@ -361,6 +392,8 @@ function stepOnce(
     candidate,
     pullStrength,
     falling,
+    ground: onGround,
+    lift,
   };
 }
 
@@ -416,15 +449,17 @@ export function drawn(
   catchStrength: number = state.pullStrength,
 ): DrawnShip {
   const presence = smootherstep(clamp(state.vis, 0, 1));
+  const lifted = state.ground ? liftedOf(state.lift) : 0;
   return {
     x: state.x,
-    y: state.y - (1 - presence) * HIDDEN_RISE,
+    y: state.y - (1 - presence) * HIDDEN_RISE - state.size * LIFT_RISE_SHARE * lifted,
     size: state.size * (1 + (1 - presence) * HIDDEN_GROWTH),
     heading: state.heading,
     flame: state.flame,
     alpha: presence,
     catchAt,
     pullStrength: catchAt === null ? 0 : catchStrength,
+    ...(state.ground ? { shadow: shadowOf(state, lifted, presence) } : {}),
   };
 }
 

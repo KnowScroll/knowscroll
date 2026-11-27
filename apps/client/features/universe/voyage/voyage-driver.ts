@@ -300,9 +300,16 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         closeUp.compile(renderer, attachedTo);
       }
       const programs = renderer.info.programs?.length ?? 0;
+      const space = attachedTo;
       const ship =
-        control.afterFrame?.({ dt: lastDt, flying: flight !== null, globe: closeUp.onScreen(), size, programs }) ??
-        null;
+        control.afterFrame?.({
+          dt: lastDt,
+          flying: flight !== null,
+          globe: closeUp.onScreen(),
+          size,
+          programs,
+          ...(space === null ? {} : { regionAt: (x, y) => closeUp.regionAt(space, size, worldPlanet(), x, y) }),
+        }) ?? null;
       // Too faint to see: the same threshold as `HIDDEN_ALPHA` in `ship-layer.ts`, which the layer also checks.
       if (ship === null || ship.alpha <= 0.02) return;
       // The ship sits over the scene in screen space, so it is drawn last on top of what is there.
