@@ -70,6 +70,11 @@ export interface SpaceViewProps {
    * the frame is drawn, so it is safe in a production build.
    */
   readonly onFrameTime?: (frame: FrameTime) => void;
+  /**
+   * Told every frame's anchors as soon as they are projected, before React shows them: for code that acts on where
+   * places are this frame (the trial look's ship), which the overlay's render would hand it a frame or more late.
+   */
+  readonly onAnchors?: (anchors: readonly SpaceAnchor[]) => void;
   /** Developer gallery only. Makes the drawing readable and reports every frame. */
   readonly diagnostics?: {
     readonly onFrame: (sample: SpaceFrameSample) => void;
@@ -113,6 +118,7 @@ export function SpaceView({
   onChoose,
   onDetail,
   onFrameTime,
+  onAnchors,
   diagnostics,
 }: SpaceViewProps) {
   const { reducedMotion } = useDisplay();
@@ -132,6 +138,7 @@ export function SpaceView({
   const live = useRef({
     diagnostics,
     onFrameTime,
+    onAnchors,
     reducedMotion,
     definition,
     camera,
@@ -148,6 +155,7 @@ export function SpaceView({
       ...live.current,
       diagnostics,
       onFrameTime,
+      onAnchors,
       reducedMotion,
       definition,
       camera,
@@ -223,7 +231,9 @@ export function SpaceView({
               live.current.diagnostics !== undefined && frames.current % PROBE_EVERY === 1
                 ? created.probe()
                 : undefined;
-            setAnchors((previous) => reuseUnchangedAnchors(previous, created.anchors()));
+            const projected = created.anchors();
+            live.current.onAnchors?.(projected);
+            setAnchors((previous) => reuseUnchangedAnchors(previous, projected));
             setFar(created.isFar());
             live.current.onFrameTime?.({ atMs, drawMs });
             live.current.diagnostics?.onFrame({ t, atMs, drawMs, probe });

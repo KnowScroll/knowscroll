@@ -25,7 +25,7 @@ import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
-import { STOPS, targetOf } from './ladder';
+import { STOPS, targetOf, type Stop } from './ladder';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
 import { SearchSky, type SearchAnswer } from './search-sky';
@@ -166,26 +166,27 @@ export function VoyageStage({
     }),
     [systemId, space, redraw],
   );
+  // The ship and the gestures reach what this stop names, told as each frame is projected rather than after React has
+  // shown it: a list a few frames old catches the ship where a place was, above all while the view leans.
+  const shipAnchors = useCallback(
+    (anchors: readonly SpaceAnchor[]) => controller.setAnchors(anchors.filter(namedAt(stop, systemId))),
+    [controller, stop, systemId],
+  );
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {
-      const named = STOPS[stop].names;
-      // Below the whole universe only the star you are at is drawn: the other stars' bodies are hidden, but their
-      // anchors are still reported (a hidden parent leaves a child's own `visible` set).
-      const own = (anchor: SpaceAnchor) =>
-        stop === 'universe' || anchor.kind === 'dust' || anchor.systemId === systemId;
+      const own = ownAt(stop, systemId);
       const sun =
         stop === 'universe'
           ? undefined
           : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
       return (
         <VoyageOverlay
-          anchors={info.anchors.filter((anchor) => named.includes(anchor.kind) && own(anchor))}
+          anchors={info.anchors.filter(namedAt(stop, systemId))}
           written={STOPS[stop].written}
           keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
           size={size}
           focusId={focusId}
           hereId={hereId}
-          onAnchors={controller.setAnchors}
           onPlace={(id) => void session.focus(id)}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
@@ -200,7 +201,6 @@ export function VoyageStage({
       );
     },
     [
-      controller,
       session,
       onStation,
       onDust,
@@ -258,12 +258,28 @@ export function VoyageStage({
         load={controller.load}
         overlay={overlay}
         fallback={(reason) => <Unavailable reason={reason} onUnavailable={onUnavailable} />}
+        onAnchors={shipAnchors}
         {...(recordFrame ? { onFrameTime: recordFrame } : {})}
       />
       <FlightLine to={flying ? destinationOf(view, visitor) : null} size={size} onSkip={controller.skip} />
     </View>
   );
 }
+
+/**
+ * The anchors of the star you are at, and dust: below the whole universe only that star is drawn, and the other stars'
+ * bodies are hidden, but their anchors are still reported (a hidden parent leaves a child's own `visible` set).
+ */
+const ownAt =
+  (stop: Stop, systemId: string | null) =>
+  (anchor: SpaceAnchor): boolean =>
+    stop === 'universe' || anchor.kind === 'dust' || anchor.systemId === systemId;
+
+/** What a stop names: its kinds of place, of the star you are at. */
+const namedAt = (stop: Stop, systemId: string | null) => {
+  const own = ownAt(stop, systemId);
+  return (anchor: SpaceAnchor): boolean => STOPS[stop].names.includes(anchor.kind) && own(anchor);
+};
 
 /** Where a flight to `view` goes, as the flight line says it. A visitor's whole universe is their friend's, not theirs. */
 const destinationOf = (view: UniverseView, visitor: boolean): string => {
@@ -459,7 +475,6 @@ function VoyageOverlay({
   size,
   focusId,
   hereId,
-  onAnchors,
   onPlace,
   onStation,
   onDust,
@@ -479,8 +494,6 @@ function VoyageOverlay({
   readonly focusId: string | null;
   /** The region the ship stands on, named "you are here" under it; null above the ground. */
   readonly hereId: string | null;
-  /** Told the places this stop names after each frame is shown: what the ship and the gestures can reach. */
-  readonly onAnchors: (anchors: readonly SpaceAnchor[]) => void;
   readonly onPlace: (id: string) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
@@ -495,7 +508,6 @@ function VoyageOverlay({
   readonly landmarks: readonly LandmarkPoint[];
   readonly pennantScale: number;
 }) {
-  useEffect(() => onAnchors(anchors), [anchors, onAnchors]);
   const shown = anchors.filter((anchor) => anchor.visible && anchor.kind !== 'landmark');
   const pennants = anchors.filter((anchor) => anchor.visible && anchor.kind === 'landmark');
   const stations = shown.filter((anchor) => anchor.kind === 'station');

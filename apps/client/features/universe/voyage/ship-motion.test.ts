@@ -1,6 +1,9 @@
+import { pullOf } from './ship-gravity';
 import {
+  arrival,
   drawn,
   initialShip,
+  landShip,
   parkingSpot,
   pickShip,
   recentreShip,
@@ -149,6 +152,108 @@ describe('catching a target', () => {
     expect(distance(later, { x: 300, y: 300 })).toBeLessThan(40);
     const home = run(recentreShip(later), BASE, 4);
     expect(distance(home, HOME)).toBeLessThan(1);
+  });
+});
+
+describe('the pull of a body', () => {
+  const sun: ShipTarget = { id: 'sun', x: 200, y: 380, pull: pullOf('system', 12) };
+  const PLAIN: ShipTarget = { id: 'sun', x: 200, y: 380 };
+  /**
+   * A finger drawn up the screen past the sun at `offset` pt to its left in `seconds`, then held, stepped at `fps`
+   * frames a second. The finger reports 30 times a second whatever the frame rate, as a touch screen's events do, so
+   * every rate sees the same finger.
+   */
+  const pass = (target: ShipTarget, offset: number, fps: number, seconds = 1.6, hold = 0) => {
+    const path: { x: number; y: number; candidate: string | null }[] = [];
+    let state = initialShip({ ...HOME, x: 200 - offset, y: 600 });
+    const fingerAt = (t: number) => {
+      const sampled = Math.min(seconds, Math.floor(t * 30 + 1e-9) / 30);
+      return { x: 200 - offset, y: 600 - (440 * sampled) / seconds };
+    };
+    const frames = Math.round((seconds + hold) * fps);
+    for (let frame = 1; frame <= frames; frame++) {
+      const input = {
+        ...BASE,
+        bounds: { left: 0, right: 400, top: 0, bottom: 800 },
+        drag: fingerAt(frame / fps),
+        targets: [target],
+      };
+      state = stepShip(state, input, 1 / fps);
+      path.push({ x: state.x, y: state.y, candidate: state.candidate });
+    }
+    return { state, path };
+  };
+  const nearestApproach = (path: readonly { x: number; y: number }[]) =>
+    Math.min(...path.map((point) => distance(point, sun)));
+
+  it('curves a ship dragged past it toward it, 90 pt out, where the prototype’s pull did not reach', () => {
+    const pulled = pass(sun, 90, 60);
+    const plain = pass(PLAIN, 90, 60);
+    expect(nearestApproach(pulled.path)).toBeLessThan(nearestApproach(plain.path) - 10);
+    expect(pulled.path.some((point) => point.candidate === 'sun')).toBe(true);
+    expect(plain.path.every((point) => point.candidate === null)).toBe(true);
+  });
+
+  it('lets the finger win: once past the sun the ship comes back to the finger', () => {
+    const { state } = pass(sun, 90, 60, 1.6, 1.5);
+    expect(state.candidate).toBeNull();
+    expect(distance(state, { x: 110, y: 160 })).toBeLessThan(2);
+  });
+
+  it('moves the same at 30, 60 and 120 frames a second: held near the sun, and falling into it', () => {
+    /** The ship at `seconds`, stepped at `fps`: taken from home to a finger held 120 pt from the sun, let go at 1.5 s. */
+    const at = (fps: number, seconds: number) => {
+      let state = initialShip(HOME);
+      const input = { ...BASE, targets: [sun] };
+      for (let frame = 1; frame <= Math.round(seconds * fps); frame++) {
+        // The finger lifts at 1.5 s exactly, a frame boundary at every rate.
+        const holding = frame <= Math.round(1.5 * fps);
+        if (frame === Math.round(1.5 * fps) + 1) state = releaseShip(state, [sun]).state;
+        state = stepShip(state, { ...input, drag: holding ? { x: 80, y: 380 } : null }, 1 / fps);
+      }
+      return state;
+    };
+    expect(at(60, 1.4).candidate).toBe('sun');
+    expect(at(60, 1.6).falling).toBe('sun');
+    for (const seconds of [0.3, 0.8, 1.4, 1.7, 1.9]) {
+      expect(distance(at(30, seconds), at(120, seconds))).toBeLessThan(1);
+      expect(distance(at(60, seconds), at(120, seconds))).toBeLessThan(1);
+    }
+  });
+
+  it('draws a ship let go near it in, and says when it has reached it', () => {
+    const held = run(initialShip(HOME), { ...BASE, drag: { x: 70, y: 400 }, targets: [sun] }, 1.5);
+    expect(held.candidate).toBe('sun');
+    const gap = distance(held, sun);
+    expect(gap).toBeGreaterThan(sun.pull!.capture);
+    expect(gap).toBeLessThan(sun.pull!.fall);
+    const { state, goTo } = releaseShip(held, [sun]);
+    expect(goTo).toBeNull();
+    expect(state.falling).toBe('sun');
+    let falling = state;
+    let frames = 0;
+    while (arrival(falling, [sun]) === null && frames < 120) {
+      falling = stepShip(falling, { ...BASE, targets: [sun] }, FRAME);
+      frames += 1;
+    }
+    expect(arrival(falling, [sun])).toBe('sun');
+    // Seen to fall: it takes a good part of a second, not one frame.
+    expect(frames).toBeGreaterThan(12);
+    const landed = landShip(falling);
+    expect(landed).toMatchObject({ free: false, falling: null, candidate: null });
+  });
+
+  it('goes at once with reduced motion, where it would otherwise be drawn in', () => {
+    const held = run(initialShip(HOME), { ...BASE, drag: { x: 70, y: 400 }, targets: [sun] }, 1.5);
+    expect(releaseShip(held, [sun], true).goTo).toBe('sun');
+  });
+
+  it('stays free where it was if the body it falls into leaves the screen', () => {
+    const held = run(initialShip(HOME), { ...BASE, drag: { x: 70, y: 400 }, targets: [sun] }, 1.5);
+    const { state } = releaseShip(held, [sun]);
+    const after = run(state, { ...BASE, targets: [] }, 0.5);
+    expect(after.falling).toBeNull();
+    expect(after.free).toBe(true);
   });
 });
 

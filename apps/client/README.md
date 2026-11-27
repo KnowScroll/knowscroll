@@ -533,10 +533,18 @@ float over it.
     A region's name, the point the camera comes down over and where the ship stands are one point well inside its land
     near its middle (`region-centre.ts`, the prototype's `rg.c`), not the generator's label, which is often on the shore.
   - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky (hovering gently, still under reduced
-    motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans; let
-    it go within 70 pt of a place to go there, or of a station to open its room; while held, the place it would go to
-    glows. A finger that moves less than 6 pt is a tap (it calls the ship home), and a second finger lets go of the
-    ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
+    motion), round the globe, or on the region you came down over, never on a button; drag it and the view leans.
+    Stars and planets pull it (`ship-gravity.ts`, pure): each bends where the held ship is going toward it, a star from
+    farther (170 pt plus its size on screen) and harder than a planet (150 pt), fading to nothing at the edge with no
+    jolt, all together never more than 0.62 of the way, so the finger always wins; a ship dragged past one curves
+    toward it. Let go within 70 pt (plus the body's size) and it goes there; a little farther out (125 pt from a star,
+    110 from a planet) it is drawn in, seen to fall for about half a second, then goes; reduced motion goes at once.
+    Regions and rooms keep the prototype's pull (0.45 within 64 pt, caught within 70, never drawn in), and with the
+    finger on one it wins over the star behind it, so a station opens its room. While held, the place it would go to
+    glows, faint at the edge of a pull and full where letting go would go there. The springs step at most 1/120 s, so
+    the ship moves the same at any frame rate, and it is told where places are as each frame is projected
+    (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the
+    ship home), and a second finger lets go of the ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
     cream "X · you are here" pill with the orange dot.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
