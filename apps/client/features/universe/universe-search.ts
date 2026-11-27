@@ -64,8 +64,13 @@ function fold(name: string): Folded {
   return { text, from, to };
 }
 
-const normaliseQuery = (query: string) =>
-  query.normalize('NFKD').replaceAll(/\p{M}/gu, '').toLowerCase().replaceAll(/\s+/g, ' ').trim();
+/**
+ * A name with its accents and case taken off and its spaces made single: what a query and a name are compared as. A
+ * friend's Universe uses it too, to find the names you share (`features/visit/in-common.ts`), so the two screens can
+ * never disagree about whether "Café" and "cafe" are one name.
+ */
+export const foldName = (name: string) =>
+  name.normalize('NFKD').replaceAll(/\p{M}/gu, '').toLowerCase().replaceAll(/\s+/g, ' ').trim();
 
 /** 0 best: the whole name, then its start, then a word's start, then anywhere inside it. */
 function locate(name: Folded, query: string): { tier: number; at: number } | undefined {
@@ -99,7 +104,7 @@ export function searchUniverse(
   rawQuery: string,
   limit = SEARCH_LIMIT,
 ): readonly SearchResult[] {
-  const query = normaliseQuery(rawQuery);
+  const query = foldName(rawQuery);
   if (!query) return [];
   const byId = new Map(places.map((place) => [place.id, place]));
   const candidates: Candidate[] = [
