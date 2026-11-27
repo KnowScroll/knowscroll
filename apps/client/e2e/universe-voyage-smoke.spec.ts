@@ -460,7 +460,7 @@ test('with the trial switch off the List view chip is still a bare ghost and Lat
   expect(await backgroundOf(list)).not.toBe(GLASS);
   await shot(page, 'leftovers-off-1-universe');
   await page.getByRole('button', { name: 'Lately', exact: true }).click();
-  // The old look already dimmed the name of a quiet system under Lately.
+  // Under Lately the old look dims a quiet system's name too.
   await expect.poll(() => colourOf(page.getByText('CI system 0', { exact: true }))).toBe('rgba(255, 251, 240, 0.72)');
 });
 

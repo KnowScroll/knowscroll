@@ -14,8 +14,9 @@ import { space } from '@knowscroll/design-tokens';
 import { universeHarness } from './universe.fixture';
 
 /**
- * The pieces of the Universe trial's new look that were still drawn the old way (Round 7.3, #811). Each is about the
- * new look only: every one has the same walk with the switch off, which must come out exactly as it did.
+ * Chrome the new look shares with the old: the List and Lately chips, Lately's names, "Return to", and Simple drawing's
+ * fallback for one planet. Each rule is the new look's only, so each has the same walk with the switch off, where the
+ * old look's behaviour must hold.
  */
 
 /** The one planet whose world cannot be drawn in these tests (the fixture's CI planet 2 has this seed). */
@@ -154,7 +155,7 @@ describe('Lately calms the written names of quiet systems', () => {
     return harness;
   };
 
-  // The old look already dimmed them (`calm` on its labels): the new look now does the same, and the old one is as it was.
+  // Under Lately the names of quiet systems dim in both looks (`calm` on the labels).
   it.each([[true], [false]])(
     'with the new look %s, a quiet system’s name dims to 0.7 only while Lately is on',
     async (trial) => {
