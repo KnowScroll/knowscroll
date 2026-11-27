@@ -551,7 +551,9 @@ float over it.
     glows, faint at the edge of a pull and full where letting go would go there. The springs step at most 1/120 s, so
     the ship moves the same at any frame rate, and it is told where places are as each frame is projected
     (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the
-    ship home), and a second finger lets go of the ship and pinches. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
+    ship home), and a second finger lets go of the ship and pinches. W A S D fly the ship from the keyboard (22 pt a
+    press; the arrows turn the view): it is held while they are pressed, so places pull it, and let go 0.7 s after the
+    last, as a lifted finger lets it go. Hidden during a flight and a pinch. On the ground it stands on the chosen region (or the first) under a
     cream "X · you are here" pill with the orange dot.
   - **Names** are placed so that none covers another, the header or the chips (`placeLabels`); a name with no free spot
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
@@ -614,8 +616,16 @@ float over it.
     compared on the device, folded as search folds them (`systemsInCommon`); your own names come from the Universe session
     already in memory, or one sky read of the kind the tab makes. It is off on arrival, shows no count, and is not shown when
     your own universe is empty. A friend's map in the new look is pinned to the Light values, as your own Universe is.
-  - Not yet: wiring the crossing to a friend's Universe (its film is in the developer gallery, `crossing/`), the
-    prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
+  - **The crossing to a friend** (`features/visit/`, `features/universe/crossing/`, behind the switch only). When
+    `/visit/<handle>` first mounts, whatever started the visit, the film plays full screen over the visit's loading
+    (7.5 s the first time for that friend on this device and account, 3.6 s after) while the visit read runs behind it. A
+    tap or Esc skips to the end; under reduced motion it is a 0.26 s dark cut. It names the friend and, only if the read
+    and your own names were back by film time 0.47, the names you have in common; if the visit says "not shared" or is
+    offline before film time 0.3 the film is stopped and the screens for those are shown. Leave plays the film home
+    (3.8 s) and lands on your Universe. A screen reader hears one polite line ("Going to ...'s universe", "Going home").
+    With the switch off there is no film and Leave goes back as before.
+  - Not yet: the camera's fall into a friend's Universe after the film (the map simply appears under the flash), the
+    white of the way home fading over your own Universe, the prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
@@ -677,7 +687,8 @@ token; reduced motion stops drift and plays the formation as one still.
 `features/universe/space/` draws the space views with three.js. The Universe tab uses it for the Overview, Far, a
 system and the Empty, loading and Offline sky; a planet's globe and map are SVG (D-108). It is also reached through the
 developer gallery page `/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; `?scene=universe` draws the
-tab's own layout of a labelled sample universe, for the frame numbers).
+tab's own layout of a labelled sample universe, for the frame numbers; `?scene=maps` draws the two maps of a planet over
+labelled sample data, see `features/universe/README.md`).
 
 | Capability | Status |
 | --- | --- |

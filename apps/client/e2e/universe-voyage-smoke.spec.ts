@@ -690,7 +690,15 @@ test.describe('a desktop, 1440 x 900', () => {
       timeout: 60_000,
     });
     const hints = page.getByTestId('universe-key-hints');
-    for (const words of ['Drag turns', 'Drag your ship to fly', 'turn', 'one stop', 'search', 'back up'])
+    for (const words of [
+      'Drag turns',
+      'Drag your ship to fly',
+      'turn',
+      'fly the ship',
+      'one stop',
+      'search',
+      'back up',
+    ])
       await expect(hints).toContainText(words);
     await expect(hints).not.toContainText('Pan');
     await expect(hints).not.toContainText('Zoom');
@@ -700,6 +708,12 @@ test.describe('a desktop, 1440 x 900', () => {
     const hintBox = await boxOf(hints);
     for (const { name, box } of await chrome(page))
       if (box.x !== hintBox.x || box.y !== hintBox.y) expect(apart(hintBox, box), `hints over ${name}`).toBe(true);
+
+    // W A S D fly the ship (the readout's touch line says so) and move no stop.
+    await page.getByTestId('voyage-stage').focus();
+    for (let press = 0; press < 3; press++) await page.keyboard.press('w');
+    await expect(page.getByText(/touch: ship (flown by keys|held)/)).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Your universe', exact: true })).toBeVisible();
 
     // + goes one stop in and - one stop out, as the hints say.
     await page.getByTestId('voyage-stage').focus();

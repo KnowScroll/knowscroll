@@ -386,6 +386,24 @@ describe('charting a world: which land is a formed region (D-078)', () => {
     }
   });
 
+  // The voyage look paints the globe's band with land not reached in grey (the ground, and the flat map of a planet),
+  // so the rule that kept a person from counting what is left must hold for this world too, not only the landed map's.
+  it('gives the globe the same: unreached land has no id, site, name or count, and is never as many shapes as there are unformed sites', () => {
+    for (const planet of PLANETS) {
+      const world = buildGlobe(planet);
+      for (let formed = 0; formed <= planet.siteCount; formed++) {
+        const chart = chartWorld(world, regionsAt(Array.from({ length: formed }, (_, site) => site)));
+        const unformed = planet.siteCount - formed;
+        for (const land of chart.unreached)
+          expect(Object.keys(land).every((key) => key === 'loops' || key === 'veil')).toBe(true);
+        expect(JSON.stringify(chart.unreached)).not.toMatch(/region-|objectId|site|label|name|count/);
+        // Decorative grey continents are always there, so the grey on screen is never the unformed count.
+        expect(chart.unreached.length).toBeGreaterThan(unformed);
+        expect(chart.unreached.length - unformed).toBe(world.decor.length);
+      }
+    }
+  });
+
   it('draws the globe from the same cells; the chart marks nothing as not reached for it to paint grey', () => {
     const chart = chartWorld(globe, regionsAt([0, 1]));
     expect(chart.charted.map((cell) => cell.site)).toEqual([0, 1]);

@@ -49,6 +49,20 @@ export const SHIP_LAYOUT = {
 export const shipLayoutOf = (desktop: boolean) => (desktop ? SHIP_LAYOUT.desktop : SHIP_LAYOUT.phone);
 /** A wheel moves one stop, then waits this long before it moves another (the prototype's 260 ms `settle` timer). */
 const WHEEL_REST_MS = 260;
+/**
+ * The keys that fly the ship, and which way: W A S D, as games use them, since the arrows turn the view. The prototype
+ * has no key for the ship; a person who cannot drag needs one.
+ */
+const SHIP_KEYS: Readonly<Record<string, readonly [number, number]>> = {
+  w: [0, -1],
+  a: [-1, 0],
+  s: [0, 1],
+  d: [1, 0],
+};
+/** Each press moves the ship this far, in points; a held key repeats. */
+const SHIP_KEY_STEP = 22;
+/** The ship flown by keys is let go this long after the last of them, as a lifted finger lets it go. */
+const SHIP_KEY_LET_GO_MS = 700;
 /** The ship goes round a globe whose radius on screen is over this (pixels): the same as the driver's `NAMED_FROM_PX`. */
 const ORBIT_FROM_PX = 90;
 /** The ship's size parked low in the sky, in points (the prototype's `hs = 32`). */
@@ -391,6 +405,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   const act = (gesture: StageGesture) => {
     switch (gesture.kind) {
       case 'ship-take':
+        // A finger takes the ship from the keys: it is the finger's to let go now.
+        stopKeys();
         held = gesture.at;
         tell('ship held');
         return;
@@ -418,6 +434,12 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });
         return;
       case 'pinch-begin':
+        // Two fingers take the view from the keys: the ship they held goes home, with no drop.
+        if (keyHeld) {
+          stopKeys();
+          held = null;
+          ship = recentreShip(ship);
+        }
         // A pinch a finger landed again on carries on toward the place it was going to.
         if (!gesture.resumes) pinchDescent = descentOf(inputs.view, anchors, gesture.between.x, gesture.between.y);
         pinch.begin(gesture.spread, pinchDescent !== null && pinchDescent !== 'land' ? pinchDescent.focus : null);
@@ -473,13 +495,49 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
 
   let wheelResting = false;
   let wheelTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The ship is held by the keys, not a finger, and the timer that lets it go. */
+  let keyHeld = false;
+  let keyTimer: ReturnType<typeof setTimeout> | undefined;
+  const stopKeys = () => {
+    clearTimeout(keyTimer);
+    keyTimer = undefined;
+    keyHeld = false;
+  };
+  /** Moves the ship one key step, taking it if it is free to take, and lets it go once the keys rest. */
+  const flyShipBy = (dx: number, dy: number): boolean => {
+    const at = drawn(ship);
+    // Not while a pinch has the view or the ship is hidden (a flight), and not while a finger holds it.
+    if (pinch.pinching() || !pickShip(ship, at.x, at.y)) return false;
+    if (!keyHeld && held !== null) return false;
+    const from = held ?? { x: ship.x, y: ship.y };
+    const { width, height } = inputs.size;
+    held = {
+      x: Math.min(width, Math.max(0, from.x + dx * SHIP_KEY_STEP)),
+      y: Math.min(height, Math.max(0, from.y + dy * SHIP_KEY_STEP)),
+    };
+    if (!keyHeld) tell('ship flown by keys');
+    keyHeld = true;
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(() => {
+      keyTimer = undefined;
+      if (!keyHeld) return;
+      keyHeld = false;
+      letGoOfShip(true);
+    }, SHIP_KEY_LET_GO_MS);
+    return true;
+  };
   return {
     load: loadVoyageRenderer(control),
     responder,
     sync(next) {
       if (targetKey(next.target) !== targetKey(inputs.target)) {
         // Going somewhere calls the ship home: it parks at the new stop. A pinch's zoom has done its work: the flight
-        // leaves from where it left the camera.
+        // leaves from where it left the camera. A ship the keys held is let go of with no drop: the keys' pause must
+        // not send it anywhere from the new stop.
+        if (keyHeld) {
+          stopKeys();
+          held = null;
+        }
         ship = recentreShip(ship);
         pinch.targetChanged();
         legs.asked(next.target, performance.now());
@@ -526,6 +584,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         '-': () => climbOneStop(session, view),
         Home: () => void session.focusLast(),
       };
+      const shipKey = name.length === 1 ? SHIP_KEYS[name.toLowerCase()] : undefined;
+      if (shipKey !== undefined) return flyShipBy(shipKey[0], shipKey[1]);
       const action = Object.hasOwn(actions, name) ? actions[name] : undefined;
       action?.();
       return action !== undefined;
@@ -534,6 +594,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       control.skips += 1;
     },
     dispose() {
+      stopKeys();
       clearTimeout(wheelTimer);
       wheelTimer = undefined;
       wheelResting = false;

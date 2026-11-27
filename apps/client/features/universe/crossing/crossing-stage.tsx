@@ -24,6 +24,7 @@ export function CrossingStage({
   aheadSeed,
   onDrawn,
   onFailure,
+  onFrameTime,
   preserveDrawingBuffer,
 }: {
   readonly frame: CrossingFrame;
@@ -34,16 +35,18 @@ export function CrossingStage({
   /** The shader's part of `frame` is on the canvas. */
   readonly onDrawn?: (frame: CrossingFrame) => void;
   readonly onFailure?: (reason: SpaceFailure, detail?: string) => void;
+  /** Each frame's draw: when it was drawn (`performance.now()`) and how long `draw` took on the CPU, for the frame-rate readout. */
+  readonly onFrameTime?: (frame: { readonly atMs: number; readonly drawMs: number }) => void;
   /** Developer gallery only: keeps the drawing readable for screenshots and pixel reads. */
   readonly preserveDrawingBuffer?: boolean;
 }) {
   const [renderer, setRenderer] = useState<CrossingRenderer | null>(null);
-  const live = useRef({ frame, onDrawn, onFailure });
+  const live = useRef({ frame, onDrawn, onFailure, onFrameTime });
   const owned = useRef<CrossingRenderer | null>(null);
   /** Bumped for every new surface and on unmount, so a renderer that arrives late is never used. */
   const generation = useRef(0);
   useEffect(() => {
-    live.current = { frame, onDrawn, onFailure };
+    live.current = { frame, onDrawn, onFailure, onFrameTime };
   });
 
   // The marks stay over black when the shader cannot be drawn; the owner is told why.
@@ -80,12 +83,15 @@ export function CrossingStage({
 
   useEffect(() => {
     if (renderer === null) return;
+    const startedMs = performance.now();
     try {
       renderer.draw(frame);
     } catch (error) {
       fail('render-failed', describe(error));
       return;
     }
+    const drawnMs = performance.now();
+    live.current.onFrameTime?.({ atMs: drawnMs, drawMs: drawnMs - startedMs });
     live.current.onDrawn?.(frame);
   }, [renderer, frame, fail]);
 
