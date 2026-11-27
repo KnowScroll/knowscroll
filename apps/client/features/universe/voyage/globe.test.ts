@@ -217,6 +217,75 @@ describe('the globe texture', () => {
   });
 });
 
+describe('the mask and the weather of the whole-band texture on the globe', () => {
+  const layered = {
+    ...pixels,
+    closed: new Uint8Array(4 * 2),
+    weather: { width: 4, height: 2, data: new Uint8Array(4 * 2 * 4) },
+  };
+  const closedOf = (globe: Globe) => uniformsOf(globe).closedMap!.value as THREE.DataTexture | null;
+  const weatherOf = (globe: Globe) => uniformsOf(globe).weatherMap!.value as THREE.DataTexture | null;
+
+  it('reads land not reached off a one-byte, linear, unpadded texture and the weather off an RGBA one, only when the texture has them', () => {
+    const globe = createGlobe();
+    globe.setTexture(pixels);
+    expect(closedOf(globe)).toBeNull();
+    expect(weatherOf(globe)).toBeNull();
+    expect(uniformsOf(globe).closedOn!.value).toBe(0);
+    expect(uniformsOf(globe).weatherOn!.value).toBe(0);
+    globe.setTexture(layered);
+    const closed = closedOf(globe)!;
+    expect(closed.image).toMatchObject({ width: 4, height: 2, data: layered.closed });
+    expect(closed.format).toBe(THREE.RedFormat);
+    expect(closed.type).toBe(THREE.UnsignedByteType);
+    expect(closed.unpackAlignment).toBe(1);
+    expect(closed.wrapS).toBe(THREE.RepeatWrapping);
+    expect(closed.minFilter).toBe(THREE.LinearFilter);
+    expect(closed.magFilter).toBe(THREE.LinearFilter);
+    expect(closed.generateMipmaps).toBe(false);
+    const weather = weatherOf(globe)!;
+    expect(weather.image).toMatchObject({ width: 4, height: 2, data: layered.weather.data });
+    expect(weather.format).toBe(THREE.RGBAFormat);
+    expect(weather.wrapS).toBe(THREE.RepeatWrapping);
+    expect(uniformsOf(globe).closedOn!.value).toBe(1);
+    expect(uniformsOf(globe).weatherOn!.value).toBe(1);
+    globe.dispose();
+  });
+
+  it('shifts the globe grey to the ground grey and takes the weather off, only as the camera comes down', () => {
+    const globe = createGlobe();
+    const shader = (globe.mesh.material as THREE.ShaderMaterial).fragmentShader;
+    expect(shader).toContain('float groundNear = smoothstep(0.5, 1.0, near);');
+    expect(shader).toContain('land.rgb += closedShift * texture2D(closedMap, uv).r * closedOn * groundNear * land.a;');
+    expect(shader).toContain('vec4 weather = texture2D(weatherMap, uv) * weatherOn * (1.0 - groundNear);');
+    expect(shader).toContain('land = weather + land * (1.0 - weather.a);');
+    const look = worldLookOf(paletteOf('lush', 0));
+    globe.setTexture({ ...layered, look });
+    const { globe: from, ground: to } = look.closedGrey;
+    expect(channelsOf(globe, 'closedShift')).toEqual(to.map((channel, at) => (channel - from[at]!) / 255));
+  });
+
+  it('frees both when the next texture arrives, when it is cleared and when the globe goes', () => {
+    const globe = createGlobe();
+    globe.setTexture(layered);
+    const first = [closedOf(globe)!, weatherOf(globe)!];
+    const freeFirst = first.map((texture) => jest.spyOn(texture, 'dispose'));
+    globe.setTexture(layered);
+    for (const free of freeFirst) expect(free).toHaveBeenCalledTimes(1);
+    const second = [closedOf(globe)!, weatherOf(globe)!];
+    const freeSecond = second.map((texture) => jest.spyOn(texture, 'dispose'));
+    globe.setTexture(null);
+    for (const free of freeSecond) expect(free).toHaveBeenCalledTimes(1);
+    expect(closedOf(globe)).toBeNull();
+    expect(weatherOf(globe)).toBeNull();
+    globe.setTexture(layered);
+    const last = [closedOf(globe)!, weatherOf(globe)!];
+    const freeLast = last.map((texture) => jest.spyOn(texture, 'dispose'));
+    globe.dispose();
+    for (const free of freeLast) expect(free).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('the ground patch on the globe', () => {
   const patchPixels = { width: 3, height: 5, data: new Uint8Array(3 * 5 * 4) };
   const patchOf = (globe: Globe) => uniformsOf(globe).patchMap!.value as THREE.DataTexture | null;

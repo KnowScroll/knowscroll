@@ -523,13 +523,20 @@ float over it.
     painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey
     land not reached yet shows from orbit too, outlined as one shape, never named, counted or tappable. The sea is the
     prototype's: a lit ball from orbit, a deep flat gradient on the ground; a halo of air rings the globe; clouds lie
-    over the sea, never over formed land. The ground is the same sphere from nearer, through a longer lens (24°, eased
+    over the sea and the grey land, never over formed land, and gone on the ground. The ground is the same sphere from nearer, through a longer lens (24°, eased
     in as the camera falls) so the land is seen nearly from above: no cross-fade. Near a planet its sun and the haze
     under it fade away, and a ringed planet's rings and moon come back gradually as the camera leaves. A friend's
     planets wear every continent in colour and name nothing: a visit shares no regions. On the ground a third texture,
     a patch of the band round the place you land, is painted from the same loops at about 1.5 texels per point with
     the prototype's coast widths in points (a white shelf at 0.2, 22 wide; foam 7; ink 2; borders 1.8); it comes in as
     the camera nears the ground and is not painted under reduced motion, where the ground keeps the whole-band texture.
+    On the ground, opened land and land not reached are told apart by colour, coast and weather, never by a count
+    (D-109): land not reached is one flat grey (the prototype's ground grey, or a lighter or darker one where a planet's
+    own sea or land would swallow it), inked darker, with a shaded coast where opened land has the pale shelf and foam;
+    the ground has no weather, so a white cloud is never taken for opened land. The patch paints all of this; the
+    whole-band texture, which shows where the patch does not reach, carries a mask of land not reached and keeps its
+    weather (the clouds) in a layer of its own, which the globe's shader uses on the ground to give that land the same
+    grey and take the weather off, and leaves in place from orbit.
     A region's name, the point the camera comes down over and where the ship stands are one point well inside its land
     near its middle (`region-centre.ts`, the prototype's `rg.c`), not the generator's label, which is often on the shore.
   - **The ship** (`ship-motion.ts` pure, `ship-layer.ts`): parks low in the sky (hovering gently, still under reduced

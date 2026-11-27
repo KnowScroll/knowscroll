@@ -7,6 +7,7 @@ import {
   BAND_UNITS_PER_RADIAN,
   BAND_WIDTH,
   createWorldPainter,
+  groundGreyOf,
   labelPoints,
   latitudeOfBandY,
   worldLookOf,
@@ -51,6 +52,18 @@ const standard = (): WorldTexture => (standardTexture ??= paint());
 /** The same with no weather, to see what the clouds changed. */
 const cloudless = (): WorldTexture =>
   (cloudlessTexture ??= paint({ world: { ...world, clouds: { body: [], middle: [], core: [] } } }));
+
+/** The texture with its weather laid over it, as the globe's shader does from orbit (both premultiplied). */
+const withWeather = (texture: WorldTexture): WorldTexture => {
+  const { weather } = texture;
+  const data = new Uint8Array(texture.data.length);
+  for (let at = 0; at < data.length; at += 4) {
+    const cover = 1 - weather!.data[at + 3]! / 255;
+    for (let channel = 0; channel < 4; channel++)
+      data[at + channel] = Math.round(weather!.data[at + channel]! + texture.data[at + channel]! * cover);
+  }
+  return { ...texture, data };
+};
 
 const grid: PixelTarget = { width: WIDTH, height: HEIGHT, data: new Uint8Array(0) };
 const draw = { scale: { x: WIDTH / BAND_WIDTH, y: HEIGHT / BAND_HEIGHT } };
@@ -136,6 +149,30 @@ describe('painting a world into a texture', () => {
     expect(worldLookOf(paletteOf('ocean', 40)).flatSea).toEqual(paletteOf('ocean', 40).flatSea);
   });
 
+  it('carries the two greys of land not reached in its look: the globe from orbit and the ground', () => {
+    const { closedGrey } = standard().look!;
+    expect(closedGrey.globe.map((channel) => Math.round(channel)).join(',')).toBe(greyOfUnreached());
+    expect(closedGrey.ground).toEqual(groundGreyOf(palette));
+    expect(closedGrey.ground).not.toEqual(closedGrey.globe);
+  });
+
+  it('marks where land not reached lies, as 255 and 0, for the globe to read on the ground', () => {
+    const { closed } = standard();
+    expect(closed).toBeInstanceOf(Uint8Array);
+    expect(closed!.length).toBe(WIDTH * HEIGHT);
+    for (let at = 0; at < WIDTH * HEIGHT; at++) expect(closed![at]).toBe(UNREACHED[at] === 1 ? 255 : 0);
+    // It cannot tell unformed land from decorative land: one value for both.
+    const unformed = world.cells.find((cell) => !FORMED.includes(cell.site) && total(maskOf(cell.loops)) > 200)!;
+    const decorative = world.decor.find((decor) => total(maskOf(decor.loops)) > 200)!;
+    for (const loops of [unformed.loops, decorative.loops]) {
+      const values = new Set<number>();
+      maskOf(loops).forEach((here, at) => {
+        if (here && UNREACHED[at]) values.add(closed![at]!);
+      });
+      expect([...values]).toEqual([255]);
+    }
+  });
+
   it('is the same bytes every time', () => {
     expect(Buffer.from(paint().data).equals(Buffer.from(standard().data))).toBe(true);
   });
@@ -160,27 +197,36 @@ describe('painting a world into a texture', () => {
     expect(greyOfUnreached()).not.toBe(hex(palette.land[0]));
   });
 
-  it('lays cloud over the sea and land not reached, and never over formed land: nothing there changes when the clouds are taken away', () => {
-    const clear = cloudless();
-    const cloudy = standard();
+  it('keeps the weather in a layer of its own, premultiplied and the size of the texture, which has no cloud in it', () => {
+    const { weather } = standard();
+    expect(weather).toMatchObject({ width: WIDTH, height: HEIGHT });
+    expect(weather!.data.length).toBe(WIDTH * HEIGHT * 4);
+    for (let at = 0; at < WIDTH * HEIGHT; at++)
+      expect(Math.max(...weather!.data.slice(at * 4, at * 4 + 3))).toBeLessThanOrEqual(weather!.data[at * 4 + 3]!);
+    // The texture is the same with no clouds in the world: nothing of them is in its own pixels.
+    expect(Buffer.from(cloudless().data).equals(Buffer.from(standard().data))).toBe(true);
+    expect(cloudless().weather!.data.every((value) => value === 0)).toBe(true);
+  });
+
+  it('lays weather over the sea and land not reached, and never over formed land', () => {
+    const { weather } = standard();
     let overSea = 0;
     let overUnreached = 0;
     for (let at = 0; at < WIDTH * HEIGHT; at++) {
-      const same = rgbAt(clear, at) === rgbAt(cloudy, at) && clear.data[at * 4 + 3] === cloudy.data[at * 4 + 3];
-      if (CHARTED[at]) expect(same).toBe(true);
-      else if (!same && UNREACHED[at]) overUnreached += 1;
-      else if (!same) overSea += 1;
+      if (weather!.data[at * 4 + 3] === 0) continue;
+      expect(CHARTED[at]).toBe(0);
+      if (UNREACHED[at]) overUnreached += 1;
+      else overSea += 1;
     }
     expect(overSea).toBeGreaterThan(200);
     expect(overUnreached).toBeGreaterThan(200);
   });
 
   it('puts no cloud over the point a formed region is named at', () => {
-    const clear = cloudless();
-    const cloudy = standard();
+    const { weather } = standard();
     for (const { label } of chart.charted) {
       const at = Math.floor((label.y * HEIGHT) / BAND_HEIGHT) * WIDTH + Math.floor((label.x * WIDTH) / BAND_WIDTH);
-      expect(rgbAt(cloudy, at)).toBe(rgbAt(clear, at));
+      expect(weather!.data[at * 4 + 3]).toBe(0);
     }
   });
 
@@ -205,7 +251,7 @@ describe('painting a world into a texture', () => {
   it('keeps the weather over the sea nearly seamless too: the world draws a cloud a step off at the seam in a few rows', () => {
     // The world's own cloud loops are not exact copies either side of the seam (a body edge a unit off over about
     // six rows of 256), which showed only on the rare cloud over grey land before it lay over the sea.
-    expect(rowsApartAtSeam(standard())).toBeLessThan(0.08);
+    expect(rowsApartAtSeam(withWeather(standard()))).toBeLessThan(0.08);
   });
 
   it('draws no border between two pieces of land not reached, and leaves their grey alone', () => {
@@ -259,6 +305,7 @@ describe('painting a world into a texture', () => {
     expect(steps).toBeGreaterThan(10);
     expect(painter.step(0.5)).toBe(true);
     expect(Buffer.from(painter.result().data).equals(Buffer.from(standard().data))).toBe(true);
+    expect(Buffer.from(painter.result().weather!.data).equals(Buffer.from(standard().weather!.data))).toBe(true);
   });
 
   it('paints the same bytes at 2048 by 1024 a little at a time as all at once', () => {
@@ -305,6 +352,37 @@ describe('painting a world into a texture', () => {
     for (const band of gasPalette.bands!) expect(seen.has(hex(band))).toBe(true);
     const plain = new Set(histogram(standard(), new Uint8Array(WIDTH * HEIGHT).fill(1)).keys());
     for (const band of gasPalette.bands!) expect(plain.has(hex(band))).toBe(false);
+  });
+});
+
+describe('the grey of land not reached on the ground', () => {
+  const hexOf = (colour: readonly number[]) => colour.map((channel) => Math.round(channel));
+  const distance = (one: readonly number[], other: readonly number[]) =>
+    Math.hypot(...one.map((channel, at) => channel - other[at]!));
+  const channelsOf = (colour: string) => hexOf(hex(colour).split(',').map(Number));
+
+  it('is the prototype ground grey for a palette that leaves it clear, a darker and neutral grey than the globe', () => {
+    const lush = paletteOf('lush', 0);
+    const grey = groundGreyOf(lush);
+    const [face, edge] = lush.grey.map(channelsOf);
+    expect(hexOf(grey)).toEqual(face!.map((channel, at) => Math.round((channel + edge![at]!) / 2)));
+    const luma = (colour: readonly number[]) => 0.2126 * colour[0]! + 0.7152 * colour[1]! + 0.0722 * colour[2]!;
+    expect(luma(grey)).toBeLessThan(luma(worldLookOf(lush).closedGrey.globe));
+  });
+
+  it('keeps clear of the whole sea and of every colour a formed region wears, on every planet type at every hue', () => {
+    const types = ['lush', 'ocean', 'frozen', 'scorched', 'barren', 'gas'] as const;
+    for (const type of types)
+      for (let hue = 0; hue < 360; hue += 10) {
+        const turned = paletteOf(type, hue);
+        const grey = groundGreyOf(turned);
+        const [top, bottom] = turned.flatSea.map(channelsOf) as [number[], number[]];
+        const seas = [0, 0.25, 0.5, 0.75, 1].map((along) =>
+          top.map((channel, at) => channel + (bottom[at]! - channel) * along),
+        );
+        const lands = [...turned.land, turned.lowland, turned.highland].map(channelsOf);
+        for (const other of [...seas, ...lands]) expect(distance(grey, other)).toBeGreaterThan(55);
+      }
   });
 });
 
@@ -364,12 +442,18 @@ describe('where a name goes', () => {
  * the top edge); everything is premultiplied (colour times alpha, so a coast filters without a dark
  * fringe); the world's own cloud lies over the sea as well as over land not reached, though never over formed
  * land, a coast line's width of it, or the places the names go. Land, lines and the shelf are as before.
+ *
+ * Re-pinned again (ground terrain, #811): the weather left the band's own pixels and has a layer of its own
+ * (`WorldTexture.weather`), so that the globe can take it off on the ground and leave the coast and the sea's shelf
+ * under it whole. The texture's pixels are the same as before with no cloud in them; the weather laid back over them,
+ * as the globe does from orbit, is the old picture to within a unit of rounding in a channel (checked when it was
+ * pinned: the largest difference was 2 and 2 channels in 524,288 were off by more than 1).
  */
 describe('the painter output, pinned', () => {
   const PINNED = {
-    lush: 'f72578df7ad86c85b9785fbb12302c76d183025f',
-    gas: '7c1208ccd489004fc3524d794f6da1533dba0a83',
-    scorched: '5819f21ca3301b8209d62559c174e3308f14b4d0',
+    lush: 'dee7722df3e93ca6a9e1244bf5dbbc21e3fd4ca6',
+    gas: '59cb7c4c6eb2a6914e469b7cb7c7caac4ccb774e',
+    scorched: '74e8e35447c5053f127153fe498a5b09f68cbb87',
   } as const;
   it.each(Object.keys(PINNED) as (keyof typeof PINNED)[])('paints %s at 1024 by 512 to the pinned bytes', (type) => {
     const texture = paint({ palette: paletteOf(type, 0), width: 1024, height: 512 });
