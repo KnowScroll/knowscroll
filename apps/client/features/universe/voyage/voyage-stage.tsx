@@ -16,7 +16,15 @@ import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
 import { LandmarkMark } from '../collection/landmark-mark';
-import { BodyTarget, HERE_DOT_ROOM, LABEL_HEIGHT, labelWidth, MapLabel, type SceneProps } from '../scene-parts';
+import {
+  BodyTarget,
+  HERE_DOT_ROOM,
+  KIND_PHRASE,
+  LABEL_HEIGHT,
+  labelWidth,
+  MapLabel,
+  type SceneProps,
+} from '../scene-parts';
 import { layOutUniverse, looksById, looksOfState } from '../space/space-model';
 import type { SpaceAnchor, SpaceFailure } from '../space/space-surface';
 import { CROWDED_TARGET, separateTargets } from '../space/separate-targets';
@@ -28,7 +36,7 @@ import type { UniverseMapSession } from '../universe-session';
 import { STOPS, targetOf, type Stop } from './ladder';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
-import { SearchSky, type SearchAnswer } from './search-sky';
+import { CommonSky, SearchSky, type SearchAnswer } from './search-sky';
 import { StationLayer } from './station-layer';
 import { stationLookOf, stationSize, type StationLook } from './station-look';
 import { labelPoints } from './world-texture';
@@ -39,6 +47,9 @@ const NO_LANDMARKS: readonly CollectionLandmark[] = [];
 const NO_PENNANTS: readonly LandmarkPoint[] = [];
 /** A pennant on the ground stands this much larger than on a globe seen from orbit (the landed map's 1.3). */
 const GROUND_PENNANT_SCALE = 1.3;
+
+/** The light a name keeps when "What we have in common" is on and its system is not shared. */
+const UNSHARED_NAME = { opacity: 0.4 } as const;
 
 /** How far below a region's point its name sits, in points. */
 const REGION_NAME_GAP = 14;
@@ -525,8 +536,11 @@ function VoyageOverlay({
       (box) => [box.id, box],
     ),
   );
+  // A friend's Universe answering "What we have in common": the shared systems, which the sky rings under the names.
+  const common = search?.shows === 'common' ? new Set(search.lit ?? []) : undefined;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {common ? <CommonSky shared={[...common]} anchors={stars} size={size} /> : null}
       {stations.length > 0 ? (
         <StationLayer anchors={stations} looks={stationLooks} reducedMotion={reducedMotion} />
       ) : null}
@@ -549,9 +563,21 @@ function VoyageOverlay({
         // Stations and pennants are not bodies: a station is a room, a pennant is never in this list (`Pennants`).
         const kind = anchor.kind === 'station' || anchor.kind === 'landmark' ? undefined : anchor.kind;
         const name = names.get(anchor.id);
+        // Common: the names of systems you do not share drop to 0.4; those you share are announced as such.
+        const shared = anchor.kind === 'system' && common?.has(anchor.id) === true;
+        const unshared = anchor.kind === 'system' && common !== undefined && !shared;
         return (
           <View key={anchor.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            {name === undefined ? null : (
+            {name === undefined ? null : shared || unshared ? (
+              // While "What we have in common" is on, each system's name has a wrapper that says how much light it keeps.
+              <View
+                pointerEvents="none"
+                testID={`voyage-name-${anchor.id}`}
+                style={[StyleSheet.absoluteFill, unshared ? UNSHARED_NAME : null]}
+              >
+                <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" />
+              </View>
+            ) : (
               <MapLabel
                 label={name}
                 text={writtenName(anchor, hereId)}
@@ -563,15 +589,21 @@ function VoyageOverlay({
               y={box.y}
               size={box.size}
               floor={CROWDED_TARGET}
-              label={anchor.kind === 'station' ? `${anchor.name}, a room` : anchor.name}
-              {...(kind ? { kind } : {})}
+              label={
+                anchor.kind === 'station'
+                  ? `${anchor.name}, a room`
+                  : shared
+                    ? `${anchor.name}, ${KIND_PHRASE.system}, you have this too`
+                    : anchor.name
+              }
+              {...(kind && !shared ? { kind } : {})}
               onPress={() => (anchor.kind === 'station' ? onStation(anchor.id) : onPlace(anchor.id))}
               testID={`voyage-${anchor.kind}-${anchor.id}`}
             />
           </View>
         );
       })}
-      {search ? <SearchSky answer={search} anchors={stars} size={size} /> : null}
+      {search && common === undefined ? <SearchSky answer={search} anchors={stars} size={size} /> : null}
     </View>
   );
 }

@@ -604,13 +604,18 @@ float over it.
     are not drawn (they changed a scale the new look never reads), the planet's caption stands under the globe, and
     the frame-rate readout stands under the header instead of over it. On the smallest phone (320 x 568) the caption
     still meets the globe: a known gap. With the switch off every size is as before.
+  - **What we have in common** on a friend's Universe (`features/visit/`, behind the switch only): a chip at the whole-universe
+    stop dims the friend's systems whose names you do not have to 25 % and rings the ones you do in yellow. Names are
+    compared on the device, folded as search folds them (`systemsInCommon`); your own names come from the Universe session
+    already in memory, or one sky read of the kind the tab makes. It is off on arrival, shows no count, and is not shown when
+    your own universe is empty. A friend's map in the new look is pinned to the Light values, as your own Universe is.
   - Not yet: wiring the crossing to a friend's Universe (its film is in the developer gallery, `crossing/`), the
     prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.
   - `e2e/universe-voyage-smoke.spec.ts` flies universe → star → planet → ground and back, checks grey land is never
     read out and browsing sends no write; pinches with two fingers, and with fingers that come down mid-flight; checks
     Escape, Light against Dark and the plain-lists fallbacks (no WebGL, low memory, a lost context); a flight's line and
-    its skip; the search circle at a star, a planet and its ground, and the rings the sky draws for what is typed; the desktop's key hints and the absent zoom buttons; the readout clear of every control at 1440 x 900, 820 x 1180 and 320 x 568, and the planet's caption clear of the globe's targets and the notice at 820 x 1180; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look.
+    its skip; the search circle at a star, a planet and its ground, and the rings the sky draws for what is typed; the desktop's key hints and the absent zoom buttons; the readout clear of every control at 1440 x 900, 820 x 1180 and 320 x 568, and the planet's caption clear of the globe's targets and the notice at 820 x 1180; and reports the frames of each stop and each flight. `e2e/visit-smoke.spec.ts` visits a friend's Universe in the new look, with the in-common chip (its absence with the switch off), and checks Light against Dark.
   - Tracked on #806.
 - **Desktop D02** (`universe-panel.tsx`, D-395). From 1024 px the map uses the full available width.
   Browse opens a modal over it: search, selected-place details, Resume and Orbit when available, and the complete
