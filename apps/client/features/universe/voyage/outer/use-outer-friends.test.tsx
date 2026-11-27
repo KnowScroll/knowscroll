@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { AccountScope, FriendsState } from '@knowscroll/client-core';
 import type { FriendsPager } from './read-friends';
-import { useOuterFriends } from './use-outer-friends';
+import { FRIENDS_KEPT_AFTER_LEAVING_MS, useOuterFriends } from './use-outer-friends';
 
 const scopeOf = (active = true): AccountScope => ({ active, onEnd: () => () => {} }) as unknown as AccountScope;
 
@@ -50,7 +50,7 @@ describe('the outer stop’s read of the friends', () => {
     expect(result.current.complete).toBe(true);
   });
 
-  it('drops the session and the friends when it turns inactive, and reads again when it turns active', async () => {
+  it('stops the read when it turns inactive, keeps the friends while they fade out, then forgets them; reads again when active', async () => {
     const sessions: ReturnType<typeof fakeSession>[] = [];
     const make = () => {
       const made = fakeSession(['a']);
@@ -66,9 +66,12 @@ describe('the outer stop’s read of the friends', () => {
     );
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await rerender({ active: false });
+    expect(sessions[0]!.dispose).toHaveBeenCalledTimes(1);
+    // Kept while the flight back in fades them out.
+    expect(result.current.friends.map((friend) => friend.handle)).toEqual(['a']);
+    await act(() => new Promise((resolve) => setTimeout(resolve, FRIENDS_KEPT_AFTER_LEAVING_MS + 50)));
     expect(result.current.status).toBe('idle');
     expect(result.current.friends).toEqual([]);
-    expect(sessions[0]!.dispose).toHaveBeenCalledTimes(1);
     await rerender({ active: true });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(sessions).toHaveLength(2);

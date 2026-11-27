@@ -18,6 +18,12 @@ export interface OuterFriends {
 
 const NONE: readonly OuterFriend[] = [];
 
+/**
+ * How long the friends read is kept after leaving the stop: they fade out with the flight back in (about a second and a
+ * half) instead of vanishing as it starts. Then they are forgotten.
+ */
+export const FRIENDS_KEPT_AFTER_LEAVING_MS = 2000;
+
 interface Answer {
   readonly scope: AccountScope;
   readonly attempt: number;
@@ -31,8 +37,8 @@ type MakeSession = (scope: AccountScope) => FriendsSession | (FriendsPager & { d
 const makeFriendsSession: MakeSession = (scope) => createFriendsSession({ scope, newCommandId });
 
 /**
- * One paged read of the friends roster, started when `active` turns true and dropped when it turns false (the session is
- * disposed and the friends forgotten). No request kind is new: it is the Friends list's own read, `friend-pages.v2`.
+ * One paged read of the friends roster, started when `active` turns true and stopped when it turns false (the session
+ * is disposed; the friends read are kept {@link FRIENDS_KEPT_AFTER_LEAVING_MS} more, then forgotten). No request kind is new: it is the Friends list's own read, `friend-pages.v2`.
  * Without an account (`scope` undefined or ended) nothing is read and the status stays `idle`.
  *
  * `makeSession` is a dependency of the read's effect, so it must be a stable function (the default is): an inline one that
@@ -69,11 +75,20 @@ export function useOuterFriends(
     return () => {
       wanted = false;
       session?.dispose();
-      setAnswer(undefined);
     };
   }, [active, scope, attempt, makeSession]);
+  useEffect(() => {
+    if (active) return undefined;
+    const forget = setTimeout(() => setAnswer(undefined), FRIENDS_KEPT_AFTER_LEAVING_MS);
+    return () => clearTimeout(forget);
+  }, [active]);
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
-  if (!active || scope === undefined || !scope.active) return { status: 'idle', friends: NONE, complete: false, retry };
+  if (scope === undefined || !scope.active) return { status: 'idle', friends: NONE, complete: false, retry };
+  // Left the stop: the last answer while it is kept, so the friends fade out with the flight; then nothing.
+  if (!active)
+    return answer !== undefined && answer.scope === scope && answer.status === 'ready'
+      ? { status: 'ready', friends: answer.friends, complete: answer.complete, retry }
+      : { status: 'idle', friends: NONE, complete: false, retry };
   if (answer === undefined || answer.scope !== scope || answer.attempt !== attempt)
     return { status: 'loading', friends: NONE, complete: false, retry };
   return { status: answer.status, friends: answer.friends, complete: answer.complete, retry };
