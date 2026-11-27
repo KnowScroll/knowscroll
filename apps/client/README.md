@@ -539,8 +539,10 @@ float over it.
     jolt, all together never more than 0.62 of the way, so the finger always wins; a ship dragged past one curves
     toward it. Let go within 70 pt (plus the body's size) and it goes there; a little farther out (125 pt from a star,
     110 from a planet) it is drawn in, seen to fall for about half a second, then goes; reduced motion goes at once.
-    Regions and rooms keep the prototype's pull (0.45 within 64 pt, caught within 70, never drawn in), and with the
-    finger on one it wins over the star behind it, so a station opens its room. While held, the place it would go to
+    Regions and rooms keep the prototype's pull (0.45 within 64 pt, caught within 70, never drawn in). Where letting
+    go would go is the place the finger is nearest (a body's edge, not its middle), so a room beside its star is still
+    the room. A fall ends where it is when a flight, a pinch or a turn takes the view, and a body past the edge of
+    the ship's room is reached at that edge. While held, the place it would go to
     glows, faint at the edge of a pull and full where letting go would go there. The springs step at most 1/120 s, so
     the ship moves the same at any frame rate, and it is told where places are as each frame is projected
     (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the

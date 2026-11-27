@@ -267,27 +267,29 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       const desktop = inputs.desktop === true;
       const layout = shipLayoutOf(desktop);
       const targets = shipTargets(anchors);
+      const bounds = {
+        left: layout.margins.side,
+        right: width - layout.margins.side,
+        top: Math.min(layout.margins.top, height * 0.25),
+        bottom: height - Math.min(layout.margins.bottom, height * 0.3),
+      };
+      // A pinch moves the camera under the ship, so it goes, as it does for a flight (the prototype's `zoomBusy`).
+      const away = frame.flying || pinch.pinching();
       ship = stepShip(
         ship,
         {
           home: homeOf(frame, anchors, standsOn(inputs), seconds, inputs.reducedMotion, desktop),
           drag: held,
           targets,
-          // A pinch moves the camera under the ship, so it goes, as it does for a flight (the prototype's `zoomBusy`).
-          away: frame.flying || pinch.pinching(),
-          bounds: {
-            left: layout.margins.side,
-            right: width - layout.margins.side,
-            top: Math.min(layout.margins.top, height * 0.25),
-            bottom: height - Math.min(layout.margins.bottom, height * 0.3),
-          },
+          away,
+          bounds,
           reducedMotion: inputs.reducedMotion,
           viewCentre: { x: width / 2, y: height * layout.leanCentre },
           leanLimit: Math.min(width, height) * LEAN_LIMIT,
         },
         frame.dt,
       );
-      const reached = arrival(ship, targets);
+      const reached = away ? null : arrival(ship, targets, bounds);
       if (reached !== null) {
         ship = landShip(ship);
         go(reached, 'drawn in →');
@@ -406,6 +408,11 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         return;
       case 'turn-begin':
         startTurn = { x: inputs.turn.x, y: inputs.turn.y };
+        // Turning the view while the ship falls into a place is asking for something else: it stays where it is.
+        if (ship.falling !== null) {
+          ship = { ...ship, falling: null, candidate: null, pullStrength: 0 };
+          tell('ship drawn in → stopped: the view was turned');
+        }
         return;
       case 'turn':
         inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });

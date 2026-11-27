@@ -191,6 +191,15 @@ const pullOfTarget = (target: ShipTarget): Pull => target.pull ?? PLACE_PULL;
 const placesOf = (targets: readonly ShipTarget[]) =>
   targets.map((target) => ({ id: target.id, x: target.x, y: target.y, pull: pullOfTarget(target) }));
 
+/** `point`, moved inside `bounds`. */
+const within = (point: Point, bounds: ShipBounds): Point => ({
+  x: clamp(point.x, bounds.left, bounds.right),
+  y: clamp(point.y, bounds.top, bounds.bottom),
+});
+
+/** A ship falling toward a body past the edge of its room has arrived once it is this near that edge, in points. */
+const ARRIVED_AT_EDGE = 10;
+
 /** A ship parked at `home`, fully present and not held. */
 export function initialShip(home: ShipHome): ShipState {
   return {
@@ -260,9 +269,12 @@ function stepOnce(
 ): ShipState {
   const held = input.drag !== null;
   const snap = input.reducedMotion;
+  // A fall ends, the ship staying free where it is, when the place leaves the screen (the view turned away) or when a
+  // flight or a pinch takes the view: the person has asked for something else.
   const fallingTo =
-    held || state.falling === null ? undefined : input.targets.find((target) => target.id === state.falling);
-  // The place a ship falls into can leave the screen (the view turned away): then it stays free where it is.
+    held || input.away || state.falling === null
+      ? undefined
+      : input.targets.find((target) => target.id === state.falling);
   const falling = fallingTo === undefined ? null : state.falling;
   const free = state.free || held || falling !== null;
 
@@ -291,7 +303,8 @@ function stepOnce(
     }
   } else if (fallingTo !== undefined) {
     pullStrength = state.pullStrength;
-    velocity = spring(state, velocity, fallingTo, FALL, dt);
+    // Toward the body, or as near it as the ship may go: a body past the edge of the ship's room is reached at that edge.
+    velocity = spring(state, velocity, within(fallingTo, input.bounds), FALL, dt);
   } else if (free) {
     const decay = Math.exp(-FREE_DRAG_RATE * dt);
     velocity = { vx: velocity.vx * decay, vy: velocity.vy * decay };
@@ -369,14 +382,18 @@ export function releaseShip(state: ShipState, targets: readonly ShipTarget[], re
 }
 
 /**
- * The place a falling ship has reached, once it is at the body's edge (its `core`): the caller flies there and calls
- * {@link landShip}. Null while it is still on its way, or not falling.
+ * The place a falling ship has reached, once it is at the body's edge (its `core`), or, for a body past the edge of
+ * the ship's room, at that edge: the caller flies there and calls {@link landShip}. Null while it is still on its way,
+ * or not falling.
  */
-export function arrival(state: ShipState, targets: readonly ShipTarget[]): string | null {
+export function arrival(state: ShipState, targets: readonly ShipTarget[], bounds: ShipBounds): string | null {
   if (state.falling === null) return null;
   const target = targets.find((candidate) => candidate.id === state.falling);
   if (target === undefined) return null;
-  return Math.hypot(target.x - state.x, target.y - state.y) <= pullOfTarget(target).core ? target.id : null;
+  const reach = within(target, bounds);
+  const atEdge = reach.x !== target.x || reach.y !== target.y;
+  const left = Math.hypot(reach.x - state.x, reach.y - state.y);
+  return left <= (atEdge ? ARRIVED_AT_EDGE : pullOfTarget(target).core) ? target.id : null;
 }
 
 /** A ship that reached the place it fell into: it is no longer free, and goes home as the view flies. */

@@ -37,6 +37,7 @@ describe('how far and how hard a place pulls', () => {
     expect(large.capture - small.capture).toBe(56);
     expect(large.fall - small.fall).toBe(56);
     expect(large.core - small.core).toBe(56);
+    expect(large.size).toBe(60);
   });
 
   it('fades with distance from its full bend to nothing at the edge of its reach, without a jolt at the edge', () => {
@@ -85,22 +86,31 @@ describe('bending the held ship’s goal', () => {
     expect(MAX_TOTAL_BEND).toBeLessThan(1);
   });
 
-  it('keeps the body it chose until another pulls clearly harder, so the glow does not flicker between two', () => {
+  it('keeps the place it chose until the finger is clearly nearer another, so the glow does not flicker between two', () => {
     const a = star('a', -60, 0);
     const b = star('b', 60, 0);
-    // A finger a little nearer b than a: b pulls harder, but not by enough to take over from a.
-    const finger = { x: 3, y: 0 };
+    // A finger a little nearer b than a: b is chosen afresh, but a, once chosen, is kept.
+    const finger = { x: 5, y: 0 };
     expect(pullGoal(finger, [a, b], null).candidate).toBe('b');
     expect(pullGoal(finger, [a, b], 'a').candidate).toBe('a');
     // Well over to b's side it does take over.
     expect(pullGoal({ x: 40, y: 0 }, [a, b], 'a').candidate).toBe('b');
   });
 
-  it('lets a room or a region the finger is on win over the star pulling behind it', () => {
+  it('lets a room the finger is on win over the star beside it, and the star win with the finger on the star', () => {
     const sun = star('sun', 0, 0);
     const room: PullingPlace = { id: 'room', x: 36, y: 0, pull: PLACE_PULL };
     expect(pullGoal({ x: 36, y: 0 }, [sun, room], 'sun').candidate).toBe('room');
+    expect(pullGoal({ x: 0, y: 0 }, [sun, room], 'room').candidate).toBe('sun');
+    expect(pullGoal({ x: 0, y: 0 }, [sun, room], null).candidate).toBe('sun');
     expect(pullGoal({ x: 140, y: 0 }, [sun, room], 'room').candidate).toBe('sun');
+  });
+
+  it('counts a finger on a big body’s disc as on it', () => {
+    const sun = star('sun', 0, 0, 60);
+    const planetBeside = planet('planet', 90, 0, 10);
+    // 50 pt from the sun's middle is inside its disc; the planet's edge is 30 pt away.
+    expect(pullGoal({ x: 50, y: 0 }, [sun, planetBeside], null).candidate).toBe('sun');
   });
 
   it('drops a chosen body that is out of reach', () => {
