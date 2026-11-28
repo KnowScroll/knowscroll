@@ -204,6 +204,100 @@ test.describe('on a phone', () => {
     await expect(page).toHaveURL(new RegExp(`/visit/${first}$`));
   });
 
+  test('the whole round trip: out to the friends, into one’s universe, Leave and the film home, and back on your own universe', async ({
+    page,
+  }) => {
+    test.setTimeout(300_000);
+    await openOuter(page, { size });
+    // The visit's own read: a friend with two systems. Registered after the roster's route, which would answer 404.
+    await page.route('**/v1/social/visits/read', (route) => {
+      const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
+      return route.fulfill({
+        json: {
+          version: 'sharing.v1',
+          scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+          target: body['target'],
+          capabilities: body['capabilities'],
+          status: 'available',
+          owner: { kind: 'person', personId: fixtureId(11), handle: 'fixture.ravi', displayName: 'Ravi fixture' },
+          authority: { pairRevision: 3, publishedProjectionRevision: 1 },
+          projection: {
+            presentation: 'list.v1',
+            systems: [
+              {
+                publicSystemId: fixtureId(200),
+                label: 'Machine learning',
+                planets: [{ publicPlanetId: fixtureId(201), label: 'Inference' }],
+              },
+            ],
+          },
+        },
+      });
+    });
+    const universeUrl = page.url();
+    await goOut(page);
+    const first = (await handlesOf(page))[0]!;
+
+    // A friend's universe is a visit: the crossing film plays over it, and a tap skips it.
+    await page.getByTestId(`outer-friend-${first}`).click();
+    await expect(page).toHaveURL(new RegExp(`/visit/${first}$`));
+    await expect(page.getByTestId('visit-crossing-film')).toBeVisible({ timeout: 60_000 });
+    await page.mouse.click(195, 420);
+    await expect(page.getByTestId('visit-crossing-film')).toHaveCount(0, { timeout: 15_000 });
+
+    // Then the camera falls into their Universe, timed on the readout as a fall (your own Universe stays under the visit
+    // and has a readout of its own, so the one that timed a fall is the one asked for).
+    await expect(page.getByTestId('universe-frame-rate').filter({ hasText: /fall · / })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+    await expect(page.getByRole('button', { name: 'Machine learning, a system', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByTestId('visitor-bar')).toBeVisible();
+
+    // Leave plays the film home and lands on your own Universe.
+    await page.getByTestId('visit-leave').click();
+    await expect(page.getByTestId('visit-crossing-announcement')).toHaveText('Going home', { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/universe$/, { timeout: 60_000 });
+    await expect(page.getByTestId('voyage-stage')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('visitor-bar')).toHaveCount(0);
+    await expect(page.getByTestId('visit-crossing')).toHaveCount(0, { timeout: 30_000 });
+
+    // Home is your universe, not out among the friends, and the friends' field is not left half shown.
+    await expect(heading(page, 'Your universe')).toBeVisible({ timeout: 30_000 });
+    await landed(page);
+    await expect(heading(page, 'Beyond your universe')).toHaveCount(0);
+    await expect(friendButtons(page)).toHaveCount(0);
+    await expect(page.getByTestId('outer-line')).toHaveCount(0);
+    await expect(page.getByTestId('outer-drawing')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^All friends/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Back to Your universe', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(new URL(universeUrl).pathname);
+    await shot(page, 'outer-roundtrip-home');
+
+    // One press of the browser's Back neither reopens the visit nor leaves the app nor blanks the screen.
+    await page.goBack();
+    await page.waitForTimeout(1500);
+    expect(new URL(page.url()).origin).toBe(new URL(universeUrl).origin);
+    expect(page.url()).not.toContain('/visit/');
+    await expect(page.getByTestId('visitor-bar')).toHaveCount(0);
+    await expect(page.getByTestId('visit-crossing')).toHaveCount(0);
+    expect(await page.locator('body').innerText()).not.toBe('');
+    // The Back press may only step over the marker the stop left in the history: the address and the screen stay.
+    await expect(page).toHaveURL(/\/universe$/);
+    await expect(heading(page, 'Your universe')).toBeVisible();
+    await expect(page.getByTestId('voyage-stage')).toBeVisible();
+    await expect(friendButtons(page)).toHaveCount(0);
+    // The in-app Back (Escape, as the Back of a phone's keys) has nowhere to go from your universe, and does nothing.
+    await onStage(page);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+    await expect(page).toHaveURL(/\/universe$/);
+    await expect(heading(page, 'Your universe')).toBeVisible();
+    await expect(friendButtons(page)).toHaveCount(0);
+  });
+
   test('has no accessibility violations at the stop, and none of its decoration is in the tree', async ({ page }) => {
     test.setTimeout(240_000);
     await openOuter(page, { size });
