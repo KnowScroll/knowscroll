@@ -7,6 +7,7 @@ import {
   BAND_WIDTH,
   createWorldPainter,
   GROUND_LINE_POINTS,
+  groundGreyOf,
   groundPatchOf,
   labelPoints,
   PATCH_TEXELS_PER_POINT,
@@ -245,12 +246,12 @@ describe('painting the ground patch', () => {
     expect(ground().look).toEqual(globe().look);
   });
 
-  it('matches the whole-band texture colour for colour where both paint the same land', () => {
+  it('matches the whole-band texture colour for colour where both paint the same formed land', () => {
     const texture = ground();
     const reference = globe();
     const charted = landOf(chart.charted.map((cell) => cell.loops));
-    const unreached = landOf(chart.unreached.map((land) => land.loops));
-    const land = (column: number, row: number) => charted[row * GLOBE_W + column] || unreached[row * GLOBE_W + column];
+    // Land not reached is the one place they differ on purpose: the ground's grey is not the globe's (below).
+    const land = (column: number, row: number) => charted[row * GLOBE_W + column];
     /** The colour of a texel, as a string. */
     const colourOf = (target: PixelTarget, column: number, row: number) =>
       Array.from(target.data.slice((row * target.width + column) * 4, (row * target.width + column) * 4 + 4));
@@ -309,6 +310,49 @@ describe('painting the ground patch', () => {
       }
     expect(formed).toBeGreaterThan(10000);
     expect(changed).toBe(0);
+  });
+
+  it('has no weather at all: it is the same bytes with the clouds taken away, over land and sea', () => {
+    const cloudless = paintAll({
+      world: { ...world, clouds: { body: [], middle: [], core: [] } },
+      chart,
+      palette,
+      width: patch.width,
+      height: patch.height,
+      patch,
+    });
+    expect(Buffer.from(ground().data).equals(Buffer.from(cloudless.data))).toBe(true);
+    // The whole-band texture is what carries weather, in a layer of its own that the globe takes off.
+    expect(ground().weather).toBeUndefined();
+    expect(ground().closed).toBeUndefined();
+  });
+
+  it('paints land not reached in the ground grey, the one colour for unformed and decorative land alike', () => {
+    const texture = ground();
+    const unit = patch.window.width / patch.width;
+    const target: PixelTarget = { width: patch.width, height: patch.height, data: new Uint8Array(0) };
+    const scale = { x: patch.width / patch.window.width, y: patch.height / patch.window.height };
+    const origin = { x: patch.window.x, y: patch.window.y };
+    const wanted = groundGreyOf(palette)
+      .map((channel) => Math.round(channel))
+      .join(',');
+    const colours: string[] = [];
+    for (const loops of [...world.cells.filter((cell) => !FORMED.includes(cell.site)), ...world.decor].map(
+      (piece) => piece.loops,
+    )) {
+      const mask = maskShapes(target, [loops], { scale, origin });
+      const counts = new Map<string, number>();
+      mask.forEach((inside, at) => {
+        if (!inside) return;
+        const colour = Array.from(texture.data.slice(at * 4, at * 4 + 3)).join(',');
+        counts.set(colour, (counts.get(colour) ?? 0) + 1);
+      });
+      const [modal, count] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+      // Only pieces with a good deal of land in the window say anything.
+      if (count > 400 / (unit * unit)) colours.push(modal);
+    }
+    expect(colours.length).toBeGreaterThan(0);
+    for (const colour of colours) expect(colour).toBe(wanted);
   });
 
   it('is the same bytes painted a little at a time as all at once', () => {
@@ -462,16 +506,42 @@ describe('the lines of the ground patch, in points', () => {
       height: f.size,
       patch: f.spec,
     });
-    const [red, green, blue] = [1, 3, 5].map((at) => Number.parseInt(palette.land[0].slice(at, at + 2), 16));
-    const [greyRed, greyGreen, greyBlue] = [1, 3, 5].map((at) =>
-      Number.parseInt(palette.grey[0].slice(at, at + 2), 16),
-    );
-    // The fill is the land colour mixed 0.86 toward the grey, as the painter does it.
-    const fill = `#${[red!, green!, blue!]
-      .map((channel, at) => Math.round(channel + ([greyRed!, greyGreen!, greyBlue!][at]! - channel) * 0.86))
-      .map((channel) => channel.toString(16).padStart(2, '0'))
+    // The fill is the ground's grey, and the line is the prototype's 0.75 of the palette's darkest grey.
+    const fill = `#${groundGreyOf(palette)
+      .map((channel) => Math.round(channel).toString(16).padStart(2, '0'))
       .join('')}`;
-    expect(innerInk(texture, f, fill, palette.grey[2], 0.6)).toBeCloseTo(GROUND_LINE_POINTS.ink / 2, 0);
+    expect(innerInk(texture, f, fill, palette.grey[2], 0.75)).toBeCloseTo(GROUND_LINE_POINTS.ink / 2, 0);
+  });
+
+  it('lights the coast of land the person has opened and shades the coast of land not reached', () => {
+    const f = frame(180);
+    const paintSquare = (kind: 'open' | 'closed') =>
+      paintAll({
+        world: f.bare,
+        chart:
+          kind === 'open'
+            ? { charted: [{ objectId: 'a', site: 0, loops: [f.square], label: { x: 150, y: 240 } }], unreached: [] }
+            : { charted: [], unreached: [{ loops: [f.square] }] },
+        palette,
+        width: f.size,
+        height: f.size,
+        patch: f.spec,
+      });
+    const open = paintSquare('open');
+    const closed = paintSquare('closed');
+    // Off the coast by 4.5 points (inside the shelf, outside the foam) and by 2.2 (inside the foam, outside the ink).
+    const shelfRow = Math.round(f.edgeRow - 4.5 * f.pixelsPerPoint);
+    const foamRow = Math.round(f.edgeRow - 2.2 * f.pixelsPerPoint);
+    const [openRed, , , openAlpha] = rgbOf(open, shelfRow, f.column);
+    const [closedRed, closedGreen, , closedAlpha] = rgbOf(closed, shelfRow, f.column);
+    // Open: the pale shelf, white at 0.2. Closed: the palette's shadow at 0.3, which has no red to speak of.
+    expect(openAlpha / 255).toBeCloseTo(0.2, 1);
+    expect(openRed).toBeGreaterThan(40);
+    expect(closedAlpha / 255).toBeCloseTo(0.3, 1);
+    expect(closedRed + closedGreen).toBeLessThan(openRed);
+    // And the foam, white at 0.85, is only along the open coast.
+    expect(rgbOf(open, foamRow, f.column)[3]).toBeGreaterThanOrEqual(0.8 * 255);
+    expect(rgbOf(closed, foamRow, f.column)[3]).toBeLessThan(0.5 * 255);
   });
 
   it('draws these lines far thinner than the globe does on the ground: the globe is about 9 points there', () => {

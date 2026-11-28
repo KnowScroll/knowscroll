@@ -27,6 +27,8 @@ import { useGlobeWorld } from '../planet/use-planet-world';
 import { LandmarkMark } from '../collection/landmark-mark';
 import {
   BodyTarget,
+  GROUND_LABEL,
+  groundLabelWidth,
   HERE_DOT_ROOM,
   KIND_PHRASE,
   LABEL_HEIGHT,
@@ -44,8 +46,10 @@ import { placeLabels, type LabelRequest, type UniverseView } from '../universe-l
 import type { UniverseMapSession } from '../universe-session';
 import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
+import { NOWHERE, type Stands } from './ground-home';
+import { GROUND_SIZE, shipBoxOf } from './ship-ground';
+import { createVoyageController, type VoyageInputs } from './voyage-controller';
 import { FallInContext } from './fall-in';
-import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
 import { CommonSky, SearchSky, type SearchAnswer } from './search-sky';
 import { StationLayer } from './station-layer';
@@ -150,6 +154,8 @@ export function VoyageStage({
   const recordFlight = useFlightRecorder();
   const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
+  // What the ship stands on at the ground: the controller says it, since the land under the ship changes between renders.
+  const [stands, setStands] = useState<Stands>(NOWHERE);
   const fallIn = useContext(FallInContext);
   const inputs: VoyageInputs = {
     session,
@@ -171,6 +177,7 @@ export function VoyageStage({
     ...(recordFlight ? { onFlight: recordFlight } : {}),
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
+    onStands: setStands,
     ...(fallIn ? { fallIn } : {}),
   };
   const [controller] = useState(() => createVoyageController(inputs));
@@ -184,8 +191,9 @@ export function VoyageStage({
   const stop = inputs.target.stop;
   /** The place the camera is at: its name wins a crowded spot. */
   const focusId = inputs.target.regionId ?? inputs.target.planetId ?? inputs.target.systemId;
-  /** On the ground, the region the ship stands on: its name is a "you are here" pill under the ship. */
-  const hereId = standsOn(inputs);
+  /** On the ground, the opened region the ship stands on: its name is a "you are here" pill under the ship. */
+  const hereId = stands.id;
+  const hereAt = stands.at;
   // A new camera object makes `SpaceView` draw again: under reduced motion there is no loop, so every change of where
   // you are, of what you turned or of the planet's world must be one. `redraw` only changes the camera's identity when
   // any of those does; the driver does not read it.
@@ -223,6 +231,8 @@ export function VoyageStage({
           size={size}
           focusId={focusId}
           hereId={hereId}
+          hereAt={hereAt}
+          ground={stop === 'ground'}
           onPlace={(id) => void session.focus(id)}
           {...(onMap && stop === 'ground' ? { onGround: () => (controller.justGestured() ? undefined : onMap()) } : {})}
           onStation={(id) => onStation?.(id)}
@@ -248,6 +258,7 @@ export function VoyageStage({
       size,
       focusId,
       hereId,
+      hereAt,
       search,
       planet,
       stationLooks,
@@ -473,17 +484,21 @@ const stationBox = (anchor: SpaceAnchor): Box => {
  * button keeps the name for a screen reader). The place the camera is at is placed first, then planets, systems and
  * regions, then rooms.
  */
-function placeNames(
+export function placeNames(
   anchors: readonly SpaceAnchor[],
   size: { readonly width: number; readonly height: number },
   focusId: string | null,
   hereId: string | null,
+  hereAt: Point | null,
+  ground: boolean,
   keepOff: readonly Box[],
 ) {
   const bands = size.width >= DESKTOP_WIDTH ? LABEL_BANDS.desktop : LABEL_BANDS.phone;
+  const here = hereId === null ? undefined : anchors.find((anchor) => anchor.id === hereId);
   const requests: LabelRequest[] = anchors.map((anchor) => ({
     id: anchor.id,
-    anchor: { x: anchor.x, y: anchor.y },
+    // The pill hangs under the ship, which is over its region's point or, once the view has turned away, wherever it stands.
+    anchor: anchor.id === hereId && hereAt !== null ? hereAt : { x: anchor.x, y: anchor.y },
     clearance:
       anchor.id === hereId
         ? HERE_GAP
@@ -495,8 +510,10 @@ function placeNames(
     width:
       anchor.id === hereId
         ? labelWidth(writtenName(anchor, hereId), PILL_PADDING + HERE_DOT_ROOM)
-        : labelWidth(writtenName(anchor, hereId)),
-    height: LABEL_HEIGHT,
+        : ground && anchor.kind === 'region'
+          ? groundLabelWidth(writtenName(anchor, hereId))
+          : labelWidth(writtenName(anchor, hereId)),
+    height: ground && anchor.kind === 'region' && anchor.id !== hereId ? GROUND_LABEL.height : LABEL_HEIGHT,
     priority: (anchor.id === hereId ? 8 : 0) + (anchor.id === focusId ? 6 : 0) + (anchor.kind === 'station' ? 0 : 1),
   }));
   return new Map(
@@ -504,6 +521,8 @@ function placeNames(
       { x: 0, y: 0, width: size.width, height: bands.top },
       { x: 0, y: size.height - bands.bottom, width: size.width, height: bands.bottom },
       ...keepOff,
+      // ... and off the landed ship: the pill hangs under it, and where there is no room below it is left out, never set on it.
+      ...(here === undefined ? [] : [shipBoxOf(hereAt ?? here, GROUND_SIZE)]),
     ]).map((label) => [label.id, label]),
   );
 }
@@ -511,6 +530,9 @@ function placeNames(
 /** The name written beside a place: the region the ship stands on says so, as the prototype's pill does. */
 const writtenName = (anchor: SpaceAnchor, hereId: string | null): string =>
   anchor.id === hereId ? `${anchor.name} · you are here` : captioned(anchor);
+
+/** A point on screen, in layout points. */
+type Point = { readonly x: number; readonly y: number };
 
 /** A box on screen, in layout points. */
 type Box = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
@@ -523,6 +545,8 @@ function VoyageOverlay({
   size,
   focusId,
   hereId,
+  hereAt,
+  ground,
   onPlace,
   onGround,
   onStation,
@@ -545,6 +569,10 @@ function VoyageOverlay({
   readonly focusId: string | null;
   /** The region the ship stands on, named "you are here" under it; null above the ground. */
   readonly hereId: string | null;
+  /** Where the pill hangs when the ship is not over its region's own point (the ground under the ship); null: on the region's point. */
+  readonly hereAt: Point | null;
+  /** The camera is at the ground: a region's name is written heavier and larger. */
+  readonly ground: boolean;
   readonly onPlace: (id: string) => void;
   /** A tap on bare ground, under every name: opens the map of the whole planet. Ground only. */
   readonly onGround?: () => void;
@@ -569,6 +597,8 @@ function VoyageOverlay({
     size,
     focusId,
     hereId,
+    hereAt,
+    ground,
     // A name is kept off the stations' pictures too, which are larger than the bodies they stand beside.
     [...keepOff, ...stations.map(stationBox)],
   );
@@ -635,7 +665,9 @@ function VoyageOverlay({
               <MapLabel
                 label={name}
                 text={writtenName(anchor, hereId)}
-                variant={anchor.id === hereId ? 'here' : anchor.kind === 'region' ? 'land' : 'plain'}
+                variant={
+                  anchor.id === hereId ? 'here' : anchor.kind === 'region' ? (ground ? 'ground' : 'land') : 'plain'
+                }
                 calm={calm.has(anchor.id)}
               />
             )}

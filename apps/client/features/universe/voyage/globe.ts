@@ -35,7 +35,8 @@ import {
  * `groundPatchOf`): the same drawing, painted dense enough to be crisp through the ground's lens. The shader wears it
  * where the surface falls inside its window and the whole-band texture elsewhere, and cross-fades the two over
  * `PATCH_SOFT_EDGE` band units inside the window's edge so no seam shows. Both are premultiplied, so the blend is a
- * plain `mix`.
+ * plain `mix`. Where the patch is not, the whole-band texture's mask of land not reached and its weather layer let the shader
+ * give that land the ground's grey and take the weather off as the camera comes down, so the ground reads the same everywhere.
  *
  * Colours reach the shader as the palette's own numbers (hex over 255, in `Vector3`s): the renderer
  * outputs linear sRGB and does no conversion, so a `THREE.Color` (which turns hex into linear) would
@@ -80,6 +81,11 @@ const VERTEX = /* glsl */ `
 const FRAGMENT = /* glsl */ `
   uniform sampler2D map;
   uniform float painted;
+  uniform sampler2D closedMap;
+  uniform vec3 closedShift;
+  uniform float closedOn;
+  uniform sampler2D weatherMap;
+  uniform float weatherOn;
   uniform sampler2D patchMap;
   uniform vec4 patchBox;
   uniform float patchOn;
@@ -124,13 +130,20 @@ const FRAGMENT = /* glsl */ `
     vec3 sea = mix(ball(ballAt), mix(groundTop, groundBottom, fromTop), near);
     // Row 0 of the painted band is its top (north), and a DataTexture's row 0 is at v = 0: no flip.
     vec4 land = texture2D(map, uv);
+    // The whole-band texture holds the globe's drawing. On the ground land not reached takes the ground's grey (the patch
+    // paints it so itself) and the weather, which has a layer of its own, goes (the patch has none), so the ground's
+    // drawing holds wherever the patch is not. (The next four lines are composeLand in TypeScript: keep them in step.)
+    float groundNear = smoothstep(${PATCH_FROM_NEAR.toFixed(1)}, 1.0, near);
+    land.rgb += closedShift * texture2D(closedMap, uv).r * closedOn * groundNear * land.a;
+    vec4 weather = texture2D(weatherMap, uv) * weatherOn * (1.0 - groundNear);
+    land = weather + land * (1.0 - weather.a);
     // The ground patch over the whole-band texture: its window is patchBox (left, top, width, height in band units, the
     // left edge wrapping round the seam), met softly inside its edge. Row 0 of the patch is its top, as the band's.
     vec2 inPatch = vec2(mod(uv.x * ${BAND_WIDTH.toFixed(1)} - patchBox.x, ${BAND_WIDTH.toFixed(1)}), bandY - patchBox.y);
     float fromEdge = min(min(inPatch.x, patchBox.z - inPatch.x), min(inPatch.y, patchBox.w - inPatch.y));
     // Its lines are drawn for the ground's scale: from orbit they would be too fine and would shimmer, so the patch
     // comes in only as the camera nears the ground.
-    float patchShown = patchOn * smoothstep(0.0, ${PATCH_SOFT_EDGE.toFixed(1)}, fromEdge) * smoothstep(${PATCH_FROM_NEAR.toFixed(1)}, 1.0, near);
+    float patchShown = patchOn * smoothstep(0.0, ${PATCH_SOFT_EDGE.toFixed(1)}, fromEdge) * groundNear;
     land = mix(land, texture2D(patchMap, clamp(inPatch / patchBox.zw, 0.0, 1.0)), patchShown) * painted;
     // Above the band's edges: no land, and the palette's cap where it has one, met softly.
     float outside = smoothstep(0.0, 0.02, max(-v, v - 1.0));
@@ -149,6 +162,39 @@ const FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(colour, opacity);
   }
 `;
+
+/** Red, green, blue and alpha over 0..1, premultiplied: the texture as the shader reads it. */
+export type Rgba4 = readonly [number, number, number, number];
+
+/**
+ * The two lines of the fragment shader that lay the whole-band texture's weather over its land and recolour land not
+ * reached for the ground (`land.rgb += closedShift * closed * groundNear * land.a;` and `land = weather + land * (1.0 -
+ * weather.a)` with `weather` faded by `1.0 - groundNear`), as plain numbers, so the maths can be tested without a GPU.
+ * KEEP IT IN STEP WITH THE SHADER: a change to either line is a change to this, and `globe.test.ts` holds both.
+ *
+ * `land` and `weather` are premultiplied (colour times alpha), `closed` is the mask of land not reached (0 to 1),
+ * `shift` is the ground grey minus the globe's over 0..1, and `groundNear` is 0 from orbit and 1 on the ground. From
+ * orbit the result is the weather laid over the land, which is the picture the band had when it carried its clouds;
+ * on the ground it is the land alone with land not reached in the ground's grey.
+ */
+export function composeLand(
+  land: Rgba4,
+  closed: number,
+  weather: Rgba4,
+  shift: readonly [number, number, number],
+  groundNear: number,
+): Rgba4 {
+  const shifted = [0, 1, 2].map((at) => land[at]! + shift[at]! * closed * groundNear * land[3]);
+  const fade = 1 - groundNear;
+  const cloud = weather.map((value) => value * fade);
+  const cover = 1 - cloud[3]!;
+  return [
+    cloud[0]! + shifted[0]! * cover,
+    cloud[1]! + shifted[1]! * cover,
+    cloud[2]! + shifted[2]! * cover,
+    cloud[3]! + land[3] * cover,
+  ];
+}
 
 /**
  * The halo is a square that always faces the camera, centred on the planet and sized by how large the
@@ -276,6 +322,11 @@ export function createGlobe(): Globe {
   const uniforms = {
     map: { value: null as THREE.DataTexture | null },
     painted: { value: 0 },
+    closedMap: { value: null as THREE.DataTexture | null },
+    closedShift: { value: new THREE.Vector3() },
+    closedOn: { value: 0 },
+    weatherMap: { value: null as THREE.DataTexture | null },
+    weatherOn: { value: 0 },
     patchMap: { value: null as THREE.DataTexture | null },
     patchBox: { value: new THREE.Vector4(0, 0, 1, 1) },
     patchOn: { value: 0 },
@@ -319,6 +370,8 @@ export function createGlobe(): Globe {
 
   let texture: THREE.DataTexture | null = null;
   let patchTexture: THREE.DataTexture | null = null;
+  let closedTexture: THREE.DataTexture | null = null;
+  let weatherTexture: THREE.DataTexture | null = null;
   let worn: WorldTexture | null = null;
   let colours: GlobeColours = { sea: '#1d7d97', cap: '#eef6f8', air: '#83f2ea' };
 
@@ -336,6 +389,12 @@ export function createGlobe(): Globe {
       setChannels(uniforms.rim.value, look.rim);
       setChannels(uniforms.cap.value, look.cap ?? colours.cap);
       uniforms.capOn.value = look.cap === null ? 0 : 1;
+      const { globe, ground } = look.closedGrey;
+      uniforms.closedShift.value.set(
+        (ground[0] - globe[0]) / 255,
+        (ground[1] - globe[1]) / 255,
+        (ground[2] - globe[2]) / 255,
+      );
       return;
     }
     for (const stop of [uniforms.seaLit, uniforms.seaMid, uniforms.seaDeep, uniforms.seaDark])
@@ -355,9 +414,17 @@ export function createGlobe(): Globe {
     setTexture(next) {
       texture?.dispose();
       texture = null;
+      closedTexture?.dispose();
+      closedTexture = null;
+      weatherTexture?.dispose();
+      weatherTexture = null;
       worn = null;
       uniforms.painted.value = 0;
       uniforms.map.value = null;
+      uniforms.closedMap.value = null;
+      uniforms.closedOn.value = 0;
+      uniforms.weatherMap.value = null;
+      uniforms.weatherOn.value = 0;
       if (next !== null) {
         // Repeat across, clamped up and down, linear, and no mipmaps (a `DataTexture` has none): the longitude
         // wraps inside the shader, and a mip chosen across the seam would draw a line.
@@ -365,6 +432,22 @@ export function createGlobe(): Globe {
         worn = next;
         uniforms.map.value = texture;
         uniforms.painted.value = 1;
+        if (next.closed !== undefined) {
+          // One byte a pixel (so a row is never padded), linear so an edge is soft, wrapped like the band.
+          closedTexture = new THREE.DataTexture(next.closed, next.width, next.height, THREE.RedFormat);
+          closedTexture.unpackAlignment = 1;
+          closedTexture.wrapS = THREE.RepeatWrapping;
+          closedTexture.magFilter = THREE.LinearFilter;
+          closedTexture.minFilter = THREE.LinearFilter;
+          closedTexture.needsUpdate = true;
+          uniforms.closedMap.value = closedTexture;
+          uniforms.closedOn.value = 1;
+        }
+        if (next.weather !== undefined) {
+          weatherTexture = pixelTexture(next.weather);
+          uniforms.weatherMap.value = weatherTexture;
+          uniforms.weatherOn.value = 1;
+        }
       }
       colour();
     },
@@ -404,6 +487,8 @@ export function createGlobe(): Globe {
     },
     dispose() {
       texture?.dispose();
+      closedTexture?.dispose();
+      weatherTexture?.dispose();
       patchTexture?.dispose();
       geometry.dispose();
       material.dispose();

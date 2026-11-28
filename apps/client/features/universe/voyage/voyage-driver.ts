@@ -345,6 +345,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         closeUp.compile(renderer, attachedTo);
       }
       const programs = renderer.info.programs?.length ?? 0;
+      const space = attachedTo;
       const ship =
         control.afterFrame?.({
           dt: lastDt,
@@ -353,6 +354,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
           globe: closeUp.onScreen(),
           size,
           programs,
+          ...(space === null ? {} : { regionAt: (x, y) => closeUp.regionAt(space, size, worldPlanet(), x, y) }),
         }) ?? null;
       // Too faint to see: the same threshold as `HIDDEN_ALPHA` in `ship-layer.ts`, which the layer also checks.
       if (ship === null || ship.alpha <= 0.02) return;

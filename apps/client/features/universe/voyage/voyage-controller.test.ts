@@ -659,6 +659,178 @@ describe('the fingers on the stage', () => {
   });
 });
 
+describe('the ship on the ground', () => {
+  const size = { width: 390, height: 844 };
+  const landedView: UniverseView = { kind: 'planet', planet: descriptor('p'), landed: true };
+  /** Regions: `home` is the one the camera comes down over; `east` is another, opened one. */
+  const planet = {
+    labels: [
+      { objectId: 'home', x: 0, lat: 0 },
+      { objectId: 'east', x: 100, lat: 0 },
+    ],
+  } as unknown as VoyageInputs['planet'];
+
+  function ground(options: { reducedMotion?: boolean } = {}) {
+    const { session } = recordingSession();
+    const told: { id: string | null; at: { x: number; y: number } | null }[] = [];
+    const first: VoyageInputs = {
+      session,
+      view: landedView,
+      target: { stop: 'ground', systemId: 's', planetId: 'p', regionId: null },
+      size,
+      turn: { x: 0, y: 0 },
+      planet,
+      siblings: [],
+      reducedMotion: options.reducedMotion === true,
+      universeFocus: {} as VoyageInputs['universeFocus'],
+      systemFocus: () => undefined,
+      onStands: (stands) => told.push(stands),
+    };
+    const controller = createVoyageController(first);
+    /** What the land under a point of the screen is, set by the test. */
+    let under: string | null = null;
+    const frame = (seconds = 1 / 30, flying = false) => {
+      let drawnShip = null as ReturnType<NonNullable<VoyageControl['afterFrame']>>;
+      for (let step = 0; step < Math.round(seconds * 30); step++)
+        drawnShip =
+          mockControl!.afterFrame?.({
+            dt: 1 / 30,
+            flying,
+            globe: null,
+            size,
+            programs: 0,
+            regionAt: () => under,
+          }) ?? null;
+      return drawnShip;
+    };
+    const handlers = controller.responder.panHandlers as unknown as Record<string, (event: unknown) => unknown>;
+    let granted = false;
+    const finger = (phase: 'start' | 'move' | 'end', x: number, y: number) => {
+      const event = touchEvent(phase === 'end' ? [] : [{ id: 0, x, y }], 16);
+      if (phase === 'start') {
+        if (!granted) {
+          granted = true;
+          handlers['onResponderGrant']!(event);
+        } else handlers['onResponderStart']!(event);
+      } else if (phase === 'move') handlers['onResponderMove']!(event);
+      else {
+        handlers['onResponderEnd']!(event);
+        handlers['onResponderRelease']!(event);
+        granted = false;
+      }
+    };
+    return { controller, told, frame, finger, setUnder: (id: string | null) => (under = id) };
+  }
+
+  it('stands on the region the camera came down over, upright, with a shadow and no flame, and says its name', () => {
+    const { controller, told, frame } = ground();
+    controller.setAnchors([anchor('home', 'region', 195, 380), anchor('east', 'region', 300, 380)]);
+    const ship = frame(1.5)!;
+    expect(ship.x).toBeCloseTo(195, 0);
+    expect(ship.y).toBeCloseTo(380 - 14, 0);
+    expect(ship.heading).toBe(0);
+    expect(ship.flame).toBe(0);
+    expect(ship.shadow).toBeDefined();
+    expect(told.at(-1)).toEqual({ id: 'home', at: null });
+  });
+
+  it('stays landed at its spot on screen, not in the sky, when the view turns away from its region', () => {
+    const { controller, told, frame, setUnder } = ground();
+    controller.setAnchors([anchor('home', 'region', 195, 380)]);
+    frame(1);
+    // The view turns: the region leaves the screen (it is no longer facing the camera).
+    controller.setAnchors([anchor('home', 'region', 195, 380, false)]);
+    setUnder(null);
+    const ship = frame(2)!;
+    expect(ship.x).toBeCloseTo(195, 0);
+    expect(ship.y).toBeCloseTo(844 * 0.675, 0);
+    expect(ship.flame).toBe(0);
+    expect(ship.heading).toBe(0);
+    expect(ship.shadow!.opacity).toBeGreaterThan(0.3);
+    // Over the sea or land not reached, no name.
+    expect(told.at(-1)).toEqual({ id: null, at: null });
+  });
+
+  it('stands on its region again after a flight, not at the spot it parked at before it', () => {
+    const { controller, frame } = ground();
+    controller.setAnchors([anchor('home', 'region', 195, 380, false)]);
+    frame(1);
+    frame(1, true);
+    controller.setAnchors([anchor('home', 'region', 195, 380)]);
+    const ship = frame(3)!;
+    expect(ship.y).toBeCloseTo(380 - 14, 0);
+  });
+
+  it('names another opened region once the ship stands over it, hung under the ship, and never closed land', () => {
+    const { controller, told, frame, setUnder } = ground();
+    controller.setAnchors([anchor('home', 'region', 195, 380, false), anchor('east', 'region', 195, 700, true)]);
+    setUnder('east');
+    frame(2);
+    expect(told.at(-1)?.id).toBe('east');
+    expect(told.at(-1)?.at?.x).toBeCloseTo(195, 0);
+    expect(told.at(-1)?.at?.y).toBeGreaterThan(844 * 0.675);
+    setUnder(null);
+    frame(0.2);
+    expect(told.at(-1)).toEqual({ id: null, at: null });
+  });
+
+  it('lifts off when taken, flame on, and settles when let go, saying nothing while it is up', () => {
+    const { controller, told, frame, finger } = ground();
+    controller.setAnchors([anchor('home', 'region', 195, 380)]);
+    const rest = frame(1.5)!;
+    finger('start', rest.x, rest.y);
+    finger('move', 150, 300);
+    finger('move', 120, 300);
+    const up = frame(0.6)!;
+    expect(up.flame).toBeGreaterThanOrEqual(0.16);
+    // It has risen off the ground: the gap between it and its shadow is wider than when it stood.
+    expect(up.shadow!.y - up.y).toBeGreaterThan(rest.shadow!.y - rest.y + 8);
+    expect(up.shadow!.opacity).toBeLessThan(rest.shadow!.opacity);
+    expect(told.at(-1)).toEqual({ id: null, at: null });
+    finger('end', 120, 300);
+    const down = frame(0.5)!;
+    expect(down.flame).toBe(0);
+    expect(down.shadow!.opacity).toBeCloseTo(rest.shadow!.opacity, 1);
+  });
+
+  it('is lifted while held and still when let go, with no tween, under reduced motion', () => {
+    const { controller, frame, finger } = ground({ reducedMotion: true });
+    controller.setAnchors([anchor('home', 'region', 195, 380)]);
+    const rest = frame(0.1)!;
+    finger('start', rest.x, rest.y);
+    finger('move', 120, 300);
+    finger('move', 119, 300);
+    const up = frame(0.04)!;
+    expect(up.flame).toBeGreaterThanOrEqual(0.16);
+    expect(up.y).toBeLessThan(300);
+    finger('end', 119, 300);
+    const down = frame(0.04)!;
+    expect(down.flame).toBe(0);
+    expect(down.y).toBeCloseTo(300, 0);
+  });
+
+  it('says nothing, and has no shadow, at any other stop', () => {
+    const { session } = recordingSession();
+    const told: unknown[] = [];
+    createVoyageController({
+      session,
+      view: { kind: 'system', system: descriptor('s') },
+      target: { stop: 'star', systemId: 's', planetId: null, regionId: null },
+      size,
+      turn: { x: 0, y: 0 },
+      planet: null,
+      siblings: [],
+      reducedMotion: false,
+      universeFocus: {} as VoyageInputs['universeFocus'],
+      systemFocus: () => undefined,
+      onStands: (stands) => told.push(stands),
+    });
+    const ship = mockControl!.afterFrame!({ dt: 1 / 30, flying: false, globe: null, size, programs: 0 });
+    expect(ship?.shadow).toBeUndefined();
+    expect(told).toEqual([]);
+  });
+});
+
 describe('a fall into the stop (a friend’s Universe after the crossing film)', () => {
   it('shows no flight line for it, and times it as a leg of its own', () => {
     const { session } = recordingSession();

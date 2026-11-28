@@ -173,9 +173,18 @@ describe('when the close-up paints the ground patch', () => {
     const r = rig(target('ground'));
     r.control.reducedMotion = true;
     const planet = planetOf('w1');
-    const kinds = [r.run(planet), r.run(planet), r.run(planet)].flat().map((call) => call.kind);
+    const made = [r.run(planet), r.run(planet), r.run(planet)].flat();
+    const kinds = made.map((call) => call.kind);
     expect(kinds).not.toContain('patch');
     expect(kinds.filter((kind) => kind === 'texture').length).toBeGreaterThanOrEqual(3);
+    // With no patch the globe's texture is all the ground has, so it must carry what the ground needs of it: the mask of
+    // land not reached and the weather layer, which the shader turns into the ground grey and no weather.
+    const textures = made.flatMap((call) => (call.kind === 'texture' && call.texture ? [call.texture] : []));
+    expect(textures.length).toBeGreaterThanOrEqual(2);
+    for (const texture of textures) {
+      expect(texture.closed).toBeInstanceOf(Uint8Array);
+      expect(texture.weather).toBeDefined();
+    }
   });
 
   it('keeps each frame to one painter step within the budget when it is not reducing motion', () => {

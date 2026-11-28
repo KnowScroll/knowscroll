@@ -1,4 +1,5 @@
 import { pullOf } from './ship-gravity';
+import { GROUND_SIZE, SHADOW_OPACITY } from './ship-ground';
 import {
   arrival,
   drawn,
@@ -386,5 +387,140 @@ describe('determinism', () => {
       return state;
     };
     expect(script()).toEqual(script());
+  });
+});
+
+describe('the ship on the ground', () => {
+  const LAND = { ...HOME, size: GROUND_SIZE };
+  const GROUND: ShipInput = { ...BASE, home: LAND, ground: true };
+  const landed = () => run(initialShip(LAND), GROUND, 0.1);
+  /** A ship held at (120, 300) for `seconds`, stepped at `fps`. */
+  const held = (input: ShipInput, seconds: number, fps: number, from = landed()) => {
+    let state = from;
+    for (let frame = 0; frame < Math.round(seconds * fps); frame++)
+      state = stepShip(state, { ...input, drag: { x: 120, y: 300 } }, 1 / fps);
+    return state;
+  };
+  const settle = (input: ShipInput, seconds: number, fps: number, from: ShipState) => {
+    let state = from;
+    for (let frame = 0; frame < Math.round(seconds * fps); frame++) state = stepShip(state, input, 1 / fps);
+    return state;
+  };
+
+  it('is landed at rest: upright, flame off, a shadow under it, not lifted', () => {
+    const state = run(landed(), GROUND, 1);
+    expect(state.lift).toBe(0);
+    expect(state.flame).toBe(0);
+    expect(state.heading).toBe(0);
+    expect(state.size).toBe(GROUND_SIZE);
+    const ship = drawn(state);
+    expect(ship.shadow).toBeDefined();
+    expect(ship.y).toBe(state.y);
+    expect(ship.flame).toBe(0);
+    expect(ship.shadow!.opacity).toBeCloseTo(SHADOW_OPACITY, 6);
+  });
+
+  it('lifts off while it is held: the flame comes on, it rises, and the shadow shrinks, fades and drifts', () => {
+    const rest = drawn(landed());
+    const state = held(GROUND, 0.5, 60);
+    expect(state.lift).toBe(1);
+    expect(state.flame).toBeGreaterThanOrEqual(0.16);
+    const ship = drawn(state);
+    expect(ship.y).toBeLessThan(state.y - GROUND_SIZE * 0.3);
+    expect(ship.shadow!.width).toBeLessThan(rest.shadow!.width);
+    expect(ship.shadow!.opacity).toBeLessThan(rest.shadow!.opacity);
+    // The shadow lies on the ground under the ship, never on the lifted ship.
+    expect(ship.shadow!.y).toBeGreaterThan(state.y);
+    expect(state.size).toBeGreaterThan(GROUND_SIZE);
+  });
+
+  it('settles over about 0.3 s when let go, the shadow coming back, and stays where it was dropped', () => {
+    const up = held(GROUND, 0.5, 60);
+    const settled = settle(GROUND, 0.35, 60, { ...up, candidate: null });
+    expect(settled.lift).toBe(0);
+    expect(settled.flame).toBe(0);
+    expect(settled.free).toBe(true);
+    // Let go in empty land the ship coasts to a stop where it was let go (the view leans); it does not slide back home.
+    expect(distance(settled, LAND)).toBeGreaterThan(100);
+    expect(drawn(settled).shadow!.opacity).toBeCloseTo(SHADOW_OPACITY, 2);
+    // Part way, it is still coming down.
+    const part = settle(GROUND, 0.15, 60, up);
+    expect(part.lift).toBeGreaterThan(0);
+    expect(part.lift).toBeLessThan(1);
+    expect(part.flame).toBeGreaterThan(0);
+    expect(part.flame).toBeLessThan(up.flame);
+  });
+
+  it('lifts and settles in the same time at 30 and at 60 frames a second', () => {
+    for (const seconds of [0.1, 0.2]) {
+      expect(held(GROUND, seconds, 30).lift).toBeCloseTo(held(GROUND, seconds, 60).lift, 6);
+    }
+    const up = held(GROUND, 0.5, 60);
+    for (const seconds of [0.1, 0.2, 0.3]) {
+      expect(settle(GROUND, seconds, 30, up).lift).toBeCloseTo(settle(GROUND, seconds, 60, up).lift, 6);
+    }
+  });
+
+  it('is drawn lifted while held and landed once let go, with no tween, under reduced motion', () => {
+    const calm = { ...GROUND, reducedMotion: true };
+    const up = stepShip(landed(), { ...calm, drag: { x: 120, y: 300 } }, 1 / 60);
+    expect(up.lift).toBe(1);
+    expect(drawn(up).y).toBeLessThan(up.y);
+    const down = stepShip(up, calm, 1 / 60);
+    expect(down.lift).toBe(0);
+    expect(drawn(down).y).toBe(down.y);
+    expect(down.flame).toBe(0);
+  });
+
+  it('stays upright where it glides, and tips toward where it goes only while it is off the ground', () => {
+    const sliding = run({ ...landed(), x: 300, y: 250 }, GROUND, 0.2);
+    expect(sliding.lift).toBe(0);
+    expect(sliding.heading).toBe(0);
+    expect(sliding.flame).toBe(0);
+    const flying = held(GROUND, 0.5, 60);
+    expect(Math.abs(flying.heading)).toBeGreaterThan(0.2);
+  });
+
+  it('is upright again by the time it has settled, though it was let go still coasting', () => {
+    let up = landed();
+    for (let frame = 0; frame < 15; frame++) up = stepShip(up, { ...GROUND, drag: { x: 350, y: 560 } }, 1 / 60);
+    // Flying across to the right, nose tipped that way.
+    expect(up.heading).toBeGreaterThan(0.5);
+    const down = settle(GROUND, 0.3, 60, up);
+    expect(down.lift).toBe(0);
+    expect(Math.hypot(down.vx, down.vy)).toBeGreaterThan(22);
+    // Within a few degrees of upright, from over a radian.
+    expect(Math.abs(down.heading)).toBeLessThan(0.15);
+  });
+
+  it('lifts while it is drawn into a place, and settles when it arrives', () => {
+    const target: ShipTarget = { id: 'p', x: 120, y: 300, pull: pullOf('planet', 40) };
+    const falling = stepShip(
+      { ...landed(), x: 150, y: 330, falling: 'p', free: true },
+      { ...GROUND, targets: [target] },
+      1 / 60,
+    );
+    expect(falling.lift).toBeGreaterThan(0);
+    const arrived = settle(GROUND, 0.4, 60, landShip(falling));
+    expect(arrived.lift).toBe(0);
+  });
+
+  it('leaves the ship exactly as it was at every other stop: no lift, no shadow, today’s flame', () => {
+    const state = held({ ...BASE }, 0.5, 60, initialShip(HOME));
+    expect(state.ground).toBe(false);
+    expect(state.lift).toBe(0);
+    expect(state.flame).toBeGreaterThanOrEqual(0.16);
+    expect(state.size).toBeCloseTo(34, 0);
+    const ship = drawn(state);
+    expect(ship.shadow).toBeUndefined();
+    expect(ship.y).toBe(state.y);
+    // A ship let go in the sky keeps today's held flame.
+    expect(run({ ...state, candidate: null }, BASE, 0.5).flame).toBeGreaterThanOrEqual(0.16);
+  });
+
+  it('hides with its shadow while the view flies', () => {
+    const gone = run(landed(), { ...GROUND, away: true }, 1);
+    expect(drawn(gone).alpha).toBeLessThan(0.02);
+    expect(drawn(gone).shadow!.opacity).toBeLessThan(0.01);
   });
 });
