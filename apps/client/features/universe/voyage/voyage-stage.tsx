@@ -4,7 +4,16 @@
  * world (`usePlanetSurface`), hands both to the controller, and puts the named buttons over the canvas. The camera, the
  * globe and the ship are the driver's (`voyage-driver.ts`); the gestures are the controller's.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+} from 'react';
 import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 import Svg from 'react-native-svg';
 import type { CollectionLandmark } from '@knowscroll/client-core';
@@ -33,7 +42,9 @@ import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
+import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
+import { FallInContext } from './fall-in';
 import { createVoyageController, standsOn, type VoyageInputs } from './voyage-controller';
 import type { VoyagePlanet } from './voyage-control';
 import { CommonSky, SearchSky, type SearchAnswer } from './search-sky';
@@ -88,6 +99,7 @@ export function VoyageStage({
   stations,
   onStation,
   onUnavailable,
+  onRefused,
   visitor = false,
   landmarksByPlanet,
   search,
@@ -96,6 +108,8 @@ export function VoyageStage({
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
+  /** One planet's world could not be drawn: the screen shows that planet as the plain list of its regions. */
+  readonly onRefused?: (planetId: string) => void;
   /** A friend's Universe: their planets are drawn with every continent in colour and no region named or tappable. */
   readonly visitor?: boolean;
   /** What the person has earned on each planet: its pennants stand on the globe. */
@@ -126,7 +140,7 @@ export function VoyageStage({
       }),
     [index, looks, stations, state.dust.cues, state.lately],
   );
-  const planet = usePlanetSurface(session, state, index, view, visitor, landmarksByPlanet);
+  const planet = usePlanetSurface(session, state, index, view, visitor, landmarksByPlanet, onRefused);
   // What each room's station is drawn from, by room id. The scene's laid-out stations carry the accent, the sky and what is
   // live that `stations` holds, so the picture and the scene read one answer.
   const stationLooks = useMemo(
@@ -136,6 +150,7 @@ export function VoyageStage({
   const recordFlight = useFlightRecorder();
   const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
+  const fallIn = useContext(FallInContext);
   const inputs: VoyageInputs = {
     session,
     view,
@@ -156,6 +171,7 @@ export function VoyageStage({
     ...(recordFlight ? { onFlight: recordFlight } : {}),
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
+    ...(fallIn ? { fallIn } : {}),
   };
   const [controller] = useState(() => createVoyageController(inputs));
   // Before `SpaceView`'s own effects: under reduced motion it redraws its one still frame there, and that frame must
@@ -197,9 +213,11 @@ export function VoyageStage({
         stop === 'universe'
           ? undefined
           : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
+      const named = info.anchors.filter(namedAt(stop, systemId));
       return (
         <VoyageOverlay
-          anchors={info.anchors.filter(namedAt(stop, systemId))}
+          anchors={named}
+          calm={calmNames(named, index, state.lately)}
           written={STOPS[stop].written}
           keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
           size={size}
@@ -234,6 +252,8 @@ export function VoyageStage({
       planet,
       stationLooks,
       state.reducedMotion,
+      state.lately,
+      index,
     ],
   );
 
@@ -380,6 +400,7 @@ function usePlanetSurface(
   view: UniverseView,
   visitor: boolean,
   landmarksByPlanet: ReadonlyMap<string, readonly CollectionLandmark[]> | undefined,
+  onRefused: ((planetId: string) => void) | undefined,
 ): VoyagePlanet | null {
   const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
@@ -389,6 +410,11 @@ function usePlanetSurface(
     [planet, index, looks],
   );
   const globe = useGlobeWorld(session, plan?.spec);
+  // The world cannot be drawn: say so once for this planet, as the old planet stage does, so the screen falls back to its list.
+  const refusedId = globe.status === 'refused' ? planet?.objectId : undefined;
+  useEffect(() => {
+    if (refusedId !== undefined) onRefused?.(refusedId);
+  }, [refusedId, onRefused]);
   return useMemo(() => {
     if (!planet || !plan || globe.status !== 'ready') return null;
     // A friend shares no regions: their planet wears every continent in colour, as the old globe drew it, so it neither
@@ -493,6 +519,7 @@ function VoyageOverlay({
   anchors,
   written,
   keepOff,
+  calm,
   size,
   focusId,
   hereId,
@@ -512,6 +539,8 @@ function VoyageOverlay({
   readonly written: readonly SpaceAnchor['kind'][];
   /** Where no name may sit, beside the header and the chips: a star's sun. */
   readonly keepOff: readonly Box[];
+  /** With Lately on, the stars and planets that are quiet: their names dim to 0.7. */
+  readonly calm: ReadonlySet<string>;
   readonly size: { readonly width: number; readonly height: number };
   readonly focusId: string | null;
   /** The region the ship stands on, named "you are here" under it; null above the ground. */
@@ -600,13 +629,14 @@ function VoyageOverlay({
                 testID={`voyage-name-${anchor.id}`}
                 style={[StyleSheet.absoluteFill, unshared ? UNSHARED_NAME : null]}
               >
-                <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" />
+                <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" calm={calm.has(anchor.id)} />
               </View>
             ) : (
               <MapLabel
                 label={name}
                 text={writtenName(anchor, hereId)}
                 variant={anchor.id === hereId ? 'here' : anchor.kind === 'region' ? 'land' : 'plain'}
+                calm={calm.has(anchor.id)}
               />
             )}
             <BodyTarget

@@ -267,7 +267,17 @@ export function createUniverseViewSession(
     formation.update();
     if (state.focusId && (read.snapshot || read.geography) && !validCamera(state)) {
       history.clear();
-      publish({ focusId: null, landed: false, locator: undefined, overlay: null, notice: 'place_unavailable' });
+      mapOrigin = null;
+      mapPushed = false;
+      coveredMap = false;
+      publish({
+        focusId: null,
+        landed: false,
+        locator: undefined,
+        overlay: null,
+        mapBehind: false,
+        notice: 'place_unavailable',
+      });
     }
     // The finds sheet belongs to a system on this map: once that system is gone the sheet closes instead of hiding.
     if (state.overlay === 'finds' && !places().some((p) => p.id === state.findsFor && p.kind === 'system'))
@@ -593,6 +603,7 @@ export function createUniverseViewSession(
       if (!live() || !foreground || !places().some((p) => p.id === systemId && p.kind === 'system')) return;
       cancelPreview();
       coveredRegion = null;
+      coveredMap = false;
       publish({ overlay: 'finds', findsFor: systemId, selectedId: null });
       formation.setForeground(false);
     },

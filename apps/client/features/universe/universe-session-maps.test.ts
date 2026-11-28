@@ -184,6 +184,18 @@ describe('the planet’s map (the new look)', () => {
     h.scope.end();
   });
 
+  it('a system’s finds opened over Search leave the map behind: Back closes them to nothing', async () => {
+    const { h, session } = await opened();
+    onGround(session);
+    session.showOverlay('planet-map');
+    session.showOverlay('search');
+    session.showFinds(SYSTEM);
+    expect(session.getState().overlay).toBe('finds');
+    session.back();
+    expect(session.getState().overlay).toBeNull();
+    h.scope.end();
+  });
+
   it('a search choice replaces the map instead of leaving one behind', async () => {
     const { h, session } = await opened();
     onGround(session);

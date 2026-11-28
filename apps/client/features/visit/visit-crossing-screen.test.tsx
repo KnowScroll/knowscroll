@@ -8,6 +8,7 @@ import { DisplayProvider } from '@knowscroll/ui';
 import { DevicePreferencesProvider, useDevicePreferences } from '../../providers/device-preferences';
 import { defaultDevicePreferences, type DevicePreferences } from '../account/device-preferences';
 import type { CrossingFrame } from '../universe/crossing/crossing-frame';
+import type * as FallIn from '../universe/voyage/fall-in';
 import { FrameRateFigure as MockFrameRateFigure } from '../universe/frame-rate/frame-rate-readout';
 import { markCrossingSeen } from './crossing-seen';
 import { VisitScreen } from './visit-screen';
@@ -90,14 +91,32 @@ interface SurfaceProps {
   voyage?: boolean;
   visitor?: { bar: React.ReactNode };
 }
-jest.mock('../universe/universe-surface', () => ({
-  UniverseSurface: ({ voyage, visitor }: SurfaceProps) => (
-    <MockView testID="surface-stub" accessibilityLabel={voyage ? 'new look' : 'old look'}>
-      {visitor?.bar}
-      <MockFrameRateFigure />
-    </MockView>
-  ),
-}));
+jest.mock('../universe/universe-surface', () => {
+  const { useContext } = jest.requireActual<typeof React>('react');
+  const { FallInContext } = jest.requireActual<typeof FallIn>('../universe/voyage/fall-in');
+  return {
+    UniverseSurface: ({ voyage, visitor }: SurfaceProps) => {
+      // The fall the visit asks the stage under the surface to make, as the stage would read it.
+      const fall = useContext(FallInContext);
+      return (
+        <MockView testID="surface-stub" accessibilityLabel={voyage ? 'new look' : 'old look'}>
+          {visitor?.bar}
+          <MockFrameRateFigure />
+          <MockView
+            testID="surface-fall"
+            accessibilityLabel={
+              fall === null
+                ? 'no fall'
+                : `fall ${String(fall.id)} from ${String(fall.fromScale)}${fall.again ? ' again' : ''}`
+            }
+          />
+        </MockView>
+      );
+    },
+  };
+});
+/** The fall into their Universe the stage under the surface is asked for, in words. */
+const fallAsked = () => screen.getByTestId('surface-fall').props.accessibilityLabel as string;
 
 // The frame loop, stepped by hand: `play(1.5)` is one and a half seconds of frames.
 let pending = new Map<number, (nowMs: number) => void>();
@@ -399,6 +418,60 @@ describe('with the new look on: the crossing to a friend', () => {
     });
   });
 
+  describe('the fall into their Universe', () => {
+    // Kept once the white has gone too (the director's `handedOver`), for a stage that mounts after the film.
+    it('is asked for once the film hands over, from seven times out', async () => {
+      const server = visitServer();
+      mockScope = server.scope;
+      await render(tree('fixture.ravi', NEW_LOOK));
+      await settle();
+      await lay();
+      await play(3.7);
+      expect(fallAsked()).toBe('no fall');
+      await play(4);
+      expect(screen.queryByTestId('visit-crossing-film')).toBeNull();
+      expect(fallAsked()).toBe('fall 1 from 7');
+    });
+
+    it('is the quicker one when this friend’s Universe was crossed into before', async () => {
+      const server = visitServer();
+      mockScope = server.scope;
+      const first = await render(tree('fixture.ravi', NEW_LOOK));
+      await settle();
+      await lay();
+      await play(8);
+      await first.unmount();
+      await render(tree('fixture.ravi', NEW_LOOK));
+      await settle();
+      await lay();
+      await play(4);
+      expect(fallAsked()).toBe('fall 1 from 7 again');
+    });
+
+    it('is asked for after a skip too', async () => {
+      const server = visitServer();
+      mockScope = server.scope;
+      await render(tree('fixture.ravi', NEW_LOOK));
+      await settle();
+      await lay();
+      await play(1);
+      await fireEvent.press(screen.getByTestId('visit-crossing-skip'));
+      await play(1);
+      expect(fallAsked()).toBe('fall 1 from 7');
+    });
+
+    it('is not asked for under reduced motion (a cut)', async () => {
+      const server = visitServer();
+      mockScope = server.scope;
+      await render(tree('fixture.ravi', NEW_LOOK, true));
+      await settle();
+      await lay();
+      await play(1);
+      expect(screen.getByRole('button', { name: 'Leave this visit' })).toBeOnTheScreen();
+      expect(fallAsked()).toBe('no fall');
+    });
+  });
+
   describe('when the other universe cannot be reached', () => {
     it('stops the film before q 0.3 and shows today’s screen', async () => {
       const server = visitServer();
@@ -676,6 +749,7 @@ describe('with the switch off: no film, ever, and Leave as it always was', () =>
     expect(screen.queryByTestId('visit-crossing-skip')).toBeNull();
     expect(screen.queryByTestId('visit-crossing-line')).toBeNull();
     expect(screen.getByLabelText('old look')).toBeOnTheScreen();
+    expect(fallAsked()).toBe('no fall');
     // The own-names reader is asked with `enabled` false every time, which creates no session and sends no read.
     expect(mockOwnAsked.length).toBeGreaterThan(0);
     expect(mockOwnAsked.every((enabled) => !enabled)).toBe(true);

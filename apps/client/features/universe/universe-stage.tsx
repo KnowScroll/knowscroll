@@ -224,6 +224,7 @@ export function UniverseStage({
           view={view}
           visitor={visitor === true}
           onUnavailable={onUnavailable}
+          onRefused={onRefused}
           desktop={desktop}
           {...(onMap ? { onMap } : {})}
           {...(search ? { search } : {})}

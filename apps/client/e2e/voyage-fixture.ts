@@ -86,6 +86,8 @@ export interface VoyageOptions {
   readonly landmarks?: boolean;
   /** A region's preview also holds the same explanation in the other format (a Scroll), as it does when asked for it. */
   readonly alternate?: boolean;
+  /** CI system 0 has had nothing new for a month: Lately calms it. */
+  readonly quiet?: boolean;
 }
 
 /**
@@ -205,6 +207,9 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
     ];
     world.collection.planets = [{ id: fixtureId(12), topicId: 'earth.seasons' }];
   }
+  if (options.quiet === true)
+    for (const place of world.descriptors)
+      if (place.kind === 'system') place.activity = { availability: 'available', state: 'quiet' };
   if (options.rooms !== undefined && options.rooms !== false) {
     const [member, outsider] = VOYAGE_ROOMS;
     const rooms = options.rooms === 'live' ? [{ ...member, live: 'reel' }, outsider] : [member, outsider];

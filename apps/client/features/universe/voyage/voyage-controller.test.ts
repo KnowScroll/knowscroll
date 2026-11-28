@@ -658,3 +658,43 @@ describe('the fingers on the stage', () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe('a fall into the stop (a friend’s Universe after the crossing film)', () => {
+  it('shows no flight line for it, and times it as a leg of its own', () => {
+    const { session } = recordingSession();
+    const told: boolean[] = [];
+    const legs: string[] = [];
+    createVoyageController({
+      session,
+      view: { kind: 'universe' },
+      target: { stop: 'universe', systemId: null, planetId: null, regionId: null },
+      size: { width: 390, height: 844 },
+      turn: { x: 0, y: 0 },
+      planet: null,
+      siblings: [],
+      reducedMotion: false,
+      universeFocus: {} as VoyageInputs['universeFocus'],
+      systemFocus: () => undefined,
+      onFlying: (flying) => told.push(flying),
+      onFlight: (leg) => legs.push(leg.label),
+    });
+    const frame = (flying: boolean, falling = false) =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying,
+        falling,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    frame(true, true);
+    frame(true, true);
+    frame(false);
+    expect(told).toEqual([]);
+    expect(legs).toEqual(['fall']);
+    // A flight that is not a fall is said as ever.
+    frame(true);
+    frame(false);
+    expect(told).toEqual([true, false]);
+  });
+});
