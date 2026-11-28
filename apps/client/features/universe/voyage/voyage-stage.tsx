@@ -104,6 +104,7 @@ export function VoyageStage({
   landmarksByPlanet,
   search,
   desktop = false,
+  onMap,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
@@ -117,6 +118,11 @@ export function VoyageStage({
   readonly search?: SearchAnswer;
   /** The screen is on the product's desktop layout (not a width of this stage): the ship parks and leans as on a desktop. */
   readonly desktop?: boolean;
+  /**
+   * Opens the map of the whole planet: a tap on bare ground and the `M` key. Given only where a map can open (the ground
+   * of a planet with a formed region, never a friend's); the stage offers it at the ground only.
+   */
+  readonly onMap?: () => void;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -161,6 +167,7 @@ export function VoyageStage({
     universeFocus: space.universeFocus,
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),
+    ...(onMap ? { onMap } : {}),
     ...(recordFlight ? { onFlight: recordFlight } : {}),
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
@@ -217,6 +224,7 @@ export function VoyageStage({
           focusId={focusId}
           hereId={hereId}
           onPlace={(id) => void session.focus(id)}
+          {...(onMap && stop === 'ground' ? { onGround: () => (controller.justGestured() ? undefined : onMap()) } : {})}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
           stationLooks={stationLooks}
@@ -231,7 +239,9 @@ export function VoyageStage({
     },
     [
       session,
+      controller,
       onStation,
+      onMap,
       onDust,
       stop,
       systemId,
@@ -514,6 +524,7 @@ function VoyageOverlay({
   focusId,
   hereId,
   onPlace,
+  onGround,
   onStation,
   onDust,
   search,
@@ -535,6 +546,8 @@ function VoyageOverlay({
   /** The region the ship stands on, named "you are here" under it; null above the ground. */
   readonly hereId: string | null;
   readonly onPlace: (id: string) => void;
+  /** A tap on bare ground, under every name: opens the map of the whole planet. Ground only. */
+  readonly onGround?: () => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
   /** The sky's answer to an open search, drawn over everything but the buttons' touches. */
@@ -569,6 +582,18 @@ function VoyageOverlay({
   const common = search?.shows === 'common' ? new Set(search.lit ?? []) : undefined;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* Under every name, so a name always wins. It is neither named nor a tab stop: the chip "Map of …" is the button a keyboard and a screen reader reach, and the layer is the same wherever it lands, so it never tells a person which land is closed. */}
+      {onGround ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          focusable={false}
+          tabIndex={-1}
+          accessibilityRole="button"
+          {...HIDDEN}
+          onPress={onGround}
+          testID="voyage-ground-press"
+        />
+      ) : null}
       {common ? <CommonSky shared={[...common]} anchors={stars} size={size} /> : null}
       {stations.length > 0 ? (
         <StationLayer anchors={stations} looks={stationLooks} reducedMotion={reducedMotion} />

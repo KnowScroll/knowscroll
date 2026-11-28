@@ -80,8 +80,13 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
     flown.current = true;
     session.focusLast();
   }, [focusParam, foreground, snapshot, session]);
+  const overlayBefore = useRef(state.overlay);
   useEffect(() => {
-    if (Platform.OS !== 'web' || !foreground || state.overlay || !state.focusId) return;
+    const before = overlayBefore.current;
+    overlayBefore.current = state.overlay;
+    // In the new look a map that closes hands the keyboard back itself (to the chip that opened it): not taken here.
+    const mapClosed = trial.on && (before === 'planet-map' || before === 'place');
+    if (Platform.OS !== 'web' || mapClosed || !foreground || state.overlay || !state.focusId) return;
     // A region, planet or system with its own target gets focus. Back from an encounter lands on the region
     // marked "you were here"; a planet's globe or map is otherwise the stage itself.
     (
@@ -91,7 +96,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
         : null) ??
       document.querySelector<HTMLElement>('[data-testid="universe-map"]')
     )?.focus();
-  }, [foreground, state.overlay, state.focusId, state.historyDepth, state.youWereHere, state.landed]);
+  }, [trial.on, foreground, state.overlay, state.focusId, state.historyDepth, state.youWereHere, state.landed]);
 
   const dust = state.dust.cues.length > 0;
   const emptyNow = read.status === 'empty' && !dust && state.dust.status !== 'idle' && state.dust.status !== 'loading';

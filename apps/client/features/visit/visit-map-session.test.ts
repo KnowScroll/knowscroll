@@ -738,3 +738,17 @@ describe('a friend’s map session: ending it', () => {
     expect(session.getState()).toBe(state);
   });
 });
+
+describe('a friend’s map session: the new look’s maps', () => {
+  it('refuses the planet’s map as it refuses the region card, even over a landed planet', () => {
+    const { session } = open();
+    session.focus(S1);
+    session.focus(P10, { land: true });
+    expect(session.getState().focusId).toBe(P10);
+    session.showOverlay('planet-map');
+    session.showOverlay('place');
+    expect(session.getState().overlay).toBeNull();
+    session.showOverlay('outline');
+    expect(session.getState().overlay).toBe('outline');
+  });
+});

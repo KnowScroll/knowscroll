@@ -151,8 +151,8 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       publish({ detail });
     },
     showOverlay(overlay) {
-      // The place card belongs to regions, which a visitor is never shown.
-      if (!live() || overlay === 'place') return;
+      // The place card and the planet's map belong to regions, which a visitor is never shown.
+      if (!live() || overlay === 'place' || overlay === 'planet-map') return;
       publish({ overlay, selectedId: null });
     },
     // A visitor is shown no landmark card (D-214), so there is nothing to put away.
