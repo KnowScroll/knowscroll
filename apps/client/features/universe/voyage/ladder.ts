@@ -12,9 +12,11 @@ import type { UniverseMapSession, UniverseViewSession } from '../universe-sessio
  * distance from what you are in, not a separate screen. The prototype's names for `star` and `ground` are `system` and
  * `surface`. A level above a star (a galaxy, a cluster) is one more member here and one more row of {@link STOPS},
  * between `universe` and `star`; the camera's chain of places (`voyage-chains.ts`) then gains its link after the star's,
- * and the session the kind of place that opens it.
+ * and the session the kind of place that opens it. `outer` is above the universe and is no place: it is the same
+ * universe seen from farther, with your friends' universes round it (`outer/`), reached only by the device-only flag of
+ * `outer/outer-stop.ts`, so `stopOf` and `targetOf` say it only when told the flag is set.
  */
-export type Stop = 'universe' | 'star' | 'planet' | 'ground';
+export type Stop = 'outer' | 'universe' | 'star' | 'planet' | 'ground';
 
 /** What a stop shows, wherever it is drawn. */
 export interface StopSpec {
@@ -34,6 +36,8 @@ export interface StopSpec {
 
 /** The ladder as data: one row per stop. Stations and dust are named where they are, beside their star. */
 export const STOPS: Readonly<Record<Stop, StopSpec>> = {
+  // Nothing in the 3D scene is named here: the friends are the outer layer's own buttons.
+  outer: { heldAt: 0.486, names: [], written: [] },
   universe: { heldAt: 0.455, names: ['system', 'station', 'dust'], written: ['system'] },
   star: { heldAt: 0.5, names: ['planet', 'station', 'dust'], written: ['planet', 'station'] },
   planet: { heldAt: 0.415, names: ['region', 'landmark'], written: ['region'] },
@@ -53,17 +57,18 @@ export interface VoyageTarget {
 
 /**
  * The stop a view is at. The stored camera is the one the Universe had before the voyage: no focus is the whole
- * universe, a system is its star, a planet is the planet, and a landed planet or a chosen region is the ground.
+ * universe, a system is its star, a planet is the planet, and a landed planet or a chosen region is the ground. The
+ * whole universe is `outer` instead when `outer` says the person has gone past its rim: that is not stored anywhere.
  */
-export function stopOf(view: UniverseView): Stop {
-  if (view.kind === 'universe') return 'universe';
+export function stopOf(view: UniverseView, outer = false): Stop {
+  if (view.kind === 'universe') return outer ? 'outer' : 'universe';
   if (view.kind === 'system') return 'star';
   return view.landed ? 'ground' : 'planet';
 }
 
 /** Where a view of the map is on the ladder: the stop, and the star, planet and region that make it. */
-export function targetOf(view: UniverseView): VoyageTarget {
-  if (view.kind === 'universe') return { stop: 'universe', systemId: null, planetId: null, regionId: null };
+export function targetOf(view: UniverseView, outer = false): VoyageTarget {
+  if (view.kind === 'universe') return { stop: stopOf(view, outer), systemId: null, planetId: null, regionId: null };
   if (view.kind === 'system') return { stop: 'star', systemId: view.system.objectId, planetId: null, regionId: null };
   return {
     stop: stopOf(view),

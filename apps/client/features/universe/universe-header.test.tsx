@@ -20,7 +20,15 @@ const views: readonly (readonly [string, UniverseView])[] = [
   ['a planet’s ground', { kind: 'planet', planet, landed: true }],
 ];
 
-async function header(view: UniverseView, extra: { voyage?: boolean; desktop?: boolean; visitor?: boolean } = {}) {
+async function header(
+  view: UniverseView,
+  extra: {
+    voyage?: boolean;
+    desktop?: boolean;
+    visitor?: boolean;
+    outer?: { line: string; onLeave: () => void };
+  } = {},
+) {
   const onSearch = jest.fn();
   await render(
     <DisplayProvider value={{ width: extra.desktop ? 1280 : 390, textScale: 1, reducedMotion: true }}>
@@ -33,6 +41,7 @@ async function header(view: UniverseView, extra: { voyage?: boolean; desktop?: b
         {...(extra.voyage ? { voyage: true } : {})}
         {...(extra.desktop ? { desktop: true } : {})}
         {...(extra.visitor ? { visitor: { ownerName: 'Ada' } } : {})}
+        {...(extra.outer ? { outer: extra.outer } : {})}
       />
     </DisplayProvider>,
   );
@@ -65,6 +74,43 @@ describe('search from every stop in the new look', () => {
   it('is not there on the desktop, where Browse carries search', async () => {
     await header(views[0]![1], { voyage: true, desktop: true });
     expect(screen.queryByRole('button', { name: /^Search / })).toBeNull();
+  });
+});
+
+describe('the outer stop', () => {
+  const universe: UniverseView = { kind: 'universe' };
+
+  it('says “Beyond your universe”, the line under it, and has a Back pill named for where it goes', async () => {
+    const onLeave = jest.fn();
+    await header(universe, { voyage: true, outer: { line: '14 friends', onLeave } });
+    expect(screen.getByRole('header', { name: 'Beyond your universe' })).toBeOnTheScreen();
+    expect(screen.getByTestId('outer-line').props.children).toBe('14 friends');
+    const pill = screen.getByTestId('universe-up');
+    expect(pill).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Back to Your universe' })).toBeOnTheScreen();
+    await fireEvent.press(pill);
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('has no title of the universe’s own, and no search, as the screen with it is only the way back', async () => {
+    await header(universe, { voyage: true, outer: { line: '2 friends', onLeave: jest.fn() } });
+    expect(screen.queryByRole('header', { name: 'Your universe' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Search / })).toBeNull();
+  });
+
+  it('is as it always was at the whole universe without it, and never on a friend’s universe', async () => {
+    await header(universe, { voyage: true });
+    expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen();
+    expect(screen.queryByTestId('universe-up')).toBeNull();
+    await screen.unmount();
+    await header(universe, { voyage: true, visitor: true, outer: { line: '2 friends', onLeave: jest.fn() } });
+    expect(screen.queryByText('Beyond your universe')).toBeNull();
+  });
+
+  it('is not drawn at a star, whatever it is handed', async () => {
+    await header(views[0]![1], { voyage: true, outer: { line: '2 friends', onLeave: jest.fn() } });
+    expect(screen.queryByText('Beyond your universe')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back to Universe' })).toBeOnTheScreen();
   });
 });
 

@@ -69,7 +69,10 @@ const toPlanet = new THREE.Vector3();
  * flying in, and flying out of a planet (where the chain is the one being left).
  */
 export function viewDirection(input: ViewInput, out: THREE.Vector3): THREE.Vector3 {
-  const direction = orbitDirection(input.stop === 'star' || input.stop === 'universe' ? input.turnX : 0, out);
+  const direction = orbitDirection(
+    input.stop === 'star' || input.stop === 'universe' || input.stop === 'outer' ? input.turnX : 0,
+    out,
+  );
   const chain = input.planetChain;
   if (input.planet === undefined || input.sun === undefined || chain === null) return direction;
   const towardPlanet = smooth(

@@ -13,6 +13,7 @@ import { SpaceView } from '../universe/space/space-view';
 import { SpaceGalleryRecorder, type SpaceGalleryStats } from './space-gallery-recorder';
 import { CrossingGalleryPage } from './crossing-gallery-page';
 import { MapsGalleryPage } from './maps-gallery-page';
+import { OuterGalleryPage } from './outer-gallery-page';
 import { VoyageGalleryPage } from './voyage-gallery-page';
 
 /** Marker the web smoke and the Android flow look for; it is never in a production export. */
@@ -46,6 +47,11 @@ export function SpaceGalleryScreen() {
         // The two maps of a planet (#811), full screen over labelled sample data: not wired into the Universe yet.
         <View testID={spaceGalleryMarker} style={styles.voyage}>
           <MapsGalleryPage />
+        </View>
+      ) : scene === 'outer' ? (
+        // The outer stop, beyond your universe (#811): the layer over a dark sky with sample friends, not wired into the Universe yet.
+        <View testID={spaceGalleryMarker} style={styles.voyage}>
+          <OuterGalleryPage />
         </View>
       ) : scene === 'crossing' ? (
         // The crossing to a friend's Universe (#811): one still frame at a film time, or the film playing, full screen.

@@ -17,6 +17,19 @@ describe('a pinch', () => {
     expect(pinch.pinching()).toBe(true);
   });
 
+  it('spreads the camera only 1.15 times beyond the outer stop, and still lets it come in as far as anywhere', () => {
+    const shared = { zoom: null, target: { stop: 'outer', systemId: null, planetId: null, regionId: null } } as Pick<
+      VoyageControl,
+      'zoom' | 'target'
+    >;
+    const pinch = createPinchGesture(shared);
+    pinch.begin(100, null);
+    pinch.move(10, true);
+    expect(shared.zoom?.scale).toBe(1.15);
+    pinch.move(1000, true);
+    expect(shared.zoom?.scale).toBe(0.35);
+  });
+
   it('does not move the camera under reduced motion, and still steps on release', () => {
     const shared = control();
     const pinch = createPinchGesture(shared);

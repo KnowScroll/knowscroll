@@ -186,6 +186,84 @@ describe('the voyage driver camera', () => {
   });
 });
 
+describe('where the whole universe is on screen', () => {
+  it('is reported with the field not yet in at the universe stop, and wholly in at the outer stop', () => {
+    const r = rig(target('universe', null));
+    r.step();
+    expect(r.last().universe).toMatchObject({ fade: 0 });
+    // Seen from straight on the middle of the view, a little above the middle, as the stop holds it.
+    expect(r.last().universe!.x).toBeCloseTo(size.width / 2, 0);
+    expect(r.last().universe!.y).toBeCloseTo(size.height * 0.455, 0);
+    r.control.target = target('outer', null);
+    r.settle();
+    r.step();
+    expect(r.last().universe!.fade).toBe(1);
+    expect(r.last().universe!.y).toBeCloseTo(size.height * 0.486, 0);
+  });
+
+  it('fades the friends in as a flight goes out past the universe and out as it comes back, ending exactly at 0 and 1', () => {
+    const r = rig(target('universe', null));
+    r.step();
+    r.control.target = target('outer', null);
+    const fades: number[] = [];
+    for (let i = 0; i < 12 * 30; i += 1) {
+      r.step();
+      fades.push(r.last().universe!.fade);
+      if (!r.last().flying) break;
+    }
+    expect(fades[0]).toBeLessThan(0.05);
+    expect(fades[fades.length - 1]).toBe(1);
+    for (let i = 1; i < fades.length; i += 1) expect(fades[i]!).toBeGreaterThanOrEqual(fades[i - 1]! - 1e-9);
+    r.control.target = target('universe', null);
+    const back: number[] = [];
+    for (let i = 0; i < 12 * 30; i += 1) {
+      r.step();
+      back.push(r.last().universe!.fade);
+      if (!r.last().flying) break;
+    }
+    expect(back[0]!).toBeGreaterThan(0.5);
+    expect(back[back.length - 1]).toBe(0);
+    for (let i = 1; i < back.length; i += 1) expect(back[i]!).toBeLessThanOrEqual(back[i - 1]! + 1e-9);
+  });
+
+  it('is as big as the universe fits the screen at its own stop, and a third as big from the outer stop', () => {
+    const r = rig(target('universe', null));
+    r.step();
+    const near = r.last().universe!.radiusPx;
+    r.control.target = target('outer', null);
+    r.settle();
+    r.step();
+    expect(r.last().universe!.radiusPx).toBeCloseTo(near / 3.3, 3);
+  });
+
+  it('moves with the lean, so the field follows the 3D universe', () => {
+    const r = rig(target('outer', null));
+    r.step();
+    const rest = r.last().universe!;
+    r.control.lean = { x: 40, y: -25 };
+    r.step();
+    // The view leans toward the right and down: what it looks at slides left and up (see the sign note in the controller).
+    expect(r.last().universe!.x).toBeCloseTo(rest.x - 40, 0);
+    expect(r.last().universe!.y).toBeCloseTo(rest.y + 25, 0);
+  });
+
+  it('is null from a star in, and while a flight to a star has left the universe it is still reported until it lands', () => {
+    const r = rig(target('star', base.id));
+    r.step();
+    expect(r.last().universe).toBeNull();
+    r.control.target = target('universe', null);
+    r.step();
+    expect(r.last().universe).not.toBeNull();
+    r.settle();
+    r.control.target = target('star', base.id);
+    r.step();
+    expect(r.last().universe).not.toBeNull();
+    r.settle();
+    r.step();
+    expect(r.last().universe).toBeNull();
+  });
+});
+
 describe("a fall into the stop (a friend's Universe after the crossing film)", () => {
   const universe = target('universe', null);
   /** Frames of a fall, the first one included, until it lands. */

@@ -12,6 +12,8 @@ import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
 import { createFlightLegs } from './flight-legs';
+import type { Disc, Point } from './outer/friend-field';
+import type { OuterStop } from './outer/outer-stop';
 import { createPinchGesture, PINCH_STEP } from './pinch-gesture';
 import { groundHome, NOWHERE, standsOf, type Stands } from './ground-home';
 import { climbOneStop, targetKey, type VoyageTarget } from './ladder';
@@ -33,7 +35,7 @@ import {
   type ShipState,
 } from './ship-motion';
 import { createStageTouches, type Finger, type StageGesture } from './stage-touches';
-import type { FallIn, VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
+import type { FallIn, UniverseOnScreen, VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
 import { loadVoyageRenderer } from './voyage-loader';
 
 /** A drag has to move this far before it turns the view; a shorter press is a tap on whatever is under it. */
@@ -101,6 +103,30 @@ const BOB_HEIGHT = 2.5;
 /** How fast a parked ship hovers (radians a second). */
 const BOB_RATE = 1.3;
 
+/**
+ * At the outer stop the ship's lean moves the field this many times as far as it moves the universe's own view, so a
+ * ship dragged across the sky carries a long way over the friends (eased in from 1, so entering never jumps).
+ */
+const OUTER_LEAN_GAIN = 3;
+/** The gain eases in over about 0.3 s (a rate of 10 a second reaches 95 per cent then). */
+const OUTER_GAIN_RATE = 10;
+/** Leaving the outer stop, the field's lean fades into the ship's own at this rate a second, so the flight in never jumps. */
+const OUTER_LEAN_FADE_RATE = 6;
+/** A lean this near the ship's own, in points, has faded. */
+const OUTER_LEAN_FADED = 0.5;
+/** An arrow key turns the view, or at the outer stop moves the field, this far a press, in points. */
+const KEY_PAN = 60;
+/** The reported place of the universe is told on only when it moved this far (points) or its fade this much. */
+const UNIVERSE_MOVED = 0.5;
+const FADE_MOVED = 0.01;
+const NO_PAN: Point = { x: 0, y: 0 };
+
+/** The universe's reported place has changed enough to be worth drawing again. */
+const moved = (told: UniverseOnScreen, next: UniverseOnScreen): boolean =>
+  Math.hypot(next.x - told.x, next.y - told.y) >= UNIVERSE_MOVED ||
+  Math.abs(next.radiusPx - told.radiusPx) >= UNIVERSE_MOVED ||
+  Math.abs(next.fade - told.fade) >= FADE_MOVED ||
+  (next.fade === 1) !== (told.fade === 1);
 /** The ship is present enough to be named under (and so to be standing anywhere) above this share. */
 const PRESENT_VIS = 0.9;
 /** A pill that has moved less than this, in points, has not moved. */
@@ -141,6 +167,17 @@ export interface VoyageInputs {
    * is on: one screenshot from a phone then shows which part of a gesture went wrong.
    */
   readonly onGesture?: (line: string) => void;
+  /**
+   * The outer stop of this screen (`outer/outer-stop.ts`), when it has one: at the universe stop a pinch out, a wheel
+   * notch out or `-` goes past the rim instead of up, and at the outer stop the same three do nothing and a pinch in,
+   * a wheel in, `+` or `=` come back. Absent (a friend's Universe, the trial off), every one is as it was.
+   */
+  readonly outer?: OuterStop | null;
+  /**
+   * Holds a pan of the friends' field (a screen offset, in points) where the screen still shows enough friends; the
+   * identity when absent. Read each time the field is moved.
+   */
+  readonly clampOuterPan?: (pan: Point) => Point;
   /** A fall into the stop to make (a friend's Universe after the crossing film): each id falls once. */
   readonly fallIn?: FallIn | null;
 }
@@ -230,6 +267,7 @@ export function homeOf(
   seconds: number,
   reducedMotion = false,
   desktop = false,
+  obstacles: readonly Disc[] = [],
 ): ShipHome {
   const { width, height } = frame.size;
   const globe = frame.globe;
@@ -244,7 +282,7 @@ export function homeOf(
       heading: Math.atan2(Math.cos(angle) * ORBIT_HEIGHT, -Math.sin(angle)) + Math.PI / 2,
     };
   }
-  const avoid = avoidOf(anchors);
+  const avoid = avoidOf(anchors).concat(obstacles);
   // Low in the sky the ship hovers gently, as the prototype's does; with reduced motion it holds still.
   const bob = reducedMotion ? 0 : Math.sin(seconds * BOB_RATE) * BOB_HEIGHT;
   const spot = parkingSpot({ anchor: { x: width / 2, y: height * shipLayoutOf(desktop).parkAt }, avoid });
@@ -266,6 +304,14 @@ export interface VoyageController {
   wheel(deltaY: number): void;
   /** A key the focused map heard. Returns whether it acted on it. */
   key(name: string): boolean;
+  /** Where the whole universe was last reported on screen, once the friends' field has any of it in (`fade` above 0); else null. */
+  readonly universe: () => UniverseOnScreen | null;
+  /** How far the friends' field has been moved (a screen offset, in points); 0, 0 anywhere but the outer stop. */
+  readonly fieldPan: () => Point;
+  /** Calls `listener` when {@link universe} changes by a visible amount, or the field is moved; returns the way to stop. */
+  readonly subscribe: (listener: () => void) => () => void;
+  /** The discs the friends' bubbles take on screen: the parked ship keeps off them. Pass `[]` once they are gone. */
+  readonly setObstacles: (circles: readonly Disc[]) => void;
   /** Whether a finger took the ship, turned the land or pinched a moment ago: a press now is the end of that, not a tap on bare ground. */
   justGestured(): boolean;
   /** Ends the flight under way at once: the camera is where it was going. A property, so the stage can hand it on. */
@@ -298,6 +344,20 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   const legs = createFlightLegs(first.target);
   /** The screen was last told a flight is under way ({@link VoyageInputs.onFlying}). */
   let flying = false;
+  /** The friends' field: how far it has been moved (a screen offset, points), what the ship's lean multiplies by, what is in its way. */
+  let fieldPan: Point = { x: 0, y: 0 };
+  let leanGain = 1;
+  let obstacles: readonly Disc[] = [];
+  /** The view's lean at the outer stop, kept while it fades into the ship's own after leaving it; null at rest. */
+  let carriedLean: Point | null = null;
+  /** The universe's place as last told to {@link VoyageController.subscribe}, and who is listening. */
+  let universeTold: UniverseOnScreen | null = null;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of [...listeners]) listener();
+  };
+  const atOuterStop = () => inputs.view.kind === 'universe' && inputs.outer?.getState().on === true;
+  const clampField = (pan: Point): Point => inputs.clampOuterPan?.(pan) ?? pan;
   /** The last frame was in a fall into the stop. */
   let fell = false;
 
@@ -344,7 +404,16 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         // While the view flies or is pinched the ship is hidden and the places move: it has parked nowhere, and when it is
         // back it stands on its region again.
         parked = !away && placed.parked;
-      } else home = homeOf(frame, anchors, standsOn(inputs), seconds, inputs.reducedMotion, desktop);
+      } else
+        home = homeOf(
+          frame,
+          anchors,
+          standsOn(inputs),
+          seconds,
+          inputs.reducedMotion,
+          desktop,
+          inputs.target.stop === 'outer' ? obstacles : undefined,
+        );
       ship = stepShip(
         ship,
         {
@@ -378,7 +447,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         ship = landShip(ship);
         go(reached, 'drawn in →');
       }
-      control.lean = ship.lean;
+      control.lean = leanOf(ship.lean, frame.dt);
+      tellUniverse(frame.universe ?? null);
       // A fall into the stop (a friend's Universe after the crossing film) is timed as a flight of its own, and the
       // screen says nothing of it: the film has just said where you are going.
       const falling = frame.falling === true;
@@ -450,7 +520,76 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     }
   };
 
+  /**
+   * The view's lean. At the outer stop the field is moved by moving the camera's aim, so the 3D universe and the layer
+   * move together: the lean is the field's offset, taken the other way (a view that leans right shows everything
+   * sliding left, `placeCamera`), less the ship's own lean times the gain, all held where the screen still shows
+   * friends. Leaving, it fades into the ship's lean, so the flight in starts without a jump.
+   */
+  const leanOf = (shipLean: Point, dt: number): Point => {
+    if (inputs.target.stop === 'outer') {
+      const ease = inputs.reducedMotion ? 1 : 1 - Math.exp(-dt * OUTER_GAIN_RATE);
+      leanGain += (OUTER_LEAN_GAIN - leanGain) * ease;
+      carriedLean = outerLean(shipLean);
+      return carriedLean;
+    }
+    leanGain = 1;
+    if (carriedLean === null) return shipLean;
+    const fade = inputs.reducedMotion ? 1 : 1 - Math.exp(-dt * OUTER_LEAN_FADE_RATE);
+    const next = {
+      x: carriedLean.x + (shipLean.x - carriedLean.x) * fade,
+      y: carriedLean.y + (shipLean.y - carriedLean.y) * fade,
+    };
+    carriedLean = Math.hypot(next.x - shipLean.x, next.y - shipLean.y) < OUTER_LEAN_FADED ? null : next;
+    return carriedLean ?? shipLean;
+  };
+  const outerLean = (shipLean: Point): Point => {
+    const field = clampField({ x: fieldPan.x - shipLean.x * leanGain, y: fieldPan.y - shipLean.y * leanGain });
+    return { x: -field.x, y: -field.y };
+  };
+  /** Moves the field to `pan` (held where the screen still shows friends), and tells whoever draws it, with no frame between. */
+  const moveField = (pan: Point) => {
+    fieldPan = clampField(pan);
+    control.lean = outerLean(ship.lean);
+    carriedLean = control.lean;
+    notify();
+  };
+  /**
+   * Says where the universe is on screen to the layer when it moved visibly, and never while the field is out of it (a
+   * ship leaning at the universe stop would otherwise wake the layer every frame). It is told once at each end of the
+   * fade, exactly, so the layer is neither left at a hair's opacity nor left mounted.
+   */
+  const tellUniverse = (next: UniverseOnScreen | null) => {
+    const told = universeTold;
+    const out = next === null || next.fade <= 0;
+    if (out ? told === null || told.fade <= 0 : told !== null && told.fade > 0 && !moved(told, next)) return;
+    universeTold = next;
+    notify();
+  };
+
+  /** One stop out: past the rim at the whole universe when this screen has an outer stop, up the ladder anywhere else. Returns whether it moved. */
+  const stepOut = (): boolean => {
+    const outer = inputs.outer;
+    if (!outer || inputs.view.kind !== 'universe') return climbOneStop(inputs.session, inputs.view);
+    if (outer.getState().on) {
+      tell('beyond your universe · nothing is farther out');
+      return false;
+    }
+    fieldPan = NO_PAN;
+    outer.enter();
+    tell('out past your universe');
+    return true;
+  };
+  /** One stop in: back from the outer stop, never to a star; anywhere else toward what is under a point. Returns whether it moved. */
+  const stepIn = (towards: () => boolean): boolean => {
+    if (!atOuterStop()) return towards();
+    inputs.outer!.leave();
+    tell('back to your universe');
+    return true;
+  };
+
   let startTurn = { x: 0, y: 0 };
+  let startPan: Point = { x: 0, y: 0 };
   /**
    * Where a pinch in would go: what was under the fingers when they came down. It is chosen then, because the camera
    * zooms toward it as they spread and everything else moves on screen.
@@ -516,6 +655,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         return;
       case 'turn-begin':
         startTurn = { x: inputs.turn.x, y: inputs.turn.y };
+        startPan = fieldPan;
         // Turning the view while the ship falls into a place is asking for something else: it stays where it is.
         if (ship.falling !== null) {
           ship = { ...ship, falling: null, candidate: null, pullStrength: 0 };
@@ -523,6 +663,11 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         }
         return;
       case 'turn':
+        // Past the rim a drag moves the field with the finger, and nothing is stored.
+        if (atOuterStop()) {
+          moveField({ x: startPan.x + gesture.dx, y: startPan.y + gesture.dy });
+          return;
+        }
         inputs.session.camera({ x: startTurn.x - gesture.dx, y: startTurn.y - gesture.dy, scale: 1 });
         return;
       case 'pinch-begin':
@@ -549,7 +694,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       case 'pinch-end': {
         const ratio = pinch.ratio();
         const outcome = pinch.end((direction) =>
-          direction === 'in' ? goDown(inputs.session, pinchDescent) : climbOneStop(inputs.session, inputs.view),
+          direction === 'in' ? stepIn(() => goDown(inputs.session, pinchDescent)) : stepOut(),
         );
         tell(`pinch ${times(ratio)} → ${outcome} (a stop is ${times(PINCH_STEP)})`);
         return;
@@ -634,6 +779,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         parked = false;
         ship = recentreShip(ship);
         pinch.targetChanged();
+        // The field starts from where it was drawn at rest each time the stop is entered.
+        if (next.target.stop === 'outer') fieldPan = NO_PAN;
         legs.asked(next.target, performance.now());
       }
       inputs = next;
@@ -657,8 +804,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       wheelResting = true;
       wheelTimer = setTimeout(() => (wheelResting = false), WHEEL_REST_MS);
       const at = centre();
-      if (deltaY < 0) descend(inputs.session, inputs.view, anchors, at.x, at.y);
-      else climbOneStop(inputs.session, inputs.view);
+      if (deltaY < 0) stepIn(() => descend(inputs.session, inputs.view, anchors, at.x, at.y));
+      else stepOut();
     },
     key(name) {
       const { session, view } = inputs;
@@ -669,14 +816,19 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         control.turn = { x: control.turn.x + dx, y: control.turn.y + dy };
         session.camera({ ...control.turn, scale: 1 });
       };
+      // Past the rim the arrows look round: ← slides the field right, as the drag that turns the view elsewhere does. They
+      // move the field, not the stored camera.
+      const lookBy = (dx: number, dy: number) =>
+        atOuterStop() ? moveField({ x: fieldPan.x - dx, y: fieldPan.y - dy }) : turnBy(dx, dy);
+      const down = () => stepIn(() => descend(session, view, anchors, at.x, at.y));
       const actions: Readonly<Record<string, () => void>> = {
-        ArrowLeft: () => turnBy(-60, 0),
-        ArrowRight: () => turnBy(60, 0),
-        ArrowUp: () => turnBy(0, -60),
-        ArrowDown: () => turnBy(0, 60),
-        '+': () => descend(session, view, anchors, at.x, at.y),
-        '=': () => descend(session, view, anchors, at.x, at.y),
-        '-': () => climbOneStop(session, view),
+        ArrowLeft: () => lookBy(-KEY_PAN, 0),
+        ArrowRight: () => lookBy(KEY_PAN, 0),
+        ArrowUp: () => lookBy(0, -KEY_PAN),
+        ArrowDown: () => lookBy(0, KEY_PAN),
+        '+': down,
+        '=': down,
+        '-': () => void stepOut(),
         Home: () => void session.focusLast(),
       };
       if (name.toLowerCase() === MAP_KEY && inputs.onMap !== undefined) {
@@ -688,6 +840,15 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       const action = Object.hasOwn(actions, name) ? actions[name] : undefined;
       action?.();
       return action !== undefined;
+    },
+    universe: () => (universeTold !== null && universeTold.fade > 0 ? universeTold : null),
+    fieldPan: () => (inputs.target.stop === 'outer' ? fieldPan : NO_PAN),
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    setObstacles: (circles) => {
+      obstacles = circles;
     },
     justGestured: () => performance.now() - gesturedAt < AFTER_GESTURE_MS,
     skip() {

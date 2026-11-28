@@ -16,7 +16,7 @@ import { smooth } from '../space/paint';
 import type { BuiltSpace } from '../space/scene/build-scene';
 import type { SpaceCameraDriver } from '../space/space-renderer';
 import { flightAt, planFlight, type FlightPlan } from './flight';
-import { targetKey, type VoyageTarget } from './ladder';
+import { targetKey, type Stop, type VoyageTarget } from './ladder';
 import { createPlanetCloseUp } from './planet-close-up';
 import { createShipLayer } from './ship-layer';
 import { createSkyBend } from './sky-bend';
@@ -29,7 +29,7 @@ import {
   type PlacedChain,
   type ViewSize,
 } from './voyage-chains';
-import type { VoyageControl, VoyagePlanet } from './voyage-control';
+import type { UniverseOnScreen, VoyageControl, VoyagePlanet } from './voyage-control';
 import { fieldOfView, heldOffset, placeCamera, vec, viewDirection } from './voyage-view';
 
 /** How fast the camera eases back to its stop after a pinch lets go of it without moving a stop (per second). */
@@ -55,6 +55,24 @@ const HURRY_RATE = 8;
 const CATCH_UP_RATE = 10;
 /** The camera has caught up with the fingers once its zoom is within this share of theirs. */
 const CAUGHT_UP = 0.01;
+
+/** The whole universe as a target: what the outer layer is placed on, whichever of its two stops the camera is at. */
+const UNIVERSE_TARGET: VoyageTarget = { stop: 'universe', systemId: null, planetId: null, regionId: null };
+/** The friends' field is fully in from this many times the universe stop's distance ... */
+const FIELD_FULL_AT = 2.1;
+/** ... and gone at this many (the prototype's `smooth(1.15, 2.1, d / d0)`). */
+const FIELD_GONE_AT = 1.15;
+/** The stops that look at the whole universe: the friends' field is drawn over either. */
+const seesUniverse = (stop: Stop | null): boolean => stop === 'universe' || stop === 'outer';
+
+/** What the last pose says of the whole universe, so the frame after it can say where it is on screen. */
+interface UniverseSighting {
+  readonly point: Vec3;
+  /** The distance of the universe's own stop, and the camera's distance now. */
+  readonly restDistance: number;
+  readonly distance: number;
+  readonly focal: number;
+}
 
 /** A flight under way: its plan, how far through it is (seconds of flight, which a pinch can hurry) and the target it leaves. */
 interface Flight {
@@ -108,6 +126,9 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   let hurry = 1;
   /** A flight landed under fingers that pinch: the zoom eases to theirs, at {@link CATCH_UP_RATE}, instead of jumping. */
   let catchingUp = false;
+  /** Where the whole universe is, while the camera is at or going to the universe or past it, or leaving them; else null. */
+  let sighting: UniverseSighting | null = null;
+  const universeCentre = new THREE.Vector3();
   /** The last planet the screen gave: kept while a flight leaves it, so its globe does not drop to the painted body. */
   let lastPlanet: VoyagePlanet | null = null;
   /** The planet drawn as a world now: the screen's, or the one a flight is still leaving. */
@@ -176,6 +197,20 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       from: leaving,
     };
     return true;
+  };
+
+  /** The universe's centre on screen as the camera was just posed (`space.camera` is up to date by `render`), with its size and fade. */
+  const universeOnScreen = (space: BuiltSpace, size: ViewSize): UniverseOnScreen | null => {
+    if (sighting === null) return null;
+    const { point, restDistance, distance, focal } = sighting;
+    const centre = universeCentre.set(...point).project(space.camera);
+    const reach = Math.max(control.universeFocus.halfWidth, control.universeFocus.halfDepth);
+    return {
+      x: (centre.x * 0.5 + 0.5) * size.width,
+      y: (-centre.y * 0.5 + 0.5) * size.height,
+      radiusPx: (reach * focal) / Math.max(distance, 1e-6),
+      fade: smooth(FIELD_GONE_AT, FIELD_FULL_AT, distance / restDistance),
+    };
   };
 
   /**
@@ -322,6 +357,12 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         cameraPosition,
       );
 
+      // The whole universe is placed on screen when the camera is at it or past it, or a flight leaves one of the two.
+      if (seesUniverse(control.target.stop) || seesUniverse(leaving?.stop ?? null)) {
+        const universe = chainOf(UNIVERSE_TARGET, places, size);
+        sighting = { point: universe.chain[0]!.point, restDistance: universe.stopDistance, distance, focal };
+      } else sighting = null;
+
       // The globe: drawn over the painted planet once it is big enough to read, nearer the ground lit less and less.
       const world = planet === undefined ? null : worldPlanet();
       if (planet !== undefined && world?.planetId === planetId)
@@ -345,6 +386,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
         closeUp.compile(renderer, attachedTo);
       }
       const programs = renderer.info.programs?.length ?? 0;
+      const universe = attachedTo === null ? null : universeOnScreen(attachedTo, size);
       const space = attachedTo;
       const ship =
         control.afterFrame?.({
@@ -352,6 +394,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
           flying: flight !== null,
           falling: flight?.fall === true,
           globe: closeUp.onScreen(),
+          universe,
           size,
           programs,
           ...(space === null ? {} : { regionAt: (x, y) => closeUp.regionAt(space, size, worldPlanet(), x, y) }),

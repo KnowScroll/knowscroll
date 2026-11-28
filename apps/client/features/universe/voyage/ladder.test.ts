@@ -1,4 +1,4 @@
-import { climbsToGlobe, escapeOneStop, stopOf, targetKey } from './ladder';
+import { climbsToGlobe, escapeOneStop, STOPS, stopOf, targetKey, targetOf } from './ladder';
 
 const descriptor = { objectId: 'p' } as never;
 
@@ -8,6 +8,47 @@ describe('the stop of a view', () => {
     expect(stopOf({ kind: 'system', system: descriptor })).toBe('star');
     expect(stopOf({ kind: 'planet', planet: descriptor, landed: false })).toBe('planet');
     expect(stopOf({ kind: 'planet', planet: descriptor, landed: true })).toBe('ground');
+  });
+});
+
+describe('the outer stop', () => {
+  it('is a row of the ladder that names nothing, held a little above the middle', () => {
+    expect(STOPS.outer).toEqual({ heldAt: 0.486, names: [], written: [] });
+  });
+
+  it('is the whole universe seen from farther: only a universe view with the flag set is at it', () => {
+    expect(stopOf({ kind: 'universe' }, true)).toBe('outer');
+    expect(stopOf({ kind: 'universe' }, false)).toBe('universe');
+    expect(stopOf({ kind: 'universe' })).toBe('universe');
+    expect(targetOf({ kind: 'universe' }, true)).toEqual({
+      stop: 'outer',
+      systemId: null,
+      planetId: null,
+      regionId: null,
+    });
+    expect(targetOf({ kind: 'universe' })).toEqual({
+      stop: 'universe',
+      systemId: null,
+      planetId: null,
+      regionId: null,
+    });
+  });
+
+  it('is never the stop of a place: a flag left set does not move a star, a planet or the ground', () => {
+    const views = [
+      { kind: 'system', system: descriptor },
+      { kind: 'planet', planet: descriptor, landed: false },
+      { kind: 'planet', planet: descriptor, landed: true },
+    ] as const;
+    for (const view of views) {
+      expect(stopOf(view, true)).toBe(stopOf(view));
+      expect(targetOf(view, true)).toEqual(targetOf(view));
+    }
+  });
+
+  it('has a key of its own, so the driver starts a flight between the universe and it', () => {
+    expect(targetKey(targetOf({ kind: 'universe' }, true))).toBe('outer|||');
+    expect(targetKey(targetOf({ kind: 'universe' }, true))).not.toBe(targetKey(targetOf({ kind: 'universe' })));
   });
 });
 

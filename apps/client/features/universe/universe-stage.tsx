@@ -24,6 +24,7 @@ import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+import type { OuterFriends } from './voyage/outer/use-outer-friends';
 import type { SearchAnswer } from './voyage/search-sky';
 import { VoyageStage } from './voyage/voyage-stage';
 
@@ -111,6 +112,8 @@ export function UniverseStage({
   voyage = false,
   search,
   desktop = false,
+  outerFriends,
+  onFriend,
   onMap,
   mapOpen = false,
 }: {
@@ -143,6 +146,10 @@ export function UniverseStage({
   readonly search?: SearchAnswer;
   /** The new look only: the screen is on the desktop layout, where the ship parks lower. */
   readonly desktop?: boolean;
+  /** The new look only, on the person's own signed-in Universe: their friends, for the outer stop. */
+  readonly outerFriends?: OuterFriends;
+  /** ... and where a tap on a friend's universe goes. */
+  readonly onFriend?: (handle: string) => void;
   /** The new look only: opens the map of the whole planet (a tap on bare ground, the `M` key), where one can open. */
   readonly onMap?: () => void;
   /** The new look only: a map covers the stage. It stays mounted but out of reach of the keyboard, touch and assistive technology. */
@@ -229,6 +236,8 @@ export function UniverseStage({
           {...(onMap ? { onMap } : {})}
           {...(search ? { search } : {})}
           {...(landmarksByPlanet ? { landmarksByPlanet } : {})}
+          {...(outerFriends ? { outerFriends } : {})}
+          {...(onFriend ? { onFriend } : {})}
         />
       </View>
     );

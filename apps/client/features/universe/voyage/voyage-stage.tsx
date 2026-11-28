@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentRef,
 } from 'react';
 import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
@@ -48,8 +49,12 @@ import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
 import { NOWHERE, type Stands } from './ground-home';
 import { GROUND_SIZE, shipBoxOf } from './ship-ground';
-import { createVoyageController, type VoyageInputs } from './voyage-controller';
+import { createVoyageController, type VoyageController, type VoyageInputs } from './voyage-controller';
 import { FallInContext } from './fall-in';
+import { clampPan, type Point } from './outer/friend-field';
+import { OuterField } from './outer/outer-field';
+import { useOuterStop, useOuterStopState } from './outer/outer-stop';
+import type { OuterFriends } from './outer/use-outer-friends';
 import type { VoyagePlanet } from './voyage-control';
 import { CommonSky, SearchSky, type SearchAnswer } from './search-sky';
 import { StationLayer } from './station-layer';
@@ -108,6 +113,8 @@ export function VoyageStage({
   landmarksByPlanet,
   search,
   desktop = false,
+  outerFriends,
+  onFriend,
   onMap,
 }: SceneProps & {
   readonly view: UniverseView;
@@ -122,6 +129,10 @@ export function VoyageStage({
   readonly search?: SearchAnswer;
   /** The screen is on the product's desktop layout (not a width of this stage): the ship parks and leans as on a desktop. */
   readonly desktop?: boolean;
+  /** Your friends, as the outer stop draws and lists them: read only while the person is at the stop. Never given to a friend's Universe. */
+  readonly outerFriends?: OuterFriends;
+  /** A tap on a friend's universe at the outer stop: where to go (the visit route). */
+  readonly onFriend?: (handle: string) => void;
   /**
    * Opens the map of the whole planet: a tap on bare ground and the `M` key. Given only where a map can open (the ground
    * of a planet with a formed region, never a friend's); the stage offers it at the ground only.
@@ -154,13 +165,32 @@ export function VoyageStage({
   const recordFlight = useFlightRecorder();
   const recordGesture = useGestureRecorder();
   const [flying, setFlying] = useState(false);
+  // The outer stop belongs to the person's own signed-in Universe: a friend's has none, and nor has the trial off.
+  const outerStore = useOuterStop();
+  const outer = visitor || outerStore === null ? null : outerStore;
+  const outerOn = useOuterStopState(outer).on;
+  const friends = outerFriends?.friends;
+  const width = size.width;
+  const height = size.height;
+  // The field's pan is held where the screen still shows friends: the clamp reads where the universe rests at the stop.
+  const clampOuterPan = useCallback(
+    (pan: Point) =>
+      friends === undefined
+        ? pan
+        : clampPan(
+            friends,
+            { viewport: { width, height }, universe: { x: width / 2, y: height * STOPS.outer.heldAt, radiusPx: 0 } },
+            pan,
+          ),
+    [friends, width, height],
+  );
   // What the ship stands on at the ground: the controller says it, since the land under the ship changes between renders.
   const [stands, setStands] = useState<Stands>(NOWHERE);
   const fallIn = useContext(FallInContext);
   const inputs: VoyageInputs = {
     session,
     view,
-    target: targetOf(view),
+    target: targetOf(view, outerOn),
     size,
     turn: { x: state.frame.x, y: state.frame.y },
     planet,
@@ -177,6 +207,7 @@ export function VoyageStage({
     ...(recordFlight ? { onFlight: recordFlight } : {}),
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
+    ...(outer === null ? {} : { outer, clampOuterPan }),
     onStands: setStands,
     ...(fallIn ? { fallIn } : {}),
   };
@@ -199,7 +230,10 @@ export function VoyageStage({
   // any of those does; the driver does not read it.
   // The pennants are not in the planet's key (they do not repaint its texture) but a still frame must show a new one.
   const pennantsDrawn = planet?.landmarks.map((landmark) => `${landmark.key}:${landmark.tier}`).join(',') ?? '';
-  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${pennantsDrawn}|${String(inputs.turn.x)},${String(inputs.turn.y)}`;
+  // Past the rim it also changes with the field's pan and with the friends' count, for the same reason.
+  const panKey = useFieldPanKey(controller, state.reducedMotion);
+  const friendsKey = outer === null ? '' : `${String(friends?.length ?? 0)}:${outerFriends?.status ?? ''}`;
+  const redraw = `${inputs.target.stop}|${inputs.target.planetId ?? ''}|${inputs.target.regionId ?? ''}|${planet?.key ?? ''}|${pennantsDrawn}|${String(inputs.turn.x)},${String(inputs.turn.y)}|${panKey}|${friendsKey}`;
   const camera = useMemo(
     () => ({
       focus: (systemId === null ? undefined : space.systemFocus(systemId)) ?? space.universeFocus,
@@ -313,7 +347,19 @@ export function VoyageStage({
         onAnchors={shipAnchors}
         {...(recordFrame ? { onFrameTime: recordFrame } : {})}
       />
-      <FlightLine to={flying ? destinationOf(view, visitor) : null} size={size} onSkip={controller.skip} />
+      {outer !== null && outerFriends !== undefined && onFriend !== undefined ? (
+        <OuterField
+          source={controller}
+          friends={outerFriends.friends}
+          status={outerFriends.status}
+          onRetry={outerFriends.retry}
+          onCross={onFriend}
+          atStop={stop === 'outer'}
+          viewport={size}
+          reducedMotion={state.reducedMotion}
+        />
+      ) : null}
+      <FlightLine to={flying ? destinationOf(view, visitor, outerOn) : null} size={size} onSkip={controller.skip} />
     </View>
   );
 }
@@ -333,9 +379,21 @@ const namedAt = (stop: Stop, systemId: string | null) => {
   return (anchor: SpaceAnchor): boolean => STOPS[stop].names.includes(anchor.kind) && own(anchor);
 };
 
+/**
+ * The field's pan as a string, to change the still frame's `redraw` under reduced motion, where there is no loop to draw
+ * it: empty otherwise, so a drag never re-renders the stage while the loop is drawing it anyway.
+ */
+function useFieldPanKey(controller: VoyageController, reducedMotion: boolean): string {
+  return useSyncExternalStore(controller.subscribe, () => {
+    const pan = controller.fieldPan();
+    return reducedMotion ? `${String(pan.x)},${String(pan.y)}` : '';
+  });
+}
+
 /** Where a flight to `view` goes, as the flight line says it. A visitor's whole universe is their friend's, not theirs. */
-const destinationOf = (view: UniverseView, visitor: boolean): string => {
-  if (view.kind === 'universe') return visitor ? 'the whole universe' : 'your universe';
+const destinationOf = (view: UniverseView, visitor: boolean, outer: boolean): string => {
+  if (view.kind === 'universe')
+    return visitor ? 'the whole universe' : outer ? 'beyond your universe' : 'your universe';
   if (view.kind === 'system') return view.system.label;
   return view.selectedRegion?.label ?? view.planet.label;
 };
@@ -530,9 +588,6 @@ export function placeNames(
 /** The name written beside a place: the region the ship stands on says so, as the prototype's pill does. */
 const writtenName = (anchor: SpaceAnchor, hereId: string | null): string =>
   anchor.id === hereId ? `${anchor.name} · you are here` : captioned(anchor);
-
-/** A point on screen, in layout points. */
-type Point = { readonly x: number; readonly y: number };
 
 /** A box on screen, in layout points. */
 type Box = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
