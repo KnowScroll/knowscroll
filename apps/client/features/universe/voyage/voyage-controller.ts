@@ -22,12 +22,14 @@ import { footOf } from './ship-ground';
 import {
   arrival,
   drawn,
+  HOLD_CAPTURE_SECONDS,
   initialShip,
   landShip,
   parkingSpot,
   pickShip,
   releaseShip,
   stepShip,
+  takenFromFinger,
   type DrawnShip,
   type ShipHome,
   type ShipTarget,
@@ -336,6 +338,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     heading: 0,
   });
   let held: { x: number; y: number } | null = null;
+  /** A body took the ship from the finger holding it: until that finger lifts, its moves neither take nor drop the ship. */
+  let takenFromTouch = false;
   let seconds = 0;
   /** On the ground the ship has left its region and stands at its own spot on screen (`groundHome`). */
   let parked = false;
@@ -442,6 +446,19 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
             })
           : NOWHERE,
       );
+      const taken = takenFromFinger(ship, held !== null);
+      if (taken !== null) {
+        // A body took the ship from the hand: the hand lets go, and the rest of its touch neither moves nor drops it.
+        if (keyHeld) stopKeys();
+        else takenFromTouch = true;
+        held = null;
+        tell(`ship held → taken by ${nameOf(taken)}`);
+        // Reduced motion has no fall to watch: it goes at once.
+        if (inputs.reducedMotion) {
+          ship = landShip(ship);
+          go(taken, 'taken →');
+        }
+      }
       const reached = away ? null : arrival(ship, targets, bounds);
       if (reached !== null) {
         ship = landShip(ship);
@@ -470,10 +487,12 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       else if (pinch.pinching() && frame.flying) tell('pinch · hurrying the flight to its stop');
       const caught = ship.candidate === null ? undefined : targets.find((target) => target.id === ship.candidate);
       if (caught === undefined) return drawn(ship);
-      // Lit in full where letting go now would go there (or the ship is already falling in), else as it pulls.
+      // Lit in full where letting go now would go there (or the ship is already falling in), else as it pulls; held
+      // inside a body's fall ring it fills toward full as the moment before the body takes it runs out.
       const goes =
         ship.falling !== null || Math.hypot(caught.x - ship.x, caught.y - ship.y) < (caught.pull ?? PLACE_PULL).capture;
-      return drawn(ship, { x: caught.x, y: caught.y }, goes ? 1 : ship.pullStrength);
+      const lit = goes ? 1 : Math.max(ship.pullStrength, ship.dwell / HOLD_CAPTURE_SECONDS);
+      return drawn(ship, { x: caught.x, y: caught.y }, lit);
     },
   };
   const pinch = createPinchGesture(control);
@@ -637,17 +656,24 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       case 'ship-take':
         // A finger takes the ship from the keys: it is the finger's to let go now.
         stopKeys();
+        takenFromTouch = false;
         held = gesture.at;
         tell('ship held');
         return;
       case 'ship-move':
-        held = gesture.at;
+        if (!takenFromTouch) held = gesture.at;
         return;
       case 'ship-let-go':
-        letGoOfShip(gesture.moved);
+        // The finger that a body took the ship from lifts: the ship is already on its way, and stays so.
+        if (takenFromTouch) takenFromTouch = false;
+        else letGoOfShip(gesture.moved);
         return;
       case 'ship-home':
         // A second finger (or the system) took the touch: the ship is no longer held, and goes home.
+        if (takenFromTouch) {
+          takenFromTouch = false;
+          return;
+        }
         held = null;
         parked = false;
         ship = recentreShip(ship);
@@ -855,6 +881,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       control.skips += 1;
     },
     dispose() {
+      // A stage that has gone holds nothing: no body takes, and no key's rest drops, a ship it held.
+      if (keyHeld) held = null;
       stopKeys();
       clearTimeout(wheelTimer);
       wheelTimer = undefined;

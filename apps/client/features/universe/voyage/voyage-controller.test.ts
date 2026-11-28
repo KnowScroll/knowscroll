@@ -436,6 +436,71 @@ describe('the fingers on the stage', () => {
     expect(calls).toEqual([]);
   });
 
+  /** A finger held left of the star at (200, 380) moves 100 pt nearer and lifts, all within a fifth of a second. */
+  const flickIn = (fingers: ReturnType<typeof stage>['fingers'], frame: () => unknown) => {
+    for (let step = 1; step <= 6; step++) {
+      fingers('move', [{ id: 0, x: 45 + (100 * step) / 6, y: 380 }]);
+      frame();
+    }
+    fingers('end', []);
+  };
+
+  it('a star takes a ship held inside its ring, flies there, and the finger then neither moves nor drops it', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (90 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30 && !lines.includes('ship held → taken by star'); step++) frame();
+    expect(lines).toContain('ship held → taken by star');
+    // The finger is still down: moving it away does not take the ship back.
+    fingers('move', [{ id: 0, x: 40, y: 700 }]);
+    for (let step = 0; step < 60 && calls.length === 0; step++) frame();
+    expect(calls).toEqual(['focus star']);
+    fingers('end', []);
+    expect(lines.at(-1)).not.toMatch(/let go/);
+    for (let step = 0; step < 30; step++) frame();
+    expect(calls).toEqual(['focus star']);
+  });
+
+  it('a star does not take a ship held inside its ring for less than a quarter of a second', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (150 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30; step++) frame();
+    // Into the ring for a few frames and out again: the ship stays in the hand.
+    for (let step = 0; step < 4; step++) {
+      fingers('move', [{ id: 0, x: 100, y: 380 }]);
+      frame();
+    }
+    for (let step = 0; step < 20; step++) {
+      fingers('move', [{ id: 0, x: 20, y: 600 }]);
+      frame();
+    }
+    expect(lines).not.toContain('ship held → taken by star');
+    expect(calls).toEqual([]);
+  });
+
   it('draw a ship let go near a star into it, then fly there', () => {
     const { calls, lines, fingers } = stage();
     const frame = () =>
@@ -447,14 +512,15 @@ describe('the fingers on the stage', () => {
         programs: 0,
       });
     fingers('start', [{ id: 0, x: 195, y: 570 }]);
-    // 130 pt left of the star: today's pull never reached this far.
+    // Held 155 pt left of the star, outside the ring it takes a held ship from: today's pull never reached this far.
     for (let step = 1; step <= 20; step++) {
-      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      fingers('move', [{ id: 0, x: 195 - (150 * step) / 20, y: 570 - (190 * step) / 20 }]);
       frame();
     }
     for (let step = 0; step < 30; step++) frame();
     expect(lines.at(-1)).toMatch(/^ship held · pulled to star \((gently|firmly|strongly)\)$/);
-    fingers('end', []);
+    // Then a flick toward it, let go before the star has had time to take it.
+    flickIn(fingers, frame);
     expect(lines.at(-1)).toBe('ship let go → drawn into star');
     expect(calls).toEqual([]);
     for (let step = 0; step < 60 && calls.length === 0; step++) frame();
@@ -474,11 +540,11 @@ describe('the fingers on the stage', () => {
       });
     fingers('start', [{ id: 0, x: 195, y: 570 }]);
     for (let step = 1; step <= 20; step++) {
-      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      fingers('move', [{ id: 0, x: 195 - (150 * step) / 20, y: 570 - (190 * step) / 20 }]);
       frame();
     }
     for (let step = 0; step < 30; step++) frame();
-    fingers('end', []);
+    flickIn(fingers, frame);
     expect(lines.at(-1)).toBe('ship let go → drawn into star');
     frame();
     fingers('start', [
@@ -492,7 +558,7 @@ describe('the fingers on the stage', () => {
     expect(calls).toEqual([]);
   });
 
-  it('fly the ship by W A S D, pulled as a finger would pull it, and let it go when the keys rest', () => {
+  it('fly the ship by W A S D, pulled as a finger would pull it, and let it go where it is when the keys rest', () => {
     jest.useFakeTimers();
     try {
       const { controller, calls, lines } = stage();
@@ -505,17 +571,44 @@ describe('the fingers on the stage', () => {
           programs: 0,
         });
       frame();
-      // The ship parks at (195, 570) and the star is at (200, 380): eight presses of W take it most of the way.
+      // The ship parks at (195, 570) and the star is at (200, 380): one press of W brings it within the star's pull,
+      // still outside the ring the star takes it from.
+      expect(controller.key('w')).toBe(true);
+      for (let step = 0; step < 30; step++) frame();
+      expect(lines).toContain('ship flown by keys');
+      expect(lines.at(-1)).toMatch(/^ship held · pulled to star/);
+      jest.advanceTimersByTime(700);
+      for (let step = 0; step < 30; step++) frame();
+      expect(lines.at(-1)).toMatch(/^ship let go .* → stays$/);
+      expect(calls).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('a star takes a ship held near it from the keys, and their rest then drops nothing', () => {
+    jest.useFakeTimers();
+    try {
+      const { controller, calls, lines } = stage();
+      const frame = () =>
+        mockControl!.afterFrame?.({
+          dt: 1 / 30,
+          flying: false,
+          globe: null,
+          size: { width: 390, height: 844 },
+          programs: 0,
+        });
+      frame();
+      // Eight presses of W take the ship most of the way to the star, well inside its ring.
       for (let press = 0; press < 8; press++) {
         expect(controller.key(press % 2 === 0 ? 'w' : 'W')).toBe(true);
         for (let step = 0; step < 4; step++) frame();
       }
-      for (let step = 0; step < 30; step++) frame();
-      expect(lines).toContain('ship flown by keys');
-      expect(lines.at(-1)).toMatch(/^ship held · pulled to star/);
-      expect(calls).toEqual([]);
-      jest.advanceTimersByTime(700);
       for (let step = 0; step < 60 && calls.length === 0; step++) frame();
+      expect(lines).toContain('ship held → taken by star');
+      expect(calls).toEqual(['focus star']);
+      jest.advanceTimersByTime(700);
+      for (let step = 0; step < 30; step++) frame();
       expect(calls).toEqual(['focus star']);
     } finally {
       jest.useRealTimers();
