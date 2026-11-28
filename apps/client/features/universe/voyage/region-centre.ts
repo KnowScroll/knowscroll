@@ -36,7 +36,7 @@ function inside(loops: readonly Loop[], x: number, y: number): boolean {
 }
 
 /** The distance from a point to the nearest edge of the loops. */
-function distanceToEdge(loops: readonly Loop[], x: number, y: number): number {
+export function distanceToEdge(loops: readonly Loop[], x: number, y: number): number {
   let nearest = Infinity;
   for (const loop of loops) {
     for (let a = 0, b = loop.length - 2; a < loop.length; b = a, a += 2) {

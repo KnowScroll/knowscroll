@@ -15,7 +15,15 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from 'react';
-import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type GestureResponderEvent,
+  type ViewProps,
+  type ViewStyle,
+} from 'react-native';
 import Svg from 'react-native-svg';
 import type { CollectionLandmark } from '@knowscroll/client-core';
 import { chartWorld } from '@knowscroll/scene-core';
@@ -268,7 +276,10 @@ export function VoyageStage({
           hereAt={hereAt}
           ground={stop === 'ground'}
           onPlace={(id) => void session.focus(id)}
-          {...(onMap && stop === 'ground' ? { onGround: () => (controller.justGestured() ? undefined : onMap()) } : {})}
+          {...((stop === 'planet' || stop === 'ground') &&
+          ((planet?.labels.length ?? 0) > 0 || (stop === 'ground' && onMap !== undefined))
+            ? { onBare: controller.tapBare }
+            : {})}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
           stationLooks={stationLooks}
@@ -603,7 +614,7 @@ function VoyageOverlay({
   hereAt,
   ground,
   onPlace,
-  onGround,
+  onBare,
   onStation,
   onDust,
   search,
@@ -629,8 +640,11 @@ function VoyageOverlay({
   /** The camera is at the ground: a region's name is written heavier and larger. */
   readonly ground: boolean;
   readonly onPlace: (id: string) => void;
-  /** A tap on bare ground, under every name: opens the map of the whole planet. Ground only. */
-  readonly onGround?: () => void;
+  /**
+   * A tap on the planet's land that no name took, under every name: focuses the opened region there, or on bare ground
+   * opens the map of the whole planet (`bare-tap.ts`). At the planet stop and on the ground.
+   */
+  readonly onBare?: (event: GestureResponderEvent) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
   /** The sky's answer to an open search, drawn over everything but the buttons' touches. */
@@ -667,16 +681,16 @@ function VoyageOverlay({
   const common = search?.shows === 'common' ? new Set(search.lit ?? []) : undefined;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      {/* Under every name, so a name always wins. It is neither named nor a tab stop: the chip "Map of …" is the button a keyboard and a screen reader reach, and the layer is the same wherever it lands, so it never tells a person which land is closed. */}
-      {onGround ? (
+      {/* Under every name, so a name always wins. It is neither named nor a tab stop: the region's name is the button a keyboard and a screen reader reach (and the chip "Map of …" on the ground), and it answers the sea and land not reached the same way, so it never tells a person which land is closed. */}
+      {onBare ? (
         <Pressable
           style={StyleSheet.absoluteFill}
           focusable={false}
           tabIndex={-1}
           accessibilityRole="button"
           {...HIDDEN}
-          onPress={onGround}
-          testID="voyage-ground-press"
+          onPress={onBare}
+          testID={ground ? 'voyage-ground-press' : 'voyage-globe-press'}
         />
       ) : null}
       {common ? <CommonSky shared={[...common]} anchors={stars} size={size} /> : null}

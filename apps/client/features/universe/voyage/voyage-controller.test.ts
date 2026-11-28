@@ -32,6 +32,7 @@ function recordingSession() {
       calls.push('land');
       return true;
     },
+    camera: () => undefined,
   } as unknown as UniverseMapSession;
   return { session, calls };
 }
@@ -868,5 +869,133 @@ describe('a fall into the stop (a friend’s Universe after the crossing film)',
     frame(true);
     frame(false);
     expect(told).toEqual([true, false]);
+  });
+});
+
+describe('a press on the land that no name took', () => {
+  const size = { width: 390, height: 844 };
+  const planet = { labels: [{ objectId: 'home', x: 0, lat: 0 }] } as unknown as VoyageInputs['planet'];
+
+  /** A controller at `stop` of planet `p`, with `onMap` where the map opens, and the land under a press set by the test. */
+  function atStop(stop: 'planet' | 'ground', mapOpens: boolean) {
+    const { session, calls } = recordingSession();
+    const onMap = jest.fn();
+    const controller = createVoyageController({
+      session,
+      view: { kind: 'planet', planet: descriptor('p'), landed: stop === 'ground' },
+      target: { stop, systemId: 's', planetId: 'p', regionId: null },
+      size,
+      turn: { x: 0, y: 0 },
+      planet,
+      siblings: [],
+      reducedMotion: true,
+      universeFocus: {} as VoyageInputs['universeFocus'],
+      systemFocus: () => undefined,
+      ...(mapOpens ? { onMap } : {}),
+    });
+    controller.setOrigin(10, 20);
+    const asked: { x: number; y: number }[] = [];
+    /** One frame, with the opened region under any point `under` says (the sea and land not reached: null). */
+    const frame = (under: string | null, withHit = true) =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        // The globe's disc: a press at stage (100, 200) is inside it, one at (10, 10) is in the sky round it.
+        globe: { x: 195, y: 350, radiusPx: 200 },
+        size,
+        programs: 0,
+        ...(withHit
+          ? {
+              regionAt: (x: number, y: number) => {
+                asked.push({ x, y });
+                return under;
+              },
+            }
+          : {}),
+      });
+    const press = (pageX: number, pageY: number) =>
+      controller.tapBare({ nativeEvent: { pageX, pageY } } as unknown as Parameters<typeof controller.tapBare>[0]);
+    return { controller, calls, onMap, frame, press, asked };
+  }
+
+  it.each(['planet', 'ground'] as const)(
+    'focuses the region under it at the %s stop, in the stage’s own points',
+    (stop) => {
+      const { calls, onMap, frame, press, asked } = atStop(stop, true);
+      frame('east');
+      press(110, 220);
+      // The press is turned into the stage's points with the origin the stage reported.
+      expect(asked).toEqual([{ x: 100, y: 200 }]);
+      expect(calls).toEqual(['focus east']);
+      expect(onMap).not.toHaveBeenCalled();
+    },
+  );
+
+  it('opens the map from bare ground, and lands on the planet from its bare globe', () => {
+    const ground = atStop('ground', true);
+    ground.frame(null);
+    ground.press(110, 220);
+    expect(ground.onMap).toHaveBeenCalledTimes(1);
+    expect(ground.calls).toEqual([]);
+
+    const orbit = atStop('planet', true);
+    orbit.frame(null);
+    orbit.press(110, 220);
+    expect(orbit.calls).toEqual(['land']);
+    expect(orbit.onMap).not.toHaveBeenCalled();
+  });
+
+  it('does nothing at the planet stop in the sky round the globe', () => {
+    const orbit = atStop('planet', true);
+    orbit.frame(null);
+    orbit.press(20, 30);
+    expect(orbit.calls).toEqual([]);
+    expect(orbit.onMap).not.toHaveBeenCalled();
+  });
+
+  it('treats a press with no point, or before any frame has drawn the land, as bare ground', () => {
+    const noPoint = atStop('ground', true);
+    noPoint.frame('east');
+    noPoint.controller.tapBare({ nativeEvent: {} } as unknown as Parameters<typeof noPoint.controller.tapBare>[0]);
+    expect(noPoint.onMap).toHaveBeenCalledTimes(1);
+    expect(noPoint.calls).toEqual([]);
+
+    const early = atStop('ground', true);
+    early.press(110, 220);
+    expect(early.onMap).toHaveBeenCalledTimes(1);
+    const unseen = atStop('ground', true);
+    unseen.frame('east', false);
+    unseen.press(110, 220);
+    expect(unseen.onMap).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not open a map that cannot open, but still focuses a region', () => {
+    const { calls, frame, press } = atStop('ground', false);
+    frame(null);
+    press(110, 220);
+    expect(calls).toEqual([]);
+    frame('east');
+    press(110, 220);
+    expect(calls).toEqual(['focus east']);
+  });
+
+  it('is not a tap while a gesture has only just ended', () => {
+    const now = jest.spyOn(performance, 'now').mockReturnValue(1000);
+    const { controller, calls, onMap, frame, press } = atStop('ground', true);
+    frame('east');
+    const handlers = controller.responder.panHandlers as unknown as Record<string, (event: unknown) => unknown>;
+    // One finger that turns the land: its end is not a press on whatever lies under it.
+    handlers['onResponderGrant']!(touchEvent([{ id: 0, x: 100, y: 400 }], 1));
+    handlers['onResponderMove']!(touchEvent([{ id: 0, x: 160, y: 400 }], 2));
+    handlers['onResponderEnd']!(touchEvent([], 3));
+    handlers['onResponderRelease']!(touchEvent([], 3));
+    press(110, 220);
+    expect(calls).toEqual([]);
+    expect(onMap).not.toHaveBeenCalled();
+    // A real tap comes later than that.
+    now.mockReturnValue(1351);
+    press(110, 220);
+    expect(calls).toEqual(['focus east']);
+    now.mockRestore();
   });
 });
