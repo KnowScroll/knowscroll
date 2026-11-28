@@ -32,6 +32,7 @@ function recordingSession() {
       calls.push('land');
       return true;
     },
+    camera: () => undefined,
   } as unknown as UniverseMapSession;
   return { session, calls };
 }
@@ -436,6 +437,71 @@ describe('the fingers on the stage', () => {
     expect(calls).toEqual([]);
   });
 
+  /** A finger held left of the star at (200, 380) moves 100 pt nearer and lifts, all within a fifth of a second. */
+  const flickIn = (fingers: ReturnType<typeof stage>['fingers'], frame: () => unknown) => {
+    for (let step = 1; step <= 6; step++) {
+      fingers('move', [{ id: 0, x: 45 + (100 * step) / 6, y: 380 }]);
+      frame();
+    }
+    fingers('end', []);
+  };
+
+  it('a star takes a ship held inside its ring, flies there, and the finger then neither moves nor drops it', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (90 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30 && !lines.includes('ship held → taken by star'); step++) frame();
+    expect(lines).toContain('ship held → taken by star');
+    // The finger is still down: moving it away does not take the ship back.
+    fingers('move', [{ id: 0, x: 40, y: 700 }]);
+    for (let step = 0; step < 60 && calls.length === 0; step++) frame();
+    expect(calls).toEqual(['focus star']);
+    fingers('end', []);
+    expect(lines.at(-1)).not.toMatch(/let go/);
+    for (let step = 0; step < 30; step++) frame();
+    expect(calls).toEqual(['focus star']);
+  });
+
+  it('a star does not take a ship held inside its ring for less than a quarter of a second', () => {
+    const { calls, lines, fingers } = stage();
+    const frame = () =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        globe: null,
+        size: { width: 390, height: 844 },
+        programs: 0,
+      });
+    fingers('start', [{ id: 0, x: 195, y: 570 }]);
+    for (let step = 1; step <= 20; step++) {
+      fingers('move', [{ id: 0, x: 195 - (150 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      frame();
+    }
+    for (let step = 0; step < 30; step++) frame();
+    // Into the ring for a few frames and out again: the ship stays in the hand.
+    for (let step = 0; step < 4; step++) {
+      fingers('move', [{ id: 0, x: 100, y: 380 }]);
+      frame();
+    }
+    for (let step = 0; step < 20; step++) {
+      fingers('move', [{ id: 0, x: 20, y: 600 }]);
+      frame();
+    }
+    expect(lines).not.toContain('ship held → taken by star');
+    expect(calls).toEqual([]);
+  });
+
   it('draw a ship let go near a star into it, then fly there', () => {
     const { calls, lines, fingers } = stage();
     const frame = () =>
@@ -447,14 +513,15 @@ describe('the fingers on the stage', () => {
         programs: 0,
       });
     fingers('start', [{ id: 0, x: 195, y: 570 }]);
-    // 130 pt left of the star: today's pull never reached this far.
+    // Held 155 pt left of the star, outside the ring it takes a held ship from: today's pull never reached this far.
     for (let step = 1; step <= 20; step++) {
-      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      fingers('move', [{ id: 0, x: 195 - (150 * step) / 20, y: 570 - (190 * step) / 20 }]);
       frame();
     }
     for (let step = 0; step < 30; step++) frame();
     expect(lines.at(-1)).toMatch(/^ship held · pulled to star \((gently|firmly|strongly)\)$/);
-    fingers('end', []);
+    // Then a flick toward it, let go before the star has had time to take it.
+    flickIn(fingers, frame);
     expect(lines.at(-1)).toBe('ship let go → drawn into star');
     expect(calls).toEqual([]);
     for (let step = 0; step < 60 && calls.length === 0; step++) frame();
@@ -474,11 +541,11 @@ describe('the fingers on the stage', () => {
       });
     fingers('start', [{ id: 0, x: 195, y: 570 }]);
     for (let step = 1; step <= 20; step++) {
-      fingers('move', [{ id: 0, x: 195 - (125 * step) / 20, y: 570 - (190 * step) / 20 }]);
+      fingers('move', [{ id: 0, x: 195 - (150 * step) / 20, y: 570 - (190 * step) / 20 }]);
       frame();
     }
     for (let step = 0; step < 30; step++) frame();
-    fingers('end', []);
+    flickIn(fingers, frame);
     expect(lines.at(-1)).toBe('ship let go → drawn into star');
     frame();
     fingers('start', [
@@ -492,7 +559,7 @@ describe('the fingers on the stage', () => {
     expect(calls).toEqual([]);
   });
 
-  it('fly the ship by W A S D, pulled as a finger would pull it, and let it go when the keys rest', () => {
+  it('fly the ship by W A S D, pulled as a finger would pull it, and let it go where it is when the keys rest', () => {
     jest.useFakeTimers();
     try {
       const { controller, calls, lines } = stage();
@@ -505,17 +572,44 @@ describe('the fingers on the stage', () => {
           programs: 0,
         });
       frame();
-      // The ship parks at (195, 570) and the star is at (200, 380): eight presses of W take it most of the way.
+      // The ship parks at (195, 570) and the star is at (200, 380): one press of W brings it within the star's pull,
+      // still outside the ring the star takes it from.
+      expect(controller.key('w')).toBe(true);
+      for (let step = 0; step < 30; step++) frame();
+      expect(lines).toContain('ship flown by keys');
+      expect(lines.at(-1)).toMatch(/^ship held · pulled to star/);
+      jest.advanceTimersByTime(700);
+      for (let step = 0; step < 30; step++) frame();
+      expect(lines.at(-1)).toMatch(/^ship let go .* → stays$/);
+      expect(calls).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('a star takes a ship held near it from the keys, and their rest then drops nothing', () => {
+    jest.useFakeTimers();
+    try {
+      const { controller, calls, lines } = stage();
+      const frame = () =>
+        mockControl!.afterFrame?.({
+          dt: 1 / 30,
+          flying: false,
+          globe: null,
+          size: { width: 390, height: 844 },
+          programs: 0,
+        });
+      frame();
+      // Eight presses of W take the ship most of the way to the star, well inside its ring.
       for (let press = 0; press < 8; press++) {
         expect(controller.key(press % 2 === 0 ? 'w' : 'W')).toBe(true);
         for (let step = 0; step < 4; step++) frame();
       }
-      for (let step = 0; step < 30; step++) frame();
-      expect(lines).toContain('ship flown by keys');
-      expect(lines.at(-1)).toMatch(/^ship held · pulled to star/);
-      expect(calls).toEqual([]);
-      jest.advanceTimersByTime(700);
       for (let step = 0; step < 60 && calls.length === 0; step++) frame();
+      expect(lines).toContain('ship held → taken by star');
+      expect(calls).toEqual(['focus star']);
+      jest.advanceTimersByTime(700);
+      for (let step = 0; step < 30; step++) frame();
       expect(calls).toEqual(['focus star']);
     } finally {
       jest.useRealTimers();
@@ -868,5 +962,133 @@ describe('a fall into the stop (a friend’s Universe after the crossing film)',
     frame(true);
     frame(false);
     expect(told).toEqual([true, false]);
+  });
+});
+
+describe('a press on the land that no name took', () => {
+  const size = { width: 390, height: 844 };
+  const planet = { labels: [{ objectId: 'home', x: 0, lat: 0 }] } as unknown as VoyageInputs['planet'];
+
+  /** A controller at `stop` of planet `p`, with `onMap` where the map opens, and the land under a press set by the test. */
+  function atStop(stop: 'planet' | 'ground', mapOpens: boolean) {
+    const { session, calls } = recordingSession();
+    const onMap = jest.fn();
+    const controller = createVoyageController({
+      session,
+      view: { kind: 'planet', planet: descriptor('p'), landed: stop === 'ground' },
+      target: { stop, systemId: 's', planetId: 'p', regionId: null },
+      size,
+      turn: { x: 0, y: 0 },
+      planet,
+      siblings: [],
+      reducedMotion: true,
+      universeFocus: {} as VoyageInputs['universeFocus'],
+      systemFocus: () => undefined,
+      ...(mapOpens ? { onMap } : {}),
+    });
+    controller.setOrigin(10, 20);
+    const asked: { x: number; y: number }[] = [];
+    /** One frame, with the opened region under any point `under` says (the sea and land not reached: null). */
+    const frame = (under: string | null, withHit = true) =>
+      mockControl!.afterFrame?.({
+        dt: 1 / 30,
+        flying: false,
+        // The globe's disc: a press at stage (100, 200) is inside it, one at (10, 10) is in the sky round it.
+        globe: { x: 195, y: 350, radiusPx: 200 },
+        size,
+        programs: 0,
+        ...(withHit
+          ? {
+              regionAt: (x: number, y: number) => {
+                asked.push({ x, y });
+                return under;
+              },
+            }
+          : {}),
+      });
+    const press = (pageX: number, pageY: number) =>
+      controller.tapBare({ nativeEvent: { pageX, pageY } } as unknown as Parameters<typeof controller.tapBare>[0]);
+    return { controller, calls, onMap, frame, press, asked };
+  }
+
+  it.each(['planet', 'ground'] as const)(
+    'focuses the region under it at the %s stop, in the stage’s own points',
+    (stop) => {
+      const { calls, onMap, frame, press, asked } = atStop(stop, true);
+      frame('east');
+      press(110, 220);
+      // The press is turned into the stage's points with the origin the stage reported.
+      expect(asked).toEqual([{ x: 100, y: 200 }]);
+      expect(calls).toEqual(['focus east']);
+      expect(onMap).not.toHaveBeenCalled();
+    },
+  );
+
+  it('opens the map from bare ground, and lands on the planet from its bare globe', () => {
+    const ground = atStop('ground', true);
+    ground.frame(null);
+    ground.press(110, 220);
+    expect(ground.onMap).toHaveBeenCalledTimes(1);
+    expect(ground.calls).toEqual([]);
+
+    const orbit = atStop('planet', true);
+    orbit.frame(null);
+    orbit.press(110, 220);
+    expect(orbit.calls).toEqual(['land']);
+    expect(orbit.onMap).not.toHaveBeenCalled();
+  });
+
+  it('does nothing at the planet stop in the sky round the globe', () => {
+    const orbit = atStop('planet', true);
+    orbit.frame(null);
+    orbit.press(20, 30);
+    expect(orbit.calls).toEqual([]);
+    expect(orbit.onMap).not.toHaveBeenCalled();
+  });
+
+  it('treats a press with no point, or before any frame has drawn the land, as bare ground', () => {
+    const noPoint = atStop('ground', true);
+    noPoint.frame('east');
+    noPoint.controller.tapBare({ nativeEvent: {} } as unknown as Parameters<typeof noPoint.controller.tapBare>[0]);
+    expect(noPoint.onMap).toHaveBeenCalledTimes(1);
+    expect(noPoint.calls).toEqual([]);
+
+    const early = atStop('ground', true);
+    early.press(110, 220);
+    expect(early.onMap).toHaveBeenCalledTimes(1);
+    const unseen = atStop('ground', true);
+    unseen.frame('east', false);
+    unseen.press(110, 220);
+    expect(unseen.onMap).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not open a map that cannot open, but still focuses a region', () => {
+    const { calls, frame, press } = atStop('ground', false);
+    frame(null);
+    press(110, 220);
+    expect(calls).toEqual([]);
+    frame('east');
+    press(110, 220);
+    expect(calls).toEqual(['focus east']);
+  });
+
+  it('is not a tap while a gesture has only just ended', () => {
+    const now = jest.spyOn(performance, 'now').mockReturnValue(1000);
+    const { controller, calls, onMap, frame, press } = atStop('ground', true);
+    frame('east');
+    const handlers = controller.responder.panHandlers as unknown as Record<string, (event: unknown) => unknown>;
+    // One finger that turns the land: its end is not a press on whatever lies under it.
+    handlers['onResponderGrant']!(touchEvent([{ id: 0, x: 100, y: 400 }], 1));
+    handlers['onResponderMove']!(touchEvent([{ id: 0, x: 160, y: 400 }], 2));
+    handlers['onResponderEnd']!(touchEvent([], 3));
+    handlers['onResponderRelease']!(touchEvent([], 3));
+    press(110, 220);
+    expect(calls).toEqual([]);
+    expect(onMap).not.toHaveBeenCalled();
+    // A real tap comes later than that.
+    now.mockReturnValue(1351);
+    press(110, 220);
+    expect(calls).toEqual(['focus east']);
+    now.mockRestore();
   });
 });

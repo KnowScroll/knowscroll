@@ -29,7 +29,8 @@ interface FixtureSystem {
 /**
  * `dust` is the number of unlabelled dust cues the emerging read returns. `moreRegions` adds regions
  * to the same planet as the first one (planet 2), each on the next site of that planet's world. `extraSystems` adds that
- * many synthetic systems (a star and two planets each, one chunk each) beside the first world, for a map at scale (D-417).
+ * many synthetic systems (a star and two planets each, one chunk each) beside the first world, for a map at scale (D-417);
+ * `crowd` sets them closer, on a grid of that many columns `spacing` apart, so their groups meet on screen.
  */
 /** The reads of the person's own play that the Universe makes beside the map: none of them writes anything. */
 export const COLLECTION_READS: readonly string[] = [
@@ -39,7 +40,13 @@ export const COLLECTION_READS: readonly string[] = [
   '/v1/universe/places/concepts/read',
 ];
 
-export function sceneFixture(count = 5, dust = 0, moreRegions = 0, extraSystems = 0) {
+export function sceneFixture(
+  count = 5,
+  dust = 0,
+  moreRegions = 0,
+  extraSystems = 0,
+  crowd?: { readonly columns: number; readonly spacing: number },
+) {
   const geography = { revision: count ? 3 : 0, structureRevision: count ? 3 : 0, activityRevision: 0 };
   const objects: GeographyObject[] = Array.from({ length: count }, (_, n) => {
     const kind =
@@ -223,7 +230,14 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0, extraSystems 
       material: 'solid',
       atmosphere: { density: 0.1 },
       detail: { roughness: 0.2 },
-      anchor: { x: ((n + 1) % 50) * 900, y: Math.floor((n + 1) / 50) * 900, layer: o.kind === 'system' ? 0 : 2 },
+      anchor:
+        crowd === undefined
+          ? { x: ((n + 1) % 50) * 900, y: Math.floor((n + 1) / 50) * 900, layer: o.kind === 'system' ? 0 : 2 }
+          : {
+              x: ((n + 1) % crowd.columns) * crowd.spacing,
+              y: Math.floor((n + 1) / crowd.columns) * crowd.spacing,
+              layer: o.kind === 'system' ? 0 : 2,
+            },
       target: { kind: o.kind, objectId: o.id },
     }));
     systems.push({

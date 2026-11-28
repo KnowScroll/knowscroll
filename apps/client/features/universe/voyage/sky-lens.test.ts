@@ -1,6 +1,7 @@
 import {
   bendFade,
   EINSTEIN_SHARE,
+  mergeOverlapping,
   sourceOf,
   strongestLenses,
   wantedMasses,
@@ -61,13 +62,73 @@ describe('the lenses drawn', () => {
   });
 
   it('drop a mass whose weight has eased to nothing, and keep the widest when there are too many', () => {
-    const masses = [system('a', 0, 20), system('b', 0, 80), system('c', 0, 50), system('gone', 0, 90)];
+    const masses = [system('a', 0, 20), system('b', 1000, 80), system('c', 2000, 50), system('gone', 3000, 90)];
     const weights = new Map([
       ['a', 1],
       ['b', 1],
       ['c', 1],
     ]);
     expect(strongestLenses(masses, weights, 2).map((lens) => lens.radius)).toEqual([80, 50]);
+  });
+});
+
+describe('groups that overlap on screen', () => {
+  const full = (x: number, y: number, radius: number, weight = 1): Lens => ({
+    x,
+    y,
+    radius,
+    einstein: EINSTEIN_SHARE * radius * weight,
+  });
+
+  it('stay apart while their circles do not meet', () => {
+    const apart = [full(100, 300, 50), full(201, 300, 50)];
+    expect(mergeOverlapping(apart)).toEqual(apart);
+  });
+
+  it('become one lens round both, whose mass is the sum of theirs', () => {
+    const [joined, ...rest] = mergeOverlapping([full(100, 300, 50), full(180, 300, 50)]);
+    expect(rest).toEqual([]);
+    expect(joined!.x).toBeCloseTo(140, 9);
+    expect(joined!.y).toBeCloseTo(300, 9);
+    // Round both: from the middle to the far edge of each.
+    expect(joined!.radius).toBeCloseTo(90, 9);
+    expect(joined!.einstein).toBeCloseTo(Math.hypot(EINSTEIN_SHARE * 50, EINSTEIN_SHARE * 50), 9);
+  });
+
+  it('never mirror: a joined lens is held to the share of its circle', () => {
+    const [joined] = mergeOverlapping([full(100, 300, 50), full(101, 300, 50), full(100, 301, 50)]);
+    expect(joined!.einstein).toBeLessThanOrEqual(EINSTEIN_SHARE * joined!.radius + 1e-9);
+  });
+
+  it('join in a chain: a joined circle that meets a third group takes it in, so no spot is bent twice', () => {
+    // a and b meet; c, below the gap between them, meets neither alone, but meets the circle round both.
+    const lenses = [full(100, 300, 40), full(170, 300, 40), full(135, 390, 20)];
+    for (const one of lenses.slice(0, 2)) expect(Math.hypot(one.x - 135, one.y - 390)).toBeGreaterThan(40 + 20);
+    const joined = mergeOverlapping(lenses);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]!.y + joined[0]!.radius).toBeGreaterThanOrEqual(410 - 1e-9);
+  });
+
+  it('move smoothly as a member fades: nearly gone, the joined lens is nearly the one left', () => {
+    const strong = full(100, 300, 50);
+    const [joined] = mergeOverlapping([strong, full(180, 300, 50, 0.01)]);
+    expect(joined!.x).toBeCloseTo(100, 1);
+    expect(joined!.radius).toBeCloseTo(50, 0);
+    expect(joined!.einstein).toBeCloseTo(strong.einstein, 1);
+  });
+
+  it('keep their circle round all while every member eases in together', () => {
+    const [half] = mergeOverlapping([full(100, 300, 50, 0.5), full(180, 300, 50, 0.5)]);
+    expect(half!.radius).toBeCloseTo(90, 9);
+    expect(half!.einstein).toBeCloseTo(Math.hypot(EINSTEIN_SHARE * 25, EINSTEIN_SHARE * 25), 9);
+  });
+
+  it('are slotted as one: the widest after joining are kept', () => {
+    const masses = [system('a', 100, 50), system('b', 180, 50), system('c', 2000, 70)];
+    const weights = new Map(masses.map((mass) => [mass.id, 1]));
+    expect(strongestLenses(masses, weights, 1)).toHaveLength(1);
+    expect(strongestLenses(masses, weights, 1)[0]!.radius).toBeCloseTo(90, 9);
+    expect(strongestLenses(masses, weights, 6)).toHaveLength(2);
   });
 });
 

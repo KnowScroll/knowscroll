@@ -5,6 +5,8 @@ import type { UniverseViewSession } from './universe-session';
 export function useUniverseBack(
   session: Pick<UniverseViewSession, 'back' | 'canBack' | 'escape' | 'getState' | 'subscribe'>,
   enabled: boolean,
+  // The web's history needs it; a phone's Back key has no history to keep.
+  _knowsEntries = false,
 ) {
   useFocusEffect(
     useCallback(() => {

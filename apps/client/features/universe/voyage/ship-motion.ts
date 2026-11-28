@@ -64,8 +64,16 @@ export interface ShipState {
   readonly candidate: string | null;
   /** How hard the candidate pulls, 0 (the edge of its reach) to 1 (the finger on it): for the look of the pull. */
   readonly pullStrength: number;
-  /** Id of the place a ship let go near it is being drawn into, or null. */
+  /**
+   * Id of the place the ship is being drawn into, or null: let go near a body, or taken from the finger by one it was
+   * held inside the fall ring of for {@link HOLD_CAPTURE_SECONDS} ({@link stepShip}).
+   */
   readonly falling: string | null;
+  /**
+   * How long the held ship has stayed inside its candidate's fall ring, in seconds, each counted by how deep in it was
+   * (in full within the catch, nothing at the ring's edge); 0 when it is not in the ring.
+   */
+  readonly dwell: number;
   /** The ship is on the ground (`ShipInput.ground`): landed, lifting only while it is held (`ship-ground.ts`). */
   readonly ground: boolean;
   /** How far a ground ship is lifted, 0 (landed) to 1, linear in time; the look eases it (`liftedOf`). 0 off the ground. */
@@ -210,6 +218,14 @@ const within = (point: Point, bounds: ShipBounds): Point => ({
   y: clamp(point.y, bounds.top, bounds.bottom),
 });
 
+/**
+ * How long a held ship must stay well inside a body's fall ring (within its catch) before the body takes it from the
+ * finger, in seconds; nearer the ring's edge it takes longer (`dwell`). Long enough that a ship dragged across a star is
+ * not snatched in passing (the owner, 28 November: "as spaceship reaches more close the spaceship gets pulled in"). The
+ * prototype never takes a held ship; this is beyond it.
+ */
+export const HOLD_CAPTURE_SECONDS = 0.25;
+
 /** A ship falling toward a body past the edge of its room has arrived once it is this near that edge, in points. */
 const ARRIVED_AT_EDGE = 10;
 
@@ -229,6 +245,7 @@ export function initialShip(home: ShipHome): ShipState {
     candidate: null,
     pullStrength: 0,
     falling: null,
+    dwell: 0,
     ground: false,
     lift: 0,
   };
@@ -271,7 +288,12 @@ export function stepShip(state: ShipState, input: ShipInput, dtSeconds: number):
   const steps = Math.ceil(dt / MAX_SUBSTEP_SECONDS - 1e-9);
   const places = input.drag === null ? null : placesOf(input.targets);
   let ship = state;
-  for (let step = 0; step < steps; step += 1) ship = stepOnce(ship, input, dt / steps, places);
+  let stepInput = input;
+  for (let step = 0; step < steps; step += 1) {
+    ship = stepOnce(ship, stepInput, dt / steps, places);
+    // Taken from the finger: for the rest of this frame the ship falls, as if let go (`takenFromFinger`).
+    if (stepInput.drag !== null && ship.falling !== null) stepInput = { ...input, drag: null };
+  }
   return ship;
 }
 
@@ -303,6 +325,8 @@ function stepOnce(
 
   let candidate: string | null = falling;
   let pullStrength = 0;
+  let dwell = 0;
+  let taken: string | null = null;
   let velocity: Velocity = { vx: state.vx, vy: state.vy };
   let x = state.x;
   let y = state.y;
@@ -333,6 +357,20 @@ function stepOnce(
   }
   x += velocity.vx * dt;
   y += velocity.vy * dt;
+  if (input.drag !== null && candidate !== null) {
+    // Held inside a body's fall ring, the ship is the body's after a moment; out of it, the moment starts again.
+    const body = input.targets.find((target) => target.id === candidate);
+    const pull = body === undefined ? PLACE_PULL : pullOfTarget(body);
+    const gap = body === undefined ? Infinity : Math.hypot(body.x - x, body.y - y);
+    if (pull.fall > 0 && gap < pull.fall) {
+      // The moment runs from nothing at the ring's edge to full speed at the catch, so a ship dragged across the edge of
+      // a ring in passing is not taken, and one held well inside it is, in a quarter of a second.
+      const depth = Math.min(1, (pull.fall - gap) / Math.max(1, pull.fall - pull.capture));
+      dwell = (state.candidate === candidate ? state.dwell : 0) + dt * depth;
+      // Reduced motion has no moment to wait through: inside the ring is taken.
+      if (snap || dwell >= HOLD_CAPTURE_SECONDS) taken = candidate;
+    }
+  }
 
   let lean = state.lean;
   if (free && !snap) {
@@ -390,11 +428,20 @@ function stepOnce(
     free,
     lean,
     candidate,
-    pullStrength,
-    falling,
+    pullStrength: taken === null ? pullStrength : 1,
+    falling: taken ?? falling,
+    dwell: taken === null ? dwell : 0,
     ground: onGround,
     lift,
   };
+}
+
+/**
+ * The body that took the held ship this step, if one did: the ship is falling into it while the finger is still on
+ * it. The caller lets go of the ship for the rest of that touch, so the finger neither takes it again nor drops it.
+ */
+export function takenFromFinger(state: ShipState, held: boolean): string | null {
+  return held ? state.falling : null;
 }
 
 /**

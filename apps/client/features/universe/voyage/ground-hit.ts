@@ -26,7 +26,7 @@ export function bandPointOf(point: SpherePoint): { readonly x: number; readonly 
 }
 
 /** True when (`x`, `y`) is inside the shape of `loops`, by the even-odd rule (a lake or a hole is outside), as the land is filled. */
-function insideLoops(loops: readonly Loop[], x: number, y: number): boolean {
+export function insideLoops(loops: readonly Loop[], x: number, y: number): boolean {
   let inside = false;
   for (const loop of loops) {
     for (let at = 0, before = loop.length - 2; at < loop.length; before = at, at += 2) {

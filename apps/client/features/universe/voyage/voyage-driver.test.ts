@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { paletteOf } from '../planet/planet-palette';
 import { buildSpace, type BuiltSpace } from '../space/scene/build-scene';
 import { SAMPLE_SPACE, type SpaceDefinition } from '../space/space-definition';
+import { projectAnchors } from '../space/space-anchors';
+import { STAND_APART_GAP } from './stand-apart';
+import { stationSize } from './station-look';
 import type { VoyageTarget } from './ladder';
 import { chainOf, type ChainPlaces } from './voyage-chains';
 import type { VoyageControl, VoyageFrame, VoyagePlanet } from './voyage-control';
@@ -45,8 +48,8 @@ const target = (stop: VoyageTarget['stop'], systemId: string | null, planetId: s
 });
 
 /** A driver over a real scene, stepped frame by frame at 30 a second. */
-function rig(initial: VoyageTarget) {
-  const built = buildSpace(definition, size.width / size.height, 1);
+function rig(initial: VoyageTarget, scene: SpaceDefinition = definition) {
+  const built = buildSpace(scene, size.width / size.height, 1);
   const showOnly: (string | null)[] = [];
   const space: BuiltSpace = {
     ...built,
@@ -64,7 +67,7 @@ function rig(initial: VoyageTarget) {
     reducedMotion: false,
     universeFocus: { kind: 'universe', center: { x: 7, z: -4.5 }, halfWidth: 16, halfDepth: 12 },
     systemFocus: (id) => {
-      const system = definition.systems.find((candidate) => candidate.id === id);
+      const system = scene.systems.find((candidate) => candidate.id === id);
       return system && { kind: 'system', systemId: id, center: system.position, radius: 7.5 };
     },
     lean: { x: 0, y: 0 },
@@ -491,5 +494,125 @@ describe('what the scene shows', () => {
     r.driver.attach(other);
     r.driver.render(r.renderer, size);
     expect(r.compileAsync).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('stations and dust stand apart from the suns', () => {
+  /** A station built right beside the first sun, and a forming cloud that lies over it from the whole universe. */
+  const crowded: SpaceDefinition = {
+    ...definition,
+    stations: [{ id: 'station-1', name: 'Station', systemId: base.id, position: { x: 2.3, y: 0.6, z: 0 } }],
+    dust: [{ id: 'dust-1', position: { x: -1.5, y: 0.5, z: -2.5 }, radius: 3.4, dots: 300 }],
+  };
+  const gapOf = (a: { x: number; y: number }, ar: number, b: { x: number; y: number }, br: number): number =>
+    Math.hypot(a.x - b.x, a.y - b.y) - ar - br;
+
+  /** The disc of each of the sun, the station and the cloud on screen in the frame just posed, as the screen reads them. */
+  const discs = (r: ReturnType<typeof rig>) => {
+    const anchors = projectAnchors(r.space, size, undefined);
+    const find = (id: string) => anchors.find((anchor) => anchor.id === id)!;
+    const sun = find(base.id);
+    const station = find('station-1');
+    const dust = find('dust-1');
+    return {
+      sun: { ...sun, radius: sun.radiusPx },
+      station: { ...station, radius: stationSize(station.radiusPx) / 2 },
+      dust: { ...dust, radius: dust.radiusPx },
+    };
+  };
+  /** Within a tenth of a point of the gap: the solver closes in on it. */
+  const CLOSE = 0.1;
+
+  it('keeps the station clear of the sun at a star, where the scene built it over the sun', () => {
+    const r = rig(target('star', base.id), crowded);
+    r.step();
+    const { sun, station } = discs(r);
+    expect(gapOf(station, station.radius, sun, sun.radius)).toBeGreaterThanOrEqual(STAND_APART_GAP - CLOSE);
+  });
+
+  it('keeps the station and the dust clear of the suns and of each other from the whole universe', () => {
+    const r = rig(target('universe', null), crowded);
+    const cloud = r.space.anchors.find((anchor) => anchor.kind === 'dust')!.object;
+    const built = cloud.position.toArray();
+    r.step();
+    // The cloud was built over the sun, so it was moved to clear it.
+    expect(cloud.position.toArray()).not.toEqual(built);
+    const { sun, station, dust } = discs(r);
+    expect(gapOf(station, station.radius, sun, sun.radius)).toBeGreaterThanOrEqual(STAND_APART_GAP - CLOSE);
+    expect(gapOf(dust, dust.radius, sun, sun.radius)).toBeGreaterThanOrEqual(STAND_APART_GAP - CLOSE);
+    expect(gapOf(dust, dust.radius, station, station.radius)).toBeGreaterThanOrEqual(STAND_APART_GAP - CLOSE);
+  });
+
+  it('keeps each object’s own place: it comes back to the same frame after a flight, and never drifts', () => {
+    const r = rig(target('star', base.id), crowded);
+    const objects = r.space.anchors.filter((anchor) => anchor.kind === 'station');
+    const place = () => objects[0]!.object.position.toArray();
+    const built = objects[0]!.object.position.toArray();
+    r.step();
+    const atStar = place();
+    expect(atStar).not.toEqual(built);
+    r.step();
+    expect(place()).toEqual(atStar);
+    r.control.target = target('universe', null);
+    r.settle();
+    r.step();
+    expect(place()).not.toEqual(atStar);
+    r.control.target = target('star', base.id);
+    r.settle();
+    r.step();
+    expect(place()).toEqual(atStar);
+  });
+
+  it('pushes smoothly through a flight from the universe to the star: never a jump from one frame to the next', () => {
+    const r = rig(target('universe', null), crowded);
+    const station = r.space.anchors.find((anchor) => anchor.kind === 'station')!.object;
+    const built = station.position.clone();
+    const onScreen = (at: THREE.Vector3) => {
+      const point = at.clone().project(r.space.camera);
+      return { x: (point.x * 0.5 + 0.5) * size.width, y: (-point.y * 0.5 + 0.5) * size.height };
+    };
+    /** How far, in points, the station is from where it was built, as the camera sees it this frame. */
+    const pushed = () => {
+      const moved = onScreen(station.position);
+      const home = onScreen(built);
+      return Math.hypot(moved.x - home.x, moved.y - home.y);
+    };
+    r.step();
+    r.control.target = target('star', base.id);
+    const pushes = [pushed()];
+    for (let frame = 0; frame < 150; frame += 1) {
+      r.step();
+      pushes.push(pushed());
+      if (!r.last().flying) break;
+    }
+    const jumps = pushes.slice(1).map((push, index) => Math.abs(push - pushes[index]!));
+    expect(pushes.length).toBeGreaterThan(20);
+    expect(Math.max(...pushes)).toBeGreaterThan(5);
+    expect(Math.max(...jumps)).toBeLessThan(3);
+  });
+
+  it('is the same still frame under reduced motion as the frame a flight lands on', () => {
+    const flown = rig(target('universe', null), crowded);
+    flown.step();
+    flown.control.target = target('star', base.id);
+    flown.settle();
+    flown.step();
+    const still = rig(target('universe', null), crowded);
+    still.control.reducedMotion = true;
+    still.step();
+    still.control.target = target('star', base.id);
+    still.step();
+    const station = (r: ReturnType<typeof rig>) =>
+      r.space.anchors.find((anchor) => anchor.kind === 'station')!.object.position.toArray();
+    expect(station(still)).toEqual(station(flown));
+  });
+
+  it('moves nothing in a scene no driver poses: the shipping map keeps the places it built', () => {
+    const plain = buildSpace(crowded, size.width / size.height, 1);
+    const object = plain.anchors.find((anchor) => anchor.kind === 'station')!.object;
+    const built = object.position.toArray();
+    plain.poseAt(1);
+    plain.setCamera({ position: [0, 12, 14], target: [0, 0, 0], fov: 38 });
+    expect(object.position.toArray()).toEqual(built);
   });
 });

@@ -909,3 +909,71 @@ test('with the trial switch off the old map draws the stations itself and the ne
   await expect(page.getByTestId('voyage-stations')).toHaveCount(0);
   await shot(page, 'stations-3-old-map');
 });
+
+/** The radius, in points, of a star's sun at its stop at 390 x 844, a little under what the frames show (28). */
+const SUN_AT_STAR = 24;
+/**
+ * What a station must stand clear of a sun by, in points. The rule is a 12-point gap from the sun's disc; a point or two
+ * is left for the stand-ins being a little off the true discs. A station of the shipping layout stands 2 points from a
+ * sun's button at the whole universe and overlaps the star's circle at a star, so this fails without the rule.
+ */
+const CLEAR_BY = 10;
+
+/** The gap between two circles, in points, negative when they overlap. */
+const gapBetween = (a: Circle, b: Circle): number => Math.hypot(a.x - b.x, a.y - b.y) - a.radius - b.radius;
+
+interface Circle {
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+}
+
+/** The circle a locator's box makes: its middle, and half of its narrower side. */
+async function circleOf(locator: Locator): Promise<Circle> {
+  const box = (await locator.boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2, radius: Math.min(box.width, box.height) / 2 };
+}
+
+/** The circle of each room's station on screen, as its drawn picture's box makes it. */
+async function stationCircles(page: Page): Promise<Circle[]> {
+  return Promise.all(
+    [MEMBER_ROOM_ID, OUTSIDER_ROOM_ID].map((room) =>
+      circleOf(page.getByTestId(`voyage-station-drawn-${room}`).locator(':scope > *').first()),
+    ),
+  );
+}
+
+/**
+ * A station stands clear of every sun on screen. At the whole universe each sun is stood in for by its named button's
+ * box (the voyage lays one over each, about the sun's own size); at a star there is no button on the sun, but the
+ * camera looks at it, so it is at the middle of the stage, and a circle of {@link SUN_AT_STAR} stands in for it.
+ */
+test('a room’s station stands clear of every sun, at the whole universe and at a star', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  // Reduced motion: each stop is one still frame, which has to be right as well.
+  await openVoyage(page, [], { rooms: true, dust: 3, calm: true });
+  const systems = page.getByRole('button', { name: /^CI system \d, a system$/ });
+  await expect(systems.first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId(`voyage-station-drawn-${MEMBER_ROOM_ID}`)).toBeAttached();
+  await landed(page);
+  await shot(page, 'apart-1-universe');
+  const gaps: number[] = [];
+  const suns = await Promise.all((await systems.all()).map(circleOf));
+  for (const station of await stationCircles(page)) for (const sun of suns) gaps.push(gapBetween(station, sun));
+  for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(CLEAR_BY);
+
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await landed(page);
+  await shot(page, 'apart-2-star');
+  const stage = (await page.getByTestId('voyage-stage').boundingBox())!;
+  const sun = { x: stage.x + stage.width / 2, y: stage.y + stage.height / 2, radius: SUN_AT_STAR };
+  const atStar = (await stationCircles(page)).map((station) => gapBetween(station, sun));
+  for (const gap of atStar) expect(gap).toBeGreaterThanOrEqual(CLEAR_BY);
+  const line = `stations clear of the suns by at least ${Math.min(...gaps).toFixed(1)} pt at the whole universe and ${Math.min(...atStar).toFixed(1)} pt at the star`;
+  // eslint-disable-next-line no-console -- the numbers go in the pull request
+  console.log(line);
+  await testInfo.attach('station-gaps', { body: line, contentType: 'text/plain' });
+});

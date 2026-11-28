@@ -111,7 +111,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
     () => (outerHere === null ? session : backWithOuter(session, outerHere)),
     [session, outerHere],
   );
-  useUniverseBack(backSession, foreground);
+  useUniverseBack(backSession, foreground, trial.on);
   const { read } = state;
   const { snapshot, sky, loadedSystemIds } = read;
   // The map is its sky (every system) and the loaded systems' places (D-417); it is rebuilt only when one of them changes,

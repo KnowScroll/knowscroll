@@ -276,19 +276,6 @@ test.describe('on a phone', () => {
     expect(new URL(page.url()).pathname).toBe(new URL(universeUrl).pathname);
     await shot(page, 'outer-roundtrip-home');
 
-    // One press of the browser's Back neither reopens the visit nor leaves the app nor blanks the screen.
-    await page.goBack();
-    await page.waitForTimeout(1500);
-    expect(new URL(page.url()).origin).toBe(new URL(universeUrl).origin);
-    expect(page.url()).not.toContain('/visit/');
-    await expect(page.getByTestId('visitor-bar')).toHaveCount(0);
-    await expect(page.getByTestId('visit-crossing')).toHaveCount(0);
-    expect(await page.locator('body').innerText()).not.toBe('');
-    // The Back press may only step over the marker the stop left in the history: the address and the screen stay.
-    await expect(page).toHaveURL(/\/universe$/);
-    await expect(heading(page, 'Your universe')).toBeVisible();
-    await expect(page.getByTestId('voyage-stage')).toBeVisible();
-    await expect(friendButtons(page)).toHaveCount(0);
     // The in-app Back (Escape, as the Back of a phone's keys) has nowhere to go from your universe, and does nothing.
     await onStage(page);
     await page.keyboard.press('Escape');
@@ -296,6 +283,20 @@ test.describe('on a phone', () => {
     await expect(page).toHaveURL(/\/universe$/);
     await expect(heading(page, 'Your universe')).toBeVisible();
     await expect(friendButtons(page)).toHaveCount(0);
+
+    // Coming home steps off the entry the stop left in the browser's history (this page was opened at the first entry),
+    // so the browser's next Back is a real one: it leaves the Universe as it would have before the trip, and never
+    // reopens the visit.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as { navigation?: { currentEntry?: { index: number } } }).navigation?.currentEntry?.index,
+        ),
+      )
+      .toBe(0);
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/universe$/);
+    expect(page.url()).not.toContain('/visit/');
   });
 
   test('has no accessibility violations at the stop, and none of its decoration is in the tree', async ({ page }) => {

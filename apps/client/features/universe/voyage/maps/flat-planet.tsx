@@ -1,5 +1,5 @@
-import { memo, useEffect, useId, useMemo, useState } from 'react';
-import { Animated, Platform, StyleSheet, View } from 'react-native';
+import { memo, useEffect, useId, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { Animated, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import Svg, { ClipPath, Defs, G, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { fontFamily, universe } from '@knowscroll/design-tokens';
 import type { Chart, ChartedCell, GlobeWorld } from '@knowscroll/scene-core';
@@ -9,6 +9,7 @@ import { mixRgb } from '../../space/paint';
 import { centreOfCell } from '../region-centre';
 import { BAND_HEIGHT, BAND_WIDTH } from '../world-texture';
 import { clipsOf, nameSpots, pointOnScreen, WHOLE_BAND, type Box, type CopyClip, type Size } from './map-layout';
+import { regionAtMapPoint } from './map-hit';
 
 /**
  * The flat drawing of a planet: the globe's own band (`GlobeWorld`, the world the ground and the globe are painted
@@ -78,14 +79,12 @@ function FormedLand({
   cells,
   palette,
   emphasised,
-  onChoose,
 }: {
   world: GlobeWorld;
   cells: readonly ChartedCell[];
   palette: PlanetPalette;
   /** A region's own map: a solid, heavier border instead of the dashed one. */
   emphasised: boolean;
-  onChoose: ((objectId: string) => void) | undefined;
 }) {
   const id = unique(useId());
   const coast = useMemo(() => loopsToPath(world.land), [world]);
@@ -99,13 +98,7 @@ function FormedLand({
         </ClipPath>
       </Defs>
       {cells.map((cell) => (
-        <Path
-          key={cell.objectId}
-          d={loopsToPath(cell.loops)}
-          fill={palette.land[cell.site % 4]}
-          fillRule="evenodd"
-          {...(onChoose ? { onPress: () => onChoose(cell.objectId) } : {})}
-        />
+        <Path key={cell.objectId} d={loopsToPath(cell.loops)} fill={palette.land[cell.site % 4]} fillRule="evenodd" />
       ))}
       <G clipPath={`url(#${id}formed)`}>
         <Path d={loopsToPath(world.lowland)} fill={palette.lowland} opacity={0.6} fillRule="evenodd" />
@@ -136,7 +129,6 @@ interface LandProps {
   readonly clips: readonly CopyClip[];
   /** A region's own map: this region in full, the others faded. */
   readonly focusId: string | undefined;
-  readonly onChoose: ((objectId: string) => void) | undefined;
 }
 
 /**
@@ -144,7 +136,7 @@ interface LandProps {
  * formed region (the ground keeps it off the same way). Memoised: it draws again only for a new world, chart or
  * palette, never while a list under it scrolls.
  */
-const Land = memo(function Land({ world, chart, palette, clips, focusId, onChoose }: LandProps) {
+const Land = memo(function Land({ world, chart, palette, clips, focusId }: LandProps) {
   const id = unique(useId());
   const coast = useMemo(() => loopsToPath(world.land), [world]);
   const grey = useMemo(() => loopsToPath(chart.unreached.flatMap((land) => land.loops)), [chart]);
@@ -203,16 +195,10 @@ const Land = memo(function Land({ world, chart, palette, clips, focusId, onChoos
             <Path d={clouds.core} fill="#ffffff" fillRule="evenodd" transform="translate(-1.2 -2)" />
             {others.length === 0 ? null : (
               <G opacity={DIMMED}>
-                <FormedLand world={world} cells={others} palette={palette} emphasised={false} onChoose={undefined} />
+                <FormedLand world={world} cells={others} palette={palette} emphasised={false} />
               </G>
             )}
-            <FormedLand
-              world={world}
-              cells={own}
-              palette={palette}
-              emphasised={focusId !== undefined}
-              onChoose={onChoose}
-            />
+            <FormedLand world={world} cells={own} palette={palette} emphasised={focusId !== undefined} />
           </G>
         </G>
       ))}
@@ -302,7 +288,10 @@ export interface FlatPlanetProps {
   /** The region left through Open: an orange dot. The list under the map says it in words; the dot alone keeps a crowded cluster of names readable. */
   readonly hereId?: string | null | undefined;
   readonly reducedMotion: boolean;
-  /** A tap on a formed region's land. Leave out where land is not for choosing (a region's own map). */
+  /**
+   * A tap on a formed region's land, or near it (`map-hit.ts`: every region has a target of at least 44 points, and the
+   * nearest wins within 24 points of its edge). Leave out where land is not for choosing (a region's own map).
+   */
   readonly onChoose?: (objectId: string) => void;
 }
 
@@ -339,6 +328,27 @@ export function FlatPlanet({
     [chart, names, fontUnits, focusId, hereCell, scale],
   );
   // In a region's own map the dot stands on the region's own point, which may be past the seam, where the crop is.
+  const layer = useRef<ComponentRef<typeof View>>(null);
+  /** The region a tap at (`x`, `y`) points of the drawing chooses, if any. */
+  const chooseAt = (x: number, y: number) => {
+    const id = regionAtMapPoint(
+      chart.charted,
+      { x: box.x + (x * box.width) / size.width, y: box.y + (y * box.height) / size.height },
+      scale,
+    );
+    if (id !== null) onChoose?.(id);
+  };
+  /**
+   * The tap's point on the drawing (the press layer fills it). A touch tells where it is on the layer; a browser's click
+   * tells where it is on the page, so the layer's own place is read then.
+   */
+  const choose = (event: GestureResponderEvent) => {
+    if (onChoose === undefined) return;
+    const { locationX, locationY, pageX, pageY } = event.nativeEvent;
+    if (Number.isFinite(locationX) && Number.isFinite(locationY)) chooseAt(locationX, locationY);
+    else if (Number.isFinite(pageX) && Number.isFinite(pageY))
+      layer.current?.measureInWindow((left, top) => chooseAt(pageX - left, pageY - top));
+  };
   const herePoint = useMemo(() => {
     if (hereCell === undefined) return undefined;
     const point = plan === null ? centreOfCell(hereCell, BAND_WIDTH) : plan.marker;
@@ -347,7 +357,7 @@ export function FlatPlanet({
   return (
     <View testID="flat-planet" style={{ width: size.width, height: size.height }} {...HIDDEN}>
       <Svg width={size.width} height={size.height} viewBox={`${box.x} ${box.y} ${box.width} ${box.height}`}>
-        <Land world={world} chart={chart} palette={palette} clips={clips} focusId={focusId} onChoose={onChoose} />
+        <Land world={world} chart={chart} palette={palette} clips={clips} focusId={focusId} />
         {(plan?.names ?? []).map((spot) => (
           <Name
             key={spot.objectId}
@@ -359,6 +369,19 @@ export function FlatPlanet({
           />
         ))}
       </Svg>
+      {/* One press layer over the whole drawing: the answer is worked out from the tap's point, never from which shape was
+      hit, so a small region is as easy to choose as a large one. A plain view that answers touches, not a button: on the
+      web a button carries a tab index, and nothing inside the hidden drawing may be focusable at all. The list is the way in. */}
+      {onChoose === undefined ? null : (
+        <View
+          ref={layer}
+          style={StyleSheet.absoluteFill}
+          onStartShouldSetResponder={() => true}
+          onResponderTerminationRequest={() => true}
+          onResponderRelease={choose}
+          testID="flat-planet-press"
+        />
+      )}
       {herePoint === undefined ? null : <HereMarker x={herePoint.x} y={herePoint.y} reducedMotion={reducedMotion} />}
     </View>
   );

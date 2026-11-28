@@ -3,6 +3,7 @@ import { GROUND_SIZE, SHADOW_OPACITY } from './ship-ground';
 import {
   arrival,
   drawn,
+  HOLD_CAPTURE_SECONDS,
   initialShip,
   landShip,
   parkingSpot,
@@ -10,6 +11,7 @@ import {
   recentreShip,
   releaseShip,
   stepShip,
+  takenFromFinger,
   type ShipInput,
   type ShipState,
   type ShipTarget,
@@ -201,25 +203,73 @@ describe('the pull of a body', () => {
     expect(distance(state, { x: 110, y: 160 })).toBeLessThan(2);
   });
 
-  it('moves the same at 30, 60 and 120 frames a second: held near the sun, and falling into it', () => {
-    /** The ship at `seconds`, stepped at `fps`: taken from home to a finger held 120 pt from the sun, let go at 1.5 s. */
+  it('moves the same at 30, 60 and 120 frames a second: held near the sun, taken by it, and falling into it', () => {
+    /** The ship at `seconds`, stepped at `fps`: taken from home to a finger held 120 pt from the sun until it takes it. */
     const at = (fps: number, seconds: number) => {
       let state = initialShip(HOME);
+      let holding = true;
       const input = { ...BASE, targets: [sun] };
       for (let frame = 1; frame <= Math.round(seconds * fps); frame++) {
-        // The finger lifts at 1.5 s exactly, a frame boundary at every rate.
-        const holding = frame <= Math.round(1.5 * fps);
-        if (frame === Math.round(1.5 * fps) + 1) state = releaseShip(state, [sun]).state;
         state = stepShip(state, { ...input, drag: holding ? { x: 80, y: 380 } : null }, 1 / fps);
+        // As the controller does: the hand lets go once the sun has the ship.
+        if (holding && takenFromFinger(state, true) !== null) holding = false;
       }
       return state;
     };
-    expect(at(60, 1.4).candidate).toBe('sun');
-    expect(at(60, 1.6).falling).toBe('sun');
+    expect(at(60, 0.3).candidate).toBe('sun');
+    expect(at(60, 1.9).falling).toBe('sun');
     for (const seconds of [0.3, 0.8, 1.4, 1.7, 1.9]) {
       expect(distance(at(30, seconds), at(120, seconds))).toBeLessThan(1);
       expect(distance(at(60, seconds), at(120, seconds))).toBeLessThan(1);
     }
+  });
+
+  describe('taking a held ship', () => {
+    /**
+     * A ship already at `at` and held there near `target`, stepped at 60 frames a second for `seconds` or until the
+     * target takes it (the controller lets go of it then).
+     */
+    const holdAt = (at: { x: number; y: number }, seconds: number, target: ShipTarget = sun, reducedMotion = false) => {
+      let state: ShipState = { ...initialShip(HOME), x: at.x, y: at.y };
+      const input = { ...BASE, reducedMotion, drag: at, targets: [target] };
+      for (let frame = 0; frame < Math.round(seconds / FRAME) && takenFromFinger(state, true) === null; frame++)
+        state = stepShip(state, input, FRAME);
+      return state;
+    };
+
+    it('takes a ship held well inside the ring in a quarter of a second, and not before', () => {
+      // 60 pt from the sun: inside its catch, so the moment runs at full speed.
+      expect(takenFromFinger(holdAt({ x: 140, y: 380 }, HOLD_CAPTURE_SECONDS - 0.05), true)).toBeNull();
+      const taken = holdAt({ x: 140, y: 380 }, HOLD_CAPTURE_SECONDS + 0.05);
+      expect(takenFromFinger(taken, true)).toBe('sun');
+      expect(taken.pullStrength).toBe(1);
+    });
+
+    it('takes a ship held near the ring’s edge more slowly, and one outside it never', () => {
+      const ring = sun.pull!.fall;
+      // Held just inside the edge, the ship is pulled a little deeper and the moment runs at half speed or less.
+      const edge = { x: 200 - ring + 8, y: 380 };
+      expect(takenFromFinger(holdAt(edge, HOLD_CAPTURE_SECONDS * 1.5), true)).toBeNull();
+      expect(takenFromFinger(holdAt(edge, 1.5), true)).toBe('sun');
+      expect(takenFromFinger(holdAt({ x: 200 - ring - 30, y: 380 }, 3), true)).toBeNull();
+    });
+
+    it('keeps a ship that leaves the ring before the moment is up: the moment starts again', () => {
+      let state = holdAt({ x: 140, y: 380 }, HOLD_CAPTURE_SECONDS * 0.6);
+      expect(state.dwell).toBeGreaterThan(0);
+      state = run(state, { ...BASE, drag: { x: 20, y: 650 }, targets: [sun] }, 0.5);
+      expect(state.dwell).toBe(0);
+      expect(state.falling).toBeNull();
+    });
+
+    it('never takes a ship held over a place that is not a body: a room is opened by a drop', () => {
+      const room: ShipTarget = { id: 'room', x: 200, y: 380 };
+      expect(takenFromFinger(holdAt({ x: 205, y: 380 }, 2, room), true)).toBeNull();
+    });
+
+    it('takes it at once under reduced motion', () => {
+      expect(takenFromFinger(holdAt({ x: 140, y: 380 }, FRAME, sun, true), true)).toBe('sun');
+    });
   });
 
   it('draws a ship let go near it in, and says when it has reached it', () => {

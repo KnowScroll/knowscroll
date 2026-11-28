@@ -15,7 +15,15 @@ import {
   useSyncExternalStore,
   type ComponentRef,
 } from 'react';
-import { Platform, Pressable, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+  type GestureResponderEvent,
+  type ViewProps,
+  type ViewStyle,
+} from 'react-native';
 import Svg from 'react-native-svg';
 import type { CollectionLandmark } from '@knowscroll/client-core';
 import { chartWorld } from '@knowscroll/scene-core';
@@ -47,6 +55,8 @@ import { placeLabels, type LabelRequest, type UniverseView } from '../universe-l
 import type { UniverseMapSession } from '../universe-session';
 import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
+import { goToStop, railOf } from './rail-stops';
+import { LevelRail, railBoxes } from './level-rail';
 import { NOWHERE, type Stands } from './ground-home';
 import { GROUND_SIZE, shipBoxOf } from './ship-ground';
 import { createVoyageController, type VoyageController, type VoyageInputs } from './voyage-controller';
@@ -220,6 +230,10 @@ export function VoyageStage({
 
   const systemId = inputs.target.systemId;
   const stop = inputs.target.stop;
+  const rail = useMemo(
+    () => railOf(stop, { otherUniverses: outer !== null, ground: !visitor }),
+    [stop, outer, visitor],
+  );
   /** The place the camera is at: its name wins a crowded spot. */
   const focusId = inputs.target.regionId ?? inputs.target.planetId ?? inputs.target.systemId;
   /** On the ground, the opened region the ship stands on: its name is a "you are here" pill under the ship. */
@@ -251,24 +265,30 @@ export function VoyageStage({
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {
       const own = ownAt(stop, systemId);
+      // Only a star's stop draws its sun among the names; nearer, the sun fades away (`planet-close-up.ts`) and its
+      // anchor, off screen and many times the screen's size, would keep every region's name off the globe.
       const sun =
-        stop === 'universe'
-          ? undefined
-          : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
+        stop === 'star' ? info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId) : undefined;
       const named = info.anchors.filter(namedAt(stop, systemId));
       return (
         <VoyageOverlay
           anchors={named}
           calm={calmNames(named, index, state.lately)}
           written={STOPS[stop].written}
-          keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
+          keepOff={[
+            ...railBoxes(rail, size, desktop),
+            ...(sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []),
+          ]}
           size={size}
           focusId={focusId}
           hereId={hereId}
           hereAt={hereAt}
           ground={stop === 'ground'}
           onPlace={(id) => void session.focus(id)}
-          {...(onMap && stop === 'ground' ? { onGround: () => (controller.justGestured() ? undefined : onMap()) } : {})}
+          {...((stop === 'planet' && !visitor) ||
+          (stop === 'ground' && ((planet?.labels.length ?? 0) > 0 || onMap !== undefined))
+            ? { onBare: controller.tapBare }
+            : {})}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
           stationLooks={stationLooks}
@@ -299,6 +319,9 @@ export function VoyageStage({
       state.reducedMotion,
       state.lately,
       index,
+      rail,
+      desktop,
+      visitor,
     ],
   );
 
@@ -359,6 +382,13 @@ export function VoyageStage({
           reducedMotion={state.reducedMotion}
         />
       ) : null}
+      {/* Under the flight's skip target: a tap anywhere during a flight skips it, the rail's included. */}
+      <LevelRail
+        stops={rail}
+        height={size.height}
+        desktop={desktop}
+        onGo={(to) => void goToStop(session, view, stop, to, outer)}
+      />
       <FlightLine to={flying ? destinationOf(view, visitor, outerOn) : null} size={size} onSkip={controller.skip} />
     </View>
   );
@@ -603,7 +633,7 @@ function VoyageOverlay({
   hereAt,
   ground,
   onPlace,
-  onGround,
+  onBare,
   onStation,
   onDust,
   search,
@@ -629,8 +659,11 @@ function VoyageOverlay({
   /** The camera is at the ground: a region's name is written heavier and larger. */
   readonly ground: boolean;
   readonly onPlace: (id: string) => void;
-  /** A tap on bare ground, under every name: opens the map of the whole planet. Ground only. */
-  readonly onGround?: () => void;
+  /**
+   * A tap on the planet's land that no name took, under every name: focuses the opened region there, or on bare ground
+   * opens the map of the whole planet (`bare-tap.ts`). At the planet stop and on the ground.
+   */
+  readonly onBare?: (event: GestureResponderEvent) => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
   /** The sky's answer to an open search, drawn over everything but the buttons' touches. */
@@ -667,16 +700,16 @@ function VoyageOverlay({
   const common = search?.shows === 'common' ? new Set(search.lit ?? []) : undefined;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      {/* Under every name, so a name always wins. It is neither named nor a tab stop: the chip "Map of …" is the button a keyboard and a screen reader reach, and the layer is the same wherever it lands, so it never tells a person which land is closed. */}
-      {onGround ? (
+      {/* Under every name, so a name always wins. It is neither named nor a tab stop: the region's name is the button a keyboard and a screen reader reach (and the chip "Map of …" on the ground), and it answers the sea and land not reached the same way, so it never tells a person which land is closed. */}
+      {onBare ? (
         <Pressable
           style={StyleSheet.absoluteFill}
           focusable={false}
           tabIndex={-1}
           accessibilityRole="button"
           {...HIDDEN}
-          onPress={onGround}
-          testID="voyage-ground-press"
+          onPress={onBare}
+          testID={ground ? 'voyage-ground-press' : 'voyage-globe-press'}
         />
       ) : null}
       {common ? <CommonSky shared={[...common]} anchors={stars} size={size} /> : null}

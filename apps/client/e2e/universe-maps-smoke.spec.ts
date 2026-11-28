@@ -40,6 +40,129 @@ async function toGround(page: Page, size: Size, paths: string[], options: Voyage
   await landed(page);
 }
 
+/** A point of the ground at 390 x 844 and at 1440 x 900 over CI region 4's land, and one over open sea (calm, so the same every run). */
+const LAND_ON_GROUND = { phone: { x: 200, y: 250 }, desktop: { x: 1000, y: 350 } } as const;
+const SEA_ON_GROUND = { phone: { x: 8, y: 450 }, desktop: { x: 200, y: 300 } } as const;
+
+/** The point is on the ground's press layer, so no name, chip or ship is on top of it. */
+const ownedByGroundPress = (page: Page, at: { x: number; y: number }): Promise<boolean> =>
+  page.evaluate(
+    ([x, y]) => document.elementFromPoint(x!, y!)?.closest('[data-testid="voyage-ground-press"]') !== null,
+    [at.x, at.y],
+  );
+
+/** Flies to CI planet 2's globe, the planet stop. Reduced motion turns it to face its first region and holds it still. */
+async function toPlanetStop(page: Page, size: Size): Promise<void> {
+  await openVoyage(page, [], { size, calm: true, alternate: true });
+  const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+  await system.click();
+  const planet = page.getByRole('button', { name: 'CI planet 2, a planet', exact: true });
+  await expect(planet).toBeVisible({ timeout: 30_000 });
+  await tapOrbitingTarget(planet);
+  await expect(page.getByRole('button', { name: /^CI region \d, a region$/ }).first()).toBeVisible({ timeout: 30_000 });
+  await landed(page);
+  await expect(page.getByTestId('voyage-globe-press')).toHaveCount(1);
+  await page.waitForTimeout(1200);
+}
+
+/** Whether the planet stop's press layer is what is under a point. */
+const ownedByGlobePress = (page: Page, at: { x: number; y: number }): Promise<boolean> =>
+  page.evaluate(
+    ([x, y]) => document.elementFromPoint(x!, y!)?.closest('[data-testid="voyage-globe-press"]') !== null,
+    [at.x, at.y],
+  );
+
+test.describe('at the planet stop (390 x 844)', () => {
+  /** CI region 7's land, up and left of its name, which stands about (278, 362); the globe is at about (195, 348) with a radius of 142. */
+  const REGION_7_LAND = { x: 249, y: 319 };
+  const GLOBE_SEA = { x: 114, y: 397 };
+  const SKY = { x: 60, y: 215 };
+
+  test('a tap on a region’s land, away from its name, reaches that region as its name does', async ({ page }) => {
+    test.setTimeout(240_000);
+    await toPlanetStop(page, SIZES[0]);
+    const name = await region(page, 7).boundingBox();
+    expect(name).not.toBeNull();
+    // Not on the name's button: the press layer is what is under the finger, and it is further than a button from the name.
+    expect(await ownedByGlobePress(page, REGION_7_LAND)).toBe(true);
+    expect(Math.hypot(REGION_7_LAND.x - (name!.x + 24), REGION_7_LAND.y - (name!.y + 24))).toBeGreaterThan(40);
+    await shot(page, 'regions-2-planet-before-tap');
+    await page.mouse.click(REGION_7_LAND.x, REGION_7_LAND.y);
+    await expect(mapNamed(page, 'CI region 7, a region of CI planet 2')).toBeVisible();
+    await expect(mapNamed(page, MAP)).toHaveCount(0);
+    await expectNothingClosed(page);
+    await shot(page, 'regions-3-planet-after-tap');
+  });
+
+  test('a tap on the globe’s sea lands on the planet, and a tap in the sky round it does nothing', async ({ page }) => {
+    test.setTimeout(240_000);
+    await toPlanetStop(page, SIZES[0]);
+    expect(await ownedByGlobePress(page, SKY)).toBe(true);
+    await page.mouse.click(SKY.x, SKY.y);
+    // Nothing can be waited on when nothing happens: a flight would show its line, and the stop would change.
+    await page.waitForTimeout(1500);
+    await expect(page.getByRole('button', { name: 'Back to CI system 0', exact: true })).toBeVisible();
+    await expect(page.getByTestId('voyage-globe-press')).toHaveCount(1);
+
+    expect(await ownedByGlobePress(page, GLOBE_SEA)).toBe(true);
+    await page.mouse.click(GLOBE_SEA.x, GLOBE_SEA.y);
+    await expect(chip(page)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
+    await expect(screenOf(page)).toHaveCount(0);
+  });
+
+  test('a region’s name still works, and the press layer is neither named nor a tab stop', async ({ page }) => {
+    test.setTimeout(240_000);
+    await toPlanetStop(page, SIZES[0]);
+    const layer = page.getByTestId('voyage-globe-press');
+    await expect(layer).toHaveAttribute('tabindex', '-1');
+    await expect(layer).toHaveAttribute('aria-hidden', 'true');
+    await expectNoSeriousViolations(page);
+    await region(page, 5).click();
+    await expect(mapNamed(page, 'CI region 5, a region of CI planet 2')).toBeVisible();
+  });
+});
+
+test('on the planet’s map every region is a target of at least 44 points and the nearest wins near its edge', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await toGround(page, SIZES[0], []);
+  await openMapByChip(page);
+  await expect(page.getByTestId('flat-planet-press')).toHaveCount(1);
+  // Not focusable at all, as nothing in the hidden drawing is.
+  await expect(page.getByTestId('flat-planet-press')).not.toHaveAttribute('tabindex');
+  // Each formed region's dashed border is one path: where each region is on the page, in points.
+  const boxes = await page.locator('[data-testid="flat-planet"] path[stroke-dasharray]').evaluateAll((paths) =>
+    paths.map((path) => {
+      const { x, y, width, height } = path.getBoundingClientRect();
+      return { x, y, width, height };
+    }),
+  );
+  expect(boxes).toHaveLength(4);
+  // CI region 5 is the westmost of the four. A tap 10 points beyond its western edge, level with its middle, is on the
+  // sea: no land is under it, but it is within the 24 points that choose the nearest region.
+  const west = boxes[1]!;
+  expect(west.x).toBeLessThan(Math.min(...boxes.filter((box) => box !== west).map((box) => box.x)));
+  const near = { x: west.x - 10, y: west.y + west.height / 2 };
+  await shot(page, 'regions-4-map-before-near-tap');
+  await page.mouse.click(near.x, near.y);
+  await expect(mapNamed(page, 'CI region 5, a region of CI planet 2')).toBeVisible();
+});
+
+test('a tap on the planet’s map far from every region chooses nothing', async ({ page }) => {
+  test.setTimeout(240_000);
+  await toGround(page, SIZES[0], []);
+  await openMapByChip(page);
+  const drawing = await page.getByTestId('flat-planet').boundingBox();
+  expect(drawing).not.toBeNull();
+  // The top left corner of the band is open sea, far from the formed regions.
+  await page.mouse.click(drawing!.x + 8, drawing!.y + 8);
+  await page.waitForTimeout(800);
+  await expect(mapNamed(page, MAP)).toBeVisible();
+});
+
 /** Axe over the whole page; serious and critical findings fail. */
 async function expectNoSeriousViolations(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page })
@@ -163,28 +286,47 @@ for (const size of SIZES) {
       await expect(screenOf(page)).toHaveCount(0);
       await landed(page);
 
-      // A spot where nothing is named and no chrome stands: the press layer is what is under the finger.
-      const spot = await page.evaluate(() => {
-        for (let y = 0.3; y < 0.62; y += 0.04)
-          for (let x = 0.08; x < 0.95; x += 0.07) {
-            const at = document.elementFromPoint(window.innerWidth * x, window.innerHeight * y);
-            if (at?.closest('[data-testid="voyage-ground-press"]'))
-              return { x: window.innerWidth * x, y: window.innerHeight * y };
-          }
-        return null;
-      });
-      expect(spot).not.toBeNull();
+      // A spot of sea where nothing is named and no chrome stands: the press layer is what is under the finger. (Land
+      // under the finger would be a tap on a region, which opens that region's map, not this one.)
+      const spot = { ...SEA_ON_GROUND[size.label] };
+      expect(await ownedByGroundPress(page, spot)).toBe(true);
       // A drag past the turn threshold is a turn of the land, not a press.
-      await page.mouse.move(spot!.x, spot!.y);
+      await page.mouse.move(spot.x, spot.y);
       await page.mouse.down();
-      for (let step = 1; step <= 6; step++) await page.mouse.move(spot!.x + step * 12, spot!.y, { steps: 2 });
+      // The coast runs up and down here, so a drag up and down keeps the sea under the spot.
+      for (let step = 1; step <= 6; step++) await page.mouse.move(spot.x, spot.y + step * 3, { steps: 2 });
       await page.mouse.up();
       await expect(screenOf(page)).toHaveCount(0);
       // The stage treats a press within 350 ms of a gesture as the end of it: a real tap comes later than that.
       await page.waitForTimeout(450);
-      await page.mouse.click(spot!.x, spot!.y);
+      await page.mouse.click(spot.x, spot.y);
       await expect(mapNamed(page, MAP)).toBeVisible();
       await expect(page.getByTestId('map-title')).toHaveText(MAP);
+    });
+
+    test('a tap on a region’s land opens that region, a tap on the sea or land not reached opens the planet’s map', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000);
+      await toGround(page, size, []);
+      await page.waitForTimeout(1200);
+      // The camera has come down over CI region 4: the pale land round the ship is its own, never a name's button.
+      const land = LAND_ON_GROUND[size.label];
+      expect(await ownedByGroundPress(page, land)).toBe(true);
+      await shot(page, `regions-1-ground-before-tap-${size.label}`);
+      await page.mouse.click(land.x, land.y);
+      await expect(mapNamed(page, 'CI region 4, a region of CI planet 2')).toBeVisible();
+      await expect(mapNamed(page, MAP)).toHaveCount(0);
+      await expectNothingClosed(page);
+      await page.getByRole('button', { name: 'Back to CI planet 2' }).click();
+      await expect(screenOf(page)).toHaveCount(0);
+      await landed(page);
+
+      // The sea answers no region, so it is bare ground: the planet's own map.
+      const sea = SEA_ON_GROUND[size.label];
+      expect(await ownedByGroundPress(page, sea)).toBe(true);
+      await page.mouse.click(sea.x, sea.y);
+      await expect(mapNamed(page, MAP)).toBeVisible();
     });
 
     test('Escape and the browser’s Back each go one step, and agree with the header’s Back', async ({ page }) => {

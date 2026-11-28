@@ -20,6 +20,7 @@ import { targetKey, type Stop, type VoyageTarget } from './ladder';
 import { createPlanetCloseUp } from './planet-close-up';
 import { createShipLayer } from './ship-layer';
 import { createSkyBend } from './sky-bend';
+import { createStandApart } from './stand-apart-scene';
 import {
   chainOf,
   focalOf,
@@ -93,6 +94,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   const closeUp = createPlanetCloseUp(control);
   const shipLayer = createShipLayer();
   const skyBend = createSkyBend();
+  const standApart = createStandApart();
   /** The scene the driver was last attached to, and the one whose globe program has been compiled. */
   let attachedTo: BuiltSpace | null = null;
   let compiledFor: BuiltSpace | null = null;
@@ -378,6 +380,8 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       const keptAlone = leaving !== null && leaving.stop !== 'universe' && q < 0.4 ? leaving.systemId : null;
       const alone = control.target.stop !== 'universe' && q > 0.6 ? control.target.systemId : keptAlone;
       space.showOnly(alone);
+      // Stations and forming dust stand clear of the suns and of each other, in the frame the camera is posed for.
+      standApart.apply(space, camera, size);
       return camera;
     },
     render(renderer, size) {

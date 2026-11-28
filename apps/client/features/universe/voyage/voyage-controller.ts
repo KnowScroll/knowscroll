@@ -11,6 +11,7 @@ import type { loadSpaceRenderer } from '../space/load-space-renderer';
 import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
+import { bareTapOf } from './bare-tap';
 import { createFlightLegs } from './flight-legs';
 import type { Disc, Point } from './outer/friend-field';
 import type { OuterStop } from './outer/outer-stop';
@@ -22,12 +23,14 @@ import { footOf } from './ship-ground';
 import {
   arrival,
   drawn,
+  HOLD_CAPTURE_SECONDS,
   initialShip,
   landShip,
   parkingSpot,
   pickShip,
   releaseShip,
   stepShip,
+  takenFromFinger,
   type DrawnShip,
   type ShipHome,
   type ShipTarget,
@@ -314,6 +317,12 @@ export interface VoyageController {
   readonly setObstacles: (circles: readonly Disc[]) => void;
   /** Whether a finger took the ship, turned the land or pinched a moment ago: a press now is the end of that, not a tap on bare ground. */
   justGestured(): boolean;
+  /**
+   * A press on the planet's land that no name took, at the planet stop or on the ground (`bare-tap.ts`): the opened region
+   * under it is focused, as its name does; else the globe lands, or bare ground opens the planet's map. The end of a gesture is no tap. A
+   * property, so the stage can hand it on.
+   */
+  readonly tapBare: (event: GestureResponderEvent) => void;
   /** Ends the flight under way at once: the camera is where it was going. A property, so the stage can hand it on. */
   readonly skip: () => void;
   /** Stops what the controller started outside React (the wheel's rest timer). Call it when the stage goes. */
@@ -336,6 +345,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     heading: 0,
   });
   let held: { x: number; y: number } | null = null;
+  /** A body took the ship from the finger holding it: until that finger lifts, its moves neither take nor drop the ship. */
+  let takenFromTouch = false;
   let seconds = 0;
   /** On the ground the ship has left its region and stands at its own spot on screen (`groundHome`). */
   let parked = false;
@@ -360,6 +371,9 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   const clampField = (pan: Point): Point => inputs.clampOuterPan?.(pan) ?? pan;
   /** The last frame was in a fall into the stop. */
   let fell = false;
+  /** Which opened region's land is under a point of the screen, and where the globe is, as the last frame drew them. */
+  let regionAtLast: VoyageFrame['regionAt'];
+  let globeLast: VoyageFrame['globe'] = null;
 
   const control: VoyageControl = {
     target: first.target,
@@ -374,6 +388,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     skips: 0,
     fallIn: first.fallIn ?? null,
     afterFrame: (frame): DrawnShip => {
+      regionAtLast = frame.regionAt;
+      globeLast = frame.globe;
       seconds += frame.dt;
       pinch.frame(frame.dt, frame.flying);
       const { width, height } = frame.size;
@@ -442,6 +458,19 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
             })
           : NOWHERE,
       );
+      const taken = takenFromFinger(ship, held !== null);
+      if (taken !== null) {
+        // A body took the ship from the hand: the hand lets go, and the rest of its touch neither moves nor drops it.
+        if (keyHeld) stopKeys();
+        else takenFromTouch = true;
+        held = null;
+        tell(`ship held → taken by ${nameOf(taken)}`);
+        // Reduced motion has no fall to watch: it goes at once.
+        if (inputs.reducedMotion) {
+          ship = landShip(ship);
+          go(taken, 'taken →');
+        }
+      }
       const reached = away ? null : arrival(ship, targets, bounds);
       if (reached !== null) {
         ship = landShip(ship);
@@ -470,10 +499,12 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
       else if (pinch.pinching() && frame.flying) tell('pinch · hurrying the flight to its stop');
       const caught = ship.candidate === null ? undefined : targets.find((target) => target.id === ship.candidate);
       if (caught === undefined) return drawn(ship);
-      // Lit in full where letting go now would go there (or the ship is already falling in), else as it pulls.
+      // Lit in full where letting go now would go there (or the ship is already falling in), else as it pulls; held
+      // inside a body's fall ring it fills toward full as the moment before the body takes it runs out.
       const goes =
         ship.falling !== null || Math.hypot(caught.x - ship.x, caught.y - ship.y) < (caught.pull ?? PLACE_PULL).capture;
-      return drawn(ship, { x: caught.x, y: caught.y }, goes ? 1 : ship.pullStrength);
+      const lit = goes ? 1 : Math.max(ship.pullStrength, ship.dwell / HOLD_CAPTURE_SECONDS);
+      return drawn(ship, { x: caught.x, y: caught.y }, lit);
     },
   };
   const pinch = createPinchGesture(control);
@@ -631,23 +662,31 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   };
 
   let gesturedAt = Number.NEGATIVE_INFINITY;
+  const justGestured = () => performance.now() - gesturedAt < AFTER_GESTURE_MS;
   const act = (gesture: StageGesture) => {
     gesturedAt = performance.now();
     switch (gesture.kind) {
       case 'ship-take':
         // A finger takes the ship from the keys: it is the finger's to let go now.
         stopKeys();
+        takenFromTouch = false;
         held = gesture.at;
         tell('ship held');
         return;
       case 'ship-move':
-        held = gesture.at;
+        if (!takenFromTouch) held = gesture.at;
         return;
       case 'ship-let-go':
-        letGoOfShip(gesture.moved);
+        // The finger that a body took the ship from lifts: the ship is already on its way, and stays so.
+        if (takenFromTouch) takenFromTouch = false;
+        else letGoOfShip(gesture.moved);
         return;
       case 'ship-home':
         // A second finger (or the system) took the touch: the ship is no longer held, and goes home.
+        if (takenFromTouch) {
+          takenFromTouch = false;
+          return;
+        }
         held = null;
         parked = false;
         ship = recentreShip(ship);
@@ -850,11 +889,26 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     setObstacles: (circles) => {
       obstacles = circles;
     },
-    justGestured: () => performance.now() - gesturedAt < AFTER_GESTURE_MS,
+    justGestured,
+    tapBare: (event) => {
+      if (justGestured()) return;
+      // A press with no point (a keyboard's) is on no land: it is bare ground.
+      const { pageX, pageY } = event.nativeEvent;
+      const at = Number.isFinite(pageX) && Number.isFinite(pageY) ? local(event) : null;
+      const regionId = at === null ? null : (regionAtLast?.(at.x, at.y) ?? null);
+      const onGlobe =
+        at !== null && globeLast !== null && Math.hypot(at.x - globeLast.x, at.y - globeLast.y) <= globeLast.radiusPx;
+      const tap = bareTapOf(inputs.target.stop, regionId, { mapOpens: inputs.onMap !== undefined, onGlobe });
+      if (tap.kind === 'region') void inputs.session.focus(tap.id);
+      else if (tap.kind === 'land') void inputs.session.land();
+      else if (tap.kind === 'map') inputs.onMap?.();
+    },
     skip() {
       control.skips += 1;
     },
     dispose() {
+      // A stage that has gone holds nothing: no body takes, and no key's rest drops, a ship it held.
+      if (keyHeld) held = null;
       stopKeys();
       clearTimeout(wheelTimer);
       wheelTimer = undefined;
