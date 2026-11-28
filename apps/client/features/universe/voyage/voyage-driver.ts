@@ -19,6 +19,7 @@ import { flightAt, planFlight, type FlightPlan } from './flight';
 import { targetKey, type VoyageTarget } from './ladder';
 import { createPlanetCloseUp } from './planet-close-up';
 import { createShipLayer } from './ship-layer';
+import { createSkyBend } from './sky-bend';
 import {
   chainOf,
   focalOf,
@@ -73,6 +74,7 @@ interface Flight {
 export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
   const closeUp = createPlanetCloseUp(control);
   const shipLayer = createShipLayer();
+  const skyBend = createSkyBend();
   /** The scene the driver was last attached to, and the one whose globe program has been compiled. */
   let attachedTo: BuiltSpace | null = null;
   let compiledFor: BuiltSpace | null = null;
@@ -209,6 +211,17 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
       // The stage draws the rooms' stations itself, flat over the canvas (`station-layer.tsx`); the scene's own are not.
       space.showStations(false);
       closeUp.attach(space);
+      skyBend.attach(space);
+    },
+    drawScene(renderer, space, size) {
+      const { stop, systemId, planetId } = control.target;
+      skyBend.draw(renderer, space, {
+        target: { stop, systemId, planetId },
+        size,
+        dt: lastDt,
+        reducedMotion: control.reducedMotion,
+        globe: closeUp.onScreen(),
+      });
     },
     pose(t, space, size) {
       /** Since the last frame: a flight keeps to the clock, as it always has; easing steps at most 0.1 s. */
@@ -359,6 +372,7 @@ export function createVoyageDriver(control: VoyageControl): SpaceCameraDriver {
     dispose() {
       closeUp.dispose();
       shipLayer.dispose();
+      skyBend.dispose();
     },
   };
 }
