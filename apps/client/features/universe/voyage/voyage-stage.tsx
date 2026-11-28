@@ -251,10 +251,10 @@ export function VoyageStage({
   const overlay = useCallback(
     (info: SpaceOverlayInfo) => {
       const own = ownAt(stop, systemId);
+      // Only a star's stop draws its sun among the names; nearer, the sun fades away (`planet-close-up.ts`) and its
+      // anchor, off screen and many times the screen's size, would keep every region's name off the globe.
       const sun =
-        stop === 'universe'
-          ? undefined
-          : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
+        stop === 'star' ? info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId) : undefined;
       const named = info.anchors.filter(namedAt(stop, systemId));
       return (
         <VoyageOverlay
