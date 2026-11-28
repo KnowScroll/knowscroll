@@ -11,6 +11,7 @@ import type { loadSpaceRenderer } from '../space/load-space-renderer';
 import type { SpaceAnchor } from '../space/space-surface';
 import type { UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
+import { bareTapOf } from './bare-tap';
 import { createFlightLegs } from './flight-legs';
 import type { Disc, Point } from './outer/friend-field';
 import type { OuterStop } from './outer/outer-stop';
@@ -316,6 +317,12 @@ export interface VoyageController {
   readonly setObstacles: (circles: readonly Disc[]) => void;
   /** Whether a finger took the ship, turned the land or pinched a moment ago: a press now is the end of that, not a tap on bare ground. */
   justGestured(): boolean;
+  /**
+   * A press on the planet's land that no name took, at the planet stop or on the ground (`bare-tap.ts`): the opened region
+   * under it is focused, as its name does; else the globe lands, or bare ground opens the planet's map. The end of a gesture is no tap. A
+   * property, so the stage can hand it on.
+   */
+  readonly tapBare: (event: GestureResponderEvent) => void;
   /** Ends the flight under way at once: the camera is where it was going. A property, so the stage can hand it on. */
   readonly skip: () => void;
   /** Stops what the controller started outside React (the wheel's rest timer). Call it when the stage goes. */
@@ -364,6 +371,9 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   const clampField = (pan: Point): Point => inputs.clampOuterPan?.(pan) ?? pan;
   /** The last frame was in a fall into the stop. */
   let fell = false;
+  /** Which opened region's land is under a point of the screen, and where the globe is, as the last frame drew them. */
+  let regionAtLast: VoyageFrame['regionAt'];
+  let globeLast: VoyageFrame['globe'] = null;
 
   const control: VoyageControl = {
     target: first.target,
@@ -378,6 +388,8 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     skips: 0,
     fallIn: first.fallIn ?? null,
     afterFrame: (frame): DrawnShip => {
+      regionAtLast = frame.regionAt;
+      globeLast = frame.globe;
       seconds += frame.dt;
       pinch.frame(frame.dt, frame.flying);
       const { width, height } = frame.size;
@@ -650,6 +662,7 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
   };
 
   let gesturedAt = Number.NEGATIVE_INFINITY;
+  const justGestured = () => performance.now() - gesturedAt < AFTER_GESTURE_MS;
   const act = (gesture: StageGesture) => {
     gesturedAt = performance.now();
     switch (gesture.kind) {
@@ -876,7 +889,20 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     setObstacles: (circles) => {
       obstacles = circles;
     },
-    justGestured: () => performance.now() - gesturedAt < AFTER_GESTURE_MS,
+    justGestured,
+    tapBare: (event) => {
+      if (justGestured()) return;
+      // A press with no point (a keyboard's) is on no land: it is bare ground.
+      const { pageX, pageY } = event.nativeEvent;
+      const at = Number.isFinite(pageX) && Number.isFinite(pageY) ? local(event) : null;
+      const regionId = at === null ? null : (regionAtLast?.(at.x, at.y) ?? null);
+      const onGlobe =
+        at !== null && globeLast !== null && Math.hypot(at.x - globeLast.x, at.y - globeLast.y) <= globeLast.radiusPx;
+      const tap = bareTapOf(inputs.target.stop, regionId, { mapOpens: inputs.onMap !== undefined, onGlobe });
+      if (tap.kind === 'region') void inputs.session.focus(tap.id);
+      else if (tap.kind === 'land') void inputs.session.land();
+      else if (tap.kind === 'map') inputs.onMap?.();
+    },
     skip() {
       control.skips += 1;
     },

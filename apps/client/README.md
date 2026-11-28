@@ -675,7 +675,9 @@ float over it.
     whole planet as a flat drawing of the ground's own world with its formed regions named and the list of them under
     it. A region's row opens that region's own map (map 2: its land, its next Scroll or Reel and its other format with
     Open, "you were here"); so does a region's name on the ground, which no longer opens the old region card in this
-    look. Land not reached yet is one grey shape with no name, count or press, and neither map says anything about what
+    look, and so does a tap on an opened region's land (on the ground and at the planet stop, and on map 1 with a
+    44 point target for every region and the nearest winning within 24 points of its edge): only the sea and land not
+    reached count as bare ground. Land not reached yet is one grey shape with no name, count or press, and neither map says anything about what
     is closed or how much is left. Back, Escape, the header's Back chip, hardware Back and the browser's Back each go
     one step: map 2, map 1, the ground it was opened from. Looking at map 1 sends nothing; map 2 does the card's one
     preview read. The stage under a map stays mounted but is unreachable. `e2e/universe-maps-smoke.spec.ts`.

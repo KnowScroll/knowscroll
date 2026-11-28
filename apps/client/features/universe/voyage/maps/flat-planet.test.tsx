@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { buildGlobe, chartWorld, type WorldSpec } from '@knowscroll/scene-core';
 import { SAMPLE_SEED, SAMPLE_SITE_COUNT, seamSiteOf } from '../../../gallery/maps-gallery-fixtures';
 import { paletteOf } from '../../planet/planet-palette';
 import { loopsToPath } from '../../planet/svg-paths';
+import { centreOfCell } from '../region-centre';
+import { BAND_WIDTH } from '../world-texture';
 import { FlatPlanet, greyOf, type FlatPlanetProps } from './flat-planet';
 import { copiesOf, cropOf, WHOLE_BAND } from './map-layout';
 
@@ -12,6 +14,8 @@ const palette = paletteOf('lush', 0);
 const grey = greyOf(palette);
 const seamSite = seamSiteOf(spec)!;
 const size = { width: 360, height: 270 };
+/** The drawing is out of reach of assistive technology, so a query has to say it means to look in it. */
+const HIDDEN = { includeHiddenElements: true };
 
 const regionsAt = (sites: readonly number[]) => sites.map((site) => ({ objectId: `region-${site}`, site }));
 const namesAt = (sites: readonly number[]) =>
@@ -99,8 +103,9 @@ describe('the flat drawing of a planet: land not reached (D-109)', () => {
     const spoken = writtenNames();
     expect(spoken.length).toBeGreaterThan(0);
     for (const name of spoken) expect(Array.from(namesAt(sites).values())).toContain(name);
-    // One press handler for each formed region's land, and no other path has one.
-    expect(pressable()).toHaveLength(sites.length);
+    // No shape answers a press: one layer over the drawing works out the region from the tap's point.
+    expect(pressable()).toHaveLength(0);
+    expect(screen.getAllByTestId('flat-planet-press', HIDDEN)).toHaveLength(1);
     // Nothing on the drawing says anything about land that is not reached.
     expect(spoken.join(' | ')).not.toMatch(/uncharted|not reached|unreached|locked|grey|gray|left to|more to/i);
   });
@@ -172,10 +177,51 @@ describe('a region’s own map', () => {
     );
     // Nothing is pressable in a region's own map.
     expect(pressable()).toHaveLength(0);
+    expect(screen.queryByTestId('flat-planet-press', HIDDEN)).toBeNull();
   });
 
   it('draws the whole band once when it is not cropped', async () => {
     await render(<FlatPlanet {...props([0, 1, 2, 3], { box: WHOLE_BAND })} />);
     expect(greyPaths()).toHaveLength(1);
+  });
+});
+
+describe('choosing a region by a tap on the flat drawing', () => {
+  const sites = [0, 2, 3, 5];
+  /** A press at a point of the band on the whole-band drawing, as the press layer reports it. */
+  const pressAtBand = (x: number, y: number) =>
+    fireEvent.press(screen.getByTestId('flat-planet-press', HIDDEN), {
+      nativeEvent: { locationX: (x * size.width) / WHOLE_BAND.width, locationY: (y * size.height) / WHOLE_BAND.height },
+    });
+
+  it('chooses the region whose land is tapped, and nothing for the sea or land not reached', async () => {
+    const onChoose = jest.fn();
+    const chart = chartWorld(world, regionsAt(sites));
+    await render(<FlatPlanet {...props(sites, { onChoose })} />);
+    for (const cell of chart.charted) {
+      onChoose.mockClear();
+      const at = centreOfCell(cell, BAND_WIDTH);
+      await pressAtBand(at.x, at.y);
+      expect(onChoose).toHaveBeenCalledTimes(1);
+      expect(onChoose).toHaveBeenCalledWith(cell.objectId);
+    }
+    onChoose.mockClear();
+    // A corner of the band is open sea, far from any formed region.
+    await pressAtBand(1, 1);
+    expect(onChoose).not.toHaveBeenCalled();
+  });
+
+  it('chooses nothing from a press that carries no point', async () => {
+    const onChoose = jest.fn();
+    await render(<FlatPlanet {...props(sites, { onChoose })} />);
+    await fireEvent.press(screen.getByTestId('flat-planet-press', HIDDEN));
+    expect(onChoose).not.toHaveBeenCalled();
+  });
+
+  it('is not a tab stop and has no name of its own', async () => {
+    await render(<FlatPlanet {...props(sites, { onChoose: jest.fn() })} />);
+    const layer = screen.getByTestId('flat-planet-press', HIDDEN);
+    expect(layer.props.tabIndex).toBe(-1);
+    expect(layer.props.accessibilityLabel).toBeUndefined();
   });
 });
