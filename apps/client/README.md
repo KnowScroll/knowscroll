@@ -562,7 +562,15 @@ float over it.
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
     the whole universe only the star you are at is named, and no name sits on its sun; from the whole universe rooms
     keep their buttons but not their written names. Names on a planet's land are ink with a cream halo.
-  - **Return to X** shows at any stop when the ship is parked somewhere other than the place in view.
+  - **Return to X** shows at any stop when the ship is parked somewhere other than the place in view, except at the
+    star of the parked planet: pressing Back from a planet lands on its star, which must not at once offer the planet
+    you just left (`returnOffered`, `voyage/return-chip.ts`). It still shows at the whole universe, and at another star
+    or planet. The old look offers it at the whole universe only.
+  - **Chips and names, finished in the new look only.** The List view chip and the Lately chip (while off) take a dark
+    glass fill (`rgba(10,20,28,0.55)`, `SpaceChip`'s `glass`) so they read over pale land; with Lately on, the written
+    names of quiet stars and planets dim to 0.7 (`calmNames`, `voyage/calm-names.ts`), as the old look's labels do;
+    names on land are not dimmed. One planet whose world cannot be drawn shows as its plain list here too
+    (`onRefused` reaches `VoyageStage`), as in the old look.
   - It drives the map's own scene through `SpaceView` with a camera driver (`voyage-driver.ts`, `SpaceCameraDriver`
     in `space-renderer.ts`); without the switch nothing of it runs and the animated steps down play as before. The
     driver is made of parts: where places stand (`voyage-chains.ts`, pure), which way the camera looks

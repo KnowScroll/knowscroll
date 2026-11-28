@@ -125,6 +125,18 @@ describe('the ship layer', () => {
     layer.dispose();
   });
 
+  it('draws both sides of every sprite and part, because the layer camera is y-down and flips the winding', () => {
+    const layer = createShipLayer();
+    const drawn = [...meshes(layer.scene), ...sprites(layer.scene)];
+    // The parts, the flame glow and the catch glow: a single-sided one is back-face culled and never seen.
+    expect(drawn.length).toBeGreaterThanOrEqual(11);
+    for (const node of drawn) expect((node.material as THREE.Material).side).toBe(THREE.DoubleSide);
+    // The camera really is y-down (top above bottom in screen terms).
+    layer.resize(390, 844);
+    expect(layer.camera.top).toBeLessThan(layer.camera.bottom);
+    layer.dispose();
+  });
+
   it('releases every geometry, material and the glow texture on dispose', () => {
     const layer = createShipLayer();
     const geometryDisposals = meshes(layer.scene).map((mesh) => jest.spyOn(mesh.geometry, 'dispose'));

@@ -186,6 +186,55 @@ describe('the voyage driver camera', () => {
   });
 });
 
+describe("a fall into the stop (a friend's Universe after the crossing film)", () => {
+  const universe = target('universe', null);
+  /** Frames of a fall, the first one included, until it lands. */
+  const fall = (r: ReturnType<typeof rig>) => [r.step(), ...r.settle()];
+
+  it('starts seven times out on the first frame it is asked for, with no ship, and lands at the stop', () => {
+    const r = rig(universe);
+    r.control.fallIn = { id: 1, fromScale: 7, again: false };
+    const distances = fall(r);
+    expect(distances[0]! / r.stopDistance(universe)).toBeCloseTo(7, 0);
+    expect(r.frames[0]!.flying).toBe(true);
+    expect(r.last().flying).toBe(false);
+    expect(r.step()).toBeCloseTo(r.stopDistance(universe));
+  });
+
+  it("takes the prototype's 1.6 s the first time and about 0.9 s after", () => {
+    const first = rig(universe);
+    first.control.fallIn = { id: 1, fromScale: 7, again: false };
+    const again = rig(universe);
+    again.control.fallIn = { id: 1, fromScale: 7, again: true };
+    // Frames at 30 a second, within two frames of 0.9 + 0.36 ln 7 (and of 0.55 of it).
+    expect(Math.abs(fall(first).length - 1.6 * 30)).toBeLessThanOrEqual(2);
+    expect(Math.abs(fall(again).length - 0.88 * 30)).toBeLessThanOrEqual(2);
+  });
+
+  it('falls once for each id, from a stage at rest too', () => {
+    const r = rig(universe);
+    r.step();
+    r.control.fallIn = { id: 1, fromScale: 7, again: false };
+    fall(r);
+    r.step();
+    expect(r.last().flying).toBe(false);
+    r.control.fallIn = { id: 2, fromScale: 7, again: true };
+    r.step();
+    expect(r.last().flying).toBe(true);
+  });
+
+  it('makes no fall under reduced motion, and none later for that id', () => {
+    const r = rig(universe);
+    r.control.reducedMotion = true;
+    r.control.fallIn = { id: 1, fromScale: 7, again: false };
+    expect(r.step()).toBeCloseTo(r.stopDistance(universe));
+    expect(r.last().flying).toBe(false);
+    r.control.reducedMotion = false;
+    r.step();
+    expect(r.last().flying).toBe(false);
+  });
+});
+
 describe('a pinch', () => {
   it('moves the camera with the fingers, toward the place under them, and eases back when let go short of a stop', () => {
     const r = rig(target('universe', null));
