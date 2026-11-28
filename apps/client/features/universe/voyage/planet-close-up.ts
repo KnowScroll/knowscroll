@@ -11,6 +11,7 @@ import type { BuiltSpace } from '../space/scene/build-scene';
 import type { SpaceAnchor } from '../space/space-surface';
 import { wrapAngle } from './flight';
 import { createGlobe, localPointOf } from './globe';
+import { bandPointOf, regionAtBand } from './ground-hit';
 import type { ViewSize } from './voyage-chains';
 import type { GlobeOnScreen, VoyageControl, VoyagePlanet } from './voyage-control';
 import {
@@ -111,6 +112,11 @@ export interface PlanetCloseUp {
   /** The globe's regions facing the camera, as named points, once it is big enough to name them. */
   anchors(space: BuiltSpace, size: ViewSize, world: VoyagePlanet | null): SpaceAnchor[];
   /**
+   * The opened region whose land is under a point of the screen, or null for the sea, land not reached, a point off the
+   * globe, and any region the planet's labels do not name (`ground-hit.ts`).
+   */
+  regionAt(space: BuiltSpace, size: ViewSize, world: VoyagePlanet | null, x: number, y: number): string | null;
+  /**
    * Compiles the globe's shader program, without drawing it: the globe first shows mid-flight, as the camera nears a
    * planet, and a program linked then holds that frame back.
    */
@@ -148,7 +154,12 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
     normal: new THREE.Vector3(),
     view: new THREE.Vector3(),
     point: new THREE.Vector3(),
+    ray: new THREE.Ray(),
+    sphere: new THREE.Sphere(),
+    hit: new THREE.Vector3(),
   };
+  /** The regions the planet's labels name, for {@link regionAt}: kept while the same world is on the globe. */
+  let named: { readonly key: string; readonly ids: ReadonlySet<string> } | null = null;
 
   const giveBack = (space: BuiltSpace) => {
     if (closeUpOf === null) return;
@@ -364,6 +375,25 @@ export function createPlanetCloseUp(control: VoyageControl): PlanetCloseUp {
         });
       }
       return anchors;
+    },
+    regionAt(space, size, world, x, y) {
+      if (world === null || !globe.mesh.visible) return null;
+      if (named?.key !== world.key)
+        named = { key: world.key, ids: new Set(world.labels.map((label) => label.objectId)) };
+      space.camera.updateMatrixWorld();
+      globe.mesh.updateMatrixWorld();
+      // The ray from the camera through the point, and where it first meets the globe's sphere.
+      const { ray, sphere, hit } = scratch;
+      ray.origin.setFromMatrixPosition(space.camera.matrixWorld);
+      ray.direction
+        .set((x / size.width) * 2 - 1, -(y / size.height) * 2 + 1, 0.5)
+        .unproject(space.camera)
+        .sub(ray.origin)
+        .normalize();
+      sphere.center.copy(globe.mesh.position);
+      sphere.radius = globe.mesh.scale.x;
+      if (ray.intersectSphere(sphere, hit) === null) return null;
+      return regionAtBand(world.chart, named.ids, bandPointOf(globe.mesh.worldToLocal(hit)));
     },
     compile(renderer, space) {
       // `compileAsync` links without blocking the frame where the browser can (KHR_parallel_shader_compile). The

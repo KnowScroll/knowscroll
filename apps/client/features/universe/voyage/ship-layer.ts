@@ -82,6 +82,20 @@ const CATCH_GLOW = {
     [1, 0],
   ],
 } as const;
+/**
+ * The soft shadow of a ship on the ground: the prototype's `rgba(21,48,42,0.3)` ellipse (`drawGlobe`, line 1354), here a
+ * radial gradient so its edge is soft, never a line or a ring. Alpha from the middle out: full to half way, then fading.
+ */
+const SHADOW = {
+  colour: '#15302A',
+  stops: [
+    [0, 1],
+    [0.5, 0.8],
+    [1, 0],
+  ],
+} as const;
+/** The shadow is not drawn at or below this opacity. */
+const SHADOW_HIDDEN = 0.01;
 /** The ship is not drawn at or below this opacity: the prototype's `fa <= 0.02` (line 1920). */
 const HIDDEN_ALPHA = 0.02;
 /** How far either side of the board the layer's camera sees. Parts are ordered by `renderOrder`, not depth, so it only has to be wide enough to cut nothing. */
@@ -259,8 +273,24 @@ export function createShipLayer(): ShipLayer {
   const rim = PORTHOLE.rim / 2;
   addPart(board, translatedGeometry([circleShape(PORTHOLE.x, PORTHOLE.y, PORTHOLE.radius + rim)]), COLOURS.portholeRim);
   addPart(board, translatedGeometry([circleShape(PORTHOLE.x, PORTHOLE.y, PORTHOLE.radius - rim)]), COLOURS.porthole);
+  // The shadow lies on the land under the ship, in screen points, below the catch glow and every part of the ship.
+  const shadowTexture = pixelTexture(radialGlow(SHADOW.stops, GLOW_SIZE));
+  const shadowMaterial = new THREE.SpriteMaterial({
+    map: shadowTexture,
+    color: SHADOW.colour,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    // The layer's camera has its top above its bottom (y down), which turns every face round: as the ship's parts are.
+    side: THREE.DoubleSide,
+  });
+  materials.push(shadowMaterial);
+  const shadow = new THREE.Sprite(shadowMaterial);
+  shadow.renderOrder = -2;
+  shadow.visible = false;
   scene.add(root);
   scene.add(catchGlow);
+  scene.add(shadow);
 
   return {
     scene,
@@ -274,6 +304,13 @@ export function createShipLayer(): ShipLayer {
     },
     draw(ship, seconds = 0) {
       root.visible = ship.alpha > HIDDEN_ALPHA;
+      const lying = ship.shadow;
+      shadow.visible = lying !== undefined && lying.opacity > SHADOW_HIDDEN;
+      if (lying !== undefined) {
+        shadow.position.set(lying.x, lying.y, 0);
+        shadow.scale.set(lying.width, lying.height, 1);
+        shadowMaterial.opacity = lying.opacity;
+      }
       const catchAt = ship.catchAt ?? null;
       catchGlow.visible = root.visible && catchAt !== null;
       if (catchAt !== null) {
@@ -302,10 +339,12 @@ export function createShipLayer(): ShipLayer {
     dispose() {
       scene.remove(root);
       scene.remove(catchGlow);
+      scene.remove(shadow);
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
       glowTexture.dispose();
       catchTexture.dispose();
+      shadowTexture.dispose();
       geometries.length = 0;
       materials.length = 0;
     },

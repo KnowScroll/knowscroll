@@ -35,7 +35,11 @@ import { centreOfCell } from './region-centre';
  * The ground has a second, smaller texture, the patch (`groundPatchOf`): the same painter over the same loops, but only
  * for a window of the band round the place the camera comes down over, at a density that suits the ground's lens and
  * with the coast and border lines drawn in screen points (the prototype's caps) instead of band units. So the ground
- * is sharp where you look and is still one drawing with the globe's.
+ * is sharp where you look and is still one drawing with the globe's, with three differences that make opened land easy to
+ * tell from land not reached: the patch has no weather, land not reached is the ground's grey ({@link groundGreyOf}) with a
+ * darker outline, and the sea beside it is shaded where opened land has the pale shelf and the foam. The whole-band
+ * texture, which shows where the patch does not reach, carries the mask of land not reached ({@link WorldTexture.closed}) and keeps its
+ * weather in a layer of its own ({@link WorldTexture.weather}), so the globe can do the same.
  *
  * This file is reached from the main bundle (the stage reads `labelPoints`), so it must not import
  * `three`; `globe.ts` is what puts the pixels on a sphere.
@@ -57,6 +61,27 @@ const CLOUD_SHADOW = '#06182a';
  */
 const UNREACHED_GREY_MIX = 0.86;
 /**
+ * On the ground the unreached grey is the prototype's flat-ground grey first: `mix(lock[0], lock[1], 0.2 + 0.3 * flat)`
+ * at `flat` 1 (`drawGlobe`, line 1333), which is half way from the palette's first grey to its second. It is darker and
+ * more neutral than the globe's, so land not reached stops reading as a pale shallow of the sea or a patch of lowland.
+ */
+const GROUND_GREY_MIX = 0.5;
+/**
+ * How far, as a distance between two colours over 0..255 channels, the ground's grey must lie from the whole of the sea
+ * and from every colour a formed region wears. The palette's greys are never turned with the hue, but its sea and land
+ * are, so a planet's own grey can land on its sea (a barren planet's lilac grey on its lilac sea): then the next
+ * candidate in {@link groundGreyOf} is used.
+ */
+const GROUND_GREY_APART = 60;
+/** On the ground the coast of land not reached is inked at the prototype's 0.75 (`drawGlobe`, line 1334), the formed coast's 0.7 is as it was. */
+const GROUND_GREY_COAST_ALPHA = 0.75;
+/**
+ * On the ground the sea round land not reached is shaded, not lit: where a formed coast has its pale shelf, foam and
+ * glow, the water beside grey land is the palette's shadow at this alpha across the shelf's width. So the bright
+ * lit edge belongs to land the person has opened, and a coast is read as open or closed before its colour is.
+ */
+const GROUND_CLOSED_SHADOW_ALPHA = 0.3;
+/**
  * A line of the SVG globe is one to six units wide on a disc of 360 units. The texture is stretched
  * over a sphere, so a line is thinner here than its unit width in pixels would be.
  */
@@ -75,6 +100,49 @@ const GAS_COLUMNS_PER_TASK = 64;
 /** Pixel rows a layer is painted in at a time, so that no task is long. */
 const ROWS_PER_TASK = 32;
 
+/** A `#rrggbb` colour as 0..255 channels (not `space/paint`'s `hexToUnit`: 0..1 floats would round the bytes differently). */
+const rgbOf = (hex: string): Rgb => [
+  Number.parseInt(hex.slice(1, 3), 16),
+  Number.parseInt(hex.slice(3, 5), 16),
+  Number.parseInt(hex.slice(5, 7), 16),
+];
+const withAlpha = (colour: Rgb, alpha: number): Rgba => [colour[0], colour[1], colour[2], alpha];
+const hexAlpha = (hex: string, alpha: number): Rgba => withAlpha(rgbOf(hex), alpha);
+
+/** The grey of land not reached on the globe from orbit: the first land colour mixed {@link UNREACHED_GREY_MIX} toward the palette's first grey. */
+const globeGreyOf = (palette: PlanetPalette): Rgb =>
+  mixRgb(rgbOf(palette.land[0]), rgbOf(palette.grey[0]), UNREACHED_GREY_MIX);
+
+/** How far one colour is from another, over the 0..255 channels. */
+const apart = (one: Rgb, other: Rgb): number => Math.hypot(one[0] - other[0], one[1] - other[1], one[2] - other[2]);
+
+/**
+ * The grey of land not reached on the ground. The prototype's ({@link GROUND_GREY_MIX}) unless it lies within
+ * {@link GROUND_GREY_APART} of the planet's flat sea (the whole gradient from its top stop to its bottom) or of a colour a
+ * formed region wears; then the first of a lighter, then a darker grey that does not, else the one farthest from them.
+ * One colour for the whole planet, so unformed and decorative land stay the same pixels (D-109).
+ */
+export function groundGreyOf(palette: PlanetPalette): Rgb {
+  const [face, edge, line] = palette.grey.map(rgbOf) as [Rgb, Rgb, Rgb];
+  const seaTop = rgbOf(palette.flatSea[0]);
+  const seaBottom = rgbOf(palette.flatSea[1]);
+  const others = [
+    ...[0, 0.25, 0.5, 0.75, 1].map((along) => mixRgb(seaTop, seaBottom, along)),
+    ...[...palette.land, palette.lowland, palette.highland].map(rgbOf),
+  ];
+  const room = (colour: Rgb): number => Math.min(...others.map((other) => apart(colour, other)));
+  const candidates = [
+    mixRgb(face, edge, GROUND_GREY_MIX),
+    mixRgb(face, [255, 255, 255], 0.35),
+    mixRgb(edge, line, 0.6),
+    mixRgb(face, [255, 255, 255], 0.6),
+  ];
+  return (
+    candidates.find((colour) => room(colour) >= GROUND_GREY_APART) ??
+    candidates.reduce((best, colour) => (room(colour) > room(best) ? colour : best))
+  );
+}
+
 /**
  * What the globe needs of the planet's palette to compose the sea under the texture and to light it. It
  * rides on the finished texture so that the globe, which is only ever handed the texture and three
@@ -91,6 +159,12 @@ export interface WorldLook {
   readonly rim: string;
   /** The polar caps above the band's edges, or null for a planet type whose palette has none (its sea shows there). */
   readonly cap: string | null;
+  /**
+   * The grey of land not reached, over 0..255 channels: as the whole-band texture paints it (the globe's) and as the
+   * ground patch paints it ({@link groundGreyOf}). The globe's shader shifts the first to the second as the camera
+   * comes down, so the ground's grey holds past the edge of the patch.
+   */
+  readonly closedGrey: { readonly globe: Rgb; readonly ground: Rgb };
 }
 
 /** The look the globe needs of a palette (see {@link WorldLook}); the cap only for a palette that has polar caps. */
@@ -101,6 +175,7 @@ export function worldLookOf(palette: PlanetPalette): WorldLook {
     atmosphere: palette.atmosphere,
     rim: palette.rim,
     cap: palette.poleCaps ? palette.cloud[0] : null,
+    closedGrey: { globe: globeGreyOf(palette), ground: groundGreyOf(palette) },
   };
 }
 
@@ -108,7 +183,23 @@ export function worldLookOf(palette: PlanetPalette): WorldLook {
  * The pixels of a finished texture: RGBA with premultiplied alpha (open sea is 0,0,0,0), row 0 at the
  * north edge of the band, and the palette's look.
  */
-export type WorldTexture = PixelTarget & { readonly look?: WorldLook };
+export type WorldTexture = PixelTarget & {
+  readonly look?: WorldLook;
+  /**
+   * The whole-band texture only: one byte a pixel, in the texture's own pixels, 255 inside land not reached and 0
+   * elsewhere. The globe's shader reads it on the ground to recolour that land as the ground's grey
+   * ({@link WorldLook.closedGrey}). It can see which land is closed but not which closed land is decorative: there is no
+   * difference to see (D-109).
+   */
+  readonly closed?: Uint8Array;
+  /**
+   * The whole-band texture only: the weather (the clouds and their shadows) as a layer of its own, premultiplied like the
+   * texture and the same size, so the globe's shader can lay it over the land and take it away as the camera comes down
+   * to the ground, which the ground patch paints without. It is not in {@link WorldTexture}'s own pixels, which keep the
+   * land, the coast and the sea's shelf whole under it.
+   */
+  readonly weather?: PixelTarget;
+};
 
 /**
  * A rectangle of the band, in band units: `x` is the left edge and may be negative, or the window may run past
@@ -232,15 +323,6 @@ export function labelPoints(chart: Chart): readonly LabelPoint[] {
   });
 }
 
-/** A `#rrggbb` colour as 0..255 channels (not `space/paint`'s `hexToUnit`: 0..1 floats would round the bytes differently). */
-const rgbOf = (hex: string): Rgb => [
-  Number.parseInt(hex.slice(1, 3), 16),
-  Number.parseInt(hex.slice(3, 5), 16),
-  Number.parseInt(hex.slice(5, 7), 16),
-];
-const withAlpha = (colour: Rgb, alpha: number): Rgba => [colour[0], colour[1], colour[2], alpha];
-const hexAlpha = (hex: string, alpha: number): Rgba => withAlpha(rgbOf(hex), alpha);
-
 /** The same loops moved by a few world units: how a shadow sits under a shape. */
 const shifted = (loops: readonly Loop[], dx: number, dy: number): Loop[] =>
   loops.map((loop) => loop.map((value, at) => value + (at % 2 === 0 ? dx : dy)));
@@ -310,6 +392,13 @@ interface Masks {
   cloudRoom: Uint8Array;
   /** Pixels inside land not reached, kept only to make the other masks. */
   unreachedLand: Uint8Array;
+  /**
+   * The ground patch only: pixels where the pale shelf, glow and foam of a coast may go, which is everywhere but within
+   * half a shelf's width of land not reached, whose coast has the shadow instead. That includes the coast of a formed
+   * region within that reach of land not reached (where the two meet), so a gap in the foam there is this, not a bug.
+   * Empty on the whole band.
+   */
+  litCoast: Uint8Array;
 }
 
 /** How far round the point a formed region is named at (and tapped) the cloud keeps off, in band units. */
@@ -335,10 +424,12 @@ const rowTasks = (target: PixelTarget, paint: (rows: RowRange) => void): Task[] 
  * (shallows 0.35 each, glow `#ffb03a` 6 wide at 0.8, foam 3.6 wide at 0.85). The prototype draws the
  * same three strokes in `drawGlobe`: a shelf, a hot line where the palette glows, then foam.
  */
-function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
+function waterTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
   const { target, draw, widths, stroke, ground } = sheet;
-  const { world, palette } = input;
+  const { world, chart, palette } = input;
   const glow = hexAlpha('#ffb03a', 0.8);
+  // On the ground the lit coast stays off the water beside land not reached ({@link Masks.litCoast}).
+  const lit = ground ? { clip: masks.litCoast } : {};
   return [
     ...(palette.bands
       ? rangesOf(target.width, GAS_COLUMNS_PER_TASK).map(
@@ -351,9 +442,19 @@ function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
     // prototype's `drawGlobe` strokes it: white at 0.2, half of it under the land, so the deep sea shows a pale band
     // along the coast and then the foam. A fill would be dozens of points wide there.
     ...(ground
-      ? rowTasks(target, (rows) =>
-          strokeLoops(target, world.land, GROUND_SHELF, { ...draw, rows, ...stroke(widths(rows).shelf) }),
-        )
+      ? [
+          ...rowTasks(target, (rows) =>
+            strokeLoops(target, world.land, GROUND_SHELF, { ...draw, rows, ...lit, ...stroke(widths(rows).shelf) }),
+          ),
+          // The same width in shadow beside land not reached, under its grey (the land is painted over its own half).
+          ...rowTasks(target, (rows) =>
+            strokeLoops(target, unreachedLoops(chart), hexAlpha(palette.shadow, GROUND_CLOSED_SHADOW_ALPHA), {
+              ...draw,
+              rows,
+              ...stroke(widths(rows).shelf),
+            }),
+          ),
+        ]
       : [
           ...rowTasks(target, (rows) =>
             fillLoops(target, world.shallowWide, hexAlpha(palette.shallow, 0.35), { ...draw, rows }),
@@ -364,11 +465,16 @@ function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
         ]),
     ...(palette.glowCoast
       ? rowTasks(target, (rows) =>
-          strokeLoops(target, world.land, glow, { ...draw, rows, ...stroke(widths(rows).glow) }),
+          strokeLoops(target, world.land, glow, { ...draw, rows, ...lit, ...stroke(widths(rows).glow) }),
         )
       : []),
     ...rowTasks(target, (rows) =>
-      strokeLoops(target, world.land, hexAlpha(palette.foam, 0.85), { ...draw, rows, ...stroke(widths(rows).foam) }),
+      strokeLoops(target, world.land, hexAlpha(palette.foam, 0.85), {
+        ...draw,
+        rows,
+        ...lit,
+        ...stroke(widths(rows).foam),
+      }),
     ),
   ];
 }
@@ -380,9 +486,9 @@ function waterTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
  * no site and no count (D-078, D-109).
  */
 function landTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
-  const { target, draw } = sheet;
+  const { target, draw, ground } = sheet;
   const { chart, palette } = input;
-  const grey = withAlpha(mixRgb(rgbOf(palette.land[0]), rgbOf(palette.grey[0]), UNREACHED_GREY_MIX), 1);
+  const grey = withAlpha(ground ? groundGreyOf(palette) : globeGreyOf(palette), 1);
   const unreached = unreachedShapes(chart);
   return [
     ...palette.land.flatMap((hex, colour) => {
@@ -400,7 +506,7 @@ function landTasks(sheet: Sheet, input: WorldTextureInput): Task[] {
  * is grown by a coast line's width, so its coast is inside the mask and the coast of reached land is not.
  */
 function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
-  const { target, draw, widths, stroke } = sheet;
+  const { target, draw, widths, stroke, ground } = sheet;
   const { chart } = input;
   const charted = chartedShapes(chart);
   const unreached = unreachedShapes(chart);
@@ -415,9 +521,10 @@ function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
   return rowTasks(target, (rows) => {
     maskShapes(target, charted, { ...draw, rows, into: masks.charted });
     maskShapes(target, unreached, { ...draw, rows, into: masks.unreachedLand });
-    const { ink } = widths(rows);
+    const { ink, shelf } = widths(rows);
     const edge = strokeCover(target, unreachedEdges, { ...draw, rows, ...stroke(ink) });
     const coast = strokeCover(target, chartedEdges, { ...draw, rows, ...stroke(ink) });
+    const closedShelf = ground ? strokeCover(target, unreachedEdges, { ...draw, rows, ...stroke(shelf) }) : null;
     const first = rows.from * target.width;
     for (let at = 0; at < edge.length; at++) {
       const pixel = first + at;
@@ -426,6 +533,7 @@ function maskTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[]
       masks.nearUnreached[pixel] = near ? 1 : 0;
       masks.awayFromUnreached[pixel] = near ? 0 : 1;
       masks.cloudRoom[pixel] = masks.charted[pixel] === 0 && coast[at] === 0 ? 1 : 0;
+      if (closedShelf !== null) masks.litCoast[pixel] = land || closedShelf[at] !== 0 ? 0 : 1;
     }
     // Keep the cloud off the places the names go: the pixels of each label's disc that lie in these rows.
     for (const place of places) {
@@ -454,7 +562,7 @@ function detailTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task
   const { target, draw, widths, stroke, ground } = sheet;
   const { world, chart, palette } = input;
   const ink = hexAlpha(palette.ink, 0.7);
-  const grey = hexAlpha(palette.grey[2], 0.6);
+  const grey = hexAlpha(palette.grey[2], ground ? GROUND_GREY_COAST_ALPHA : 0.6);
   // The prototype's region border is 0.45 from orbit and 0.7 on the ground (`lerp(0.45, 0.7, flat)`).
   const border = hexAlpha(palette.ink, ground ? 0.7 : 0.45);
   return [
@@ -487,8 +595,8 @@ function detailTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task
  * Cumulus laid as the SVG globe's `Clouds` stacks it (shadow, cool underside, body, brighter middle,
  * sunlit core: the same offsets, alphas and colours), only where the cloud has room.
  */
-function cloudTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[] {
-  const { target, draw } = sheet;
+function cloudTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks, weather: PixelTarget): Task[] {
+  const { draw } = sheet;
   const { body, middle, core } = input.world.clouds;
   const { palette } = input;
   const layers: [readonly Loop[], Rgba][] = [
@@ -499,7 +607,7 @@ function cloudTasks(sheet: Sheet, input: WorldTextureInput, masks: Masks): Task[
     [shifted(core, -1.2, -2), hexAlpha('#ffffff', 1)],
   ];
   return layers.flatMap(([loops, colour]) =>
-    rowTasks(target, (rows) => fillLoops(target, loops, colour, { ...draw, rows, clip: masks.cloudRoom })),
+    rowTasks(weather, (rows) => fillLoops(weather, loops, colour, { ...draw, rows, clip: masks.cloudRoom })),
   );
 }
 
@@ -552,7 +660,7 @@ export function createWorldPainter(
 ): WorldPainter {
   const { world, width, height, palette, patch } = input;
   const target: PixelTarget = { width, height, data: new Uint8Array(width * height * 4) };
-  const finished: WorldTexture = { ...target, look: worldLookOf(palette) };
+  let finished: WorldTexture = { ...target, look: worldLookOf(palette) };
   const origin = patch === undefined ? { x: 0, y: 0 } : { x: patch.window.x, y: patch.window.y };
   const scale =
     patch === undefined
@@ -588,22 +696,36 @@ export function createWorldPainter(
           },
   };
   const pixels = width * height;
+  const weather: PixelTarget | null = patch === undefined ? { width, height, data: new Uint8Array(pixels * 4) } : null;
   const masks: Masks = {
     charted: new Uint8Array(pixels),
     nearUnreached: new Uint8Array(pixels),
     awayFromUnreached: new Uint8Array(pixels),
     cloudRoom: new Uint8Array(pixels),
     unreachedLand: new Uint8Array(pixels),
+    litCoast: new Uint8Array(patch === undefined ? 0 : pixels),
   };
   const tasks = [
-    ...waterTasks(sheet, input),
-    ...landTasks(sheet, input),
+    // The masks first: they draw nothing, and the ground's coast is laid by them.
     ...maskTasks(sheet, input, masks),
+    ...waterTasks(sheet, input, masks),
+    ...landTasks(sheet, input),
     ...detailTasks(sheet, input, masks),
-    ...cloudTasks(sheet, input, masks),
+    // Weather is drawn over the whole band only, in a layer of its own: on the ground there is none (the prototype's
+    // loose weather parts as the camera comes down), so a white cloud is never mistaken for land the person has opened.
+    ...(weather === null ? [] : cloudTasks(sheet, input, masks, weather)),
     ...rowTasks(target, (rows) => premultiply(target, rows)),
-    // The masks are only for painting: let go of them (five bytes a pixel) once it is done.
+    ...(weather === null ? [] : rowTasks(weather, (rows) => premultiply(weather, rows))),
+    // The whole band keeps the mask of land not reached, as the 0 and 255 the globe's shader reads, and lets go of the
+    // rest: the masks are only for painting (five bytes a pixel).
+    ...(weather === null
+      ? []
+      : rowTasks(target, (rows) => {
+          for (let at = rows.from * width; at < Math.min(rows.to, height) * width; at++)
+            masks.unreachedLand[at] = masks.unreachedLand[at] === 0 ? 0 : 255;
+        })),
     () => {
+      if (weather !== null) finished = { ...finished, closed: masks.unreachedLand, weather };
       for (const name of Object.keys(masks) as (keyof Masks)[]) masks[name] = new Uint8Array(0);
     },
   ];

@@ -33,6 +33,23 @@ export const SPRITE = 100;
 export const ANTENNA_LIGHT = { x: 0.436 * SPRITE, y: 0.241 * SPRITE, radius: 0.12 * SPRITE } as const;
 /** The yellow beacon above the antenna, 0.34 of the width over the middle, 0.22 across. */
 export const BEACON = { x: 0.5 * SPRITE, y: 0.16 * SPRITE, radius: 0.22 * SPRITE } as const;
+/**
+ * The box the two lights are drawn in: the sprite, grown on every side by as much as a light's glow reaches past it
+ * (the beacon's reaches above the top), so no glow is cut flat at the box's edge. `inset` is its top-left corner.
+ */
+export const LIGHTS_BOX = (() => {
+  const past = Math.max(
+    0,
+    ...[ANTENNA_LIGHT, BEACON].flatMap((light) => [
+      light.radius - light.x,
+      light.radius - light.y,
+      light.x + light.radius - SPRITE,
+      light.y + light.radius - SPRITE,
+    ]),
+  );
+  const margin = Math.ceil(past);
+  return { inset: -margin, size: SPRITE + 2 * margin } as const;
+})();
 /** The warm glow behind a station: its radius is 1.5 of the width. */
 export const WARM_GLOW_RADIUS = 1.5;
 

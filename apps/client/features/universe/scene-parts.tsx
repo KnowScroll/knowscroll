@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
-import { content, highlightRing, space, target, universe } from '@knowscroll/design-tokens';
+import { content, fontFamily, highlightRing, space, target, universe } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
 import type { UniverseIndex, Size, PlacedLabel } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
@@ -25,6 +25,14 @@ const LAND_HALO = '#FFFDF2';
 /** Width of a map label in 13 px semibold, estimated because text cannot be measured before it is drawn. */
 export const labelWidth = (text: string, padding = 8) => Math.ceil(text.length * 7.3) + padding;
 export const LABEL_HEIGHT = 20;
+/**
+ * A region's name on the ground is heavier and larger than anywhere else (the prototype writes it in Bricolage 800, 16 px
+ * where the planet fills the view, with a cream halo): its box is taller and wider than a plain label's so no name is cut.
+ */
+export const GROUND_LABEL = { fontSize: 16, lineHeight: 20, height: 24, charWidth: 9 } as const;
+/** Width of a ground name, estimated as {@link labelWidth} is, from the heavier 16 px type. */
+export const groundLabelWidth = (text: string, padding = 12) =>
+  Math.ceil(text.length * GROUND_LABEL.charWidth) + padding;
 /** The "you are here" pill's dot and the gap after it: a pill that holds one is this much wider. */
 export const HERE_DOT_ROOM = 12;
 
@@ -94,11 +102,14 @@ export function MapLabel({
 }: {
   readonly label: PlacedLabel;
   readonly text: string;
-  /** `land`: a name written on a planet's land in the new look, ink with a cream halo, as the prototype draws it. */
-  readonly variant?: 'plain' | 'pill' | 'selected' | 'here' | 'land';
+  /**
+   * `land`: a name written on a planet's land in the new look, ink with a cream halo, as the prototype draws it. `ground`:
+   * the same on the ground only, heavier and larger with a stronger halo (see {@link GROUND_LABEL}).
+   */
+  readonly variant?: 'plain' | 'pill' | 'selected' | 'here' | 'land' | 'ground';
   readonly calm?: boolean;
 }) {
-  const pill = variant !== 'plain' && variant !== 'land';
+  const pill = variant !== 'plain' && variant !== 'land' && variant !== 'ground';
   return (
     <View
       pointerEvents="none"
@@ -111,10 +122,23 @@ export function MapLabel({
       ]}
     >
       {variant === 'here' ? <View style={styles.hereDot} /> : null}
+      {variant === 'ground' ? (
+        // A second copy of the name under it, with its own halo, so the halo is stronger than one shadow can be.
+        <View
+          pointerEvents="none"
+          style={styles.groundHaloLayer}
+          aria-hidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Text variant="spaceLabel" color={content.ink} align="center" numberOfLines={1} style={styles.groundHalo}>
+            {text}
+          </Text>
+        </View>
+      ) : null}
       <Text
         variant="spaceLabel"
         color={
-          variant === 'selected' || variant === 'here' || variant === 'land'
+          variant === 'selected' || variant === 'here' || variant === 'land' || variant === 'ground'
             ? content.ink
             : calm
               ? space.label2
@@ -122,7 +146,15 @@ export function MapLabel({
         }
         align="center"
         numberOfLines={1}
-        style={variant === 'land' ? styles.landText : pill ? null : styles.plainText}
+        style={
+          variant === 'ground'
+            ? styles.groundText
+            : variant === 'land'
+              ? styles.landText
+              : pill
+                ? null
+                : styles.plainText
+        }
       >
         {text}
       </Text>
@@ -149,4 +181,31 @@ const styles = StyleSheet.create({
   hereDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: universe.orange },
   plainText: { textShadowColor: space.s0, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } },
   landText: { textShadowColor: LAND_HALO, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } },
+  groundText: {
+    fontFamily: fontFamily.display,
+    fontWeight: '800',
+    fontSize: GROUND_LABEL.fontSize,
+    lineHeight: GROUND_LABEL.lineHeight,
+    textShadowColor: LAND_HALO,
+    textShadowRadius: 5,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  groundHaloLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groundHalo: {
+    fontFamily: fontFamily.display,
+    fontWeight: '800',
+    fontSize: GROUND_LABEL.fontSize,
+    lineHeight: GROUND_LABEL.lineHeight,
+    textShadowColor: LAND_HALO,
+    textShadowRadius: 9,
+    textShadowOffset: { width: 0, height: 0 },
+  },
 });
