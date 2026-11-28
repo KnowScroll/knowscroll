@@ -30,6 +30,8 @@ export interface RegionEncounterOptions {
   readonly restoreFocusTo?: string | undefined;
   /** Goes to a route. The app's router by default; the developer gallery passes its own so a sample never leaves the page. */
   readonly navigate?: ((route: EncounterRoute) => void) | undefined;
+  /** Whether the Universe is still the account's to draw: once it has ended (sign-out, authority lost) nothing is focused. The session's `read.active`. Keep it the same function between renders: a new one runs the restore again. */
+  readonly isLive?: (() => boolean) | undefined;
 }
 
 /**
@@ -40,7 +42,7 @@ export interface RegionEncounterOptions {
 export function useRegionEncounter(
   displayed: AvailableRegionPreview | undefined,
   onOpen: (displayed: AvailableRegionPreview, onReturn: () => void, choice: RegionChoice) => boolean,
-  { restoreFocusTo, navigate }: RegionEncounterOptions = {},
+  { restoreFocusTo, navigate, isLive }: RegionEncounterOptions = {},
 ): RegionEncounter {
   const router = useRouter();
   const go = (route: EncounterRoute): void => (navigate ? navigate(route) : router.navigate(route));
@@ -50,11 +52,11 @@ export function useRegionEncounter(
     () => () => {
       if (restoreFocusTo === undefined) return;
       queueMicrotask(() => {
-        if (Platform.OS === 'web' && !leaving.current)
+        if (Platform.OS === 'web' && !leaving.current && (isLive?.() ?? true))
           document.querySelector<HTMLElement>(`[data-testid="${restoreFocusTo}"]`)?.focus();
       });
     },
-    [restoreFocusTo],
+    [restoreFocusTo, isLive],
   );
   return {
     open: (choice = 'encounter') => {

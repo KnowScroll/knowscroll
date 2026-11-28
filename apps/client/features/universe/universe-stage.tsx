@@ -28,6 +28,13 @@ import type { OuterFriends } from './voyage/outer/use-outer-friends';
 import type { SearchAnswer } from './voyage/search-sky';
 import { VoyageStage } from './voyage/voyage-stage';
 
+/** Out of reach of assistive technology while a map covers the stage. */
+const HIDDEN_BY_MAP = {
+  'aria-hidden': true,
+  importantForAccessibility: 'no-hide-descendants',
+  accessibilityElementsHidden: true,
+} as const;
+
 const KEY_PAN = 60;
 const KEY_ZOOM = 1.25;
 
@@ -107,6 +114,8 @@ export function UniverseStage({
   desktop = false,
   outerFriends,
   onFriend,
+  onMap,
+  mapOpen = false,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -141,11 +150,22 @@ export function UniverseStage({
   readonly outerFriends?: OuterFriends;
   /** ... and where a tap on a friend's universe goes. */
   readonly onFriend?: (handle: string) => void;
+  /** The new look only: opens the map of the whole planet (a tap on bare ground, the `M` key), where one can open. */
+  readonly onMap?: () => void;
+  /** The new look only: a map covers the stage. It stays mounted but out of reach of the keyboard, touch and assistive technology. */
+  readonly mapOpen?: boolean;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
   const responder = useMemo(() => cameraResponder(session), [session]);
   const surface = useRef<ComponentRef<typeof View>>(null);
+  const voyageRoot = useRef<ComponentRef<typeof View>>(null);
+  useEffect(() => {
+    // `aria-hidden` alone leaves the stage's tab stops and key handler reachable: on the web the stage is `inert`.
+    if (Platform.OS !== 'web') return;
+    const element = voyageRoot.current as unknown as HTMLElement | null;
+    if (element) element.inert = mapOpen;
+  }, [mapOpen]);
   const zoom = (factor: number) => {
     const frame = session.getState().frame;
     session.camera({ ...frame, scale: frame.scale * factor });
@@ -192,8 +212,10 @@ export function UniverseStage({
   if (voyage)
     return (
       <View
+        ref={voyageRoot}
         testID="universe-map"
         role="group"
+        {...(mapOpen ? { pointerEvents: 'none' as const, ...HIDDEN_BY_MAP } : {})}
         accessibilityLabel="Universe map. Arrow keys turn, plus and minus go one stop in or out. Drag the ship to a place to go there."
         onLayout={(event: LayoutChangeEvent) => {
           const { width, height } = event.nativeEvent.layout;
@@ -209,7 +231,9 @@ export function UniverseStage({
           view={view}
           visitor={visitor === true}
           onUnavailable={onUnavailable}
+          onRefused={onRefused}
           desktop={desktop}
+          {...(onMap ? { onMap } : {})}
           {...(search ? { search } : {})}
           {...(landmarksByPlanet ? { landmarksByPlanet } : {})}
           {...(outerFriends ? { outerFriends } : {})}

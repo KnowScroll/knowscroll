@@ -57,6 +57,7 @@ export function UniverseHeader({
       dot={state.lately}
       toggled={state.lately}
       variant={state.lately ? 'solid' : 'ghost'}
+      glass={voyage}
       onPress={() => session.setLately(!state.lately)}
     />
   );

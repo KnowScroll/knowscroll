@@ -43,6 +43,7 @@ import { SpaceView, type SpaceOverlayInfo } from '../space/space-view';
 import { INITIAL_FRAME } from '../universe-camera';
 import { placeLabels, type LabelRequest, type UniverseView } from '../universe-layout';
 import type { UniverseMapSession } from '../universe-session';
+import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
 import { FallInContext } from './fall-in';
 import { clampPan, type Point } from './outer/friend-field';
@@ -103,15 +104,19 @@ export function VoyageStage({
   stations,
   onStation,
   onUnavailable,
+  onRefused,
   visitor = false,
   landmarksByPlanet,
   search,
   desktop = false,
   outerFriends,
   onFriend,
+  onMap,
 }: SceneProps & {
   readonly view: UniverseView;
   readonly onUnavailable: (reason: SpaceFailure) => void;
+  /** One planet's world could not be drawn: the screen shows that planet as the plain list of its regions. */
+  readonly onRefused?: (planetId: string) => void;
   /** A friend's Universe: their planets are drawn with every continent in colour and no region named or tappable. */
   readonly visitor?: boolean;
   /** What the person has earned on each planet: its pennants stand on the globe. */
@@ -124,6 +129,11 @@ export function VoyageStage({
   readonly outerFriends?: OuterFriends;
   /** A tap on a friend's universe at the outer stop: where to go (the visit route). */
   readonly onFriend?: (handle: string) => void;
+  /**
+   * Opens the map of the whole planet: a tap on bare ground and the `M` key. Given only where a map can open (the ground
+   * of a planet with a formed region, never a friend's); the stage offers it at the ground only.
+   */
+  readonly onMap?: () => void;
 }) {
   const looks = looksOfState(state);
   // No last place: it only parks the scene's own rocket, which the voyage never shows (its ship is the driver's). Every
@@ -141,7 +151,7 @@ export function VoyageStage({
       }),
     [index, looks, stations, state.dust.cues, state.lately],
   );
-  const planet = usePlanetSurface(session, state, index, view, visitor, landmarksByPlanet);
+  const planet = usePlanetSurface(session, state, index, view, visitor, landmarksByPlanet, onRefused);
   // What each room's station is drawn from, by room id. The scene's laid-out stations carry the accent, the sky and what is
   // live that `stations` holds, so the picture and the scene read one answer.
   const stationLooks = useMemo(
@@ -187,6 +197,7 @@ export function VoyageStage({
     universeFocus: space.universeFocus,
     systemFocus: space.systemFocus,
     ...(onStation ? { onStation } : {}),
+    ...(onMap ? { onMap } : {}),
     ...(recordFlight ? { onFlight: recordFlight } : {}),
     ...(recordGesture ? { onGesture: recordGesture } : {}),
     onFlying: setFlying,
@@ -236,15 +247,18 @@ export function VoyageStage({
         stop === 'universe'
           ? undefined
           : info.anchors.find((anchor) => anchor.kind === 'system' && anchor.id === systemId);
+      const named = info.anchors.filter(namedAt(stop, systemId));
       return (
         <VoyageOverlay
-          anchors={info.anchors.filter(namedAt(stop, systemId))}
+          anchors={named}
+          calm={calmNames(named, index, state.lately)}
           written={STOPS[stop].written}
           keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
           size={size}
           focusId={focusId}
           hereId={hereId}
           onPlace={(id) => void session.focus(id)}
+          {...(onMap && stop === 'ground' ? { onGround: () => (controller.justGestured() ? undefined : onMap()) } : {})}
           onStation={(id) => onStation?.(id)}
           onDust={() => onDust?.()}
           stationLooks={stationLooks}
@@ -259,7 +273,9 @@ export function VoyageStage({
     },
     [
       session,
+      controller,
       onStation,
+      onMap,
       onDust,
       stop,
       systemId,
@@ -270,6 +286,8 @@ export function VoyageStage({
       planet,
       stationLooks,
       state.reducedMotion,
+      state.lately,
+      index,
     ],
   );
 
@@ -440,6 +458,7 @@ function usePlanetSurface(
   view: UniverseView,
   visitor: boolean,
   landmarksByPlanet: ReadonlyMap<string, readonly CollectionLandmark[]> | undefined,
+  onRefused: ((planetId: string) => void) | undefined,
 ): VoyagePlanet | null {
   const looks = looksOfState(state);
   const planet = view.kind === 'planet' ? view.planet : undefined;
@@ -449,6 +468,11 @@ function usePlanetSurface(
     [planet, index, looks],
   );
   const globe = useGlobeWorld(session, plan?.spec);
+  // The world cannot be drawn: say so once for this planet, as the old planet stage does, so the screen falls back to its list.
+  const refusedId = globe.status === 'refused' ? planet?.objectId : undefined;
+  useEffect(() => {
+    if (refusedId !== undefined) onRefused?.(refusedId);
+  }, [refusedId, onRefused]);
   return useMemo(() => {
     if (!planet || !plan || globe.status !== 'ready') return null;
     // A friend shares no regions: their planet wears every continent in colour, as the old globe drew it, so it neither
@@ -553,10 +577,12 @@ function VoyageOverlay({
   anchors,
   written,
   keepOff,
+  calm,
   size,
   focusId,
   hereId,
   onPlace,
+  onGround,
   onStation,
   onDust,
   search,
@@ -571,11 +597,15 @@ function VoyageOverlay({
   readonly written: readonly SpaceAnchor['kind'][];
   /** Where no name may sit, beside the header and the chips: a star's sun. */
   readonly keepOff: readonly Box[];
+  /** With Lately on, the stars and planets that are quiet: their names dim to 0.7. */
+  readonly calm: ReadonlySet<string>;
   readonly size: { readonly width: number; readonly height: number };
   readonly focusId: string | null;
   /** The region the ship stands on, named "you are here" under it; null above the ground. */
   readonly hereId: string | null;
   readonly onPlace: (id: string) => void;
+  /** A tap on bare ground, under every name: opens the map of the whole planet. Ground only. */
+  readonly onGround?: () => void;
   readonly onStation: (id: string) => void;
   readonly onDust: () => void;
   /** The sky's answer to an open search, drawn over everything but the buttons' touches. */
@@ -610,6 +640,18 @@ function VoyageOverlay({
   const common = search?.shows === 'common' ? new Set(search.lit ?? []) : undefined;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {/* Under every name, so a name always wins. It is neither named nor a tab stop: the chip "Map of …" is the button a keyboard and a screen reader reach, and the layer is the same wherever it lands, so it never tells a person which land is closed. */}
+      {onGround ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          focusable={false}
+          tabIndex={-1}
+          accessibilityRole="button"
+          {...HIDDEN}
+          onPress={onGround}
+          testID="voyage-ground-press"
+        />
+      ) : null}
       {common ? <CommonSky shared={[...common]} anchors={stars} size={size} /> : null}
       {stations.length > 0 ? (
         <StationLayer anchors={stations} looks={stationLooks} reducedMotion={reducedMotion} />
@@ -645,13 +687,14 @@ function VoyageOverlay({
                 testID={`voyage-name-${anchor.id}`}
                 style={[StyleSheet.absoluteFill, unshared ? UNSHARED_NAME : null]}
               >
-                <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" />
+                <MapLabel label={name} text={writtenName(anchor, hereId)} variant="plain" calm={calm.has(anchor.id)} />
               </View>
             ) : (
               <MapLabel
                 label={name}
                 text={writtenName(anchor, hereId)}
                 variant={anchor.id === hereId ? 'here' : anchor.kind === 'region' ? 'land' : 'plain'}
+                calm={calm.has(anchor.id)}
               />
             )}
             <BodyTarget

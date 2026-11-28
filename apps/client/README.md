@@ -519,6 +519,14 @@ float over it.
     anywhere skips to the end of the flight. The skip's tap target stays mounted between flights, letting touches
     through and hidden from assistive technology: a browser sends the rest of a touch to the element it began on, so a
     target removed on landing would cut off every touch that began mid-flight. Reduced motion cuts instead of flying.
+  - **The bent sky** (`sky-lens.ts`, `sky-bend.ts`, `sky-pass.ts`): the background bends round the masses in front of
+    it and the bodies never do. A solar system bends space as one mass round its planets' orbits, centred on its sun; a
+    star alone bends round its glow; a planet bends space only when it is alone at its own planet stop; nothing bends on
+    a planet's ground. The sky is on its own three.js layer; the trial's driver draws it alone into a render target,
+    draws that to the screen in one full-screen pass bent round up to six lenses (stretching the sky into arcs outside
+    a group and zooming it evenly inside, nothing mirrored; faint far smudges in the deep field give it arcs to draw), then draws the bodies and the ship over it unbent. The bend
+    moves as the masses and the view move and eases in and out. A faint deep field of 40,000 stars, in the trial look
+    only, gives it something to show. The shipping map's stars and its single pass are untouched.
   - **The planet as one world** (`globe.ts`, `world-texture.ts`): a sphere wearing the `worldmap.v1` globe band,
     painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey
     land not reached yet shows from orbit too, outlined as one shape, never named, counted or tappable. The sea is the
@@ -554,7 +562,15 @@ float over it.
     is left out until you come closer, and its button keeps it for a screen reader. Stations say what is live. Below
     the whole universe only the star you are at is named, and no name sits on its sun; from the whole universe rooms
     keep their buttons but not their written names. Names on a planet's land are ink with a cream halo.
-  - **Return to X** shows at any stop when the ship is parked somewhere other than the place in view.
+  - **Return to X** shows at any stop when the ship is parked somewhere other than the place in view, except at the
+    star of the parked planet: pressing Back from a planet lands on its star, which must not at once offer the planet
+    you just left (`returnOffered`, `voyage/return-chip.ts`). It still shows at the whole universe, and at another star
+    or planet. The old look offers it at the whole universe only.
+  - **Chips and names, finished in the new look only.** The List view chip and the Lately chip (while off) take a dark
+    glass fill (`rgba(10,20,28,0.55)`, `SpaceChip`'s `glass`) so they read over pale land; with Lately on, the written
+    names of quiet stars and planets dim to 0.7 (`calmNames`, `voyage/calm-names.ts`), as the old look's labels do;
+    names on land are not dimmed. One planet whose world cannot be drawn shows as its plain list here too
+    (`onRefused` reaches `VoyageStage`), as in the old look.
   - It drives the map's own scene through `SpaceView` with a camera driver (`voyage-driver.ts`, `SpaceCameraDriver`
     in `space-renderer.ts`); without the switch nothing of it runs and the animated steps down play as before. The
     driver is made of parts: where places stand (`voyage-chains.ts`, pure), which way the camera looks
@@ -632,6 +648,15 @@ float over it.
     (oldest profile first, the owner's leaning A). With the switch off, and on a friend's Universe, none of it exists
     and `-` and the wheel do what they did. Covered by `e2e/universe-outer-smoke.spec.ts` (390 x 844 and 1440 x 900,
     the wheel, `-`, a pinch by CDP, the three ways back, a visit, the list, the accessibility scan).
+  - **Maps of the planet** (`voyage/maps/`, `features/universe/README.md`, "The maps of a planet"; behind the switch only).
+    At the ground of your own planet a chip "Map of <planet>", the `M` key and a tap on bare ground open map 1, the
+    whole planet as a flat drawing of the ground's own world with its formed regions named and the list of them under
+    it. A region's row opens that region's own map (map 2: its land, its next Scroll or Reel and its other format with
+    Open, "you were here"); so does a region's name on the ground, which no longer opens the old region card in this
+    look. Land not reached yet is one grey shape with no name, count or press, and neither map says anything about what
+    is closed or how much is left. Back, Escape, the header's Back chip, hardware Back and the browser's Back each go
+    one step: map 2, map 1, the ground it was opened from. Looking at map 1 sends nothing; map 2 does the card's one
+    preview read. The stage under a map stays mounted but is unreachable. `e2e/universe-maps-smoke.spec.ts`.
   - Not yet: the camera's fall into a friend's Universe after the film (the map simply appears under the flash), the
     white of the way home fading over your own Universe, the prototype's desktop board in full (its rail and search card at the left, the camera held at the middle of the
     screen), moving the ship by keyboard.

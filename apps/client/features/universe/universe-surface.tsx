@@ -30,6 +30,9 @@ import { AllFriendsChip, AllFriendsSheet } from './voyage/outer/all-friends-list
 import { friendsLine } from './voyage/outer/outer-copy';
 import { useOuterStop, useOuterStopState } from './voyage/outer/outer-stop';
 import { useOuterFriends } from './voyage/outer/use-outer-friends';
+import { PlanetMapScreen } from './voyage/maps/planet-map-screen';
+import { RegionMapScreen } from './voyage/maps/region-map-screen';
+import { returnOffered, returnTarget, type ReturnTarget } from './voyage/return-chip';
 import { captionBelowGlobe } from './voyage/voyage-chains';
 import { globePlacement } from './planet/planet-globe';
 import { paletteOf } from './planet/planet-palette';
@@ -53,6 +56,9 @@ const CAPTION_TOP_SHARE = 0.62;
 const CAPTION_FULL_ROOM = 112;
 /** The air kept between the caption and the chips under it. */
 const CAPTION_GAP = 8;
+
+/** A planet with no formed region: one list, so a map's props stay the same between renders. */
+const NO_REGIONS: readonly SceneDescriptor[] = [];
 
 /** The colour of the globe's hint, from the design. */
 const HINT_COLOUR = '#B8E2E3';
@@ -138,29 +144,8 @@ export function UniverseSurface({
   const panel = wide && (state.overlay === 'outline' || state.overlay === 'search');
   const settings = wide && state.overlay === 'settings';
   const surface = useRef<ComponentRef<typeof View>>(null);
-  const previousOverlay = useRef(state.overlay);
-  useEffect(() => {
-    const previous = previousOverlay.current;
-    previousOverlay.current = state.overlay;
-    if (Platform.OS !== 'web' || !wide || (state.overlay !== null && state.overlay !== 'place')) return;
-    const trigger =
-      previous === 'settings'
-        ? 'universe-settings'
-        : previous === 'outline' || previous === 'search'
-          ? 'universe-browse'
-          : undefined;
-    if (!trigger) return;
-    // Wait until the modal has released its focus trap and the map's own focus effect has run.
-    const frame = requestAnimationFrame(() =>
-      (surface.current as unknown as HTMLElement | null)
-        ?.querySelector<HTMLElement>(`[data-testid="${trigger}"]`)
-        ?.focus(),
-    );
-    return () => cancelAnimationFrame(frame);
-  }, [state.overlay, wide]);
   const focused = places.find((place) => place.id === state.focusId);
   const picked = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
-  const regionCard = state.overlay === 'place' && focused?.kind === 'region' ? focused : undefined;
   // Landmarks, the Orbit and the next Part are the person's own: a friend's universe is given none (D-214).
   const collection = useMemo(
     () => collectionViewOf(visitor ? NO_COLLECTION : state.collection.collection, index),
@@ -222,6 +207,59 @@ export function UniverseSurface({
     if (!on) setUnavailable(null);
     session.setSimple(on);
   };
+  // The new look's maps of the planet (Round 7.3): only on the person's own landed planet, with 3D drawn.
+  const trialMaps = voyage && !visitor && !simple;
+  const mapPlanet = trialMaps && view.kind === 'planet' && view.landed ? view.planet : undefined;
+  const mapRegions = useFormedRegions(index, mapPlanet?.objectId);
+  // A map opens only for a planet with a formed region to show: none, and there is nothing to map (D-109).
+  const mapOffered = mapPlanet !== undefined && mapRegions.length > 0;
+  const regionOfMap =
+    mapPlanet && state.overlay === 'place' && view.kind === 'planet' ? view.selectedRegion : undefined;
+  const mapOpen = mapPlanet !== undefined && (state.overlay === 'planet-map' || regionOfMap !== undefined);
+  // With the maps drawn, a region's own map takes the place of its card; Simple drawing keeps the card.
+  const regionCard = state.overlay === 'place' && focused?.kind === 'region' && !mapOpen ? focused : undefined;
+  const mapLooks = useMemo(() => looksById(looks), [looks]);
+  const openMap = useCallback(() => session.showOverlay('planet-map'), [session]);
+  // Simple drawing has no planet's map: one open when the tab turns Simple closes.
+  useEffect(() => {
+    if (simple && state.overlay === 'planet-map') session.showOverlay(null);
+  }, [simple, state.overlay, session]);
+  const backOfMap = useCallback(() => void session.back(), [session]);
+  const chooseRegion = useCallback((regionId: string) => void session.focus(regionId), [session]);
+  const sessionLive = useCallback(() => session.getState().read.active, [session]);
+  // Closing the planet's map leaves the keyboard on the chip that opened it. (The region's map restores focus itself.)
+  const closedMap = useRef(false);
+  useEffect(() => {
+    const was = closedMap.current;
+    closedMap.current = state.overlay === 'planet-map';
+    if (Platform.OS !== 'web' || !was || state.overlay === 'planet-map' || mapOpen) return;
+    const frame = requestAnimationFrame(() =>
+      (surface.current as unknown as HTMLElement | null)
+        ?.querySelector<HTMLElement>('[data-testid="universe-map-open"]')
+        ?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [state.overlay, mapOpen]);
+  const previousOverlay = useRef(state.overlay);
+  useEffect(() => {
+    const previous = previousOverlay.current;
+    previousOverlay.current = state.overlay;
+    if (Platform.OS !== 'web' || !wide || (state.overlay !== null && state.overlay !== 'place') || mapOpen) return;
+    const trigger =
+      previous === 'settings'
+        ? 'universe-settings'
+        : previous === 'outline' || previous === 'search'
+          ? 'universe-browse'
+          : undefined;
+    if (!trigger) return;
+    // Wait until the modal has released its focus trap and the map's own focus effect has run.
+    const frame = requestAnimationFrame(() =>
+      (surface.current as unknown as HTMLElement | null)
+        ?.querySelector<HTMLElement>(`[data-testid="${trigger}"]`)
+        ?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [state.overlay, wide, mapOpen]);
   // The three steps down are animated (D-114); none plays under reduced motion, with Simple drawing or on the desktop layout (D02).
   const [stageSize, setStageSize] = useState<Size>({ width: 390, height: 640 });
   const placement = useMemo(() => {
@@ -448,13 +486,12 @@ export function UniverseSurface({
         })
       : [];
   // The map as it ships offers the way back from the whole universe only. The new look offers it wherever the ship is
-  // parked somewhere other than the place in view (the prototype's "Return to"), never for where you already are.
-  const showsReturn = (shown: UniverseView, id: string): boolean => {
-    if (id === state.focusId) return false;
+  // parked somewhere other than the place in view (the prototype's "Return to"), never for where you already are, and
+  // never at the star of the parked planet: Back from a planet lands there, and must not offer the planet at once.
+  const showsReturn = (shown: UniverseView, target: ReturnTarget): boolean => {
+    if (target.id === state.focusId) return false;
     if (!voyage) return shown.kind === 'universe';
-    const here =
-      shown.kind === 'planet' ? shown.planet.objectId : shown.kind === 'system' ? shown.system.objectId : null;
-    return id !== here;
+    return returnOffered(shown, target);
   };
   const chipsOf = (shown: UniverseView): ReactNode =>
     // Past the rim there is one chip, the way to every friend: nothing of your own universe is a place to go from here.
@@ -470,7 +507,15 @@ export function UniverseSurface({
     ) : !card && !sheet && !searching ? (
       <View style={styles.chips}>
         {voyage && shown.kind === 'universe' ? commonOf?.chip : null}
-        {returnTo && showsReturn(shown, returnTo.id) ? (
+        {mapOffered && shown.kind === 'planet' && shown.landed ? (
+          <SpaceChip
+            testID="universe-map-open"
+            variant="solid"
+            label={`Map of ${shown.planet.label}`}
+            onPress={openMap}
+          />
+        ) : null}
+        {returnTo && showsReturn(shown, returnTo) ? (
           <SpaceChip
             testID="universe-return"
             variant="solid"
@@ -503,6 +548,7 @@ export function UniverseSurface({
           <SpaceChip
             testID="universe-list"
             icon="list"
+            glass={voyage}
             label="List view"
             onPress={() => session.showOverlay('outline')}
           />
@@ -585,6 +631,8 @@ export function UniverseSurface({
             onSize={setStageSize}
             voyage={voyage}
             desktop={wide}
+            {...(mapOffered ? { onMap: openMap } : {})}
+            mapOpen={mapOpen}
             {...(searchAnswer ? { search: searchAnswer } : {})}
             {...(outer !== null ? { outerFriends, onFriend: outer.onFriend } : {})}
           />
@@ -592,23 +640,25 @@ export function UniverseSurface({
           {searching && !wide && !voyage ? (
             <View pointerEvents="none" testID="universe-search-dim" style={styles.searchDim} />
           ) : null}
-          <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
-            {visitor?.bar}
-            <ChromeSlot
-              player={animation.player}
-              now={header}
-              was={chrome?.headerOut && leaving ? headerOf(leaving) : undefined}
-              into={chrome?.headerIn}
-              out={chrome?.headerOut}
-            />
-            {status ? (
-              <View style={styles.status}>
-                <Tag label={status} variant="onDark" />
-              </View>
-            ) : null}
-            {/* The new look's readout stands in the column under the header, so it covers none of it at any size. */}
-            {voyage ? <FrameRateFigure /> : null}
-          </View>
+          {mapOpen ? null : (
+            <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
+              {visitor?.bar}
+              <ChromeSlot
+                player={animation.player}
+                now={header}
+                was={chrome?.headerOut && leaving ? headerOf(leaving) : undefined}
+                into={chrome?.headerIn}
+                out={chrome?.headerOut}
+              />
+              {status ? (
+                <View style={styles.status}>
+                  <Tag label={status} variant="onDark" />
+                </View>
+              ) : null}
+              {/* The new look's readout stands in the column under the header, so it covers none of it at any size. */}
+              {voyage ? <FrameRateFigure /> : null}
+            </View>
+          )}
           <ChromeSlot
             player={animation.player}
             now={caption}
@@ -617,36 +667,38 @@ export function UniverseSurface({
             out={chrome?.captionOut}
             fill
           />
-          <View
-            pointerEvents="box-none"
-            style={[styles.bottom, { paddingBottom: bottomInset }]}
-            onLayout={(event) => setBottomStackHeight(event.nativeEvent.layout.height)}
-          >
-            {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
-              <DormantNote session={session} index={index} systemId={view.system.objectId} />
-            ) : null}
-            {/* Past the rim the field takes the room: the notice is about your own map, and would stand on the friends. */}
-            {atOuter ? null : notice}
-            {sheet}
-            {panel || settings || !card ? null : (
-              <View onLayout={(event) => setCardTopInStack(event.nativeEvent.layout.y)}>{card}</View>
-            )}
-            {visitor?.footer}
-            <ChromeSlot
-              player={animation.player}
-              now={landmarkCard}
-              was={chrome?.chipsOut && leaving ? landmarkOf(leaving) : undefined}
-              into={chrome?.chipsIn}
-              out={chrome?.chipsOut}
-            />
-            <ChromeSlot
-              player={animation.player}
-              now={chips}
-              was={chrome?.chipsOut && leaving ? chipsOf(leaving) : undefined}
-              into={chrome?.chipsIn}
-              out={chrome?.chipsOut}
-            />
-          </View>
+          {mapOpen ? null : (
+            <View
+              pointerEvents="box-none"
+              style={[styles.bottom, { paddingBottom: bottomInset }]}
+              onLayout={(event) => setBottomStackHeight(event.nativeEvent.layout.height)}
+            >
+              {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
+                <DormantNote session={session} index={index} systemId={view.system.objectId} />
+              ) : null}
+              {/* Past the rim the field takes the room: the notice is about your own map, and would stand on the friends. */}
+              {atOuter ? null : notice}
+              {sheet}
+              {panel || settings || !card ? null : (
+                <View onLayout={(event) => setCardTopInStack(event.nativeEvent.layout.y)}>{card}</View>
+              )}
+              {visitor?.footer}
+              <ChromeSlot
+                player={animation.player}
+                now={landmarkCard}
+                was={chrome?.chipsOut && leaving ? landmarkOf(leaving) : undefined}
+                into={chrome?.chipsIn}
+                out={chrome?.chipsOut}
+              />
+              <ChromeSlot
+                player={animation.player}
+                now={chips}
+                was={chrome?.chipsOut && leaving ? chipsOf(leaving) : undefined}
+                into={chrome?.chipsIn}
+                out={chrome?.chipsOut}
+              />
+            </View>
+          )}
           {/* The search card opens over the same corner; the keys + and - still zoom while it is open. The new look has
           no zoom to drive: `+` and `-` move one stop, which the wheel, the names and Back do as well. */}
           {wide && !voyage && !globe && !searching ? (
@@ -665,7 +717,39 @@ export function UniverseSurface({
               />
             </View>
           ) : null}
-          {wide ? <KeyHints globe={globe} voyage={voyage} outer={atOuter} /> : null}
+          {wide && !mapOpen ? <KeyHints globe={globe} voyage={voyage} map={mapOffered} outer={atOuter} /> : null}
+          {mapOpen && mapPlanet ? (
+            <View style={StyleSheet.absoluteFill} testID="universe-maps">
+              {regionOfMap ? (
+                <RegionMapScreen
+                  session={session}
+                  planet={mapPlanet}
+                  regions={mapRegions}
+                  looks={mapLooks}
+                  region={regionOfMap}
+                  hereId={state.youWereHere}
+                  preview={state.regionPreview}
+                  cameFromMap={state.mapBehind === true}
+                  onBack={backOfMap}
+                  onRefreshPreview={session.refreshRegionPreview}
+                  onOpen={session.openRegion}
+                  restoreFocusTo="universe-map-open"
+                  isLive={sessionLive}
+                />
+              ) : (
+                <PlanetMapScreen
+                  session={session}
+                  planet={mapPlanet}
+                  systemLabel={index.byId.get(mapPlanet.parentId)?.label}
+                  regions={mapRegions}
+                  looks={mapLooks}
+                  hereId={state.youWereHere}
+                  onBack={backOfMap}
+                  onChooseRegion={chooseRegion}
+                />
+              )}
+            </View>
+          ) : null}
         </>
       )}
     </View>
@@ -752,6 +836,14 @@ function hereRegionName(index: UniverseIndex, hereRegionId: string | null, plane
   return region?.parentId === planetId ? region.label : undefined;
 }
 
+/** The formed regions of a planet, the same list between renders until the index changes. */
+function useFormedRegions(index: UniverseIndex, planetId: string | undefined): readonly SceneDescriptor[] {
+  return useMemo(
+    () => (planetId === undefined ? NO_REGIONS : (index.regions.get(planetId) ?? NO_REGIONS)),
+    [index, planetId],
+  );
+}
+
 /** What a planet in view is drawn from, and its colours; worked out again only when the planet or the reads change. */
 function usePlanetPlan(
   planet: SceneDescriptor | undefined,
@@ -764,17 +856,6 @@ function usePlanetPlan(
   );
   const palette = useMemo(() => (plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined), [plan]);
   return { plan, palette };
-}
-
-/** Where the ship is parked: the last place, or the planet of a region. A system is its own place. */
-function returnTarget(
-  index: UniverseIndex,
-  lastPlace: UniverseViewState['lastPlace'],
-): { readonly id: string; readonly label: string } | undefined {
-  const place = lastPlace ? index.byId.get(lastPlace.id) : undefined;
-  if (!place) return undefined;
-  const target = place.kind === 'region' ? (index.byId.get(place.parentId) ?? place) : place;
-  return { id: target.objectId, label: target.label };
 }
 
 /** Every planet of the system is quiet: say so kindly and offer a way back in. */
@@ -817,7 +898,7 @@ function DustNote({ onClose }: { onClose: () => void }) {
   );
 }
 
-function KeyHints({ globe, voyage, outer }: { globe: boolean; voyage: boolean; outer: boolean }) {
+function KeyHints({ globe, voyage, map, outer }: { globe: boolean; voyage: boolean; map: boolean; outer: boolean }) {
   const hint = (keys: string, action: string) => (
     <View key={action} style={styles.hint}>
       <Text variant="metaS" color={space.label} style={styles.key}>
@@ -850,6 +931,7 @@ function KeyHints({ globe, voyage, outer }: { globe: boolean; voyage: boolean; o
         {hint('← → ↑ ↓', 'turn')}
         {hint('W A S D', 'fly the ship')}
         {hint('+ −', 'one stop')}
+        {map ? hint('M', 'map of the planet') : null}
         {hint('/', 'search')}
         {hint('Esc', 'back up')}
       </View>

@@ -17,8 +17,11 @@ export interface UniverseViewState extends CameraEntry {
   /** On a planet: its landed map (U04) is showing instead of its globe (U03). A focused region is always landed. */
   readonly landed: boolean;
   readonly read: UniverseSceneState;
-  /** `collection` is the landmarks sheet (D-084); `finds` is the focused system's Reels and Scrolls (#697). */
-  readonly overlay: 'outline' | 'place' | 'search' | 'collection' | 'finds' | 'settings' | null;
+  /**
+   * `collection` is the landmarks sheet (D-084); `finds` is the focused system's Reels and Scrolls (#697); `planet-map` is
+   * the flat map of the landed planet (the new look's; only its screen opens it, and a friend's map refuses it).
+   */
+  readonly overlay: 'outline' | 'place' | 'planet-map' | 'search' | 'collection' | 'finds' | 'settings' | null;
   readonly detail: 'full' | 'low';
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
@@ -42,6 +45,8 @@ export interface UniverseViewState extends CameraEntry {
   readonly looks?: readonly SceneLook[];
   /** U04: the region the person left through its card's Open, private to this device, until they choose it again. */
   readonly youWereHere: string | null;
+  /** The region's own map (`overlay` is `place`) was opened from the planet's map, so Back returns to it. Only the new look's screens set it. */
+  readonly mapBehind?: boolean;
   /** The system whose Reels and Scrolls the `finds` sheet lists (#697). */
   readonly findsFor: string | null;
   /** The landmark the person already looked at or put away on this device: its large card stays folded (#694). */
