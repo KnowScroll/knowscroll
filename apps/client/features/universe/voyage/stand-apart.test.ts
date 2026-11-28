@@ -155,8 +155,7 @@ describe('standing apart on screen', () => {
       // A system by the left edge, its station below and to the left: the push would carry it off the screen.
       const home = sun('a', 50, 300, 12, 50);
       const stand = station('a', 30, 330, 14);
-      const [offset] = standApart({ suns: [home], stations: [stand], dust: [], stationClears: 'group', view })
-        .stations;
+      const [offset] = standApart({ suns: [home], stations: [stand], dust: [], stationClears: 'group', view }).stations;
       const placed = moved(stand, offset!);
       expect(placed.x - placed.radius).toBeGreaterThanOrEqual(8 - 1e-9);
       expect(apart(placed, { ...home, radius: home.reach })).toBeGreaterThanOrEqual(STAND_APART_GAP - CLOSE);
@@ -165,8 +164,7 @@ describe('standing apart on screen', () => {
     it('never pulls in a station whose system is off the screen', () => {
       const home = sun('a', -200, 300, 12, 50);
       const stand = station('a', -240, 300, 14);
-      const [offset] = standApart({ suns: [home], stations: [stand], dust: [], stationClears: 'group', view })
-        .stations;
+      const [offset] = standApart({ suns: [home], stations: [stand], dust: [], stationClears: 'group', view }).stations;
       expect(offset!.x).toBeLessThanOrEqual(0);
     });
   });

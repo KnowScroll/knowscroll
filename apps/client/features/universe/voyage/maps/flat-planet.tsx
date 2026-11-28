@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { Animated, Platform, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import Svg, { ClipPath, Defs, G, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { fontFamily, universe } from '@knowscroll/design-tokens';
 import type { Chart, ChartedCell, GlobeWorld } from '@knowscroll/scene-core';
@@ -370,15 +370,15 @@ export function FlatPlanet({
         ))}
       </Svg>
       {/* One press layer over the whole drawing: the answer is worked out from the tap's point, never from which shape was
-      hit, so a small region is as easy to choose as a large one. It is not a tab stop and says nothing: the list is the way in. */}
+      hit, so a small region is as easy to choose as a large one. A plain view that answers touches, not a button: on the
+      web a button carries a tab index, and nothing inside the hidden drawing may be focusable at all. The list is the way in. */}
       {onChoose === undefined ? null : (
-        <Pressable
+        <View
           ref={layer}
           style={StyleSheet.absoluteFill}
-          accessible={false}
-          focusable={false}
-          tabIndex={-1}
-          onPress={choose}
+          onStartShouldSetResponder={() => true}
+          onResponderTerminationRequest={() => true}
+          onResponderRelease={choose}
           testID="flat-planet-press"
         />
       )}

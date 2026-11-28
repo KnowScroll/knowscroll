@@ -66,6 +66,8 @@ for (const size of [
     await expect(page.getByRole('button', { name: 'Map of CI planet 2' })).toBeVisible({ timeout: 30_000 });
     await expect(current(page)).toHaveAttribute('aria-label', 'Go to Ground');
     await landed(page);
+    // The rail keeps names off what it draws, never off the pill under the landed ship.
+    await expect(page.getByText('CI region 4 · you are here')).toBeVisible({ timeout: 30_000 });
 
     // From the ground, the star in one flight; then the whole universe.
     await stop(page, 'Star').click();

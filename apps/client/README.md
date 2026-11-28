@@ -514,7 +514,8 @@ float over it.
     it to its stop, then the camera eases to where they have taken it. A pinch out from a star keeps it alone; the
     other stars come in with the flight it asks for.
     The wheel and `+`/`-` move one stop; the Back pill and Escape climb one stop, the ground to its globe first
-    (`climbOneStop`). On the web the stage takes every touch (`touch-action: none`), so a pinch never zooms the page.
+    (`climbOneStop`). The level rail at the right edge (`rail-stops.ts`, `level-rail.tsx`) has a dot for each stop you
+    can reach from where you are, the current one yellow and named, each a button "Go to …" that flies there. On the web the stage takes every touch (`touch-action: none`), so a pinch never zooms the page.
     While the camera flies one line says where it is going ("Going to X · tap to skip", read out once), and a tap
     anywhere skips to the end of the flight. The skip's tap target stays mounted between flights, letting touches
     through and hidden from assistive technology: a browser sends the rest of a touch to the element it began on, so a
@@ -525,7 +526,8 @@ float over it.
     a planet's ground. The sky is on its own three.js layer; the trial's driver draws it alone into a render target,
     draws that to the screen in one full-screen pass bent round up to six lenses (stretching the sky into arcs outside
     a group and zooming it evenly inside, nothing mirrored; faint far smudges in the deep field give it arcs to draw), then draws the bodies and the ship over it unbent. The bend
-    moves as the masses and the view move and eases in and out. A faint deep field of 40,000 stars, in the trial look
+    moves as the masses and the view move and eases in and out. Groups that overlap on screen bend as one mass round
+    them all, so no part of the sky is bent twice. A faint deep field of 40,000 stars, in the trial look
     only, gives it something to show. The shipping map's stars and its single pass are untouched.
   - **The planet as one world** (`globe.ts`, `world-texture.ts`): a sphere wearing the `worldmap.v1` globe band,
     painted into a pixel array a few milliseconds per frame, Mercator in latitude so continents keep their shape. Grey
@@ -558,7 +560,9 @@ float over it.
     go would go is the place the finger is nearest (a body's edge, not its middle), so a room beside its star is still
     the room. A fall ends where it is when a flight, a pinch or a turn takes the view, and a body past the edge of
     the ship's room is reached at that edge. While held, the place it would go to
-    glows, faint at the edge of a pull and full where letting go would go there. The springs step at most 1/120 s, so
+    glows, faint at the edge of a pull and full where letting go would go there. A ship held inside a body's fall ring
+    is taken from the hand after a moment (a quarter of a second near the body, longer toward the ring's edge, at once
+    under reduced motion), drawn in and flown to, as if let go; the rest of that touch leaves it be. The springs step at most 1/120 s, so
     the ship moves the same at any frame rate, and it is told where places are as each frame is projected
     (`SpaceView`'s `onAnchors`), not after React shows them. A finger that moves less than 6 pt is a tap (it calls the
     ship home), and a second finger lets go of the ship and pinches. W A S D fly the ship from the keyboard (22 pt a
@@ -627,6 +631,9 @@ float over it.
     change). It is as wide as its anchor's radius on screen times 2.6, between 18 and 150 points (the prototype's
     `clamp(46 * s, 18, 150)`): about 62 points at a star, as at the prototype's room stop, and smaller from the whole
     universe. The station still sits beside its one system and its 48 point button, named "Name, a room", opens the room.
+    It stands in open space off that system, clear of its planets' orbits and of every sun on screen by 12 points, and a
+    forming dust cloud stands clear of the suns and stations the same way (`stand-apart.ts`, `stand-apart-scene.ts`):
+    each frame the driver slides them in the camera's plane from where the shared model placed them.
     The room's own face stays: its accent colours the ring (a near-black accent is lifted so it can be seen). A station
     with a `sky` (a member's, D-174) shows the prototype's seven lights round it, lit as many as the room has, once it is
     34 points wide or more (they fade in to 70); an outsider's station shows none, and no count or score. A live

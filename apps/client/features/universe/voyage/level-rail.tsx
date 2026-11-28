@@ -19,20 +19,30 @@ const PILL_EXTRA = 40;
 const railTop = (height: number, desktop: boolean): number =>
   Math.round(height * (desktop ? RAIL_TOP_SHARE.desktop : RAIL_TOP_SHARE.phone));
 
-/** The box the rail takes on a stage of `size`, so the names of places keep out from under it. */
-export function railBox(
+/** A stop's mark is this tall, centred in its row; a dot's mark is this wide (the dot and its padding). */
+const MARK_HEIGHT = 30;
+const DOT_MARK = 15;
+
+/**
+ * What the rail draws on a stage of `size`, a box per stop, so the names of places keep out from under it: the dots
+ * are narrow, and only the current stop's name is wide. Its buttons' wider touch targets are left out on purpose: a
+ * name may sit beside a dot, and the "you are here" pill under the ship must not be dropped for a target.
+ */
+export function railBoxes(
   stops: readonly RailStop[],
   size: { readonly width: number; readonly height: number },
   desktop: boolean,
-): { readonly x: number; readonly y: number; readonly width: number; readonly height: number } {
-  const current = stops.find((stop) => stop.current);
-  const width = Math.max(STOP_TARGET, current === undefined ? 0 : current.name.length * NAME_LETTER + PILL_EXTRA);
-  return {
-    x: size.width - RAIL_RIGHT - width,
-    y: railTop(size.height, desktop),
-    width,
-    height: stops.length * STOP_TARGET,
-  };
+): { readonly x: number; readonly y: number; readonly width: number; readonly height: number }[] {
+  const top = railTop(size.height, desktop);
+  return stops.map((stop, row) => {
+    const width = stop.current ? stop.name.length * NAME_LETTER + PILL_EXTRA : DOT_MARK;
+    return {
+      x: size.width - RAIL_RIGHT - width,
+      y: top + row * STOP_TARGET + (STOP_TARGET - MARK_HEIGHT) / 2,
+      width,
+      height: MARK_HEIGHT,
+    };
+  });
 }
 
 /**
@@ -88,7 +98,7 @@ export function LevelRail({
 const styles = StyleSheet.create({
   rail: { position: 'absolute', right: RAIL_RIGHT, alignItems: 'flex-end' },
   stop: { minWidth: STOP_TARGET, height: STOP_TARGET, alignItems: 'flex-end', justifyContent: 'center' },
-  mark: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 30, paddingHorizontal: 4 },
+  mark: { flexDirection: 'row', alignItems: 'center', gap: 8, height: MARK_HEIGHT, paddingHorizontal: 4 },
   currentMark: { paddingLeft: 10, paddingRight: 6, borderRadius: 999, backgroundColor: NAME_PILL },
   name: { fontSize: 10, lineHeight: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
   dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: DOT },

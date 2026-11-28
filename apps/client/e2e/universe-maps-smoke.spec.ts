@@ -131,7 +131,8 @@ test('on the planet’s map every region is a target of at least 44 points and t
   await toGround(page, SIZES[0], []);
   await openMapByChip(page);
   await expect(page.getByTestId('flat-planet-press')).toHaveCount(1);
-  await expect(page.getByTestId('flat-planet-press')).toHaveAttribute('tabindex', '-1');
+  // Not focusable at all, as nothing in the hidden drawing is.
+  await expect(page.getByTestId('flat-planet-press')).not.toHaveAttribute('tabindex');
   // Each formed region's dashed border is one path: where each region is on the page, in points.
   const boxes = await page.locator('[data-testid="flat-planet"] path[stroke-dasharray]').evaluateAll((paths) =>
     paths.map((path) => {

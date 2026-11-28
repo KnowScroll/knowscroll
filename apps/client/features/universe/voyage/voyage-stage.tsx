@@ -56,7 +56,7 @@ import type { UniverseMapSession } from '../universe-session';
 import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
 import { goToStop, railOf } from './rail-stops';
-import { LevelRail, railBox } from './level-rail';
+import { LevelRail, railBoxes } from './level-rail';
 import { NOWHERE, type Stands } from './ground-home';
 import { GROUND_SIZE, shipBoxOf } from './ship-ground';
 import { createVoyageController, type VoyageController, type VoyageInputs } from './voyage-controller';
@@ -275,15 +275,18 @@ export function VoyageStage({
           anchors={named}
           calm={calmNames(named, index, state.lately)}
           written={STOPS[stop].written}
-          keepOff={[railBox(rail, size, desktop), ...(sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : [])]}
+          keepOff={[
+            ...railBoxes(rail, size, desktop),
+            ...(sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []),
+          ]}
           size={size}
           focusId={focusId}
           hereId={hereId}
           hereAt={hereAt}
           ground={stop === 'ground'}
           onPlace={(id) => void session.focus(id)}
-          {...((stop === 'planet' || stop === 'ground') &&
-          ((planet?.labels.length ?? 0) > 0 || (stop === 'ground' && onMap !== undefined))
+          {...((stop === 'planet' && !visitor) ||
+          (stop === 'ground' && ((planet?.labels.length ?? 0) > 0 || onMap !== undefined))
             ? { onBare: controller.tapBare }
             : {})}
           onStation={(id) => onStation?.(id)}
@@ -318,6 +321,7 @@ export function VoyageStage({
       index,
       rail,
       desktop,
+      visitor,
     ],
   );
 

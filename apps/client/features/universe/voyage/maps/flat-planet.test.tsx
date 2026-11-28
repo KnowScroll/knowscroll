@@ -190,7 +190,7 @@ describe('choosing a region by a tap on the flat drawing', () => {
   const sites = [0, 2, 3, 5];
   /** A press at a point of the band on the whole-band drawing, as the press layer reports it. */
   const pressAtBand = (x: number, y: number) =>
-    fireEvent.press(screen.getByTestId('flat-planet-press', HIDDEN), {
+    fireEvent(screen.getByTestId('flat-planet-press', HIDDEN), 'responderRelease', {
       nativeEvent: { locationX: (x * size.width) / WHOLE_BAND.width, locationY: (y * size.height) / WHOLE_BAND.height },
     });
 
@@ -214,14 +214,15 @@ describe('choosing a region by a tap on the flat drawing', () => {
   it('chooses nothing from a press that carries no point', async () => {
     const onChoose = jest.fn();
     await render(<FlatPlanet {...props(sites, { onChoose })} />);
-    await fireEvent.press(screen.getByTestId('flat-planet-press', HIDDEN));
+    await fireEvent(screen.getByTestId('flat-planet-press', HIDDEN), 'responderRelease', { nativeEvent: {} });
     expect(onChoose).not.toHaveBeenCalled();
   });
 
-  it('is not a tab stop and has no name of its own', async () => {
+  it('is not focusable at all and has no name or role of its own', async () => {
     await render(<FlatPlanet {...props(sites, { onChoose: jest.fn() })} />);
     const layer = screen.getByTestId('flat-planet-press', HIDDEN);
-    expect(layer.props.tabIndex).toBe(-1);
+    expect(layer.props.tabIndex).toBeUndefined();
+    expect(layer.props.accessibilityRole).toBeUndefined();
     expect(layer.props.accessibilityLabel).toBeUndefined();
   });
 });
