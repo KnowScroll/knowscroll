@@ -63,6 +63,20 @@ void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(tim
 
 export const STAR_FRAGMENT = /* glsl */ `uniform float opacity; varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = pow(smoothstep(.5, 0.0, d), 1.6); gl_FragColor = vec4(vC * a * vA * opacity * 1.35, 1.0); }`;
 
+/**
+ * The deep field's far smudges (the trial look's bent sky only): faint soft ovals, each turned its own way, drawn as
+ * point sprites. Round stars bend into blurs; an oval is stretched round a mass into an arc, which is what the eye reads
+ * as a bend. `aPh` (0 to 1) is the oval's angle.
+ */
+export const SMUDGE_VERTEX = /* glsl */ `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr;
+varying vec3 vC; varying float vTurn;
+void main(){ vC = aCol; vTurn = aPh * 3.14159; gl_PointSize = aSize * pr; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+
+export const SMUDGE_FRAGMENT = /* glsl */ `uniform float opacity; varying vec3 vC; varying float vTurn;
+void main(){ vec2 p = gl_PointCoord - .5; float c = cos(vTurn), s = sin(vTurn);
+  vec2 q = vec2(c * p.x + s * p.y, (-s * p.x + c * p.y) * 2.2); float a = pow(smoothstep(.5, 0.0, length(q)), 1.5);
+  gl_FragColor = vec4(vC * a * opacity, 1.0); }`;
+
 /** Cartoon nebula: crisp candy dots with a shine, spiralling inward along arms. */
 export const NEBULA_VERTEX = /* glsl */ `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; attribute vec3 aCol;
 uniform float time; uniform float R; uniform float pr; uniform float arms; varying vec3 vC; varying float vA;

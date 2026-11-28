@@ -61,6 +61,13 @@ const SHIP_KEYS: Readonly<Record<string, readonly [number, number]>> = {
   s: [0, 1],
   d: [1, 0],
 };
+/**
+ * A press this soon after a finger last took the ship, turned the land or pinched is the end of that gesture, not a tap on
+ * bare ground: a browser sends a click when a pointer is lifted over the element it went down on, even after a drag.
+ */
+const AFTER_GESTURE_MS = 350;
+/** The key that opens the map of the whole planet, at the ground. */
+const MAP_KEY = 'm';
 /** Each press moves the ship this far, in points; a held key repeats. */
 const SHIP_KEY_STEP = 22;
 /** The ship flown by keys is let go this long after the last of them, as a lifted finger lets it go. */
@@ -118,6 +125,8 @@ export interface VoyageInputs {
   readonly systemFocus: (systemId: string) => Extract<RigFocus, { kind: 'system' }> | undefined;
   /** Opens a room: what a tap on its station does, and what letting the ship go over it does. */
   readonly onStation?: (id: string) => void;
+  /** Opens the map of the whole planet: what `M` does. Given only where a map can open (the ground of a planet with a formed region). */
+  readonly onMap?: () => void;
   /** Told of each flight once it lands, when the frame-rate readout is on. */
   readonly onFlight?: (leg: FlightLeg) => void;
   /** Told when a flight starts and when it lands, so the screen can say where it is going. */
@@ -257,6 +266,8 @@ export interface VoyageController {
   wheel(deltaY: number): void;
   /** A key the focused map heard. Returns whether it acted on it. */
   key(name: string): boolean;
+  /** Whether a finger took the ship, turned the land or pinched a moment ago: a press now is the end of that, not a tap on bare ground. */
+  justGestured(): boolean;
   /** Ends the flight under way at once: the camera is where it was going. A property, so the stage can hand it on. */
   readonly skip: () => void;
   /** Stops what the controller started outside React (the wheel's rest timer). Call it when the stage goes. */
@@ -480,7 +491,9 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
     else tell('ship let go in empty sky → stays');
   };
 
+  let gesturedAt = Number.NEGATIVE_INFINITY;
   const act = (gesture: StageGesture) => {
+    gesturedAt = performance.now();
     switch (gesture.kind) {
       case 'ship-take':
         // A finger takes the ship from the keys: it is the finger's to let go now.
@@ -666,12 +679,17 @@ export function createVoyageController(first: VoyageInputs): VoyageController {
         '-': () => climbOneStop(session, view),
         Home: () => void session.focusLast(),
       };
+      if (name.toLowerCase() === MAP_KEY && inputs.onMap !== undefined) {
+        inputs.onMap();
+        return true;
+      }
       const shipKey = name.length === 1 ? SHIP_KEYS[name.toLowerCase()] : undefined;
       if (shipKey !== undefined) return flyShipBy(shipKey[0], shipKey[1]);
       const action = Object.hasOwn(actions, name) ? actions[name] : undefined;
       action?.();
       return action !== undefined;
     },
+    justGestured: () => performance.now() - gesturedAt < AFTER_GESTURE_MS,
     skip() {
       control.skips += 1;
     },

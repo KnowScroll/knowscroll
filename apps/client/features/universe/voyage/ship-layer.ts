@@ -223,6 +223,8 @@ export function createShipLayer(): ShipLayer {
     depthTest: false,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
+    // The layer's camera is y-down, which flips the winding: a sprite is back-face culled unless it is drawn both sides.
+    side: THREE.DoubleSide,
   });
   materials.push(glowMaterial);
 
@@ -234,6 +236,8 @@ export function createShipLayer(): ShipLayer {
     transparent: true,
     depthTest: false,
     depthWrite: false,
+    // The layer's camera is y-down, which flips the winding: a sprite is back-face culled unless it is drawn both sides.
+    side: THREE.DoubleSide,
   });
   materials.push(catchMaterial);
   const catchGlow = new THREE.Sprite(catchMaterial);

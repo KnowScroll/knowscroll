@@ -84,6 +84,8 @@ export interface VoyageOptions {
   readonly rooms?: boolean | 'live';
   /** Two landmarks earned on CI planet 2 (a gold and a plain), so its pennants stand on its globe. */
   readonly landmarks?: boolean;
+  /** A region's preview also holds the same explanation in the other format (a Scroll), as it does when asked for it. */
+  readonly alternate?: boolean;
   /** CI system 0 has had nothing new for a month: Lately calms it. */
   readonly quiet?: boolean;
 }
@@ -248,7 +250,8 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
     if (path.endsWith('/region/preview'))
       return route.fulfill({
         json: {
-          ...body,
+          // The request's `alternate: true` asks for a twin; echoing it back is not one.
+          ...Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'alternate')),
           scope: { universeId: fixtureAccount.universeId, privacyEpoch: 1, personalWatermark: 40 },
           recordedAt: '2026-10-22T00:00:00.000Z',
           geographyRevision: 3,
@@ -263,6 +266,20 @@ export async function openVoyage(page: Page, paths: string[], options: VoyageOpt
               language: 'en',
             },
           },
+          ...(options.alternate === true && body['alternate'] === true
+            ? {
+                alternate: {
+                  assetId: '0199a000-0000-7000-8000-000000000501',
+                  assetRevision: 1,
+                  metadata: {
+                    kind: 'scroll',
+                    title: 'CI card title, as a Scroll',
+                    summary: 'Authored fixture text, not generated content.',
+                    language: 'en',
+                  },
+                },
+              }
+            : {}),
         },
       });
     if (path.endsWith('/formation/read'))
