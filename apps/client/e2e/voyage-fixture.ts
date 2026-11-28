@@ -90,6 +90,8 @@ export interface VoyageOptions {
   readonly quiet?: boolean;
   /** How many unlabelled dust cues the emerging read returns: each is a forming cloud past the systems. */
   readonly dust?: number;
+  /** Eight more systems, close together on a grid, so their groups meet on screen (a crowded sky). */
+  readonly crowded?: boolean;
 }
 
 /**
@@ -200,7 +202,10 @@ export async function shot(page: Page, name: string): Promise<void> {
  */
 export async function openVoyage(page: Page, paths: string[], options: VoyageOptions = {}): Promise<void> {
   // Three systems, and a planet with four formed regions.
-  const world = sceneFixture(5, options.dust ?? 0, 3, 2);
+  const world =
+    options.crowded === true
+      ? sceneFixture(5, options.dust ?? 0, 3, 8, { columns: 3, spacing: 330 })
+      : sceneFixture(5, options.dust ?? 0, 3, 2);
   if (options.landmarks === true) {
     const earned = { revision: 1, earnedAt: '2026-11-01T00:00:00.000Z', topicId: 'earth.seasons' };
     world.collection.landmarks = [

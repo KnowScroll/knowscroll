@@ -47,6 +47,8 @@ import { placeLabels, type LabelRequest, type UniverseView } from '../universe-l
 import type { UniverseMapSession } from '../universe-session';
 import { calmNames } from './calm-names';
 import { STOPS, targetOf, type Stop } from './ladder';
+import { goToStop, railOf } from './rail-stops';
+import { LevelRail, railBox } from './level-rail';
 import { NOWHERE, type Stands } from './ground-home';
 import { GROUND_SIZE, shipBoxOf } from './ship-ground';
 import { createVoyageController, type VoyageController, type VoyageInputs } from './voyage-controller';
@@ -220,6 +222,10 @@ export function VoyageStage({
 
   const systemId = inputs.target.systemId;
   const stop = inputs.target.stop;
+  const rail = useMemo(
+    () => railOf(stop, { otherUniverses: outer !== null, ground: !visitor }),
+    [stop, outer, visitor],
+  );
   /** The place the camera is at: its name wins a crowded spot. */
   const focusId = inputs.target.regionId ?? inputs.target.planetId ?? inputs.target.systemId;
   /** On the ground, the opened region the ship stands on: its name is a "you are here" pill under the ship. */
@@ -261,7 +267,7 @@ export function VoyageStage({
           anchors={named}
           calm={calmNames(named, index, state.lately)}
           written={STOPS[stop].written}
-          keepOff={sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : []}
+          keepOff={[railBox(rail, size, desktop), ...(sun?.visible === true ? [squareAround(sun, SUN_CLEARANCE)] : [])]}
           size={size}
           focusId={focusId}
           hereId={hereId}
@@ -299,6 +305,8 @@ export function VoyageStage({
       state.reducedMotion,
       state.lately,
       index,
+      rail,
+      desktop,
     ],
   );
 
@@ -359,6 +367,13 @@ export function VoyageStage({
           reducedMotion={state.reducedMotion}
         />
       ) : null}
+      {/* Under the flight's skip target: a tap anywhere during a flight skips it, the rail's included. */}
+      <LevelRail
+        stops={rail}
+        height={size.height}
+        desktop={desktop}
+        onGo={(to) => void goToStop(session, view, stop, to, outer)}
+      />
       <FlightLine to={flying ? destinationOf(view, visitor, outerOn) : null} size={size} onSkip={controller.skip} />
     </View>
   );

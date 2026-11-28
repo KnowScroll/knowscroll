@@ -72,22 +72,113 @@ export function wantedMasses(target: LensTarget, masses: readonly LensMass[]): M
   return wanted;
 }
 
-/** The `max` widest lenses among `masses`, each as strong as its eased `weights` entry says (0 to 1); absent is none. */
+/**
+ * The `max` widest lenses among `masses`, each as strong as its eased `weights` entry says (0 to 1); absent is none.
+ * Groups that overlap on screen bend as one ({@link mergeOverlapping}) before the widest are kept.
+ */
 export function strongestLenses(
   masses: readonly LensMass[],
   weights: ReadonlyMap<string, number>,
   max: number,
 ): Lens[] {
-  return masses
+  const lenses = masses
     .map((mass) => ({
       x: mass.x,
       y: mass.y,
       radius: mass.radiusPx,
       einstein: EINSTEIN_SHARE * mass.radiusPx * (weights.get(mass.id) ?? 0),
     }))
-    .filter((lens) => lens.einstein > 0 && lens.radius >= LENS_MIN_PX)
+    .filter((lens) => lens.einstein > 0 && lens.radius >= LENS_MIN_PX);
+  return mergeOverlapping(lenses)
     .sort((a, b) => b.radius - a.radius)
     .slice(0, max);
+}
+
+/** A circle on screen: a lens's group, or the circle round several. */
+interface Circle {
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+}
+
+/**
+ * A circle round all of `circles`: centred where their areas balance, as wide as the farthest edge from there. Not the
+ * smallest such circle, but it holds every one and is the circle itself for one.
+ */
+function circleRound(circles: readonly Circle[]): Circle {
+  let area = 0;
+  let x = 0;
+  let y = 0;
+  for (const circle of circles) {
+    const weight = circle.radius * circle.radius;
+    area += weight;
+    x += circle.x * weight;
+    y += circle.y * weight;
+  }
+  x /= area;
+  y /= area;
+  let radius = 0;
+  for (const circle of circles) radius = Math.max(radius, Math.hypot(circle.x - x, circle.y - y) + circle.radius);
+  return { x, y, radius };
+}
+
+const overlap = (a: Circle, b: Circle): boolean => Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius;
+
+/**
+ * Lenses whose groups overlap on screen become one lens, so no part of the sky is bent twice (the owner, 28 November:
+ * crowded systems "as in a galaxy" must not make the bends overlap). While two groups' circles overlap they join, and a
+ * joined group's circle round its members may meet another, which joins too. Whether groups join is a matter of where
+ * they are, never of how strong: so a group fading out at another stop stays joined until it is gone.
+ *
+ * A joined lens's mass is the sum of its members' masses (a lens's mass goes as its Einstein radius squared), held to
+ * {@link EINSTEIN_SHARE} of its circle, so it never mirrors. It is centred where the masses balance and reaches the
+ * farthest member's edge, each member counting by its eased weight, so a member fading in or out moves the joined lens
+ * smoothly from the circle without it to the circle with it.
+ */
+export function mergeOverlapping(lenses: readonly Lens[]): Lens[] {
+  if (lenses.length < 2) return [...lenses];
+  let groups: Lens[][] = lenses.map((lens) => [lens]);
+  for (let joined = true; joined;) {
+    joined = false;
+    const circles = groups.map(circleRound);
+    outer: for (let a = 0; a < groups.length; a += 1)
+      for (let b = a + 1; b < groups.length; b += 1)
+        if (overlap(circles[a]!, circles[b]!)) {
+          groups = [
+            ...groups.slice(0, a),
+            [...groups[a]!, ...groups[b]!],
+            ...groups.slice(a + 1, b),
+            ...groups.slice(b + 1),
+          ];
+          joined = true;
+          break outer;
+        }
+  }
+  return groups.map((members) => (members.length === 1 ? members[0]! : joinedLens(members)));
+}
+
+/** One lens for overlapping `members`: see {@link mergeOverlapping}. */
+function joinedLens(members: readonly Lens[]): Lens {
+  let mass = 0;
+  let x = 0;
+  let y = 0;
+  for (const lens of members) {
+    const weight = lens.einstein * lens.einstein;
+    mass += weight;
+    x += lens.x * weight;
+    y += lens.y * weight;
+  }
+  x /= mass;
+  y /= mass;
+  // A member's eased weight is its Einstein radius as a share of the most its group can have; it counts beside the
+  // strongest member's, so members easing in or out together keep the circle round them all, as one lens would.
+  const weightOf = (lens: Lens) => lens.einstein / (EINSTEIN_SHARE * lens.radius);
+  let strongest = 0;
+  for (const lens of members) strongest = Math.max(strongest, weightOf(lens));
+  let radius = 0;
+  for (const lens of members)
+    radius = Math.max(radius, (weightOf(lens) / strongest) * (Math.hypot(lens.x - x, lens.y - y) + lens.radius));
+  return { x, y, radius, einstein: Math.min(EINSTEIN_SHARE * radius, Math.sqrt(mass)) };
 }
 
 /** GLSL's `smoothstep`. */
