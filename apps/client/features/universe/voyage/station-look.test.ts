@@ -3,6 +3,7 @@ import {
   blinkFrames,
   HOVER_AMPLITUDE,
   hoverFrames,
+  LIGHTS_BOX,
   phaseOf,
   pulseFrames,
   ringColours,
@@ -11,6 +12,8 @@ import {
   skyLights,
   STATION_MAX,
   STATION_MIN,
+  ANTENNA_LIGHT,
+  BEACON,
   stationLookOf,
   stationSize,
 } from './station-look';
@@ -150,5 +153,19 @@ describe('the clock keyframes', () => {
     const { outputRange } = pulseFrames();
     expect(Math.min(...outputRange)).toBeGreaterThanOrEqual(0.8 - 1e-9);
     expect(Math.max(...outputRange)).toBeLessThanOrEqual(1.7 + 1e-9);
+  });
+});
+
+describe('the box the lights are drawn in', () => {
+  it('holds every light’s glow whole, the beacon’s top included', () => {
+    const { inset, size } = LIGHTS_BOX;
+    for (const light of [ANTENNA_LIGHT, BEACON]) {
+      expect(light.x - light.radius).toBeGreaterThanOrEqual(inset);
+      expect(light.y - light.radius).toBeGreaterThanOrEqual(inset);
+      expect(light.x + light.radius).toBeLessThanOrEqual(inset + size);
+      expect(light.y + light.radius).toBeLessThanOrEqual(inset + size);
+    }
+    // The beacon reaches 6 points above the sprite: the box starts at least that far up.
+    expect(inset).toBeLessThanOrEqual(BEACON.y - BEACON.radius);
   });
 });

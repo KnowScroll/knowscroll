@@ -10,6 +10,7 @@ import {
   HOVER_PERIOD_MS,
   hoverFrames,
   IDLE_LIGHT,
+  LIGHTS_BOX,
   LIVE_LIGHT,
   PULSE_PERIOD_MS,
   pulseFrames,
@@ -158,7 +159,12 @@ const StationMark = memo(function StationMark({
           </Animated.View>
         ) : (
           <Animated.View style={[styles.spriteFill, { opacity: light }]}>
-            <Svg width={SPRITE} height={SPRITE} viewBox={`0 0 ${SPRITE} ${SPRITE}`}>
+            <Svg
+              width={LIGHTS_BOX.size}
+              height={LIGHTS_BOX.size}
+              viewBox={`${LIGHTS_BOX.inset} ${LIGHTS_BOX.inset} ${LIGHTS_BOX.size} ${LIGHTS_BOX.size}`}
+              style={styles.lights}
+            >
               <Defs>
                 <RadialGradient id="ks-station-light" cx="50%" cy="50%" r="50%">
                   <Stop offset="0" stopColor="#FFA3CF" stopOpacity={0.9} />
@@ -325,6 +331,7 @@ const styles = StyleSheet.create({
   mark: { position: 'absolute', width: 0, height: 0 },
   sprite: { position: 'absolute', left: -SPRITE / 2, top: -SPRITE / 2, width: SPRITE, height: SPRITE },
   spriteFill: { position: 'absolute', left: 0, top: 0, width: SPRITE, height: SPRITE },
+  lights: { position: 'absolute', left: LIGHTS_BOX.inset, top: LIGHTS_BOX.inset },
   warm: { position: 'absolute', left: -SPRITE * (WARM_GLOW_RADIUS - 0.5), top: -SPRITE * (WARM_GLOW_RADIUS - 0.5) },
   /** The red glow's box is centred on the antenna light, so a scale swells it about that light. */
   antenna: {
